@@ -7,13 +7,13 @@ from classification import Classifier
 from dimensionality_reduction import DimensionalityReducer
 from visualizer import Visualizer
 class WineAnalysis:
-    def __init__(self, file_path=None, data_dict=None, max_rows=None):
+    def __init__(self, file_path=None, data_dict=None, normalize=True):
         if file_path:
             script_dir = os.path.dirname(__file__)
             self.file_path = os.path.join(script_dir, file_path)
             if not os.path.isfile(self.file_path):
                 raise FileNotFoundError(f"The file {self.file_path} does not exist.")
-            self.data_loader = DataLoader(self.file_path)
+            self.data_loader = DataLoader(self.file_path, normalize=normalize)
             self.data = self.data_loader.get_standardized_data()
             # if self.data_loader.df.max().max() > 1:
             #     self.data = self.data_loader.get_standardized_data()
@@ -44,7 +44,7 @@ class WineAnalysis:
         tsne_result = reducer.tsne()
         tsne_df = pd.DataFrame(data=tsne_result, columns=['t-SNE Component 1', 't-SNE Component 2'], index=self.labels)
         title = f'tSNE on {self.chem_name}; {len(self.data)} wines'
-        Visualizer.plot_results(tsne_df, title, 't-SNE Component 1', 't-SNE Component 2')
+        Visualizer.plot_2d_results(tsne_df, title, 't-SNE Component 1', 't-SNE Component 2')
 
     def run_umap(self):
         """
@@ -54,4 +54,4 @@ class WineAnalysis:
         umap_result = reducer.umap()
         umap_df = pd.DataFrame(data=umap_result, columns=['UMAP Component 1', 'UMAP Component 2'], index=self.labels)
         title = f'UMAP on {self.chem_name}; {len(self.data)} wines'
-        Visualizer.plot_results(umap_df, title, 'UMAP Component 1', 'UMAP Component 2')
+        Visualizer.plot_2d_results(umap_df, title, 'UMAP Component 1', 'UMAP Component 2')

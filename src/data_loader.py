@@ -5,9 +5,13 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 class DataLoader:
-    def __init__(self, file_path):
+    def __init__(self, file_path, normalize=True):
         self.file_path = file_path
         self.data, self.df = self.load_data()
+        if normalize:
+            # Normalise dictionary values
+            self.normalize_dict()
+            self.df = pd.DataFrame(self.data).T
 
     def load_data(self):
         print('Loading data...')
@@ -25,6 +29,14 @@ class DataLoader:
     def get_standardized_data(self):
         scaler = StandardScaler()
         return scaler.fit_transform(self.df)
+
+    def normalize_dict(self):
+        # Normalise dictionary values
+        keys = list(self.data.keys())
+        values = np.array(list(self.data.values())).T
+        scaler = StandardScaler()
+        values_scaled = scaler.fit_transform(values)
+        self.data = {key: values_scaled[:, idx].tolist() for idx, key in enumerate(keys)}
 
 
     def process_xlsx(self, df, file_path):

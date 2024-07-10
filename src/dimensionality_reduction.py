@@ -70,7 +70,7 @@ class DimensionalityReducer:
 
         return pca_dict, cumulative_variance, n_components
 
-    def cross_validate_pca_classification(self, processed_labels, n_splits=50, test_size=None):
+    def cross_validate_pca_classification(self, processed_labels, n_splits=50, vthresh=0.97, test_size=None):
         accuracies = []
         for i in range(n_splits):
             test_indices = []
@@ -92,7 +92,7 @@ class DimensionalityReducer:
             X_train, X_test = self.data[train_indices], self.data[test_indices]
             y_train, y_test = np.array(processed_labels)[train_indices], np.array(processed_labels)[test_indices]
             reducer = DimensionalityReducer(X_train)
-            pca_dict, cumulative_variance, n_components = reducer.cumulative_variance(y_train, variance_threshold=0.97, plot=False)
+            pca_dict, cumulative_variance, n_components = reducer.cumulative_variance(y_train, variance_threshold=vthresh, plot=False)
             pca = PCA(n_components=n_components)
             X_train_pca = pca.fit_transform(X_train)
             X_test_pca = pca.transform(X_test)
