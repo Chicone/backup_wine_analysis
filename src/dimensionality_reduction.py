@@ -5,6 +5,7 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from classification import LinearDiscriminantAnalysis
 from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
 
 class DimensionalityReducer:
     def __init__(self, data):
@@ -15,12 +16,20 @@ class DimensionalityReducer:
         return pca.fit_transform(self.data)
 
     def tsne(self, components=2, perplexity=30, random_state=8):
+        # Standardize the features
+        scaler = StandardScaler()
+        scaled_features = scaler.fit_transform(self.data)
         tsne = TSNE(n_components=components, perplexity=perplexity, random_state=random_state)
-        return tsne.fit_transform(self.data)
+        return tsne.fit_transform(scaled_features)
+        # return tsne.fit_transform(self.data)
 
     def umap(self, components=2, n_neighbors=60, random_state=8):
+        # Standardize the features
+        scaler = StandardScaler()
+        scaled_features = scaler.fit_transform(self.data)
         reducer = umap.UMAP(n_components=components, n_neighbors=n_neighbors, random_state=random_state)
-        return reducer.fit_transform(self.data)
+        return reducer.fit_transform(scaled_features)
+        # return reducer.fit_transform(self.data)
 
     def perform_pca_on_dict(self, labels, n_components=None):
         # Perform PCA

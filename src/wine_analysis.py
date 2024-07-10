@@ -14,11 +14,8 @@ class WineAnalysis:
             if not os.path.isfile(self.file_path):
                 raise FileNotFoundError(f"The file {self.file_path} does not exist.")
             self.data_loader = DataLoader(self.file_path, normalize=normalize)
-            self.data = self.data_loader.get_standardized_data()
-            # if self.data_loader.df.max().max() > 1:
-            #     self.data = self.data_loader.get_standardized_data()
-            # else:
-            #     self.data = np.array(self.data_loader.df)
+            self.data = np.array(self.data_loader.df)
+            # self.data = self.data_loader.get_standardized_data()
             self.labels = np.array(list(self.data_loader.df.index))
             self.chem_name = os.path.splitext(self.file_path)[0].split('/')[-1]
             print(self.file_path)
@@ -41,7 +38,8 @@ class WineAnalysis:
         Runs t-Distributed Stochastic Neighbor Embedding (t-SNE) on the data and plots the results.
         """
         reducer = DimensionalityReducer(self.data)
-        tsne_result = reducer.tsne()
+        tsne_result = reducer.tsne( components=2, perplexity=30, random_state=30)
+        tsne_result = -tsne_result  # change the sign of the axes to show data like in the paper
         tsne_df = pd.DataFrame(data=tsne_result, columns=['t-SNE Component 1', 't-SNE Component 2'], index=self.labels)
         title = f'tSNE on {self.chem_name}; {len(self.data)} wines'
         Visualizer.plot_2d_results(tsne_df, title, 't-SNE Component 1', 't-SNE Component 2')
@@ -51,7 +49,8 @@ class WineAnalysis:
         Runs Uniform Manifold Approximation and Projection (UMAP) on the data and plots the results.
         """
         reducer = DimensionalityReducer(self.data)
-        umap_result = reducer.umap()
+        umap_result = reducer.umap(components=2, n_neighbors=60, random_state=16)
+        umap_result = -umap_result  # change the sign of the axes to show data like in the paper
         umap_df = pd.DataFrame(data=umap_result, columns=['UMAP Component 1', 'UMAP Component 2'], index=self.labels)
         title = f'UMAP on {self.chem_name}; {len(self.data)} wines'
         Visualizer.plot_2d_results(umap_df, title, 'UMAP Component 1', 'UMAP Component 2')
