@@ -82,7 +82,7 @@ class Classifier:
     def _process_labels(self, vintage):
         processed_labels = []
         for label in self.labels:
-            match = re.search(r'\d+', label)
+            match = re.search(r'\d+', label) # search for first digit
             if vintage:
                 # processed_labels.append(label[-5])
                 processed_labels.append(label[match.start():])

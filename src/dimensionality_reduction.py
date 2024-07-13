@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 from classification import LinearDiscriminantAnalysis
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
+from visualizer import Visualizer
+import pandas as pd
+from sklearn.metrics import silhouette_score
 
 class DimensionalityReducer:
     def __init__(self, data):
@@ -41,7 +44,7 @@ class DimensionalityReducer:
 
         return pca_dict
 
-    def cumulative_variance(self, labels, variance_threshold=0.95, plot =False):
+    def cumulative_variance(self, labels, variance_threshold=0.95, plot = False, dataset_name=None):
         # Perform PCA
         pca = PCA()
         pca_transformed = pca.fit_transform(self.data)
@@ -68,7 +71,10 @@ class DimensionalityReducer:
             plt.axvline(x=n_components - 1, color='r', linestyle='--')
             plt.xlabel('Number of Components')
             plt.ylabel('Cumulative Explained Variance')
-            plt.title('Cumulative Explained Variance vs. Number of Components')
+            title = 'Cumulative Explained Variance vs. Number of Components'
+            if dataset_name:
+               title = f"{title}\n{dataset_name} dataset"
+            plt.title(title)
             plt.grid(True)
             plt.legend()
             plt.annotate(f'{n_components} components',
@@ -81,6 +87,8 @@ class DimensionalityReducer:
 
     def cross_validate_pca_classification(self, processed_labels, n_splits=50, vthresh=0.97, test_size=None):
         accuracies = []
+        print(f'Using PCA at {vthresh} accumulated variance')
+        print('Split', end=' ', flush=True)
         for i in range(n_splits):
             test_indices = []
             train_indices = []
@@ -111,10 +119,65 @@ class DimensionalityReducer:
             y_pred = classifier.predict(X_test_pca)
             accuracy = accuracy_score(y_test, y_pred)
             accuracies.append(accuracy)
-
+            print(i, end=' ', flush=True) if i % 5 == 0 else None
+        print()
         avg_accuracy = np.mean(accuracies)
         print("\033[96m" + "Accuracy: %0.3f (+/- %0.3f)" % (avg_accuracy, np.std(accuracies) * 2) + "\033[0m")
 
         return avg_accuracy
 
 
+def run_umap_and_evaluate(data, labels, chem_name):
+    reducer = DimensionalityReducer(data)
+
+    best_score = -1
+    best_params = None
+
+    neighbours = range(30, 100, 5)
+    random_states = range(0, 100, 4)
+
+    for neighbour in neighbours:
+        for random_state in random_states:
+            umap_result = reducer.umap(components=2, n_neighbors=neighbour, random_state=random_state)
+            umap_df = pd.DataFrame(data=umap_result, columns=['UMAP Component 1', 'UMAP Component 2'], index=labels)
+            title = f'UMAP on {chem_name}; {len(data)} wines with perplexity {neighbour} and random_state {random_state}'
+
+            # # Plot the results
+            # Visualizer.plot_2d_results(umap_df, title, 'UMAP Component 1', 'UMAP Component 2')
+
+            # Calculate the clustering score (e.g., silhouette score)
+            score = silhouette_score(umap_df, labels)
+            print(f"Perplexity: {neighbour}, Random State: {random_state}, Silhouette Score: {score}")
+            print(f"Best score {best_score}. Best parameters  so far: {best_params}")
+
+            if score > best_score:
+                best_score = score
+                best_params = (neighbour, random_state)
+
+    print(f"Best Perplexity: {best_params[0]}, Best Random State: {best_params[1]}, Best Silhouette Score: {best_score}")
+
+def run_tsne_and_evaluate(data, labels, chem_name):
+    reducer = DimensionalityReducer(data)
+
+    best_score = -1
+    best_params = None
+
+    perplexities = range(5, 80, 10)
+    random_states = range(0, 100, 10)
+
+    for perplexity in perplexities:
+        for random_state in random_states:
+            tsne_result = reducer.tsne(components=2, perplexity=perplexity, random_state=random_state)
+            tsne_result = -tsne_result  # change the sign of the axes to show data like in the paper
+            tsne_df = pd.DataFrame(data=tsne_result, columns=['t-SNE Component 1', 't-SNE Component 2'], index=labels)
+
+            # Calculate the clustering score (e.g., silhouette score)
+            score = silhouette_score(tsne_df, labels)
+            print(f"Perplexity: {perplexity}, Random State: {random_state}, Silhouette Score: {score}")
+            print(f"Best score {best_score}. Best parameters  so far: {best_params}")
+
+            if score > best_score:
+                best_score = score
+                best_params = (perplexity, random_state)
+
+    print(f"Best Perplexity: {best_params[0]}, Best Random State: {best_params[1]}, Best Silhouette Score: {best_score}")
