@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import umap
 from sklearn.decomposition import PCA
@@ -126,27 +128,22 @@ class DimensionalityReducer:
 
         return avg_accuracy
 
-
-def run_umap_and_evaluate(data, labels, chem_name):
+def run_tsne_and_evaluate(analysis, labels, chem_name, neigh_range=range(30, 100, 5), random_states=range(0, 100, 4)):
+    data = analysis.data
     reducer = DimensionalityReducer(data)
 
     best_score = -1
     best_params = None
 
-    neighbours = range(30, 100, 5)
-    random_states = range(0, 100, 4)
+    # neighbours = range(30, 100, 5)
+    # random_states = range(0, 100, 4)
 
-    for neighbour in neighbours:
+    for neighbour in neigh_range:
         for random_state in random_states:
-            umap_result = reducer.umap(components=2, n_neighbors=neighbour, random_state=random_state)
-            umap_df = pd.DataFrame(data=umap_result, columns=['UMAP Component 1', 'UMAP Component 2'], index=labels)
-            title = f'UMAP on {chem_name}; {len(data)} wines with perplexity {neighbour} and random_state {random_state}'
-
-            # # Plot the results
-            # Visualizer.plot_2d_results(umap_df, title, 'UMAP Component 1', 'UMAP Component 2')
+            tsne_df = analysis.run_tsne(n_neighbors=neighbour, random_state=random_state, plot=False)
 
             # Calculate the clustering score (e.g., silhouette score)
-            score = silhouette_score(umap_df, labels)
+            score = silhouette_score(tsne_df, labels)
             print(f"Perplexity: {neighbour}, Random State: {random_state}, Silhouette Score: {score}")
             print(f"Best score {best_score}. Best parameters  so far: {best_params}")
 
@@ -155,15 +152,50 @@ def run_umap_and_evaluate(data, labels, chem_name):
                 best_params = (neighbour, random_state)
 
     print(f"Best Perplexity: {best_params[0]}, Best Random State: {best_params[1]}, Best Silhouette Score: {best_score}")
+    return best_params[0], best_params[1], best_score
 
-def run_tsne_and_evaluate(data, labels, chem_name):
+
+def run_umap_and_evaluate(analysis, labels, chem_name, neigh_range=range(30, 100, 5), random_states=range(0, 100, 4)):
+    data = analysis.data
     reducer = DimensionalityReducer(data)
 
     best_score = -1
     best_params = None
 
-    perplexities = range(5, 80, 10)
-    random_states = range(0, 100, 10)
+    # neighbours = range(30, 100, 5)
+    # random_states = range(0, 100, 4)
+
+    for neighbour in neigh_range:
+        for random_state in random_states:
+            umap_df = analysis.run_umap(n_neighbors=neighbour, random_state=random_state, plot=False)
+            # umap_result = reducer.umap(components=2, n_neighbors=neighbour, random_state=random_state)
+            # umap_df = pd.DataFrame(data=umap_result, columns=['UMAP Component 1', 'UMAP Component 2'], index=labels)
+            # title = f'UMAP on {chem_name}; {len(data)} wines with  {neighbour} neighbors and random_state {random_state}'
+            #
+            # # Plot the results
+            # Visualizer.plot_2d_results(umap_df, title, 'UMAP Component 1', 'UMAP Component 2')
+
+            # Calculate the clustering score (e.g., silhouette score)
+            score = silhouette_score(umap_df, labels)
+            print(f"Neighbors: {neighbour}, Random State: {random_state}, Silhouette Score: {score}")
+            print(f"Best score {best_score}. Best parameters  so far: {best_params}")
+
+            if score > best_score:
+                best_score = score
+                best_params = (neighbour, random_state)
+
+    print(f"Best number neighbors: {best_params[0]}, Best Random State: {best_params[1]}, Best Silhouette Score: {best_score}")
+    return best_params[0], best_params[1], best_score
+
+def run_tsne_and_evaluate(analysis, labels, chem_name, perplexities=range(30, 100, 5), random_states=range(0, 100, 4)):
+    data = analysis.data
+    reducer = DimensionalityReducer(data)
+
+    best_score = -1
+    best_params = None
+
+    # perplexities = range(5, 80, 10)
+    # random_states = range(0, 100, 10)
 
     for perplexity in perplexities:
         for random_state in random_states:
@@ -181,3 +213,4 @@ def run_tsne_and_evaluate(data, labels, chem_name):
                 best_params = (perplexity, random_state)
 
     print(f"Best Perplexity: {best_params[0]}, Best Random State: {best_params[1]}, Best Silhouette Score: {best_score}")
+    return best_params[0], best_params[1], best_score

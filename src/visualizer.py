@@ -96,6 +96,8 @@ class Visualizer:
                 annotation, color = Visualizer.change_letter_and_color(label)
                 x = result.loc[label, xlabel]
                 y = result.loc[label, ylabel]
+                # x = result.loc[label, xlabel].iloc[i]
+                # y = result.loc[label, ylabel].iloc[i]
                 plt.scatter(-x, -y, s=28, c=[color])
                 plt.annotate(annotation, (-x, -y), fontsize=9, color=color)
         plt.xlabel(xlabel)
