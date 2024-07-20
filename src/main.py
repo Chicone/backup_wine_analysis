@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
     from wine_analysis import SyncChromatograms
     sync_chrom = SyncChromatograms(
-        mean_c1, mean_c2, 5, np.linspace(0.9, 1.1, 50), 2, threshold=0.1)
+        mean_c1, mean_c2, 1, np.linspace(0.9, 1.1, 50), 2, threshold=0.1, max_sep_threshold=50)
     corrected_c2 = sync_chrom.adjust_chromatogram()
     sync_chrom.plot_chromatograms(corrected_c2)
 

@@ -738,7 +738,7 @@ class ChromatogramAnalysis:
         return resampled_chrom1, resampled_chrom2
 
 class SyncChromatograms:
-    def __init__(self, c1, c2, n_segments, scales, min_peaks=5, max_iterations=100, threshold=0.05):
+    def __init__(self, c1, c2, n_segments, scales, min_peaks=5, max_iterations=100, threshold=0.5, max_sep_threshold=50):
         self.c1 = c1
         self.c2 = c2
         self.n_segments = n_segments
@@ -746,6 +746,7 @@ class SyncChromatograms:
         self.min_peaks = min_peaks
         self.max_iterations = max_iterations
         self.threshold = threshold
+        self.max_sep_threshold = max_sep_threshold
 
     def scale_chromatogram(self, chrom, scale):
         x = np.arange(len(chrom))
@@ -833,8 +834,8 @@ class SyncChromatograms:
     def align_maxima(self, c1_segment, c2_segment):
         threshold_c1 = min(c1_segment) + np.std(c1_segment) * self.threshold
         threshold_c2 = min(c2_segment) + np.std(c2_segment) * self.threshold
-        peaks_c1, _ = find_peaks(c1_segment, height=threshold_c1)
-        peaks_c2, _ = find_peaks(c2_segment, height=threshold_c2)
+        peaks_c1, _ = find_peaks(c1_segment, height=threshold_c1, prominence=0.1)
+        peaks_c2, _ = find_peaks(c2_segment, height=threshold_c2, prominence=0.1)
 
         # Return the original segment if no peaks are found in either c1 or c2
         if len(peaks_c1) == 0 or len(peaks_c2) == 0:
@@ -858,43 +859,42 @@ class SyncChromatograms:
         initial_peaks = min(len(peaks_c1), len(sorted_peaks_c2))
         for i in range(1, initial_peaks):
             m2_c2 = sorted_peaks_c2[i]
-            m1_c2 = aligned_maxima[np.argmin(np.abs(aligned_maxima - m2_c2))]
+            m1_c2 = aligned_maxima[np.argmin(np.abs(aligned_maxima - m2_c2))]  # closest previously aligned
 
-            m1_c1 = peaks_c1[np.argmin(np.abs(peaks_c1 - m1_c2))]
-            m2_c1 = peaks_c1[np.argmin(np.abs(peaks_c1 - m2_c2))]
-            if m1_c1 == m2_c1:# or m1_c2 == m2_c2:
+            m1_c1 = peaks_c1[np.argmin(np.abs(peaks_c1 - m1_c2))]  # closest m1 in c1
+            m2_c1 = peaks_c1[np.argmin(np.abs(peaks_c1 - m2_c2))]  # closest m1 in c1
+
+            if m1_c1 == m2_c1 or np.abs(m2_c2 - m2_c1) > self.max_sep_threshold:# or m1_c2 == m2_c2:
                  # break
                 continue
 
-            aligned_maxima.append(m2_c1)  # Track aligned maxima
+            aligned_maxima.append(m2_c1)  # track aligned maxima
 
-            # Ensure m1_c1 and m2_c1 are in the correct order
-            if m1_c1 > m2_c1:
-                m1_c1, m2_c1 = m2_c1, m1_c1
-            if m1_c2 > m2_c2:
-                m1_c2, m2_c2 = m2_c2, m1_c2
+            # Ensure m1_c1 and m2_c1 are in the correct order without altering their original values
+            sorted_m1_c1, sorted_m2_c1 = sorted((m1_c1, m2_c1))
+            sorted_m1_c2, sorted_m2_c2 = sorted((m1_c2, m2_c2))
 
             # Find the minimum value in the c2 segment between the peaks
-            interval_c2_segment = c2_segment_aligned[m1_c2:m2_c2]
-            min_pos_c2 = np.argmin(interval_c2_segment) + m1_c2
+            interval_c2_segment = c2_segment_aligned[sorted_m1_c2:sorted_m2_c2]
+            min_pos_c2 = np.argmin(interval_c2_segment) + sorted_m1_c2
             min_value_c2 = np.min(interval_c2_segment)
 
             # Calculate the intervals between peaks in c1 and c2
-            interval_c1 = m2_c1 - m1_c1
-            interval_c2 = m2_c2 - m1_c2
+            interval_c1 = sorted_m2_c1 - sorted_m1_c1
+            interval_c2 = sorted_m2_c2 - sorted_m1_c2
 
             # Pad or trim c2 to match the interval in c1
             if interval_c1 > interval_c2:
                 # Pad c2 with the minimum value found between the peaks
                 pad_amount = interval_c1 - interval_c2
-                m2_c2_idx = int(np.where(peaks_c2 == sorted_peaks_c2[i])[0][0])
+                m2_c2_idx = int(np.where(peaks_c2 == m2_c2)[0][0])
                 peak_on_left = peaks_c2[m2_c2_idx - 1]
                 min_pos_peak_left = np.argmin(c2_segment_aligned[peak_on_left:peaks_c2[m2_c2_idx]]) + peak_on_left
                 c2_segment_aligned = np.concatenate([
                     c2_segment_aligned[:min_pos_peak_left - pad_amount],
                     c2_segment_aligned[min_pos_peak_left:min_pos_c2],
-                    np.full(min_value_c2, pad_amount),
-                    c2_segment_aligned[min_pos_c2 + pad_amount:]
+                    np.full(pad_amount, min_value_c2),
+                    c2_segment_aligned[min_pos_c2:]
                 ])
                 #     c2_segment_aligned[:min_pos_c2],
                 #     np.full(pad_amount, min_value_c2),
@@ -906,17 +906,27 @@ class SyncChromatograms:
                 trim_amount = interval_c2 - interval_c1
                 left_trim = trim_amount // 2
                 right_trim = trim_amount - left_trim
-                m2_c2_idx = int(np.where(peaks_c2 == sorted_peaks_c2[i])[0][0])   # index of m2_c2
-                if m2_c2_idx == 0:
+                m2_c2_idx = int(np.where(peaks_c2 == m2_c2)[0][0])   # index of m2_c2
+                if m2_c2_idx == 0 or m2_c2_idx >= len(peaks_c2) - 1:
                     continue
-                peak_on_left = peaks_c2[m2_c2_idx - 1]
-                min_pos_peak_left = np.argmin(c2_segment_aligned[peak_on_left:peaks_c2[m2_c2_idx]]) + peak_on_left
-                c2_segment_aligned = np.concatenate([
-                    c2_segment_aligned[:min_pos_peak_left],
-                    np.full(trim_amount, c2_segment_aligned[min_pos_peak_left]),
-                    c2_segment_aligned[min_pos_peak_left:min_pos_c2 - left_trim],
-                    c2_segment_aligned[min_pos_c2 + right_trim:]
-                ])
+                if m2_c2 < m1_c2:
+                    peak_on_left = peaks_c2[m2_c2_idx - 1]
+                    min_pos_peak_left = np.argmin(c2_segment_aligned[peak_on_left:peaks_c2[m2_c2_idx]]) + peak_on_left
+                    c2_segment_aligned = np.concatenate([
+                        c2_segment_aligned[:min_pos_peak_left],
+                        np.full(trim_amount, c2_segment_aligned[min_pos_peak_left]),
+                        c2_segment_aligned[min_pos_peak_left:min_pos_c2 - left_trim],
+                        c2_segment_aligned[min_pos_c2 + right_trim:]
+                    ])
+                elif m2_c2 > m1_c2:
+                    peak_on_right = peaks_c2[m2_c2_idx + 1]
+                    min_pos_peak_right = np.argmin(c2_segment_aligned[m2_c2:peak_on_right]) + m2_c2
+                    c2_segment_aligned = np.concatenate([
+                        c2_segment_aligned[:min_pos_c2 - trim_amount],
+                        c2_segment_aligned[min_pos_c2:min_pos_peak_right],
+                        np.full(trim_amount, c2_segment_aligned[min_pos_peak_right]),
+                        c2_segment_aligned[min_pos_peak_right:]
+                    ])
                 # c2_segment_aligned = np.concatenate([
                 #     c2_segment_aligned[:min_pos_c2 - left_trim],
                 #     c2_segment_aligned[min_pos_c2 + right_trim:]
@@ -930,6 +940,74 @@ class SyncChromatograms:
 
         return c2_segment_aligned
 
+
+    def align_and_scale_signals(self, c1, c2, proximity_threshold, peak_prominence):
+        # Find peaks
+        threshold_c1 = min(c1) + np.std(c1) * self.threshold
+        threshold_c2 = min(c2) + np.std(c2) * self.threshold
+        c1_peaks, _ = find_peaks(c1, height=threshold_c1, prominence=peak_prominence)
+        c2_peaks, _ = find_peaks(c2, height=threshold_c2, prominence=peak_prominence)
+
+        # Initial alignment of the first peak
+        c2p1 = c2_peaks[0]
+        c1p1 = c1_peaks[np.argmin(np.abs(c1_peaks - c2p1))]
+        if np.abs(c1p1 - c2p1) <= proximity_threshold:
+            shift = c1p1 - c2p1
+            c2_aligned = self.shift_chromatogram(c2, shift, c2[0], c2[-1])
+            c2_peaks, _ = find_peaks(c2_aligned, height=threshold_c2, prominence=peak_prominence)
+        else:
+            return c2  # If the first peak is out of the proximity threshold, return the original c2
+
+        initial_npeaks = len(c2_peaks)
+        for i in range(1, initial_npeaks):
+            c2p_prev = c2_peaks[i - 1]
+            c2p = c2_peaks[i]
+            c1p_prev = c2p_prev
+            c1p = c1_peaks[np.argmin(np.abs(c1_peaks - c2p))]
+
+            # If the current peak in c2 is too far from the closest peak in c1, skip it
+            if np.abs(c1p - c2p) > proximity_threshold:
+                continue
+
+            # Scale the interval
+            interval_c2 = c2p - c2p_prev
+            interval_c1 = c1p - c1p_prev
+            if interval_c2 == 0:
+                continue
+            scale = interval_c1 / interval_c2
+
+            start = min(c2p_prev, c2p)
+            end = max(c2p_prev, c2p)
+            c2_segment = c2_aligned[start:end]
+            scaled_segment = self.scale_chromatogram(c2_segment, scale)
+
+            c2_aligned = np.concatenate([c2_aligned[:start], scaled_segment, c2_aligned[end:]])
+            c2_peaks, _ = find_peaks(c2_aligned, height=threshold_c2, prominence=peak_prominence)
+
+            if len(c2_peaks) < initial_npeaks:
+                break
+
+            # temp_c2_aligned = np.concatenate([c2_aligned[:start], scaled_segment, c2_aligned[end:]])
+            # temp_c2_peaks, _ = find_peaks(temp_c2_aligned, height=threshold_c2, prominence=peak_prominence)
+            #
+            # if len(temp_c2_peaks) < initial_npeaks:
+            #     break
+            #
+            # # Calculate the average separation between peaks for both current and scaled alignments
+            # min_length = min(len(c1_peaks), len(c2_peaks), len(temp_c2_peaks))
+            # current_avg_sep = np.mean(np.abs(np.diff(c2_peaks[:min_length])))
+            # scaled_avg_sep = np.mean(np.abs(np.diff(temp_c2_peaks[:min_length])))
+            #
+            # # Skip the peak if the average separation with the current scaling is better
+            # if current_avg_sep < scaled_avg_sep:
+            #     continue
+            #
+            # c2_aligned = temp_c2_aligned
+            # c2_peaks = temp_c2_peaks
+
+
+
+        return c2_aligned
 
 
     # def align_maxima(self, c1_segment, c2_segment):
@@ -1026,22 +1104,27 @@ class SyncChromatograms:
                 c2_segment = self.c2[start:end]
                 # best_scale, best_lag = self.find_best_scale_and_lag(c1_segment, c2_segment)
                 best_scale, best_lag = self.find_best_scale_and_lag(self.c1[:3000], self.c2[:3000])
-                # corrected_c2_full = self.correct_segment(self.c2, best_scale, best_lag)
-                corrected_c2_full = self.correct_segment(self.c2, 0.998, best_lag)
-                c2_segment_aligned = self.align_maxima(c1_segment, corrected_c2_full[start:end])
+                corrected_c2_full = self.correct_segment(self.c2, best_scale, best_lag)
+                # corrected_c2_full = self.correct_segment(self.c2, 0.998, best_lag)
+                # c2_segment_aligned = self.align_maxima(c1_segment, corrected_c2_full[start:end])
+                c2_segment_aligned = self.align_and_scale_signals(
+                    c1_segment, corrected_c2_full[start:end], proximity_threshold=25, peak_prominence=0.9)
+
             else:
                 c2_segment = corrected_c2_full[start:end]
-                c2_segment_aligned = self.align_maxima(c1_segment, c2_segment)
+                # c2_segment_aligned = self.align_maxima(c1_segment, c2_segment)
+                c2_segment_aligned = self.align_and_scale_signals(
+                    c1_segment, c2_segment, proximity_threshold=25, peak_prominence=0.9)
 
             final_corrected_c2.extend(c2_segment_aligned)
 
         return np.array(final_corrected_c2)
 
     def plot_chromatograms(self, corrected_c2):
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(16, 4))
         plt.plot(self.c1, label='Chromatogram 1')
         plt.plot(self.c2, label='Chromatogram 2 (Original)', linestyle='--')
-        plt.plot(corrected_c2, label='Chromatogram 2 (Corrected)', linestyle='-.')
+        plt.plot(corrected_c2, label='Chromatogram 2 (Corrected)')
         plt.xlabel('Index')
         plt.ylabel('Intensity')
         plt.title('Chromatogram Adjustment')
