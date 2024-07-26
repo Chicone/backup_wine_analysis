@@ -2,7 +2,7 @@ import os.path
 import re
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 
 
 class DataLoader:
@@ -11,7 +11,7 @@ class DataLoader:
         self.data, self.df = self.load_data()
         if normalize:
             # Normalise dictionary values
-            self.normalize_dict()
+            self.normalize_dict(scaler='standard')
             self.df = pd.DataFrame(self.data).T
 
     def load_data(self):
@@ -31,12 +31,20 @@ class DataLoader:
         scaler = StandardScaler()
         return scaler.fit_transform(self.df)
 
-    def normalize_dict(self):
+    def normalize_dict(self, scaler='standard'):
         # Normalise dictionary values
         keys = list(self.data.keys())
         values = np.array(list(self.data.values())).T
-        scaler = StandardScaler()
-        values_scaled = scaler.fit_transform(values)
+        values_scaled = None
+        if scaler == 'standard':
+            scaler = StandardScaler()
+            values_scaled = scaler.fit_transform(values)
+        elif scaler == 'minmax':
+            scaler = MinMaxScaler()
+            values_scaled = scaler.fit_transform(values)
+        elif scaler == 'robust':
+            scaler = RobustScaler()
+            values_scaled = scaler.fit_transform(values)
         self.data = {key: values_scaled[:, idx].tolist() for idx, key in enumerate(keys)}
 
 
