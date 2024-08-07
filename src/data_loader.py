@@ -11,7 +11,7 @@ class DataLoader:
         self.data, self.df = self.load_data()
         if normalize:
             # Normalise dictionary values
-            self.normalize_dict(scaler='standard')
+            self.normalize_dict(scaler='minmax')  # standard minmax robust
             self.df = pd.DataFrame(self.data).T
 
     def load_data(self):
@@ -34,7 +34,7 @@ class DataLoader:
     def normalize_dict(self, scaler='standard'):
         # Normalise dictionary values
         keys = list(self.data.keys())
-        values = np.array(list(self.data.values())).T
+        values = np.array(list(self.data.values()))
         values_scaled = None
         if scaler == 'standard':
             scaler = StandardScaler()
@@ -45,7 +45,7 @@ class DataLoader:
         elif scaler == 'robust':
             scaler = RobustScaler()
             values_scaled = scaler.fit_transform(values)
-        self.data = {key: values_scaled[:, idx].tolist() for idx, key in enumerate(keys)}
+        self.data = {key: values_scaled[idx, :].tolist() for idx, key in enumerate(keys)}
 
 
     def process_xlsx(self, df, file_path):

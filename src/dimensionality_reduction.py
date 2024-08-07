@@ -10,7 +10,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
 from visualizer import Visualizer
 import pandas as pd
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, calinski_harabasz_score, adjusted_rand_score
 
 class DimensionalityReducer:
     def __init__(self, data):
@@ -22,19 +22,19 @@ class DimensionalityReducer:
 
     def tsne(self, components=2, perplexity=30, random_state=8):
         # Standardize the features
-        scaler = StandardScaler()
-        scaled_features = scaler.fit_transform(self.data)
+        # scaler = StandardScaler()
+        # scaled_features = scaler.fit_transform(self.data)
         tsne = TSNE(n_components=components, perplexity=perplexity, random_state=random_state)
-        return tsne.fit_transform(scaled_features)
-        # return tsne.fit_transform(self.data)
+        # return tsne.fit_transform(scaled_features)
+        return tsne.fit_transform(self.data)
 
     def umap(self, components=2, n_neighbors=60, random_state=8):
-        # Standardize the features
-        scaler = StandardScaler()
-        scaled_features = scaler.fit_transform(self.data)
+        # # Standardize the features
+        # scaler = StandardScaler()
+        # scaled_features = scaler.fit_transform(self.data)
         reducer = umap.UMAP(n_components=components, n_neighbors=n_neighbors, random_state=random_state)
-        return reducer.fit_transform(scaled_features)
-        # return reducer.fit_transform(self.data)
+        # return reducer.fit_transform(scaled_features)
+        return reducer.fit_transform(self.data)
 
     def perform_pca_on_dict(self, labels, n_components=None):
         # Perform PCA
@@ -145,7 +145,7 @@ def run_tsne_and_evaluate(analysis, labels, chem_name, neigh_range=range(30, 100
             # Calculate the clustering score (e.g., silhouette score)
             score = silhouette_score(tsne_df, labels)
             print(f"Perplexity: {neighbour}, Random State: {random_state}, Silhouette Score: {score}")
-            print(f"Best score {best_score}. Best parameters  so far: {best_params}")
+            print(f"Best score {best_score}. Best parameters so far: {best_params}")
 
             if score > best_score:
                 best_score = score
@@ -164,6 +164,8 @@ def run_umap_and_evaluate(analysis, labels, chem_name, neigh_range=range(30, 100
 
     # neighbours = range(30, 100, 5)
     # random_states = range(0, 100, 4)
+    calinski_min = 0
+    calinski_max = 3000  # value found by running on 2022 oak data
 
     for neighbour in neigh_range:
         for random_state in random_states:
@@ -175,16 +177,32 @@ def run_umap_and_evaluate(analysis, labels, chem_name, neigh_range=range(30, 100
             # # Plot the results
             # Visualizer.plot_2d_results(umap_df, title, 'UMAP Component 1', 'UMAP Component 2')
 
-            # Calculate the clustering score (e.g., silhouette score)
-            score = silhouette_score(umap_df, labels)
-            print(f"Neighbors: {neighbour}, Random State: {random_state}, Silhouette Score: {score}")
-            print(f"Best score {best_score}. Best parameters  so far: {best_params}")
+            umap_clusters = pd.cut(umap_df.iloc[:, 0], bins=len(set(labels)))
+            umap_cluster_codes = umap_clusters.codes if hasattr(umap_clusters, 'codes') else umap_clusters.cat.codes
 
-            if score > best_score:
-                best_score = score
+            # Calculate the clustering scores
+            silhouette = silhouette_score(umap_df, labels)
+            calinski_harabasz = calinski_harabasz_score(umap_df, labels)
+            adjusted_rand = adjusted_rand_score(labels, umap_cluster_codes)
+
+            # Normalize the scores (assuming all scores should be maximized)
+            norm_silhouette = (silhouette - (-1)) / (1 - (-1))  # silhouette score range is [-1, 1]
+            norm_calinski_harabasz = (calinski_harabasz - calinski_min) / (calinski_max - calinski_min)
+            norm_adjusted_rand = (adjusted_rand - (-1)) / (1 - (-1))  # adjusted rand index range is [-1, 1]
+
+            # Combined score (you can adjust the weights if needed)
+            combined_score = (norm_silhouette + norm_calinski_harabasz + norm_adjusted_rand) / 3
+            # combined_score = norm_calinski_harabasz
+
+
+            print(f"Neighbors: {neighbour}, Random State: {random_state}, Combined Score: {combined_score}")
+            print(f"Best score {best_score}. Best parameters so far: {best_params}")
+
+            if combined_score > best_score:
+                best_score = combined_score
                 best_params = (neighbour, random_state)
 
-    print(f"Best number neighbors: {best_params[0]}, Best Random State: {best_params[1]}, Best Silhouette Score: {best_score}")
+    print(f"Best number neighbors: {best_params[0]}, Best Random State: {best_params[1]}, , Best Combined Score: {best_score}")
     return best_params[0], best_params[1], best_score
 
 def run_tsne_and_evaluate(analysis, labels, chem_name, perplexities=range(30, 100, 5), random_states=range(0, 100, 4)):
@@ -206,7 +224,7 @@ def run_tsne_and_evaluate(analysis, labels, chem_name, perplexities=range(30, 10
             # Calculate the clustering score (e.g., silhouette score)
             score = silhouette_score(tsne_df, labels)
             print(f"Perplexity: {perplexity}, Random State: {random_state}, Silhouette Score: {score}")
-            print(f"Best score {best_score}. Best parameters  so far: {best_params}")
+            print(f"Best score {best_score}. Best parameters so far: {best_params}")
 
             if score > best_score:
                 best_score = score

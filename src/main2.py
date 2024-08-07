@@ -38,69 +38,13 @@ if __name__ == "__main__":
     file_name2 = cl.file_path2.split('/')[-1]
 
     analysis1 = WineAnalysis(os.path.expanduser(basedir + '/2018 7 chateaux Oak Old vintages Masse 5.npy'), normalize=False)
-    # analysis1 = WineAnalysis(os.path.expanduser('~/PycharmProjects/wine_scheck/data/oak.npy'), normalize=False)
     chromatograms1 = analysis1.data_loader.data
     analysis2 = WineAnalysis(os.path.expanduser(basedir + '/2022 01 7 chateaux Oak Old vintages Masse 5 NORMALIZED SM.npy'), normalize=False)
     chromatograms2 = analysis2.data_loader.data
 
-    # normalized_dict1 = {}
-    # normalized_dict2 = {}
-    # for label, chromatogram in chromatograms1.items():
-    #     normalized_dict1[label] = cl.min_max_normalize(chromatogram, 0, 1)
-    # for label, chromatogram in chromatograms2.items():
-    #     normalized_dict2[label] = cl.min_max_normalize(chromatogram, 0, 1)
-    # chromatograms1 = normalized_dict1
-    # chromatograms2 = normalized_dict2
-
-    # chromatograms1 = cl.load_chromatogram(cl.file_path1)
-    # chromatograms2 = cl.load_chromatogram(cl.file_path2)
-
     chromatograms1, chromatograms2 = cl.resample_chromatograms(chromatograms1, chromatograms2, start=100, length=30000)
     mean_c1 = cl.calculate_mean_chromatogram(chromatograms1)
     mean_c2 = cl.calculate_mean_chromatogram(chromatograms2)
-
-    from wine_analysis import SyncChromatograms
-    # sync_chrom = SyncChromatograms(
-    #     mean_c1, mean_c2, 1, np.linspace(0.9, 1.1, 50), 2,
-    #     threshold=0.0,
-    #     max_sep_threshold=60,
-    #     peak_prominence=0.05
-    # )
-    # corrected_c2 = sync_chrom.adjust_chromatogram()
-    # sync_chrom.plot_chromatograms(corrected_c2)
-
-    # # Define the range of scaling factors and lags to try
-    scales = np.linspace(0.998, 1.002, 10)  # Example scales to try
-    # lag_range = range(-100, 101)
-
-    # Synchronize the chromatograms
-    # aligned_chrom2, best_scale, best_lag = cl.sync_chromatograms(mean_c1, chromatograms2, scale_range, lag_range)
-
-
-    # # Plot 3 chromatograms
-    # cl.sync_and_plot_chromatograms(chromatograms1, chromatograms2, label_to_plot='F2005', extra_label='A2005')
-    # cl.sync_and_plot_chromatograms(chromatograms1, chromatograms2, label_to_plot='G2000', extra_label='T2005')
-
-
-    # # Perform UMAP analysis on merged chromatograms without synchronization
-    # merged_chrom = cl.merge_chromatograms(chromatograms1, chromatograms2)
-    # cl.tsne_analysis(merged_chrom, vintage, "Chromatograms without sync")
-    # cl.umap_analysis(merged_chrom, vintage, "Chromatograms without sync")
-
-
-    # # Perform UMAP analysis on mean-synchronized and scaled chromatograms
-    # best_scale, best_lag, best_corr = cl.find_best_scale_and_lag(mean_c1[:5000], mean_c2[:5000], np.array((1,)), 500)
-    # shifted_chromatograms2 = cl.shift_chromatograms(chromatograms2, best_lag)
-    # scaled_chromatograms2 = cl.scale_chromatograms(shifted_chromatograms2, 0.998)
-    # # scaled_chromatograms2 = cl.sync_and_scale_chromatograms(cl, chromatograms1, chromatograms2)
-    # merged_chrom = cl.merge_chromatograms(chromatograms1, scaled_chromatograms2)
-    # cl.umap_analysis(merged_chrom, vintage, "Chromatograms with sync and scale")
-
-    # Perform UMAP analysis on individually-synchronized and scaled chromatograms
-    # ref_peak_value, ref_peak_position = cl.find_highest_common_peak(chromatograms1, tolerance=10)
-    # ref_peak_value, ref_peak_position = cl.find_second_highest_common_peak(chromatograms1, tolerance=10)
-    # synced_chromatograms1 = cl.sync_individual_chromatograms(mean_c1, chromatograms1)
-
 
     # sync_chrom = SyncChromatograms(
     #     smooth_remove_peak(mean_c1, peak_idx=8910, window_size=30),
@@ -119,11 +63,7 @@ if __name__ == "__main__":
     norm_merged_chrom = cl.merge_chromatograms(norm_synced_chromatograms1, norm_synced_chromatograms2)
     # cl.stacked_2D_plots_3D(cl.merge_chromatograms(chromatograms1, chromatograms2))
     # cl.stacked_2D_plots_3D(cl.merge_chromatograms(synced_chromatograms1, synced_chromatograms2))
-    cl.umap_analysis(norm_merged_chrom, vintage, "Original data;", neigh_range=range(10, 61, 5), random_states=range(0, 97, 8))
-
-
-    # cl.plot_chromatograms(mean_c1, mean_c2, file_name1, file_name2, cl)
-
+    # cl.umap_analysis(norm_merged_chrom, vintage, "Original data;", neigh_range=range(10, 61, 5), random_states=range(0, 97, 8))
 
     if not os.path.exists(npy_path):
         # Load .xlsx file and save into npy the chromatogram signal
