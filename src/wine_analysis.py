@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import os
 import re
+
+import utils
 from data_loader import DataLoader
 from sklearn.preprocessing import StandardScaler
 from classification import Classifier
@@ -17,9 +19,12 @@ from scipy.signal import correlate, find_peaks, peak_prominences
 from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
 from scipy.ndimage import gaussian_filter1d
+from utils import normalize_dict, remove_peak, min_max_normalize
+from scipy.ndimage import gaussian_filter
+import utils
 
 class WineAnalysis:
-    def __init__(self, file_path=None, data_dict=None, normalize=True):
+    def __init__(self, file_path=None, data_dict=None, normalize=False):
         if file_path:
             script_dir = os.path.dirname(__file__)
             self.file_path = os.path.join(script_dir, file_path)
@@ -33,8 +38,10 @@ class WineAnalysis:
             print(self.file_path)
         elif data_dict:
             self.data_loader = None
-            self.data = StandardScaler().fit_transform(pd.DataFrame(data_dict).T)
-            # self.data = np.array(pd.DataFrame(data_dict).T)
+            if normalize:
+                self.data = StandardScaler().fit_transform(pd.DataFrame(data_dict).T)
+            else:
+                self.data = np.array(pd.DataFrame(data_dict).T)
             self.labels = np.array(list(data_dict.keys()))
             self.chem_name = "Not available"
         else:
@@ -58,10 +65,11 @@ class WineAnalysis:
         if plot:
             Visualizer.plot_2d_results(tsne_df, title, 't-SNE Component 1', 't-SNE Component 2')
 
-    def run_umap(self, n_neighbors=60, random_state=16, best_score=None, plot=None):
+    def run_umap(self, n_neighbors=60, random_state=16, best_score=None, plot=None, title=None):
         """
         Runs Uniform Manifold Approximation and Projection (UMAP) on the data and plots the results.
         """
+
         reducer = DimensionalityReducer(self.data)
         umap_result = reducer.umap(components=2, n_neighbors=n_neighbors, random_state=random_state)  # for concat
         # umap_result = reducer.umap(components=2, n_neighbors=60, random_state=20)  # for oak
@@ -69,7 +77,7 @@ class WineAnalysis:
         # umap_result = reducer.umap(components=2, n_neighbors=75, random_state=70)  # from searchgrid
         umap_result = -umap_result  # change the sign of the axes to show data like in the paper
         umap_df = pd.DataFrame(data=umap_result, columns=['UMAP Component 1', 'UMAP Component 2'], index=self.labels)
-        title = f'UMAP on {self.chem_name}; {len(self.data)} wines\nSilhouette score: {best_score} '
+        title = f'{title}; {len(self.data)} wines\n Score: {best_score} '
         if plot:
             Visualizer.plot_2d_results(umap_df, title, 'UMAP Component 1', 'UMAP Component 2')
 
@@ -417,7 +425,7 @@ class ChromatogramAnalysis:
         plt.tight_layout(pad=3.0)
         plt.show()
 
-    def merge_chromatograms(self, chrom1, chrom2):
+    def merge_chromatograms(self, chrom1, chrom2, norm=False):
         """
         Merges two chromatogram dictionaries, normalizes them, and handles duplicate sample names.
 
@@ -428,15 +436,24 @@ class ChromatogramAnalysis:
         Returns:
         dict: The merged and normalized chromatogram data.
         """
+        sc_inst = SyncChromatograms
         merged_chromatograms = {}
 
         for key, value in chrom1.items():
-            merged_chromatograms[key] = self.normalize_chromatogram(value)
+            # # remove extra peak from standard
+            # value = sc_inst.remove_peak(self, value, peak_idx=8910, window_size=30)
+            if norm:
+                merged_chromatograms[key] = self.normalize_chromatogram(value)
+            else:
+                merged_chromatograms[key] = value
 
         for key, value in chrom2.items():
-            if key in merged_chromatograms:
+            if key in merged_chromatograms or key[0] + '_' + key[1:] in merged_chromatograms:
                 key = f"{key}b"
-            merged_chromatograms[key] = self.normalize_chromatogram(value)
+            if norm:
+                merged_chromatograms[key] = self.normalize_chromatogram(value)
+            else:
+                merged_chromatograms[key] = value
 
         return merged_chromatograms
 
@@ -567,6 +584,31 @@ class ChromatogramAnalysis:
         plt.tight_layout()
         plt.show()
 
+    def plot_data_from_dict(self, data_dict):
+        """
+        Plots all lists of data contained in a dictionary.
+
+        Parameters:
+        data_dict (dict): A dictionary with labels as keys and lists of values as values.
+        """
+        plt.figure(figsize=(10, 6))
+
+        for label, data in data_dict.items():
+            plt.plot(data, label=label)
+
+        plt.xlabel('Index')
+        plt.ylabel('Value')
+        plt.title('Plot of Data from Dictionary')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+    def min_max_normalize(self, data, min_range=0, max_range=1):
+        min_val = np.min(data)
+        max_val = np.max(data)
+        normalized_data = min_range + ((data - min_val) * (max_range - min_range) / (max_val - min_val))
+        return normalized_data
+
     def tsne_analysis(self, data_dict, vintage, chem_name):
         analysis = WineAnalysis(data_dict=data_dict, normalize=False)
         cls = Classifier(analysis.data, analysis.labels)
@@ -574,23 +616,24 @@ class ChromatogramAnalysis:
             analysis,
             cls._process_labels(vintage),
             chem_name,
-            perplexities=range(40, 100, 10),
+            perplexities=range(10, 60, 10),
             random_states=range(0, 96, 16)
         )
         analysis.run_tsne(perplexity=perplexity, random_state=random_state, best_score=best_score, plot=True)
         # analysis.run_umap(n_neighbors=10, random_state=10, best_score=10)
 #
-    def umap_analysis(self, data_dict, vintage, chem_name):
+    def umap_analysis(self, data_dict, vintage, chem_name, neigh_range=range(10, 60, 10), random_states=range(0, 96, 16)):
         analysis = WineAnalysis(data_dict=data_dict, normalize=False)
         cls = Classifier(analysis.data, analysis.labels)
         n_neighbors, random_state, best_score = run_umap_and_evaluate(
             analysis,
             cls._process_labels(vintage),
             chem_name,
-            neigh_range=range(40, 100, 10),
-            random_states=range(0, 96, 16)
+            neigh_range=neigh_range,
+            random_states=random_states
         )
-        analysis.run_umap(n_neighbors=n_neighbors, random_state=random_state, best_score=best_score, plot=True)
+        title = f'UMAP on {chem_name}; neigh={n_neighbors}, random state={random_state}'
+        analysis.run_umap(n_neighbors=n_neighbors, random_state=random_state, best_score=best_score, plot=True, title=title)
         # analysis.run_umap(n_neighbors=10, random_state=10, best_score=10)
 #
     def sync_and_scale_chromatograms(self, cl, chrom1, chrom2):
@@ -610,46 +653,6 @@ class ChromatogramAnalysis:
         return lag
 
 
-    def find_best_scale_and_lag(self, chrom1, chrom2, scales, max_lag):
-        """
-        Finds the best scale and lag for cross-correlation between two chromatograms.
-
-        Parameters:
-        chrom1 (np.array): The first chromatogram.
-        chrom2 (np.array): The second chromatogram.
-        scales (list of float): The list of scaling factors to try.
-        max_lag (int): The maximum lag to consider for cross-correlation.
-
-        Returns:
-        float: The best scaling factor.
-        int: The best lag.
-        float: The highest cross-correlation value.
-        """
-        best_scale = None
-        best_lag = None
-        best_corr = -np.inf
-
-        for scale in scales:
-
-            # Scale the first chromatogram
-            scaled_chrom2 = self.scale_chromatogram(chrom2, scale)
-
-            # Compute the cross-correlation
-            corr = correlate(chrom1, scaled_chrom2, mode='full', method='auto')
-            lags = np.arange(-len(chrom1) + 1, len(scaled_chrom2))
-
-            # Find the lag with the highest correlation within the specified range
-            max_lag_idx = np.argmax(corr)
-            lag = lags[max_lag_idx]
-            corr_value = corr[max_lag_idx]
-
-            # Update the best scale and lag if the correlation is higher
-            if corr_value > best_corr:
-                best_corr = corr_value
-                best_scale = scale
-                best_lag = lag
-
-        return best_scale, best_lag, best_corr
 
     def find_scaling_factor_for_pair(self, chrom1, chrom2):
         """
@@ -684,37 +687,104 @@ class ChromatogramAnalysis:
         f = interp1d(x, chrom, bounds_error=False, fill_value="extrapolate")
         return f(scaled_x)  # Ensure the scaled array matches the original length
 
-    def sync_individual_chromatograms(self, reference_chrom, chromatograms, ref_peak_pos=None):
-        scales = np.linspace(0.85, 1.15, 500)  # Example scales to try
-        max_lag = 500
+    def sync_individual_chromatograms(self, mean_c1, chromatograms, scales, algo=None, initial_lag=300, lag_res=None):
+        from wine_analysis import SyncChromatograms
         synced_chromatograms = {}
-        for key in chromatograms.keys():
-            # if key == 'B1990':
-                print(key)
-                chrom = chromatograms[key]
+        for i, key in enumerate(chromatograms.keys()):
+            # print(i, key, end=" ")
+            print(i, key)
+            chrom = chromatograms[key]
+            sync_chrom = SyncChromatograms(
+                mean_c1, chrom, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
+                )
+            # sync_chrom.lag_res = utils.calculate_lag_corr(mean_c1, chrom, 4000, extend=0, hop=2000, sigma=20)
+            # sync_chrom.lag_res = utils.calculate_lag(mean_c1, chrom, 4000, lag_range=initial_lag, hop=1000, sigma=50, distance_metric='L2')
+            sync_chrom.lag_res = utils.calculate_lag(
+                mean_c1, chrom, 2000, lag_range=initial_lag, hop=100, sigma=20, distance_metric='L2', init_min_dist=0.05)
 
-                if not ref_peak_pos:
-                    # Example maximum lag
-                    best_scale, best_lag, best_corr = self.find_best_scale_and_lag(
-                        reference_chrom[:5000], chrom[:5000], np.array((1,)), 500
-                    )
-                    chrom_shifted = self.shift_chromatogram(chrom, best_lag)
-                    chrom_sync = self.scale_chromatogram(chrom_shifted, 0.998)
-                    optimized_chrom = chrom_sync
-                else:
-                    optimized_chrom = self.sync_chromatograms(reference_chrom, chrom, ref_peak_pos=ref_peak_pos)
+            # sync_chrom.lag_res = lag_res
 
-                synced_chromatograms[key] = optimized_chrom
-                # plt.figure(figsize=(24, 4))
-                # plt.plot(reference_chrom)
-                # plt.plot(optimized_chrom)
-                # plt.show()
-                # plt.close()
+            optimized_chrom = sync_chrom.adjust_chromatogram(algo=algo, initial_lag=initial_lag)
+
+            synced_chromatograms[key] = optimized_chrom
 
         return synced_chromatograms
 
+    def stacked_2D_plots_3D(self, data_dict):
+        """
+        Creates stacked 2D plots in a 3D space for the given dictionary of data.
 
-    def resample_chromatograms(self, chrom1, chrom2, start=None):
+        Parameters:
+        data_dict (dict): A dictionary with labels as keys and lists of values as values.
+        """
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d')
+
+        labels = list(data_dict.keys())
+        values = list(data_dict.values())
+
+        num_plots = len(labels)
+        x = np.arange(len(values[0]))
+        offset = 10  # Offset between plots in the z direction
+
+        for i, (label, value) in enumerate(zip(labels, values)):
+            z = np.full_like(x, i * offset)  # Set the z value to stack plots
+            ax.plot(x, value, zs=z, zdir='z', label=label)
+
+            # Show legend for the first and last plots
+            if i == 0 or i == num_plots - 1:
+                ax.legend(loc='upper left')
+
+        ax.set_xlabel('X-axis')
+        ax.set_ylabel('Y-axis')
+        ax.set_zlabel('Plot index')
+        ax.set_title('Stacked 2D Plots in 3D')
+
+        # Set the initial view to make y-axis vertical
+        ax.view_init(elev=150, azim=-90)
+        ax.set_xlim([0, 15000])
+        # ax.set_ylim([0, 0.2])
+
+        def on_key(event):
+            if event.key == 'r':
+                ax.view_init(elev=90, azim=-90)
+                fig.canvas.draw()
+
+        fig.canvas.mpl_connect('key_press_event', on_key)
+
+        plt.show()
+    def stacked_plot(self, data_dict):
+        """
+        Creates a stacked plot for the given dictionary of data.
+
+        Parameters:
+        data_dict (dict): A dictionary with labels as keys and lists of values as values.
+
+        """
+        labels = list(data_dict.keys())
+        values = list(data_dict.values())
+
+        # Ensure all lists have the same length
+        max_length = max(len(lst) for lst in values)
+        values = [np.pad(lst, (0, max_length - len(lst)), mode='constant') for lst in values]
+
+        # Create the stack plot
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax = fig.add_subplot(111, projection='3d')
+
+        # ax.stackplot(range(max_length), *values, labels=labels)
+
+        # Customize the plot
+        ax.legend(loc='upper left')
+        ax.set_title('Stacked Plot')
+        ax.set_xlabel('X-axis')
+        ax.set_ylabel('Values')
+
+        # Show the plot
+        plt.show()
+
+
+    def resample_chromatograms(self, chrom1, chrom2, start=None, length=None):
         """
         Resamples two chromatograms to the same length using interpolation.
 
@@ -727,7 +797,8 @@ class ChromatogramAnalysis:
         """
         if isinstance(chrom1, dict) and isinstance(chrom2, dict):
             # Use the minimum number of chromatogram values in any sample
-            length = min(min(len(value) for value in chrom1.values()), min(len(value) for value in chrom2.values()))
+            if not length:
+                length = min(min(len(value) for value in chrom1.values()), min(len(value) for value in chrom2.values()))
             resampled_chrom1 = {key: self.resample_chromatogram(value[start:], length) for key, value in chrom1.items()}
             resampled_chrom2 = {key: self.resample_chromatogram(value[start:], length) for key, value in chrom2.items()}
         else:
@@ -748,6 +819,7 @@ class SyncChromatograms:
         self.threshold = threshold
         self.max_sep_threshold = max_sep_threshold
         self.peak_prominence = peak_prominence
+        self.lag_res = None
 
     def scale_chromatogram(self, chrom, scale):
         x = np.arange(len(chrom))
@@ -755,6 +827,9 @@ class SyncChromatograms:
         scaled_x = np.linspace(0, len(chrom) - 1, num=scaled_length)
         f = interp1d(x, chrom, bounds_error=False, fill_value="extrapolate")
         return f(scaled_x)
+
+    def scale_peaks_location(self, peaks, scale):
+        return peaks * scale
 
     def find_largest_peaks(self, segment, num_peaks):
         peaks, _ = find_peaks(segment, height=self.threshold)
@@ -768,16 +843,160 @@ class SyncChromatograms:
     def pad_with_zeros(self, array, pad_width):
         return np.pad(array, (pad_width, 0), 'constant')
 
-    def find_best_scale_and_lag(self, c1_segment, c2_segment, initial_lag=None):
+    def find_best_scale_and_lag_l2(self, c1_segment, c2_segment, max_lag=2500):
         best_scale = None
         best_lag = None
         best_diff = np.inf
 
-        peaks_c1 = self.find_largest_peaks(c1_segment, self.min_peaks)
-        if len(peaks_c1) == 0:
+        for scale in self.scales:
+            scaled_c2_segment = self.scale_chromatogram(c2_segment, scale)
+            _, best_lag_for_scale = self.cross_correlation_l2_norm(c1_segment, scaled_c2_segment, max_lag)
+
+            if best_lag_for_scale is None:
+                continue
+
+            shifted_scaled_c2_segment = np.roll(scaled_c2_segment, best_lag_for_scale)
+            if best_lag_for_scale > 0:
+                shifted_scaled_c2_segment[:best_lag_for_scale] = 0
+            else:
+                shifted_scaled_c2_segment[best_lag_for_scale:] = 0
+
+            min_length = min(len(c1_segment), len(shifted_scaled_c2_segment))
+            c1_segment_trimmed = c1_segment[:min_length]
+            shifted_scaled_c2_segment_trimmed = shifted_scaled_c2_segment[:min_length]
+
+            diff = np.sqrt(np.sum((c1_segment_trimmed - shifted_scaled_c2_segment_trimmed)**2))
+
+            if diff < best_diff:
+                best_diff = diff
+                best_scale = scale
+                best_lag = best_lag_for_scale
+
+        return best_scale, best_lag
+
+
+    def cross_correlation_l2_norm(self, signal1, signal2, max_lag):
+        len1 = len(signal1)
+        len2 = len(signal2)
+        result = np.zeros(2 * max_lag + 1)
+
+        for lag in range(-max_lag, max_lag + 1):
+            if lag < 0:
+                shifted_signal2 = np.concatenate([np.zeros(-lag), signal2[:len2 + lag]])
+                signal1_part = signal1[:len1 + lag]
+            else:
+                shifted_signal2 = np.concatenate([signal2[lag:], np.zeros(lag)])
+                signal1_part = signal1[lag:]
+
+            min_length = min(len(shifted_signal2), len(signal1_part))
+            shifted_signal2 = shifted_signal2[:min_length]
+            signal1_part = signal1_part[:min_length]
+
+            result[lag + max_lag] = np.sqrt(np.sum((shifted_signal2 - signal1_part) ** 2))
+
+        min_lag_index = np.argmin(result)
+        min_lag = min_lag_index - max_lag
+
+        return result, min_lag
+
+    def correct_segment(self, segment, scale, lag):
+        if scale is None or lag is None:
+            return segment
+
+        scaled_segment = self.scale_chromatogram(segment, scale)
+        if lag > 0:
+            corrected_segment = np.roll(scaled_segment, lag)
+            corrected_segment[:lag] = scaled_segment[0]
+        elif lag < 0:
+            corrected_segment = np.roll(scaled_segment, lag)
+            corrected_segment[lag:] = scaled_segment[-1]
+        else:
+            corrected_segment = scaled_segment
+
+        return corrected_segment
+
+    def scale_and_shift_in_sections(self, c2, nsections, lag=300):
+        def normalize_signal(signal):
+            min_val = np.min(signal)
+            max_val = np.max(signal)
+            normalized_signal = (signal - min_val) / (max_val - min_val)
+            return normalized_signal
+
+        segment_length = len(c2) // nsections
+        # final_corrected_c2 = []
+        final_corrected_c2 = c2.copy()
+
+        for i in range(nsections):
+            start = i * segment_length
+            end = (i + 1) * segment_length if i < nsections - 1 else len(c2)
+
+            c1_segment = self.c1[start:end]
+            c2_segment = final_corrected_c2[start:end]
+
+            if len(c1_segment) == 0 or len(c2_segment) == 0:
+                continue
+
+            best_scale, best_lag, corr = self.find_best_scale_and_lag_corr(
+                normalize_signal(gaussian_filter(c1_segment, 20)),
+                normalize_signal(gaussian_filter(c2_segment, 20)),
+                np.linspace(1.0, 1.1, 1),
+                max_lag=self.max_sep_threshold
+            )
+            best_lag = len(c1_segment) - len(c2_segment) + best_lag
+
+            print("    ",  best_scale, best_lag)
+
+            # best_scale, best_lag = self.find_best_scale_and_lag(c1_segment, c2_segment, initial_lag=lag, nsegments=30)
+            # best_scale, best_lag = self.find_best_scale_and_lag_dtw(c1_segment, c2_segment, initial_lag=50, nsegments=300)
+            if best_scale is None or best_lag is None:
+                continue
+            if corr < 20 or np.abs(best_lag) >= self.max_sep_threshold:
+                 best_scale, best_lag = 1, 0
+
+            corrected_segment = self.correct_segment(c2_segment, best_scale, best_lag)
+
+            if best_lag < 0:
+                final_corrected_c2 = np.concatenate(
+                    [final_corrected_c2[:start], corrected_segment[:best_lag], final_corrected_c2[end:]]
+                )
+            else:
+                final_corrected_c2 = np.concatenate(
+                    [final_corrected_c2[:start],
+                     np.concatenate([np.repeat(corrected_segment[0], best_lag), corrected_segment]),
+                     final_corrected_c2[end:]]
+                )
+
+            # final_corrected_c2 = np.concatenate([final_corrected_c2[:start], corrected_segment, final_corrected_c2[end:]])
+
+            # final_corrected_c2.extend(corrected_segment)
+
+        return np.array(final_corrected_c2)
+
+
+    def find_best_scale_and_lag(self, c1_segment, c2_segment, scales=None, initial_lag=None, lag_hop=1, nsegments=10, dtw=None):
+        best_scale = None
+        best_lag = None
+        best_diff = np.inf
+        if not scales:
+            scales = self.scales
+
+        c1_peaks, _ = find_peaks(c1_segment)
+        #  remove peak for standard in reference
+        index_to_remove = np.where(c1_peaks == 8918)[0]
+        c1_peaks = np.delete(c1_peaks, index_to_remove)
+        c1_peaks, valid = self.ensure_peaks_in_segments(c1_segment, c1_peaks, num_segments=2*nsegments)
+        if not valid:
+            raise ValueError('Missing peaks in peaks_c1 (find_best_scale_and_lag())')
+
+        c2_peaks_scaled, _ = find_peaks(c2_segment)
+        c2_peaks_scaled, valid = self.ensure_peaks_in_segments(c2_segment, c2_peaks_scaled, num_segments=nsegments)
+        if not valid:
+            raise ValueError('Missing peaks in peaks_c2 (find_best_scale_and_lag())')
+
+        if len(c1_peaks) == 0:
             return best_scale, best_lag
 
-        peaks_c1 = np.sort(peaks_c1)
+        peaks_c1 = np.sort(c1_peaks)
 
         lag_range = int(0.2 * len(c1_segment))
 
@@ -788,10 +1007,79 @@ class SyncChromatograms:
             lag_start = -lag_range
             lag_end = lag_range
 
+        c2_peaks_scaled_orig = c2_peaks_scaled.copy()
+        for lag in range(lag_start, lag_end + 1, lag_hop):
+            for scale in scales:
+                c2_peaks_scaled = self.scale_peaks_location(c2_peaks_scaled_orig, scale)
+                # scaled_c2_segment = self.scale_chromatogram(c2_segment, scale)
+                # peaks_scaled_c2, _ = find_peaks(scaled_c2_segment)
+                # peaks_scaled_c2, _ = self.ensure_peaks_in_segments(scaled_c2_segment, peaks_scaled_c2, num_segments=10)
+
+                if len(c2_peaks_scaled) == 0:
+                    continue
+
+                c2_peaks_scaled = np.sort(c2_peaks_scaled)
+                c2_shifted_peaks_scaled = c2_peaks_scaled + lag
+                valid_indices = (c2_shifted_peaks_scaled >= 0) & (c2_shifted_peaks_scaled < len(c1_segment))
+                c2_shifted_peaks_scaled = c2_shifted_peaks_scaled[valid_indices]
+
+                if len(c2_shifted_peaks_scaled) == 0:
+                    continue
+
+                if dtw:
+                    # Calculate DTW distance
+                    distance, _ = fastdtw(c1_peaks, c2_shifted_peaks_scaled)
+                else:
+                    distances = []
+                    for peak1 in c1_peaks:
+                        closest_peak2 = c2_shifted_peaks_scaled[np.argmin(np.abs(c2_shifted_peaks_scaled - peak1))]
+                        distances.append(abs(peak1 - closest_peak2))
+                    if len(distances) == 0:
+                        continue
+                    distance = np.mean(distances)
+
+                if distance < best_diff:
+                    best_diff = distance
+                    best_scale = scale
+                    best_lag = lag
+
+        return best_scale, best_lag
+
+
+    def find_best_scale_and_lag_dtw(self, c1_segment, c2_segment, scales=None, initial_lag=None, nsegments=10, dtw=None):
+        best_scale = None
+        best_lag = None
+        best_diff = np.inf
+        if not scales:
+            scales = self.scales
+
+        peaks_scaled_c2, _ = find_peaks(c2_segment)
+        peaks_scaled_c2, valid = self.ensure_peaks_in_segments(c2_segment, peaks_scaled_c2, num_segments=nsegments)
+        if not valid:
+            raise ValueError('Missing peaks in peaks_c2 (find_best_scale_and_lag())')
+
+
+        dtw_path = self.get_dtw_path(c1_segment, c2_segment)
+        corresponding_c1_peaks = self.find_corresponding_indices(peaks_scaled_c2, dtw_path)
+        peaks_c1 = np.sort(corresponding_c1_peaks)
+
+        lag_range = int(0.2 * len(c1_segment))
+
+        if initial_lag is not None:
+            lag_start = -initial_lag
+            lag_end = initial_lag
+        else:
+            lag_start = -lag_range
+            lag_end = lag_range
+
+        peaks_scaled_c2_orig = peaks_scaled_c2.copy()
         for lag in range(lag_start, lag_end + 1):
-            for scale in self.scales:
-                scaled_c2_segment = self.scale_chromatogram(c2_segment, scale)
-                peaks_scaled_c2 = self.find_largest_peaks(scaled_c2_segment, self.min_peaks)
+            for scale in scales:
+                peaks_scaled_c2 = self.scale_peaks_location(peaks_scaled_c2_orig, scale)
+                # scaled_c2_segment = self.scale_chromatogram(c2_segment, scale)
+                # peaks_scaled_c2, _ = find_peaks(scaled_c2_segment)
+                # peaks_scaled_c2, _ = self.ensure_peaks_in_segments(scaled_c2_segment, peaks_scaled_c2, num_segments=10)
+
                 if len(peaks_scaled_c2) == 0:
                     continue
 
@@ -803,235 +1091,107 @@ class SyncChromatograms:
                 if len(shifted_peaks_scaled_c2) == 0:
                     continue
 
-                distances = []
-                for peak1, peak2 in zip(peaks_c1, shifted_peaks_scaled_c2):
-                    distances.append(abs(peak1 - peak2))
+                if dtw:
+                    # Calculate DTW distance
+                    distance, _ = fastdtw(peaks_c1, shifted_peaks_scaled_c2)
+                else:
+                    distances = []
+                    for peak1 in peaks_c1:
+                        closest_peak2 = shifted_peaks_scaled_c2[np.argmin(np.abs(shifted_peaks_scaled_c2 - peak1))]
+                        distances.append(abs(peak1 - closest_peak2))
+                    if len(distances) == 0:
+                        continue
+                    distance = np.mean(distances)
 
-                if len(distances) == 0:
-                    continue
-
-                diff = np.mean(distances)
-
-                if diff < best_diff:
-                    best_diff = diff
+                if distance < best_diff:
+                    best_diff = distance
                     best_scale = scale
                     best_lag = lag
 
         return best_scale, best_lag
 
-    def correct_segment(self, segment, scale, lag):
-        if scale is None or lag is None:
-            return segment
+    def find_best_scale_and_lag_corr(self, chrom1, chrom2, scales, max_lag=300):
+        """
+        Finds the best scale and lag for cross-correlation between two chromatograms.
 
-        scaled_segment = self.scale_chromatogram(segment, scale)
-        if lag > 0:
-            corrected_segment = np.roll(scaled_segment, lag)
-            corrected_segment[:lag] = scaled_segment[0]
-        else:
-            corrected_segment = np.roll(scaled_segment, lag)
-            corrected_segment[lag:] = scaled_segment[-1]
-        return corrected_segment
+        Parameters:
+        chrom1 (np.array): The first chromatogram.
+        chrom2 (np.array): The second chromatogram.
+        scales (list of float): The list of scaling factors to try.
+        max_lag (int): The maximum lag to consider for cross-correlation.
 
-    def align_maxima(self, c1_segment, c2_segment):
-        threshold_c1 = min(c1_segment) + np.std(c1_segment) * self.threshold
-        threshold_c2 = min(c2_segment) + np.std(c2_segment) * self.threshold
-        peaks_c1, _ = find_peaks(c1_segment, height=threshold_c1, prominence=0.1)
-        peaks_c2, _ = find_peaks(c2_segment, height=threshold_c2, prominence=0.1)
+        Returns:
+        float: The best scaling factor.
+        int: The best lag.
+        float: The highest cross-correlation value.
+        """
+        best_scale = None
+        best_lag = None
+        best_corr = -np.inf
 
-        # Return the original segment if no peaks are found in either c1 or c2
-        if len(peaks_c1) == 0 or len(peaks_c2) == 0:
-            return c2_segment, []
+        for scale in scales:
 
-        # Sort peaks in c2 by their amplitude in descending order
-        sorted_peaks_c2 = peaks_c2[np.argsort(c2_segment[peaks_c2])[::-1]]
-        c2_segment_aligned = np.copy(c2_segment)
-        aligned_maxima = []  # List to keep track of the aligned maxima
+            # Scale the first chromatogram
+            scaled_chrom2 = self.scale_chromatogram(chrom2, scale)
 
-        # Align the highest peak in c2 with the closest peak in c1
-        m1_c2 = sorted_peaks_c2[0]
-        m1_c1 = peaks_c1[np.argmin(np.abs(peaks_c1 - m1_c2))]
-        shift = m1_c1 - m1_c2
-        c2_segment_aligned = self.shift_chromatogram(c2_segment_aligned, shift, c2_segment[0], c2_segment[-1])
-        peaks_c2, _ = find_peaks(c2_segment_aligned, height=threshold_c2)
-        sorted_peaks_c2 = peaks_c2[np.argsort(c2_segment_aligned[peaks_c2])[::-1]]
-        aligned_maxima.append(sorted_peaks_c2[0])  # Track aligned maxima
+            # Compute the cross-correlation
+            corr = correlate(chrom1, scaled_chrom2, mode='full', method='auto')
+            center = len(corr) // 2
+            corr = corr[center - max_lag:center + max_lag + 1]
+            # lags = np.arange(-len(chrom1) + 1, len(scaled_chrom2))
+            lags = np.arange(-max_lag, max_lag + 1)
 
-        # Align subsequent peaks by padding or trimming
-        initial_peaks = min(len(peaks_c1), len(sorted_peaks_c2))
-        for i in range(1, initial_peaks):
-            m2_c2 = sorted_peaks_c2[i]
-            m1_c2 = aligned_maxima[np.argmin(np.abs(aligned_maxima - m2_c2))]  # closest previously aligned
+            # Find the lag with the highest correlation within the specified range
+            max_lag_idx = np.argmax(corr)
+            lag = lags[max_lag_idx]
+            corr_value = corr[max_lag_idx]
 
-            m1_c1 = peaks_c1[np.argmin(np.abs(peaks_c1 - m1_c2))]  # closest m1 in c1
-            m2_c1 = peaks_c1[np.argmin(np.abs(peaks_c1 - m2_c2))]  # closest m1 in c1
+            # Update the best scale and lag if the correlation is higher
+            if corr_value > best_corr:
+                best_corr = corr_value
+                best_scale = scale
+                best_lag = lag
 
-            if m1_c1 == m2_c1 or np.abs(m2_c2 - m2_c1) > self.max_sep_threshold:# or m1_c2 == m2_c2:
-                 # break
-                continue
-
-            aligned_maxima.append(m2_c1)  # track aligned maxima
-
-            # Ensure m1_c1 and m2_c1 are in the correct order without altering their original values
-            sorted_m1_c1, sorted_m2_c1 = sorted((m1_c1, m2_c1))
-            sorted_m1_c2, sorted_m2_c2 = sorted((m1_c2, m2_c2))
-
-            # Find the minimum value in the c2 segment between the peaks
-            interval_c2_segment = c2_segment_aligned[sorted_m1_c2:sorted_m2_c2]
-            min_pos_c2 = np.argmin(interval_c2_segment) + sorted_m1_c2
-            min_value_c2 = np.min(interval_c2_segment)
-
-            # Calculate the intervals between peaks in c1 and c2
-            interval_c1 = sorted_m2_c1 - sorted_m1_c1
-            interval_c2 = sorted_m2_c2 - sorted_m1_c2
-
-            # Pad or trim c2 to match the interval in c1
-            if interval_c1 > interval_c2:
-                # Pad c2 with the minimum value found between the peaks
-                pad_amount = interval_c1 - interval_c2
-                m2_c2_idx = int(np.where(peaks_c2 == m2_c2)[0][0])
-                peak_on_left = peaks_c2[m2_c2_idx - 1]
-                min_pos_peak_left = np.argmin(c2_segment_aligned[peak_on_left:peaks_c2[m2_c2_idx]]) + peak_on_left
-                c2_segment_aligned = np.concatenate([
-                    c2_segment_aligned[:min_pos_peak_left - pad_amount],
-                    c2_segment_aligned[min_pos_peak_left:min_pos_c2],
-                    np.full(pad_amount, min_value_c2),
-                    c2_segment_aligned[min_pos_c2:]
-                ])
-                #     c2_segment_aligned[:min_pos_c2],
-                #     np.full(pad_amount, min_value_c2),
-                #     c2_segment_aligned[min_pos_c2:]
-                # ])
-                # c2_segment_aligned = c2_segment_aligned[pad_amount:]  # remove from the beginning to align
-            elif interval_c2 > interval_c1:
-                # Trim c2 to match the interval in c1 by removing data around the minimum value
-                trim_amount = interval_c2 - interval_c1
-                left_trim = trim_amount // 2
-                right_trim = trim_amount - left_trim
-                m2_c2_idx = int(np.where(peaks_c2 == m2_c2)[0][0])   # index of m2_c2
-                if m2_c2_idx == 0 or m2_c2_idx >= len(peaks_c2) - 1:
-                    continue
-                if m2_c2 < m1_c2:
-                    peak_on_left = peaks_c2[m2_c2_idx - 1]
-                    min_pos_peak_left = np.argmin(c2_segment_aligned[peak_on_left:peaks_c2[m2_c2_idx]]) + peak_on_left
-                    c2_segment_aligned = np.concatenate([
-                        c2_segment_aligned[:min_pos_peak_left],
-                        np.full(trim_amount, c2_segment_aligned[min_pos_peak_left]),
-                        c2_segment_aligned[min_pos_peak_left:min_pos_c2 - left_trim],
-                        c2_segment_aligned[min_pos_c2 + right_trim:]
-                    ])
-                elif m2_c2 > m1_c2:
-                    peak_on_right = peaks_c2[m2_c2_idx + 1]
-                    min_pos_peak_right = np.argmin(c2_segment_aligned[m2_c2:peak_on_right]) + m2_c2
-                    c2_segment_aligned = np.concatenate([
-                        c2_segment_aligned[:min_pos_c2 - trim_amount],
-                        c2_segment_aligned[min_pos_c2:min_pos_peak_right],
-                        np.full(trim_amount, c2_segment_aligned[min_pos_peak_right]),
-                        c2_segment_aligned[min_pos_peak_right:]
-                    ])
-                # c2_segment_aligned = np.concatenate([
-                #     c2_segment_aligned[:min_pos_c2 - left_trim],
-                #     c2_segment_aligned[min_pos_c2 + right_trim:]
-                # ])
-                # c2_segment_aligned = np.concatenate([np.full(trim_amount, c2_segment_aligned[0]), c2_segment_aligned])
-
-            peaks_c2, _ = find_peaks(c2_segment_aligned, height=threshold_c2)
-            sorted_peaks_c2 = peaks_c2[np.argsort(c2_segment_aligned[peaks_c2])[::-1]]
-            if len(sorted_peaks_c2) < initial_peaks:
-                break
-
-        return c2_segment_aligned
-
-    # def align_and_scale_signals(self, c1, c2, proximity_threshold, peak_prominence):
-    #     # Find peaks
-    #     threshold_c1 = min(c1) + np.std(c1) * self.threshold
-    #     threshold_c2 = min(c2) + np.std(c2) * self.threshold
-    #     c1_peaks, _ = find_peaks(c1, height=threshold_c1, prominence=peak_prominence)
-    #     c2_peaks, _ = find_peaks(c2, height=threshold_c2, prominence=peak_prominence)
-    #
-    #     # Initial alignment of the first peak
-    #     c2_aligned = c2.copy()
-    #
-    #     initial_npeaks = len(c2_peaks)
-    #     num_peaks_ahead = 3
-    #
-    #     for i in range(1, initial_npeaks):
-    #         c2p_prev = c2_peaks[i - 1]
-    #         c2p = c2_peaks[i]
-    #
-    #         # Find the closest peaks in c1, including a few before and after
-    #         closest_index = np.argmin(np.abs(c1_peaks - c2p))
-    #         indices_to_consider = np.arange(max(0, closest_index - 1), min(len(c1_peaks), closest_index + 2))
-    #
-    #         best_c1p = c1_peaks[closest_index]
-    #         best_c2_aligned = c2_aligned
-    #         min_avg_peak_diff = float('inf')
-    #
-    #         for idx in indices_to_consider:
-    #             c1p = c1_peaks[idx]
-    #             c1p_prev = c1_peaks[np.argmin(np.abs(c1_peaks - c2p_prev))]
-    #
-    #             if np.abs(c1p - c2p) > proximity_threshold or c1p == c1p_prev:
-    #                 continue
-    #
-    #             # Scale the interval
-    #             interval_c2 = c2p - c2p_prev
-    #             interval_c1 = c1p - c1p_prev
-    #             if interval_c2 == 0:
-    #                 continue
-    #             scale = interval_c1 / interval_c2
-    #
-    #             start = min(c2p_prev, c2p)
-    #             end = max(c2p_prev, c2p)
-    #             c2_segment = c2_aligned[start:end]
-    #             scaled_segment = self.scale_chromatogram(c2_segment, scale)
-    #
-    #             temp_c2_aligned = np.concatenate([c2_aligned[:start], scaled_segment, c2_aligned[end:]])
-    #             temp_c2_peaks, _ = find_peaks(temp_c2_aligned, height=threshold_c2, prominence=peak_prominence)
-    #
-    #             if len(temp_c2_peaks) < initial_npeaks:
-    #                 continue
-    #
-    #             # Check the average separation of a few peaks ahead
-    #             min_length = min(len(c1_peaks), len(temp_c2_peaks), num_peaks_ahead)
-    #             avg_peak_diff_values = []
-    #             for j in range(i, i + min_length):
-    #                 temp_peak = temp_c2_peaks[j]
-    #                 closest_c1_peak = c1_peaks[np.argmin(np.abs(c1_peaks - temp_peak))]
-    #                 avg_peak_diff_values.append(np.abs(temp_peak - closest_c1_peak))
-    #             avg_peak_diff = np.mean(avg_peak_diff_values)
-    #
-    #             if avg_peak_diff < min_avg_peak_diff:
-    #                 min_avg_peak_diff = avg_peak_diff
-    #                 best_c1p = c1p
-    #                 best_c2_aligned = temp_c2_aligned
-    #
-    #         # If all attempts give a worse average peak difference, skip this peak
-    #         if min_avg_peak_diff == float('inf'):
-    #             continue
-    #
-    #         c2_aligned = best_c2_aligned
-    #         c2_peaks, _ = find_peaks(c2_aligned, height=threshold_c2, prominence=peak_prominence)
-    #
-    #
-    #     return c2_aligned
+        return best_scale, best_lag, best_corr
 
 
-    def align_and_scale_signals(self, c1, c2, proximity_threshold, peak_prominence):
+
+
+    def scale_between_peaks(self, c1, c2, proximity_threshold, peak_prominence, nsegments):
         # Find peaks
         threshold_c1 = min(c1) + np.std(c1) * self.threshold
         threshold_c2 = min(c2) + np.std(c2) * self.threshold
-        c1_peaks, _ = find_peaks(c1, height=threshold_c1, prominence=peak_prominence)
-        c2_peaks, _ = find_peaks(c2, height=threshold_c2, prominence=peak_prominence)
-        # indices_to_remove = np.where(c1_peaks == 8940)[0]  # this is the standard
-        # c1_peaks = np.delete(c1_peaks, indices_to_remove)
+        # c1_peaks, _ = find_peaks(c1, height=threshold_c1, prominence=peak_prominence)
+        # c2_peaks, _ = find_peaks(c2, height=threshold_c2, prominence=peak_prominence)
+        c1_peaks, _ = find_peaks(c1)
+        #  remove peak for standard in reference
+        index_to_remove = np.where(c1_peaks == 8918)[0]
+        c1_peaks = np.delete(c1_peaks, index_to_remove)
+        c2_peaks, _ = find_peaks(c2)
+        c1_peaks, valid = self.ensure_peaks_in_segments(c1, c1_peaks, num_segments=nsegments)
+        c2_peaks, valid = self.ensure_peaks_in_segments(c2, c2_peaks, num_segments=nsegments)
+        if not valid:
+            raise ValueError(
+                "Please change parameters, some segments in c2_peaks do not have peaks (scale_between_peaks).")  # Stop if any segment lacks peaks
+
+
         c2_aligned = c2.copy()
         initial_npeaks = len(c2_peaks)
+
+        # Add zero to also scale the first part of the chromatogram
+        c1_peaks = np.concatenate([np.array((0,)), c1_peaks])
+        c2_peaks = np.concatenate([np.array((0,)), c2_peaks])
+        prev_length_change = 0
 
         for i in range(1, initial_npeaks):
             c2p_prev = c2_peaks[i - 1]
             c2p = c2_peaks[i]
             c1p_prev = c2p_prev
             c1p = c1_peaks[np.argmin(np.abs(c1_peaks - c2p))]
+
+            # # Dynamic proximity threshold between peaks
+            # if c2p >  len(c2) / 2:
+            #     proximity_threshold = 100 * c2p / len(c2)
 
             # If the current peak in c2 is too far from the closest peak in c1, skip it
             if np.abs(c1p - c2p) > proximity_threshold or c1p <= c1p_prev:
@@ -1042,200 +1202,146 @@ class SyncChromatograms:
             interval_c1 = c1p - c1p_prev
             if interval_c2 == 0:
                 continue
+            # scale0 = interval_c1 / interval_c2
+            # scale = interval_c1 / (interval_c2 + prev_length_change)
             scale = interval_c1 / interval_c2
 
             start = min(c2p_prev, c2p)
             end = max(c2p_prev, c2p)
             c2_segment = c2_aligned[start:end]
             scaled_segment = self.scale_chromatogram(c2_segment, scale)
+            # prev_length_change = int(len(c2_segment) * scale0) - len(c2_segment)
 
             temp_c2_aligned_1 = np.concatenate([c2_aligned[:start], scaled_segment, c2_aligned[end:]])
-            temp_c2_peaks_1, _ = find_peaks(temp_c2_aligned_1, height=threshold_c2, prominence=peak_prominence)
+            temp_c2_peaks_1, _ = find_peaks(temp_c2_aligned_1)
+            c2_peaks, valid = self.ensure_peaks_in_segments(temp_c2_aligned_1, temp_c2_peaks_1, num_segments=nsegments)
+            if not valid:
+                raise ValueError(
+                    "Please change parameters, some segments do not have peaks.")
+            c2_peaks = np.concatenate([np.array((0,)), c2_peaks])
 
-            if len(temp_c2_peaks_1) < initial_npeaks:
+            if len(temp_c2_peaks_1) < initial_npeaks: # or len(c2_peaks) != nsegments:
                 continue
+                break
 
-            # # Check the next peak
-            # if i + 1 < initial_npeaks:
-            #     next_c2p = c2_peaks[i + 1]
-            #     if np.abs(next_c2p - c2p) < self.max_sep_threshold:
-            #         c1p_next = c1_peaks[np.argmin(np.abs(c1_peaks - next_c2p))]
-            #         interval_c2_next = next_c2p - c2p
-            #         interval_c1_next = c1p_next - c1p
-            #         if interval_c2_next != 0:
-            #             scale_next = interval_c1_next / interval_c2_next
-            #
-            #             start_next = min(c2p, next_c2p)
-            #             end_next = max(c2p, next_c2p)
-            #             c2_segment_next = c2_aligned[start_next:end_next]
-            #             scaled_segment_next = self.scale_chromatogram(c2_segment_next, scale_next)
-            #
-            #             temp_c2_aligned_2 = np.concatenate([c2_aligned[:start_next], scaled_segment_next, c2_aligned[end_next:]])
-            #             temp_c2_peaks_2, _ = find_peaks(temp_c2_aligned_2, height=threshold_c2, prominence=peak_prominence)
-            #
-            #             if len(temp_c2_peaks_2) < initial_npeaks:
-            #                 continue
-            #
-            #             # Choose the scaling that provides the shortest separation of the highest peak in c2 with its closest in c1
-            #             highest_peak_c2 = c2_peaks[0]
-            #             closest_peak_c1_to_highest = c1_peaks[np.argmin(np.abs(c1_peaks - highest_peak_c2))]
-            #
-            #             sep_1 = np.abs(temp_c2_peaks_1[0] - closest_peak_c1_to_highest)
-            #             sep_2 = np.abs(temp_c2_peaks_2[0] - closest_peak_c1_to_highest)
-            #
-            #             if sep_2 < sep_1:
-            #                 c2_aligned = temp_c2_aligned_2
-            #                 c2_peaks = temp_c2_peaks_2
-            #             else:
-            #                 c2_aligned = temp_c2_aligned_1
-            #                 c2_peaks = temp_c2_peaks_1
 
             c2_aligned = temp_c2_aligned_1
-            c2_peaks = temp_c2_peaks_1
 
         return c2_aligned
 
 
 
-    # def align_and_scale_signals(self, c1, c2, proximity_threshold, peak_prominence):
-    #     # Find peaks
-    #     threshold_c1 = min(c1) + np.std(c1) * self.threshold
-    #     threshold_c2 = min(c2) + np.std(c2) * self.threshold
-    #     c1_peaks, _ = find_peaks(c1, height=threshold_c1, prominence=peak_prominence)
-    #     c2_peaks, _ = find_peaks(c2, height=threshold_c2, prominence=peak_prominence)
-    #
-    #     # # Initial alignment of the first peak
-    #     # c2p1 = c2_peaks[0]
-    #     # c1p1 = c1_peaks[np.argmin(np.abs(c1_peaks - c2p1))]
-    #     # if np.abs(c1p1 - c2p1) <= proximity_threshold:
-    #     #     shift = c1p1 - c2p1
-    #     #     c2_aligned = self.shift_chromatogram(c2, shift, c2[0], c2[-1])
-    #     #     c2_peaks, _ = find_peaks(c2_aligned, height=threshold_c2, prominence=peak_prominence)
-    #     # else:
-    #     #     return c2  # If the first peak is out of the proximity threshold, return the original c2
-    #     c2_aligned = c2.copy()
-    #
-    #     initial_npeaks = len(c2_peaks)
-    #     for i in range(1, initial_npeaks):
-    #         c2p_prev = c2_peaks[i - 1]
-    #         c2p = c2_peaks[i]
-    #         c1p_prev = c2p_prev
-    #         c1p = c1_peaks[np.argmin(np.abs(c1_peaks - c2p))]
-    #
-    #         # If the current peak in c2 is too far from the closest peak in c1, skip it
-    #         if np.abs(c1p - c2p) > proximity_threshold or c1p == c1p_prev:
-    #             continue
-    #
-    #         # Scale the interval
-    #         interval_c2 = c2p - c2p_prev
-    #         interval_c1 = c1p - c1p_prev
-    #         if interval_c2 == 0:
-    #             continue
-    #         scale = interval_c1 / interval_c2
-    #
-    #         start = min(c2p_prev, c2p)
-    #         end = max(c2p_prev, c2p)
-    #         c2_segment = c2_aligned[start:end]
-    #         scaled_segment = self.scale_chromatogram(c2_segment, scale)
-    #
-    #         c2_aligned = np.concatenate([c2_aligned[:start], scaled_segment, c2_aligned[end:]])
-    #         c2_peaks, _ = find_peaks(c2_aligned, height=threshold_c2, prominence=peak_prominence)
-    #
-    #         if len(c2_peaks) < initial_npeaks:
-    #             break
-    #
-    #
-    #         # temp_c2_aligned = np.concatenate([c2_aligned[:start], scaled_segment, c2_aligned[end:]])
-    #         # temp_c2_peaks, _ = find_peaks(temp_c2_aligned, height=threshold_c2, prominence=peak_prominence)
-    #         #
-    #         # if len(temp_c2_peaks) < initial_npeaks:
-    #         #     break
-    #         #
-    #         # # Calculate the average separation between peaks for both current and scaled alignments
-    #         # min_length = min(len(c1_peaks), len(c2_peaks), len(temp_c2_peaks))
-    #         # current_avg_sep = np.mean(np.abs(np.diff(c2_peaks[:min_length])))
-    #         # scaled_avg_sep = np.mean(np.abs(np.diff(temp_c2_peaks[:min_length])))
-    #         #
-    #         # # Skip the peak if the average separation with the current scaling is better
-    #         # if current_avg_sep < scaled_avg_sep:
-    #         #     continue
-    #         #
-    #         # c2_aligned = temp_c2_aligned
-    #         # c2_peaks = temp_c2_peaks
-    #
-    #
-    #
-    #     return c2_aligned
+
+    def scale_between_peaks_dtw(self, c1, c2, proximity_threshold, peak_prominence, nsegments):
+        # Find peaks
+        c2_peaks, _ = find_peaks(c2)
+
+        # choose 2 peaks from the first section
+        c2_peaks_first_segment, valid = self.ensure_peaks_in_segments(c2, c2_peaks, num_segments=2*nsegments, last_segment=1)
+        c2_peaks, valid = self.ensure_peaks_in_segments(c2, c2_peaks, num_segments=nsegments)
+        if not valid:
+            raise ValueError(
+                "Please change parameters, some segments in c2_peaks do not have peaks (scale_between_peaks).")  # Stop if any segment lacks peaks
+
+        #  Remove single peak from first section and add two peaks from first section split in two
+        c2_peaks = np.concatenate((c2_peaks_first_segment, c2_peaks[1:]))
+
+        dtw_path = self.get_dtw_path(c1, c2)
+        corresponding_c1_peaks = self.find_corresponding_indices(c2_peaks, dtw_path)
+
+        # c2_aligned = c2.copy()
+        npeaks = len(c2_peaks)
+        temp_c2_aligned = np.array([])
+
+        # Add zero to also scale the first part of the chromatogram
+        corresponding_c1_peaks = np.concatenate([np.array((0,)), corresponding_c1_peaks])
+        c2_peaks = np.concatenate([np.array((0,)), c2_peaks])
+
+        prev_length_change = 0
+        for i in range(1, npeaks):
+            c2p_prev = c2_peaks[i - 1]
+            c2p = c2_peaks[i]
+            c1p_prev = c2p_prev
+            c1p = corresponding_c1_peaks[i]
+
+            # Scale the interval
+            interval_c2 = c2p - c2p_prev
+            interval_c1 = c1p - c1p_prev
 
 
-    # def align_maxima(self, c1_segment, c2_segment):
-    #
-    #     threshold_c1 = min(c1_segment) + np.std(c1_segment) * self.threshold
-    #     threshold_c2 = min(c2_segment) + np.std(c2_segment) * self.threshold
-    #     peaks_c1, _ = find_peaks(c1_segment, height=threshold_c1)
-    #     peaks_c2, _ = find_peaks(c2_segment, height=threshold_c2)
-    #
-    #     # Return the original segment if no peaks are found in either c1 or c2
-    #     if len(peaks_c1) == 0 or len(peaks_c2) == 0:
-    #         return c2_segment
-    #
-    #     # Sort peaks in c2 by their amplitude in descending order
-    #     sorted_peaks_c2 = peaks_c2[np.argsort(c2_segment[peaks_c2])[::-1]]
-    #     c2_segment_aligned = np.copy(c2_segment)
-    #
-    #     # Align the highest peak in c2 with the closest peak in c1
-    #     m1_c2 = sorted_peaks_c2[0]
-    #     m1_c1 = peaks_c1[np.argmin(np.abs(peaks_c1 - m1_c2))]
-    #     shift = m1_c1 - m1_c2
-    #     c2_segment_aligned = self.shift_chromatogram(c2_segment_aligned, shift, c2_segment[0], c2_segment[-1])
-    #     # sorted_peaks_c2[0] = m1_c1
-    #
-    #     # Align subsequent peaks by padding or trimming
-    #     for i in range(1, min(len(peaks_c1), len(sorted_peaks_c2))):
-    #         m1_c2 = sorted_peaks_c2[i - 1]
-    #         m2_c2 = sorted_peaks_c2[i]
-    #         m1_c1 = peaks_c1[np.argmin(np.abs(peaks_c1 - m1_c2))]
-    #         m2_c1 = peaks_c1[np.argmin(np.abs(peaks_c1 - m2_c2))]
-    #
-    #         # Skip if peak order is incorrect
-    #         if m1_c2 >= m2_c2 or m1_c1 >= m2_c1:
-    #             continue
-    #         # Ensure m1_c1 and m2_c1 are in the correct order
-    #         if m1_c1 > m2_c1:
-    #             m1_c1, m2_c1 = m2_c1, m1_c1
-    #         if m1_c2 > m2_c2:
-    #             m1_c2, m2_c2 = m2_c2, m1_c2
-    #
-    #         # Find the minimum value in the c2 segment between the peaks
-    #         interval_c2_segment = c2_segment_aligned[m1_c2:m2_c2]
-    #         min_pos_c2 = np.argmin(interval_c2_segment) + m1_c2
-    #         min_value_c2 = np.min(interval_c2_segment)
-    #
-    #         # Calculate the intervals between peaks in c1 and c2
-    #         interval_c1 = m2_c1 - m1_c1
-    #         interval_c2 = m2_c2 - m1_c2
-    #
-    #         # Pad or trim c2 to match the interval in c1
-    #         if interval_c1 > interval_c2:
-    #             # Pad c2 with the minimum value found between the peaks
-    #             pad_amount = interval_c1 - interval_c2
-    #
-    #             c2_segment_aligned = np.concatenate([
-    #                 c2_segment_aligned[:min_pos_c2],
-    #                 np.full(pad_amount, min_value_c2),
-    #                 c2_segment_aligned[min_pos_c2:]
-    #             ])
-    #         elif interval_c2 > interval_c1:
-    #             # Trim c2 to match the interval in c1 by removing data around the minimum value
-    #             trim_amount = interval_c2 - interval_c1
-    #             left_trim = trim_amount // 2
-    #             right_trim = trim_amount - left_trim
-    #             c2_segment_aligned = np.concatenate([
-    #                 c2_segment_aligned[:min_pos_c2 - left_trim],
-    #                 c2_segment_aligned[min_pos_c2 + right_trim:]
-    #             ])
-    #
-    #     return c2_segment_aligned
+            if interval_c2 == 0:
+                continue
+
+            #  Scale factor also taking into account the contraction/extension of previous section
+            scale0 = interval_c1 / interval_c2
+            scale = interval_c1 / (interval_c2 + prev_length_change)
+
+            start = min(c2p_prev, c2p)
+            end = max(c2p_prev, c2p)
+            c2_segment = c2[start:end]
+
+            # If the current peak in c2 is too far from the closest peak in c1, skip it
+            if np.abs(c1p - c2p) > proximity_threshold or c1p <= c1p_prev:
+                temp_c2_aligned = np.concatenate([temp_c2_aligned, c2_segment])
+                continue
+
+            scaled_segment = self.scale_chromatogram(c2_segment, scale)
+            temp_c2_aligned = np.concatenate([temp_c2_aligned, scaled_segment])
+            prev_length_change = int(len(c2_segment) * scale0) - len(c2_segment)
+
+        c2_aligned = np.concatenate([temp_c2_aligned, c2[c2_peaks[-1]:]])
+
+        return c2_aligned
+
+
+    def ensure_peaks_in_segments(self, c2, c2_peaks, num_segments=10, last_segment=None):
+        segment_length = len(c2) // num_segments
+        new_c2_peaks = []
+
+        for i in range(num_segments):
+            start = i * segment_length
+            end = (i + 1) * segment_length if i < num_segments - 1 else len(c2)
+            segment_peaks = [peak for peak in c2_peaks if start <= peak < end]
+
+            if not segment_peaks:
+                continue
+                # print(f"Segment {i + 1} of {num_segments} has no peaks. Please change parameters.")
+                # return c2, False  # Return original c2 if any segment lacks peaks
+
+            highest_peak = segment_peaks[np.argmax(c2[segment_peaks])]
+            new_c2_peaks.append(highest_peak)
+
+            if i == last_segment:
+                break
+
+        return np.array(new_c2_peaks), True
+
+
+    def remove_peak(self, signal, peak_idx, window_size=5):
+        """
+        Smoothly removes a peak from a signal using interpolation.
+
+        Parameters:
+        signal (np.ndarray): The input signal.
+        peak_idx (int): The index of the peak to remove.
+        window_size (int): The size of the window around the peak to use for interpolation.
+
+        Returns:
+        np.ndarray: The signal with the peak removed.
+        """
+        left_idx = max(0, peak_idx - window_size)
+        right_idx = min(len(signal), peak_idx + window_size + 1)
+
+        # Interpolate over the region including the peak
+        x = np.array([left_idx, right_idx])
+        y = signal[x]
+        interpolated_values = np.interp(np.arange(left_idx, right_idx), x, y)
+
+        # Replace the values in the signal with the interpolated values
+        signal_smooth = np.copy(signal)
+        signal_smooth[left_idx:right_idx] = interpolated_values
+
+        return signal_smooth
 
 
     def shift_chromatogram(self, chrom, lag, left_value=0, right_value=0):
@@ -1246,37 +1352,217 @@ class SyncChromatograms:
             shifted_chrom[-lag:] = right_value  # Set the elements shifted in from the left
         return shifted_chrom
 
+    def find_optimal_offset(self, chrom1, chrom2):
+        cross_corr = correlate(chrom1, chrom2, mode='full')
+        lag = np.argmax(cross_corr) - len(chrom2) + 1
+        return lag
 
-    def adjust_chromatogram(self):
-        segment_length = len(self.c2) // self.n_segments
-        final_corrected_c2 = []
+    def optimize_shift(self, reference_signal, signal):
+        """
+        Optimize the shift parameters to align `signal` with `reference_signal`.
 
-        for i in range(self.n_segments):
-            start = i * segment_length
-            end = (i + 1) * segment_length if i < self.n_segments - 1 else len(self.c2)
+        Parameters:
+        - reference_signal: array-like, the reference signal to align to
+        - signal: array-like, the signal to be shifted
 
-            c1_segment = self.c1[start:end]
+        Returns:
+        - shifted_signal_opt: array-like, the optimally shifted signal
+        - params_opt: list, the optimized parameters [a, b, c]
+        """
 
+        # Generate the time axis
+        t = np.arange(len(reference_signal))
 
-            if i == 0:
-                c2_segment = self.c2[start:end]
-                # best_scale, best_lag = self.find_best_scale_and_lag(c1_segment, c2_segment)
-                best_scale, best_lag = self.find_best_scale_and_lag(self.c1[:3000], self.c2[:3000])
-                corrected_c2_full = self.correct_segment(self.c2, best_scale, best_lag)
-                # corrected_c2_full = self.correct_segment(self.c2, 0.998, best_lag)
-                # c2_segment_aligned = self.align_maxima(c1_segment, corrected_c2_full[start:end])
-                c2_segment_aligned = self.align_and_scale_signals(
-                    c1_segment, corrected_c2_full[start:end], proximity_threshold=self.max_sep_threshold, peak_prominence=self.peak_prominence)
+        # Objective function to minimize
+        def objective(params, signal, reference_signal, t, loss='corr'):
+            a, b, c = params
+            shifted_t = t + a + b * t + c * t ** 2
+            # Ensure the shifted_t is within the range of t
+            shifted_t = np.clip(shifted_t, 0, len(t) - 1)
+            shifted_signal = np.interp(shifted_t, t, signal)
+            if loss == 'l1':
+                return np.sum(np.abs(reference_signal - shifted_signal))
+            elif loss == 'l2':
+                return np.sum((shifted_signal - reference_signal) ** 2)
+            elif loss == 'corr':
+                cross_corr = correlate(reference_signal, shifted_signal, mode='valid')
+                return -np.max(cross_corr)
 
+        # Initial guess for the parameters
+        initial_guess = [0, 0, 0]
+
+        # Perform the optimization
+        result = minimize(objective, initial_guess, args=(signal, reference_signal, t))
+
+        # Extract the optimized parameters
+        a_opt, b_opt, c_opt = result.x
+        print(f"Optimized parameters: a = {a_opt}, b = {b_opt}, c = {c_opt}")
+
+        # Shift the signal using the optimized parameters
+        shifted_t_opt = t + a_opt + b_opt * t + c_opt * t ** 2
+        shifted_t_opt = np.clip(shifted_t_opt, 0, len(t) - 1)
+        shifted_signal_opt = np.interp(shifted_t_opt, t, signal, left=signal[0], right=signal[-1])
+
+        return shifted_signal_opt, [a_opt, b_opt, c_opt]
+
+    def adjust_chromatogram(self, algo=None, initial_lag=300):
+        """
+        Adjusts the chromatogram by scaling and lagging the segments to match a reference chromatogram.
+
+        Parameters
+        ----------
+        algo : int, optional
+            The algorithm to be used for local synchronization. Default is 0.
+            Options:
+            - 0: Global shift and scaling (other algorithms are added to this one)
+            - 1: Scale and shift local segments.
+            - 2: Align and scale signals between the highest peaks.
+            - 3: Model shift as a function of time using a quadratic function.
+        initial_lag : int, optional
+            The initial lag value to be used in synchronization. Default is 300.
+
+        Returns
+        -------
+        numpy.ndarray
+            The adjusted chromatogram after applying the specified synchronization algorithm.
+        """
+        if algo in [3, 4]:
+            corrected_c2 = self.c2
+        else:
+            # Global scale and time shift
+            best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
+                gaussian_filter(self.c1, 50),
+                gaussian_filter(self.c2, 50),
+                np.linspace(0.98, 1.02, 100)
+            )
+            print(best_scale, best_lag)
+            corrected_c2 = self.correct_segment(self.c2, best_scale, best_lag)
+
+        if algo == 0:
+            return np.array(corrected_c2)
+
+        # Scale and shift local segments
+        elif algo == 1:
+            for i in [30]:
+                corrected_c2 = self.scale_and_shift_in_sections(corrected_c2, nsections=i, lag=initial_lag)
+
+        # Align and scale signals between the highest peaks
+        elif algo == 2:
+            for seg in [3]:  # 20
+                corrected_c2 = self.scale_between_peaks(
+                    self.c1, corrected_c2,
+                    proximity_threshold=self.max_sep_threshold,
+                    peak_prominence=self.peak_prominence,
+                    nsegments=seg,
+                )
+
+        # Model shift as a function of t using quadratic function
+        elif algo == 3:
+            min_len = min(len(self.c1), len(corrected_c2))
+            ref = min_max_normalize(self.c1, 0, 1)[:min_len]
+            chrom = min_max_normalize(corrected_c2, 0, 1)[:min_len]
+            corrected_c2, params_opt = self.optimize_shift(ref, chrom)
+
+        # Model shift with custom function fit with shift datapoints
+        elif algo == 4:
+            from scipy.interpolate import UnivariateSpline
+            # Function to apply the shift to the signal using a spline
+            def apply_shift_spline(c2, t, spline):
+                # Apply the shift to the time axis
+                shifted_t = t - spline(t)
+                # Interpolate the c2 signal at the shifted time points
+                interpolator = interp1d(t, c2, fill_value="extrapolate", bounds_error=False)
+                return interpolator(shifted_t)
+
+            # Objective function to minimize (MSE in this case)
+            def objective_function_spline(params, c1, c2, t, spline):
+                spline.set_smoothing_factor(params[0])  # Update smoothing factor
+                c2_shifted = apply_shift_spline(c2, t, spline)
+                mse = np.mean((c1 - c2_shifted) ** 2)
+                return mse
+
+            min_len = min(len(self.c1), len(corrected_c2))
+            ref = min_max_normalize(self.c1, 0, 1)[:min_len]
+            chrom = min_max_normalize(corrected_c2, 0, 1)[:min_len]
+            # Create the spline for initial guess
+            spline = UnivariateSpline(self.lag_res[0], self.lag_res[1], s=0)
+            t = np.arange(len(ref))
+
+            # Optimize the smoothing factor of the spline
+            initial_guess = [0]  # Initial guess for the smoothing factor
+            bounds = [(0, None)]  # Ensure smoothing factor is non-negative
+            result = minimize(objective_function_spline, initial_guess, args=(ref, chrom, t, spline), bounds=bounds)
+            # result = minimize(objective_function_spline, initial_guess, args=(ref, chrom, t, spline))
+
+            # Get the optimized smoothing factor
+            optimized_smoothing_factor = result.x[0]
+            spline.set_smoothing_factor(optimized_smoothing_factor)
+
+            # Apply the optimized shift
+            corrected_c2 = apply_shift_spline(chrom, t, spline)
+
+            # # Plot the original and shifted signals
+            # plt.subplot(2, 1, 1)
+            # plt.plot(t, utils.min_max_normalize(ref), label='Reference Signal c1')
+            # plt.plot(t, utils.min_max_normalize(chrom), label='Original Signal c2')
+            # plt.plot(t, utils.min_max_normalize(corrected_c2), label='Shifted Signal c2')
+            # plt.legend()
+            # plt.title('Signals')
+            #
+            # # Plot the spline along with the data points
+            # plt.subplot(2, 1, 2)
+            # plt.plot(self.lag_res[0], self.lag_res[1], 'o', label='Shift Data Points')
+            # plt.plot(t, spline(t), label='Fitted Spline')
+            # plt.legend()
+            # plt.title('Shift Spline')
+            #
+            # plt.tight_layout()
+            # plt.show()
+
+        else:
+            raise ValueError("Invalid value for 'algo'. Must be one of None, 1, 2, 3.")
+
+        return np.array(corrected_c2)
+
+    def get_dtw_path(self, c1, c2):
+        """
+        Computes path between two chromatogram signals using Dynamic Time Warping (DTW).
+
+        Parameters:
+        c1 (np.array): First chromatogram signal.
+        c2 (np.array): Second chromatogram signal.
+
+        Returns:
+        np.array: The path of c2 to c1.
+        """
+        # Compute the DTW alignment
+        distance, path = fastdtw(c1, c2, dist=2)
+
+        return path
+
+    def find_corresponding_indices(self, c2_indices, dtw_path):
+        """
+        Finds the corresponding indices in c1 for a given list of indices in c2 based on the DTW path.
+
+        Parameters:
+        c2_indices (list): List of indices in c2.
+        dtw_path (list): DTW path.
+
+        Returns:
+        list: Corresponding indices in c1 for the given indices in c2.
+        """
+        corresponding_indices = []
+
+        for c2_idx in c2_indices:
+            # Find the index in the DTW path that corresponds to the given c2_idx
+            corresponding_c1_idx = [idx_c1 for (idx_c1, idx_c2) in dtw_path if idx_c2 == c2_idx]
+
+            if corresponding_c1_idx:
+                corresponding_indices.append(corresponding_c1_idx[0])
             else:
-                c2_segment = corrected_c2_full[start:end]
-                # c2_segment_aligned = self.align_maxima(c1_segment, c2_segment)
-                c2_segment_aligned = self.align_and_scale_signals(
-                    c1_segment, c2_segment, proximity_threshold=25, peak_prominence=0.9)
+                corresponding_indices.append(None)  # If there's no corresponding index, append None
 
-            final_corrected_c2.extend(c2_segment_aligned)
-
-        return np.array(final_corrected_c2)
+        return corresponding_indices
 
     def plot_chromatograms(self, corrected_c2):
         plt.figure(figsize=(16, 4))
@@ -1291,234 +1577,5 @@ class SyncChromatograms:
         plt.show()
 
 
-# class SyncChromatograms:
-#     def __init__(self, c1, c2, n_segments, scales, min_peaks=5, max_iterations=100, threshold=0.1):
-#         self.c1 = c1
-#         self.c2 = c2
-#         self.n_segments = n_segments
-#         self.scales = scales
-#         self.min_peaks = min_peaks
-#         self.max_iterations = max_iterations
-#         self.threshold = threshold
-#
-#     def scale_chromatogram(self, chrom, scale):
-#         x = np.arange(len(chrom))
-#         scaled_length = int(len(chrom) * scale)
-#         scaled_x = np.linspace(0, len(chrom) - 1, num=scaled_length)
-#         f = interp1d(x, chrom, bounds_error=False, fill_value="extrapolate")
-#         return f(scaled_x)
-#
-#     def find_largest_peaks(self, segment, num_peaks):
-#         peaks, _ = find_peaks(segment)
-#         if len(peaks) > num_peaks:
-#             largest_peaks_indices = np.argsort(segment[peaks])[-num_peaks:]
-#             largest_peaks = peaks[largest_peaks_indices]
-#         else:
-#             largest_peaks = peaks
-#         return np.sort(largest_peaks)
-#
-#     def find_best_scale_and_lag(self, c1_segment, c2_segment, initial_lag=None):
-#         best_scale = None
-#         best_lag = None
-#         best_corr = -np.inf
-#
-#         c1_segment_padded = np.where(c1_segment > self.threshold, c1_segment, 0)
-#
-#         for scale in self.scales:
-#             scaled_c2_segment = self.scale_chromatogram(c2_segment, scale)
-#             scaled_c2_segment_padded = np.where(scaled_c2_segment > self.threshold, scaled_c2_segment, 0)
-#
-#             corr = correlate(c1_segment_padded, scaled_c2_segment_padded, mode='full')
-#             lag = np.argmax(corr) - (len(c1_segment_padded) - 1)
-#
-#             if np.max(corr) > best_corr:
-#                 best_corr = np.max(corr)
-#                 best_scale = scale
-#                 best_lag = lag
-#
-#         return best_scale, best_lag
-#
-#     def correct_segment(self, segment, scale, lag):
-#         scaled_segment = self.scale_chromatogram(segment, scale)
-#         if lag > 0:
-#             corrected_segment = np.roll(scaled_segment, lag)
-#             corrected_segment[:lag] = scaled_segment[0]
-#         else:
-#             corrected_segment = np.roll(scaled_segment, lag)
-#             corrected_segment[lag:] = scaled_segment[-1]
-#         return corrected_segment
-#
-#     def adjust_chromatogram(self):
-#         segment_length = len(self.c2) // self.n_segments
-#
-#         start = 0
-#         end = segment_length
-#         c1_segment = self.c1[start:end]
-#         c2_segment = self.c2[start:end]
-#
-#         for i in range(10):
-#             best_scale, best_lag = self.find_best_scale_and_lag(c1_segment, c2_segment)
-#             initial_best_lag = best_lag
-#             corrected_c2_full = self.correct_segment(self.c2, best_scale, best_lag)
-#
-#         final_corrected_c2 = []
-#
-#         for i in range(self.n_segments):
-#             start = i * segment_length
-#             end = (i + 1) * segment_length if i < self.n_segments - 1 else len(corrected_c2_full)
-#
-#             c1_segment = self.c1[start:end]
-#             c2_segment = corrected_c2_full[start:end]
-#
-#             best_scale, best_lag = self.find_best_scale_and_lag(c1_segment, c2_segment, initial_lag=initial_best_lag)
-#             corrected_segment = self.correct_segment(c2_segment, best_scale, best_lag)
-#
-#             final_corrected_c2.extend(corrected_segment)
-#
-#         return np.array(final_corrected_c2)
-#
-#     def plot_chromatograms(self, corrected_c2):
-#         plt.figure(figsize=(10, 6))
-#         plt.plot(self.c1, label='Chromatogram 1')
-#         plt.plot(self.c2, label='Chromatogram 2 (Original)', linestyle='--')
-#         plt.plot(corrected_c2, label='Chromatogram 2 (Corrected)', linestyle='-.')
-#         plt.xlabel('Index')
-#         plt.ylabel('Intensity')
-#         plt.title('Chromatogram Adjustment')
-#         plt.legend()
-#         plt.grid(True)
-#         plt.show()
 
 
-# class SyncChromatograms:
-#     def __init__(self, c1, c2, n_segments, scales, min_peaks=5, max_iterations=100):
-#         self.c1 = c1
-#         self.c2 = c2
-#         self.n_segments = n_segments
-#         self.scales = scales
-#         self.min_peaks = min_peaks
-#         self.max_iterations = max_iterations
-#
-#     def scale_chromatogram(self, chrom, scale):
-#         x = np.arange(len(chrom))
-#         scaled_length = int(len(chrom) * scale)
-#         scaled_x = np.linspace(0, len(chrom) - 1, num=scaled_length)
-#         f = interp1d(x, chrom, bounds_error=False, fill_value="extrapolate")
-#         return f(scaled_x)  # Ensure the scaled array matches the original length
-#
-#     def find_largest_peaks(self, segment, num_peaks):
-#         peaks, _ = find_peaks(segment)
-#         if len(peaks) > num_peaks:
-#             # Sort peaks by their heights and select the largest ones
-#             largest_peaks_indices = np.argsort(segment[peaks])[-num_peaks:]
-#             largest_peaks = peaks[largest_peaks_indices]
-#         else:
-#             largest_peaks = peaks
-#         return np.sort(largest_peaks)  # Ensure peaks are ordered by their indices
-#
-#     def find_best_scale_and_lag(self, c1_segment, c2_segment, initial_lag=None):
-#         best_scale = None
-#         best_lag = None
-#         best_diff = np.inf
-#
-#         peaks_c1 = self.find_largest_peaks(c1_segment, self.min_peaks)
-#         peaks_c1 = np.sort(peaks_c1)  # Ensure peaks are ordered by their indices
-#
-#         lag_range = int(0.2 * len(c1_segment))  # 20% of the segment length
-#
-#         # Set the initial lag range for the first segment or use a narrower range for subsequent segments
-#         if initial_lag is not None:
-#             lag_start = -initial_lag
-#             lag_end = initial_lag
-#             # lag_start = max(-lag_range, initial_lag - lag_range)
-#             # lag_end = min(lag_range, initial_lag + lag_range)
-#         else:
-#             lag_start = -lag_range
-#             lag_end = lag_range
-#
-#         # Scan lags within the specified range
-#         for lag in range(lag_start, lag_end + 1):
-#             for scale in self.scales:
-#                 scaled_c2_segment = self.scale_chromatogram(c2_segment, scale)
-#                 peaks_scaled_c2 = self.find_largest_peaks(scaled_c2_segment, self.min_peaks)
-#                 peaks_scaled_c2 = np.sort(peaks_scaled_c2)  # Ensure peaks are ordered by their indices
-#
-#                 if len(peaks_scaled_c2) == 0:
-#                     continue
-#
-#                 shifted_peaks_scaled_c2 = peaks_scaled_c2 + lag
-#                 valid_indices = (shifted_peaks_scaled_c2 >= 0) & (shifted_peaks_scaled_c2 < len(c1_segment))
-#                 shifted_peaks_scaled_c2 = shifted_peaks_scaled_c2[valid_indices]
-#
-#                 if len(shifted_peaks_scaled_c2) == 0:
-#                     continue
-#
-#                 # Calculate the average absolute distance between peaks in order
-#                 distances = []
-#                 for peak1, peak2 in zip(peaks_c1, shifted_peaks_scaled_c2):
-#                     distances.append(abs(peak1 - peak2))
-#
-#                 diff = np.mean(distances)
-#
-#                 if diff < best_diff:
-#                     best_diff = diff
-#                     best_scale = scale
-#                     best_lag = lag
-#
-#         return best_scale, best_lag
-#
-#
-#     def correct_segment(self, segment, scale, lag):
-#         scaled_segment = self.scale_chromatogram(segment, scale)
-#         if lag > 0:
-#             corrected_segment = np.roll(scaled_segment, lag)
-#             corrected_segment[:lag] = scaled_segment[0]  # Repeat the first value
-#         else:
-#             corrected_segment = np.roll(scaled_segment, lag)
-#             corrected_segment[lag:] = scaled_segment[-1]  # Repeat the last value
-#         return corrected_segment
-#
-#     def adjust_chromatogram(self):
-#         segment_length = len(self.c2) // self.n_segments
-#
-#         # Process the first segment to determine the best lag and scale
-#         start = 0
-#         end = segment_length
-#         c1_segment = self.c1[start:end]
-#         c2_segment = self.c2[start:end]
-#
-#         best_scale, best_lag = self.find_best_scale_and_lag(c1_segment, c2_segment)
-#         initial_best_lag = best_lag
-#
-#         # Correct the entire c2 chromatogram using the best scale and lag from the first segment
-#         corrected_c2_full = self.correct_segment(self.c2, best_scale, best_lag)
-#
-#         # Now process segments from the corrected c2
-#         final_corrected_c2 = []
-#
-#         for i in range(self.n_segments):
-#             start = i * segment_length
-#             end = (i + 1) * segment_length if i < self.n_segments - 1 else len(corrected_c2_full)
-#
-#             c1_segment = self.c1[start:end]
-#             c2_segment = corrected_c2_full[start:end]
-#
-#             best_scale, best_lag = self.find_best_scale_and_lag(c1_segment, c2_segment, initial_lag=initial_best_lag)
-#             corrected_segment = self.correct_segment(c2_segment, best_scale, best_lag)
-#
-#             final_corrected_c2.extend(corrected_segment)
-#
-#         return np.array(final_corrected_c2)
-#
-#
-#     def plot_chromatograms(self, corrected_c2):
-#         plt.figure(figsize=(10, 6))
-#         plt.plot(self.c1, label='Chromatogram 1')
-#         plt.plot(self.c2, label='Chromatogram 2 (Original)', linestyle='--')
-#         plt.plot(corrected_c2, label='Chromatogram 2 (Corrected)', linestyle='-.')
-#         plt.xlabel('Index')
-#         plt.ylabel('Intensity')
-#         plt.title('Chromatogram Adjustment')
-#         plt.legend()
-#         plt.grid(True)
-#         plt.show()
