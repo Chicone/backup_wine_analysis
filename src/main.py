@@ -9,6 +9,7 @@ from dimensionality_reduction import run_umap_and_evaluate, run_tsne_and_evaluat
 import matplotlib.pyplot as plt
 import utils
 from scipy.ndimage import gaussian_filter
+from wine_analysis import SyncChromatograms
 
 if __name__ == "__main__":
     n_splits = 100
@@ -45,20 +46,19 @@ if __name__ == "__main__":
     mean_c2 = cl.calculate_mean_chromatogram(chromatograms2)
     mean_c1 = utils.remove_peak(mean_c1, peak_idx=8910, window_size=30)
 
-    # lag_res = utils.calculate_lag_corr(mean_c1, mean_c2, 2000, extend=0, hop=200, sigma=20)
-    # lag_res = utils.calculate_lag(mean_c1, mean_c2, 2000, lag_range=200, hop=500, sigma=5, distance_metric='L2', smooth=True)
+    lag_res = utils.calculate_lag_profile(mean_c1, mean_c2, 4000, lag_range=200, hop=2000, sigma=20, distance_metric='l1', init_min_dist=1E6)
     # utils.plot_lag(lag_res[0], lag_res[1])
 
     # sync_chrom = SyncChromatograms(
-    #     remove_peak(mean_c1, peak_idx=8910, window_size=30),
-    #     gaussian_filter(chromatograms2['B2000'], 5),
+    #     utils.remove_peak(mean_c1, peak_idx=8910, window_size=30),
+    #     chromatograms2['F2000'],
     #     1, np.linspace(0.997, 1.003, 30), 1E6, threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
     # )
-    # optimized_chrom = sync_chrom.adjust_chromatogram(local_sync=True, initial_lag=400)
+    # optimized_chrom = sync_chrom.adjust_chromatogram(initial_lag=300, algo=4)
 
 
     synced_chromatograms1 = cl.sync_individual_chromatograms(
-        mean_c1, chromatograms1, np.linspace(0.997, 1.003, 30), initial_lag=100, algo=4,
+        mean_c1, chromatograms1, np.linspace(0.997, 1.003, 30), initial_lag=50, algo=4,
         lag_res=None
     )
     synced_chromatograms2 = cl.sync_individual_chromatograms(
@@ -75,8 +75,6 @@ if __name__ == "__main__":
     # cl.stacked_2D_plots_3D(cl.merge_chromatograms(synced_chromatograms1, synced_chromatograms2))
     # cl.umap_analysis(norm_merged_chrom, vintage, "Original data;", neigh_range=range(10, 61, 5), random_states=range(0, 97, 8))
     # cl.plot_chromatograms(mean_c1, mean_c2, file_name1, file_name2, cl)
-
-
 
 
     if not os.path.exists(npy_path):
@@ -102,11 +100,14 @@ if __name__ == "__main__":
         # Classification
         # cls = Classifier(np.array(list(chromatograms1.values())), np.array(list(chromatograms1.keys())), classifier_type='LDA')
         # cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
+        # cls = Classifier(np.array(list(chromatograms2.values())), np.array(list(chromatograms2.keys())), classifier_type='LDA')
+        # cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
         # cls = Classifier(np.array(list(synced_chromatograms1.values())), np.array(list(synced_chromatograms1.keys())), classifier_type='LDA')
         # cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
         # cls = Classifier(np.array(list(synced_chromatograms2.values())), np.array(list(synced_chromatograms2.keys())), classifier_type='LDA')
         # cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
-        #
+
+        # cls = Classifier(np.array(list(chromatograms1.values())), np.array(list(chromatograms1.keys())), classifier_type='LDA')
         # cls.train_and_evaluate_separate_datasets(
         #     np.array(list(chromatograms1.values())), process_labels(chromatograms1.keys(), vintage),
         #     np.array(list(chromatograms2.values())), process_labels(chromatograms2.keys(), vintage),
@@ -115,32 +116,33 @@ if __name__ == "__main__":
         cls = Classifier(np.array(list(synced_chromatograms1.values())), np.array(list(synced_chromatograms1.keys())), classifier_type='LDA')
         cls.train_and_evaluate_separate_datasets(
             np.array(list(synced_chromatograms1.values())), process_labels(synced_chromatograms1.keys(), vintage),
-            np.array(list(synced_chromatograms2.values())), process_labels(synced_chromatograms2.keys(), vintage),
-            normalize=True, scaler_type='standard'
+            np.array(list(synced_chromatograms2.values())), np.array(list(synced_chromatograms2.keys())),
+            n_splits=100, normalize=True, scaler_type='standard'
         )
+        print('here')
 
         # analysis.run_tsne()
         # analysis.run_umap(n_neighbors=5, random_state=90)
         # analysis.run_umap(n_neighbors=30, random_state=52) # 2022 oak old
         # analysis.run_umap(n_neighbors=70, random_state=84)  # 2018 oak old
         # run_tsne_and_evaluate(analysis.data, cls._process_labels(vintage), analysis.chem_name)
-        best_perp, best_rs, best_score = run_tsne_and_evaluate(
-            analysis,
-            cls._process_labels(vintage),
-            analysis.chem_name,
-            perplexities=range(30, 60, 10),
-            random_states=range(0, 64, 16)
-        )
-        analysis.run_tsne(perplexity=best_perp, random_state=best_rs, plot=True)
-
-        best_neigh, best_rs, best_score = run_umap_and_evaluate(
-            analysis,
-            cls._process_labels(vintage),
-            analysis.chem_name,
-            neigh_range=range(30, 100, 10),
-            random_states=range(0, 64, 16)
-        )
-        analysis.run_umap(n_neighbors=best_neigh, random_state=best_rs, plot=True)
+        # best_perp, best_rs, best_score = run_tsne_and_evaluate(
+        #     analysis,
+        #     cls._process_labels(vintage),
+        #     analysis.chem_name,
+        #     perplexities=range(30, 60, 10),
+        #     random_states=range(0, 64, 16)
+        # )
+        # analysis.run_tsne(perplexity=best_perp, random_state=best_rs, plot=True)
+        #
+        # best_neigh, best_rs, best_score = run_umap_and_evaluate(
+        #     analysis,
+        #     cls._process_labels(vintage),
+        #     analysis.chem_name,
+        #     neigh_range=range(30, 100, 10),
+        #     random_states=range(0, 64, 16)
+        # )
+        # analysis.run_umap(n_neighbors=best_neigh, random_state=best_rs, plot=True)
 
 
     # # Example usage of DimensionalityReducer

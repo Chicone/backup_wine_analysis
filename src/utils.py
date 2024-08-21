@@ -5,7 +5,7 @@ import os
 import utils
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from matplotlib import pyplot as plt
-from scipy.signal import correlate
+from scipy.signal import correlate, find_peaks
 from scipy.ndimage import gaussian_filter
 
 
@@ -46,7 +46,7 @@ def find_first_and_last_position(s):
 
     return first_pos, last_pos
 
-def normalize_data(data, scaler='standard'):
+def normalize_data(data, scaler='standard', feature_range=(0,1)):
     """
     Normalize data which can be either a dictionary or an array.
 
@@ -76,7 +76,7 @@ def normalize_data(data, scaler='standard'):
     if scaler == 'standard':
         scaler = StandardScaler()
     elif scaler == 'minmax':
-        scaler = MinMaxScaler()
+        scaler = MinMaxScaler(feature_range=feature_range)
     elif scaler == 'robust':
         scaler = RobustScaler()
     else:
@@ -143,7 +143,7 @@ def remove_peak(signal, peak_idx, window_size=5):
     return signal_smooth
 
 
-def plot_data_from_dict(data_dict, title):
+def plot_data_from_dict(data_dict, title, legend=False):
     """
     Plots all lists of data contained in a dictionary.
 
@@ -158,13 +158,14 @@ def plot_data_from_dict(data_dict, title):
     plt.xlabel('Retention time')
     plt.ylabel('Intensity')
     plt.title(title)
-    # plt.legend()
+    if legend:
+        plt.legend()
     plt.grid(True)
     plt.show()
 
 
 
-def calculate_lag(c1, c2, segment_length, hop=1, sigma=20, lag_range=10, distance_metric='L2', init_min_dist=0.1):
+def calculate_lag_profile(c1, c2, segment_length, hop=1, sigma=20, lag_range=10, distance_metric='l2', init_min_dist=0.1):
     """
     Calculate the lag of a segment ahead for each datapoint in c2 against c1 using L1 or L2 distance.
 
@@ -213,43 +214,112 @@ def calculate_lag(c1, c2, segment_length, hop=1, sigma=20, lag_range=10, distanc
         segment_c1_filtered = normalize_standard(gaussian_filter(segment_c1, sigma))
         segment_c2_filtered = normalize_standard(gaussian_filter(segment_c2, sigma))
 
-        # Initialize the minimum distance and best lag
-        # min_distance = float('inf')
-        min_distance = init_min_dist
-        best_lag = 0
-        best_shifted = None
+        if distance_metric == 'corr':
+            # Calculate cross-correlation between the segments
+            corr = correlate(segment_c1_filtered, segment_c2_filtered)
+            best_lag = np.argmax(corr) - len(segment_c2_filtered) + 1
+            if np.abs(best_lag) > lag_range:
+                continue
+        else:
+            # Initialize the minimum distance and best lag
+            min_distance = init_min_dist
+            best_lag = 0
 
-        # Calculate distance for each possible lag within the specified range
-        for lag in range(-lag_range, lag_range + 1):
-            shifted_segment_c2 = np.roll(segment_c2_filtered, lag)
+            # Calculate distance for each possible lag within the specified range
+            for lag in range(-lag_range, lag_range + 1):
+                shifted_segment_c2 = np.roll(segment_c2_filtered, lag)
+                if distance_metric == 'l2':
+                    distance = np.sum((segment_c1_filtered[:len(shifted_segment_c2)] - shifted_segment_c2) ** 2)
+                elif distance_metric == 'l1':
+                    distance = np.mean(np.abs(segment_c1_filtered[:len(shifted_segment_c2)] - shifted_segment_c2))
+                elif distance_metric == 'mse':
+                    distance = np.mean((segment_c1_filtered[:len(shifted_segment_c2)] - shifted_segment_c2) ** 2)
+                else:
+                    raise ValueError("Invalid distance metric. Use 'l1' or 'l2' or 'mse'.")
 
-            # # Trim to the overlapping region
-            # if lag > 0:
-            #     shifted_segment_c2 = shifted_segment_c2[lag:]
-            # else:
-            #     shifted_segment_c2 = shifted_segment_c2[:lag]
-
-            if distance_metric == 'L2':
-                distance = np.mean((segment_c1_filtered[:len(shifted_segment_c2)] - shifted_segment_c2) ** 2)
-            elif distance_metric == 'L1':
-                distance = np.mean(np.abs(segment_c1_filtered[:len(shifted_segment_c2)] - shifted_segment_c2))
-            else:
-                raise ValueError("Invalid distance metric. Use 'L1' or 'L2'.")
-
-            if distance < min_distance:
-                best_shifted = shifted_segment_c2
-                min_distance = distance
-                best_lag = lag
+                if distance < min_distance:
+                    best_shifted = shifted_segment_c2
+                    min_distance = distance
+                    best_lag = lag
 
         lags.append(best_lag + initial_lag)
         lags_loc.append(i)
         # print(min_distance)
 
-    # Add one last point equal to the last one at 30000
+    # # Add one last point equal to the last one at 30000
     lags.append(lags[-1])
     lags_loc.append(30000)
 
     return np.array(lags_loc), np.array(lags)
+
+
+def lag_profile_from_peaks(self, c1, c2, proximity_threshold, peak_prominence, nsegments):
+    c1_peaks, _ = find_peaks(c1)
+    #  remove peak for standard in reference
+    index_to_remove = np.where(c1_peaks == 8918)[0]
+    c1_peaks = np.delete(c1_peaks, index_to_remove)
+    c2_peaks, _ = find_peaks(c2)
+    c1_peaks, valid = self.ensure_peaks_in_segments(c1, c1_peaks, num_segments=nsegments)
+    c2_peaks, valid = self.ensure_peaks_in_segments(c2, c2_peaks, num_segments=nsegments)
+    if not valid:
+        raise ValueError(
+            "Please change parameters, some segments in c2_peaks do not have peaks (scale_between_peaks).")  # Stop if any segment lacks peaks
+
+
+    c2_aligned = c2.copy()
+    initial_npeaks = len(c2_peaks)
+
+    # Add zero to also scale the first part of the chromatogram
+    c1_peaks = np.concatenate([np.array((0,)), c1_peaks])
+    c2_peaks = np.concatenate([np.array((0,)), c2_peaks])
+    prev_length_change = 0
+
+    for i in range(1, initial_npeaks):
+        c2p_prev = c2_peaks[i - 1]
+        c2p = c2_peaks[i]
+        c1p_prev = c2p_prev
+        c1p = c1_peaks[np.argmin(np.abs(c1_peaks - c2p))]
+
+        # # Dynamic proximity threshold between peaks
+        # if c2p >  len(c2) / 2:
+        #     proximity_threshold = 100 * c2p / len(c2)
+
+        # If the current peak in c2 is too far from the closest peak in c1, skip it
+        if np.abs(c1p - c2p) > proximity_threshold or c1p <= c1p_prev:
+            continue
+
+        # Scale the interval
+        interval_c2 = c2p - c2p_prev
+        interval_c1 = c1p - c1p_prev
+        if interval_c2 == 0:
+            continue
+        # scale0 = interval_c1 / interval_c2
+        # scale = interval_c1 / (interval_c2 + prev_length_change)
+        scale = interval_c1 / interval_c2
+
+        start = min(c2p_prev, c2p)
+        end = max(c2p_prev, c2p)
+        c2_segment = c2_aligned[start:end]
+        scaled_segment = self.scale_chromatogram(c2_segment, scale)
+        # prev_length_change = int(len(c2_segment) * scale0) - len(c2_segment)
+
+        temp_c2_aligned_1 = np.concatenate([c2_aligned[:start], scaled_segment, c2_aligned[end:]])
+        temp_c2_peaks_1, _ = find_peaks(temp_c2_aligned_1)
+        c2_peaks, valid = self.ensure_peaks_in_segments(temp_c2_aligned_1, temp_c2_peaks_1, num_segments=nsegments)
+        if not valid:
+            raise ValueError(
+                "Please change parameters, some segments do not have peaks.")
+        c2_peaks = np.concatenate([np.array((0,)), c2_peaks])
+
+        if len(temp_c2_peaks_1) < initial_npeaks: # or len(c2_peaks) != nsegments:
+            continue
+            break
+
+
+        c2_aligned = temp_c2_aligned_1
+
+    return c2_aligned
+
 
 def calculate_lag_corr(c1, c2, segment_length, hop=1, sigma=20, extend=10):
     """
@@ -292,7 +362,7 @@ def calculate_lag_corr(c1, c2, segment_length, hop=1, sigma=20, extend=10):
         lags.append(lag)
         lags_loc.append(i)
 
-    # Add one last point equal to the last one at 300000
+    # # Add one last point equal to the last one at 300000
     lags.append(lags[-1])
     lags_loc.append(30000)
 
@@ -321,7 +391,7 @@ def plot_lag(lags_loc, lags, title='Lag as a function of retention time'):
     plt.show()
 
 
-def normalize_signal(signal):
+def normalize_signal_standard(signal):
     min_val = np.min(signal)
     max_val = np.max(signal)
     normalized_signal = (signal - min_val) / (max_val - min_val)
