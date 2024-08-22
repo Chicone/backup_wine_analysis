@@ -2290,7 +2290,7 @@ class SyncChromatograms:
             c1 = self.c1.copy()
             c1 = gaussian_filter(c1, 10)
             corrected_c2 = gaussian_filter(corrected_c2, 10)
-            for ord in  [0, 0, 0, 1, 1]:  # [0, 0, 1, 1, 2, 2, 2]:  # [0, 0, 0, 1, 1 ]
+            for ord in  [0, 0, 0, 1, 1, 1, 1, 1]:  # [0, 0, 1, 1, 2, 2, 2]:  # [0, 0, 0, 1, 1 ]
             # for ord in [0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1]:
             # for seg in [10]:
                 self.lag_res = self.lag_profile_from_peaks4(
