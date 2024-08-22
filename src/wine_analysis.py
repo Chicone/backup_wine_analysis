@@ -1581,7 +1581,7 @@ class SyncChromatograms:
     def lag_profile_from_peaks4(
             self, c1, c2, proximity_threshold, nsegments, global_align=True, scan_range=1, peak_ord=0, scale_dist=100,
             interval_after=500, min_avg_peak_dist=50):
-        def calculate_average_peak_distance(signal1, signal2, prm=1E-6):
+        def calculate_average_peak_distance(signal1, signal2, prm=1E-6, distance_type='mean'):
             # Find peaks in both signals
             peaks1, _ = find_peaks(signal1, prominence=prm)
             peaks2, _ = find_peaks(signal2, prominence=prm)
@@ -1597,7 +1597,12 @@ class SyncChromatograms:
                 distances.append(distance)
 
             # Calculate the average distance
-            average_distance = np.mean(distances)
+            if distance_type == 'mean':
+                average_distance = np.mean(distances)
+            elif distance_type == 'mean_square':
+                average_distance = np.mean(np.square(distances))
+            else:
+                raise ValueError("Invalid distance_type. Choose 'mean' or 'mean_square'.")
 
             return average_distance, distances, peaks1, peaks2
 
@@ -1679,9 +1684,12 @@ class SyncChromatograms:
 
                 norm_c1_segment = utils.normalize_signal_standard(c1[c1p_prev:c1p + interval_after])
                 norm_c2_segment = utils.normalize_signal_standard(
-                                  np.concatenate([scaled_segment, c2_aligned[end:end + interval_after]]))
+                                  # np.concatenate([scaled_segment, c2_aligned[end:end + interval_after]])
+                                  np.concatenate([scaled_segment, c2[end:end + interval_after]])
+                )
                 try:
-                    avg_peak_dist = calculate_average_peak_distance(norm_c1_segment, norm_c2_segment, prm=1E-6)[0]
+                    avg_peak_dist = calculate_average_peak_distance(
+                        norm_c1_segment, norm_c2_segment, prm=1E-6, distance_type='mean')[0]
                     # print(avg_peak_dist)
                 except:
                     print('Error in avg_peak_dist')
@@ -2276,29 +2284,41 @@ class SyncChromatograms:
 
                 return corrected_c2
 
-            self.lag_res = self.lag_profile_from_peaks(
-                    self.c1, corrected_c2, proximity_threshold=40,  nsegments=50, global_align=True
-                )
-            corrected_c2 = correct_with_spline(corrected_c2, 50, 1, normalize=True, plot=False)
 
-            # self.lag_res = self.lag_profile_from_peaks2(
-            #         self.c1, corrected_c2, proximity_threshold=50, nsegments=10, global_align=switch, scan_range=3
-            #     )
-            # corrected_c2 = correct_with_spline(corrected_c2, plot=False)
+            # for prox in [40]:
+            #     self.lag_res = self.lag_profile_from_peaks(
+            #             self.c1, corrected_c2, proximity_threshold=prox,  nsegments=50, global_align=True
+            #         )
+            #     corrected_c2 = correct_with_spline(corrected_c2, 50, 1, normalize=True, plot=False)
+            for prox in [40]:
+                self.lag_res = self.lag_profile_from_peaks(
+                        self.c1, corrected_c2, proximity_threshold=prox,  nsegments=50, global_align=True
+                    )
+                corrected_c2 = correct_with_spline(corrected_c2, 50, 1, normalize=True, plot=False)
 
 
             c1 = self.c1.copy()
             c1 = gaussian_filter(c1, 10)
             corrected_c2 = gaussian_filter(corrected_c2, 10)
-            for ord in  [0, 0, 0, 1, 1, 1, 1, 1]:  # [0, 0, 1, 1, 2, 2, 2]:  # [0, 0, 0, 1, 1 ]
-            # for ord in [0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1]:
+            plot = False
+            cnt = 0
+            # for ord in [0, 0, 0, 1, 1, 1, 1, 1]:  # [0, 0, 1, 1, 2, 2, 2]:  # [0, 0, 0, 1, 1 ]
+            for ord in [0, 0, 0, 1, 1, 1, 1, 1]:
             # for seg in [10]:
+            #     if cnt == 0:
+            #         glb_alig = True
+
                 self.lag_res = self.lag_profile_from_peaks4(
-                        c1, corrected_c2, proximity_threshold=200, nsegments=10, global_align=False, scan_range=3,
-                    peak_ord=ord, scale_dist=200, interval_after=3000, min_avg_peak_dist=10
+                    c1, corrected_c2, proximity_threshold=200, nsegments=10, global_align=False, scan_range=3,
+                    peak_ord=ord, scale_dist=250, interval_after=3000, min_avg_peak_dist=10
                 )
+                glb_alig = False
                 print(self.lag_res[1])
-                corrected_c2 = correct_with_spline(corrected_c2, 20, 1, normalize=False, plot=False)
+                if cnt == len([0, 1, 2, 3, 4, 5]) - 1:
+                    plot = False
+
+                corrected_c2 = correct_with_spline(corrected_c2, 20, 1, normalize=False, plot=plot)
+                cnt += 1
 
             # TODO: select peaks not only on closest distance to reference but based on some similarity metric
 
