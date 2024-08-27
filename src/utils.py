@@ -150,10 +150,19 @@ def plot_data_from_dict(data_dict, title, legend=False):
     Parameters:
     data_dict (dict): A dictionary with labels as keys and lists of values as values.
     """
+    from itertools import cycle
+
+    if not data_dict:
+        raise ValueError("The input data dictionary is empty.")
+
     plt.figure(figsize=(10, 6))
 
+    # Create a color cycle to avoid repeating colors
+    colors = plt.cm.get_cmap('tab10', len(data_dict)).colors
+    color_cycle = cycle(colors)
+
     for label, data in data_dict.items():
-        plt.plot(data, label=label)
+        plt.plot(data, label=label, color=next(color_cycle))
 
     plt.xlabel('Retention time')
     plt.ylabel('Intensity')
@@ -211,8 +220,8 @@ def calculate_lag_profile(c1, c2, segment_length, hop=1, sigma=20, lag_range=10,
         segment_c1 = c1[start:end]
 
         # Normalize and apply Gaussian filter
-        segment_c1_filtered = normalize_standard(gaussian_filter(segment_c1, sigma))
-        segment_c2_filtered = normalize_standard(gaussian_filter(segment_c2, sigma))
+        segment_c1_filtered = normalize_amplitude_standard(gaussian_filter(segment_c1, sigma))
+        segment_c2_filtered = normalize_amplitude_standard(gaussian_filter(segment_c2, sigma))
 
         if distance_metric == 'corr':
             # Calculate cross-correlation between the segments
@@ -355,8 +364,8 @@ def calculate_lag_corr(c1, c2, segment_length, hop=1, sigma=20, extend=10):
 
         # Calculate the cross-correlation between the segment and the extended segment_c1
         corr = correlate(
-            normalize_standard(gaussian_filter(segment_c1, sigma)),
-            normalize_standard(gaussian_filter(segment_c2, sigma)),
+            normalize_amplitude_standard(gaussian_filter(segment_c1, sigma)),
+            normalize_amplitude_standard(gaussian_filter(segment_c2, sigma)),
         )
         lag = np.argmax(corr) - len(segment_c2) + 1
         lags.append(lag)
@@ -397,7 +406,7 @@ def normalize_signal_standard(signal):
     normalized_signal = (signal - min_val) / (max_val - min_val)
     return normalized_signal
 
-def normalize_standard(signal):
+def normalize_amplitude_standard(signal):
     """
     Normalize the signal using standard normalization (z-score normalization).
 
@@ -414,5 +423,13 @@ def normalize_standard(signal):
     mean_val = np.mean(signal)
     std_val = np.std(signal)
     normalized_signal = (signal - mean_val) / std_val
+
     return normalized_signal
+
+def normalize_amplitude_dict(chromatograms):
+    normalized_chromatograms = {}
+    for key, value in chromatograms.items():
+        normalized_chromatograms[key] = normalize_amplitude_standard(value)
+
+    return normalized_chromatograms
 

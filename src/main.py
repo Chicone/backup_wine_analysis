@@ -42,9 +42,19 @@ if __name__ == "__main__":
     chromatograms2 = utils.load_chromatograms(basedir + '/2022 01 7 chateaux Oak Old vintages Masse 5 NORMALIZED SM.npy')
 
     chromatograms1, chromatograms2 = cl.resample_chromatograms(chromatograms1, chromatograms2, start=100, length=30000)
+
+    chromatograms1 = utils.normalize_amplitude_dict(chromatograms1)
+    # chromatograms = {}
+    # for key, value in chromatograms1.items():
+    #     chromatograms[key] = utils.remove_peak(value, peak_idx=8910, window_size=30)
+    # chromatograms1 = chromatograms
+
+    chromatograms2 = utils.normalize_amplitude_dict(chromatograms2)
+
     mean_c1 = cl.calculate_mean_chromatogram(chromatograms1)
     mean_c2 = cl.calculate_mean_chromatogram(chromatograms2)
     mean_c1 = utils.remove_peak(mean_c1, peak_idx=8910, window_size=30)
+
 
     lag_res = utils.calculate_lag_profile(mean_c1, mean_c2, 4000, lag_range=200, hop=2000, sigma=20, distance_metric='l1', init_min_dist=1E6)
     # utils.plot_lag(lag_res[0], lag_res[1])
