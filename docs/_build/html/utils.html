@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Utils module &#8212; Wine Analysis 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=12dfc556" />
+    <script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Dimensionality reduction module" href="dimensionality_reduction.html" />
+    <link rel="prev" title="Wine analysis module" href="wine_analysis.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-utils">
+<span id="utils-module"></span><h1>Utils module<a class="headerlink" href="#module-utils" title="Link to this heading">¶</a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.collapse_lists">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">collapse_lists</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#collapse_lists"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.collapse_lists" title="Link to this definition">¶</a></dt>
+<dd><p>Collapse nested lists into a single list for each dictionary entry.</p>
+<p>This function is useful when the values in the dictionary are lists of lists, and you want to flatten them into a
+single list.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>d</strong> (<em>dict</em>) – The dictionary with list or list of lists as values.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The dictionary with the lists collapsed into single lists.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If a value in the dictionary is not a list or a list of lists.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.concatenate_dict_values">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">concatenate_dict_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#concatenate_dict_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.concatenate_dict_values" title="Link to this definition">¶</a></dt>
+<dd><p>Concatenate the values of two dictionaries.</p>
+<p>If a key exists in both dictionaries, their values are concatenated. If a key exists in only one dictionary, its
+value is included as is.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>d1</strong> (<em>dict</em>) – The first dictionary.</p></li>
+<li><p><strong>d2</strong> (<em>dict</em>) – The second dictionary.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new dictionary with concatenated values.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.find_first_and_last_position">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">find_first_and_last_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">s</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#find_first_and_last_position"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.find_first_and_last_position" title="Link to this definition">¶</a></dt>
+<dd><p>Find the positions of the first and last numbers in a string.</p>
+<p>This function searches for numbers in the string and returns the starting positions of the first and last occurrences.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>s</strong> (<em>str</em>) – The input string to search for numbers.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the start positions of the first and last numbers. If no numbers are found, returns (-1, -1).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.load_chromatograms">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">load_chromatograms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#load_chromatograms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.load_chromatograms" title="Link to this definition">¶</a></dt>
+<dd><p>Load chromatogram data from a given file path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_path</strong> (<em>str</em>) – The path to the file containing the chromatogram data.</p></li>
+<li><p><strong>normalize</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to normalize the chromatogram data. Default is False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary containing the loaded chromatogram data.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.min_max_normalize">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">min_max_normalize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#min_max_normalize"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.min_max_normalize" title="Link to this definition">¶</a></dt>
+<dd><p>Perform Min-Max normalization on data.</p>
+<p>This function scales the input data to a specified range [min_range, max_range] using Min-Max normalization.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>numpy.ndarray</em>) – The data to be normalized.</p></li>
+<li><p><strong>min_range</strong> (<em>float</em><em>, </em><em>optional</em>) – The minimum value of the desired range. Default is 0.</p></li>
+<li><p><strong>max_range</strong> (<em>float</em><em>, </em><em>optional</em>) – The maximum value of the desired range. Default is 1.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The normalized data within the specified range.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>Min-Max normalization rescales the data to a fixed range, typically [0, 1], based on the minimum and maximum values in the data.</p></li>
+<li><p>This function normalizes the data across all values (i.e., sample-wise normalization) in the input array.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.normalize_amplitude_minmax">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">normalize_amplitude_minmax</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#normalize_amplitude_minmax"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.normalize_amplitude_minmax" title="Link to this definition">¶</a></dt>
+<dd><p>Normalize the signal using min-max normalization.</p>
+<p>This method scales the input signal so that its values range between 0 and 1. The minimum value
+of the signal becomes 0, and the maximum value becomes 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>signal</strong> (<em>numpy.ndarray</em>) – The input signal to be normalized.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The normalized signal, where the values are scaled to the range [0, 1].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.normalize_amplitude_zscore">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">normalize_amplitude_zscore</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#normalize_amplitude_zscore"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.normalize_amplitude_zscore" title="Link to this definition">¶</a></dt>
+<dd><p>Normalize the signal using standard normalization (z-score normalization).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>signal</strong> (<em>numpy.ndarray</em>) – The input signal to be normalized.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The normalized signal.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.normalize_data">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">normalize_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scaler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'standard'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feature_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0,</span> <span class="pre">1)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#normalize_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.normalize_data" title="Link to this definition">¶</a></dt>
+<dd><p>Normalize data which can be either a dictionary or an array.</p>
+<p>This function normalizes each feature (column) across all samples (rows) using the specified scaler.
+It ensures that the normalization is consistent for each feature across the dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>dict</em><em> or </em><em>np.ndarray</em>) – The data to be normalized. If dict, values should be arrays. If np.ndarray, it should be a 2D array.</p></li>
+<li><p><strong>scaler</strong> (<em>str</em><em>, </em><em>optional</em>) – The type of scaler to use for normalization. Options are ‘standard’, ‘minmax’, ‘robust’. Default is ‘standard’.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The normalized data. If input was a dict, returns a dict with the same keys and normalized values.
+If input was an array, returns a normalized array.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict or np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.normalize_dict">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">normalize_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scaler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'standard'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#normalize_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.normalize_dict" title="Link to this definition">¶</a></dt>
+<dd><p>Normalize the values in a dictionary across samples.</p>
+<p>This function normalizes each feature (column) in the dictionary across all samples (rows) using the specified scaler.
+The dictionary keys remain the same, while the values are normalized.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>dict</em>) – The input dictionary to be normalized. The values should be lists or numpy arrays representing the features.</p></li>
+<li><p><strong>scaler</strong> (<em>str</em><em>, </em><em>optional</em>) – The type of scaler to use for normalization. Options are ‘standard’ (Z-score normalization),
+‘minmax’ (Min-Max scaling), and ‘robust’ (RobustScaler). Default is ‘standard’.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary with the same keys and normalized values.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>Normalization is performed feature-wise across all samples in the dictionary, meaning each feature (value associated with a key)
+is normalized across all samples (rows) in the dataset.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.plot_data_from_dict">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_data_from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">legend</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#plot_data_from_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_data_from_dict" title="Link to this definition">¶</a></dt>
+<dd><p>Plots all lists of data contained in a dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_dict</strong> (<em>dict</em>) – A dictionary with labels as keys and lists of values as values.</p></li>
+<li><p><strong>title</strong> (<em>str</em>) – The title of the plot.</p></li>
+<li><p><strong>legend</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to display the legend. Default is False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the input dictionary is empty.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.plot_lag">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_lag</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lags_loc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lags</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Lag</span> <span class="pre">as</span> <span class="pre">a</span> <span class="pre">function</span> <span class="pre">of</span> <span class="pre">retention</span> <span class="pre">time'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#plot_lag"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_lag" title="Link to this definition">¶</a></dt>
+<dd><p>Plot the lag as a function of retention time.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>lags_loc</strong> (<em>numpy.ndarray</em>) – Locations of the lags.</p></li>
+<li><p><strong>lags</strong> (<em>numpy.ndarray</em>) – Lags for each datapoint.</p></li>
+<li><p><strong>title</strong> (<em>str</em><em>, </em><em>optional</em>) – Title of the plot. Default is ‘Lag as a function of retention time’.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.remove_peak">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">remove_peak</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peak_idx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#remove_peak"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.remove_peak" title="Link to this definition">¶</a></dt>
+<dd><p>Smoothly removes a peak from a signal using interpolation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>signal</strong> (<em>np.ndarray</em>) – The input signal.</p></li>
+<li><p><strong>peak_idx</strong> (<em>int</em>) – The index of the peak to remove.</p></li>
+<li><p><strong>window_size</strong> (<em>int</em><em>, </em><em>optional</em>) – The size of the window around the peak to use for interpolation. Default is 5.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The signal with the peak removed.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Wine Analysis</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="main.html">Main script</a></li>
+<li class="toctree-l1"><a class="reference internal" href="wine_analysis.html">Wine analysis module</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Utils module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#utils.collapse_lists"><code class="docutils literal notranslate"><span class="pre">collapse_lists()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.concatenate_dict_values"><code class="docutils literal notranslate"><span class="pre">concatenate_dict_values()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.find_first_and_last_position"><code class="docutils literal notranslate"><span class="pre">find_first_and_last_position()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.load_chromatograms"><code class="docutils literal notranslate"><span class="pre">load_chromatograms()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.min_max_normalize"><code class="docutils literal notranslate"><span class="pre">min_max_normalize()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.normalize_amplitude_minmax"><code class="docutils literal notranslate"><span class="pre">normalize_amplitude_minmax()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.normalize_amplitude_zscore"><code class="docutils literal notranslate"><span class="pre">normalize_amplitude_zscore()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.normalize_data"><code class="docutils literal notranslate"><span class="pre">normalize_data()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.normalize_dict"><code class="docutils literal notranslate"><span class="pre">normalize_dict()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_data_from_dict"><code class="docutils literal notranslate"><span class="pre">plot_data_from_dict()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_lag"><code class="docutils literal notranslate"><span class="pre">plot_lag()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.remove_peak"><code class="docutils literal notranslate"><span class="pre">remove_peak()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="dimensionality_reduction.html">Dimensionality reduction module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data_loader.html">Data loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="visualizer.html">Visualizer module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="classification.html">Classification module</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="wine_analysis.html" title="previous chapter">Wine analysis module</a></li>
+      <li>Next: <a href="dimensionality_reduction.html" title="next chapter">Dimensionality reduction module</a></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Luis G. Camara.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.4.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+      |
+      <a href="_sources/utils.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

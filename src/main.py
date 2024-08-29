@@ -1,3 +1,21 @@
+"""
+Main Analysis Script Overview
+==================================
+
+This script serves as the primary entry point for analyzing wine-related chromatographic data. It integrates various
+components of the `wine_analysis` framework, including data loading, dimensionality reduction, synchronization, and
+classification.
+
+Key Features:
+-------------
+- **Data Loading**: Loads and normalizes chromatographic data from `.npy` or `.xlsx` files using the `DataLoader` class.
+- **Chromatogram Analysis**: Uses the `ChromatogramAnalysis` class to resample, synchronize, and merge chromatograms from different datasets.
+- **Dimensionality Reduction**: Applies techniques such as PCA, t-SNE, and UMAP to reduce the dimensionality of the data for easier visualization and analysis.
+- **Classification**: Implements various classification strategies using the `Classifier` class, including leave-one-out cross-validation and cross-dataset training and testing.
+- **Visualization**: Generates visualizations of chromatograms, synchronization results, and dimensionality reduction outputs.
+
+"""
+
 import numpy as np
 import os
 from data_loader import DataLoader
@@ -14,7 +32,6 @@ from wine_analysis import SyncChromatograms
 if __name__ == "__main__":
     n_splits = 100
     vintage = False
-    # pca = True
     pca = False
 
     # plot_all_acc_LDA(vintage=False)
@@ -27,55 +44,44 @@ if __name__ == "__main__":
     xlsx_path = os.path.expanduser('~/PycharmProjects/wine_scheck/data/oak.npy')  #  not normalised
     npy_path = os.path.splitext(xlsx_path)[0] + '.npy'
 
-
     #  Comparison of oak from 2018 and 2022
     basedir = '~/Documents/datasets/BordeauxData/DataNov2022/'
     cl = ChromatogramAnalysis(
-        os.path.expanduser('~/PycharmProjects/wine_scheck/data/oak.npy'),
-        # os.path.expanduser(basedir + '/2018 7 chateaux Oak Old vintages Masse 5.npy'),
+        # os.path.expanduser('~/PycharmProjects/wine_scheck/data/oak.npy'),
+        os.path.expanduser(basedir + '/2018 7 chateaux Oak Old vintages Masse 5.npy'),
         os.path.expanduser(basedir + '/2022 01 7 chateaux Oak Old vintages Masse 5 NORMALIZED SM.npy')
         )
     file_name1 = cl.file_path1.split('/')[-1]
     file_name2 = cl.file_path2.split('/')[-1]
 
-    chromatograms1 = utils.load_chromatograms(basedir + '/2018 7 chateaux Oak Old vintages Masse 5.npy')
-    chromatograms2 = utils.load_chromatograms(basedir + '/2022 01 7 chateaux Oak Old vintages Masse 5 NORMALIZED SM.npy')
+    chromatograms1 = utils.load_chromatograms(basedir + file_name1)
+    chromatograms2 = utils.load_chromatograms(basedir + file_name2)
 
     chromatograms1, chromatograms2 = cl.resample_chromatograms(chromatograms1, chromatograms2, start=100, length=30000)
 
-    chromatograms1 = utils.normalize_amplitude_dict(chromatograms1)
-    # chromatograms = {}
-    # for key, value in chromatograms1.items():
-    #     chromatograms[key] = utils.remove_peak(value, peak_idx=8910, window_size=30)
-    # chromatograms1 = chromatograms
+    # chromatograms1 = utils.normalize_amplitude_dict(chromatograms1)
+    # chromatograms2 = utils.normalize_amplitude_dict(chromatograms2)
 
-    chromatograms2 = utils.normalize_amplitude_dict(chromatograms2)
+
 
     mean_c1 = cl.calculate_mean_chromatogram(chromatograms1)
     mean_c2 = cl.calculate_mean_chromatogram(chromatograms2)
     mean_c1 = utils.remove_peak(mean_c1, peak_idx=8910, window_size=30)
-
-
-    lag_res = utils.calculate_lag_profile(mean_c1, mean_c2, 4000, lag_range=200, hop=2000, sigma=20, distance_metric='l1', init_min_dist=1E6)
+    sc_inst = SyncChromatograms(mean_c1, mean_c2, 10, 1,)
+    lag_res = sc_inst.calculate_lag_profile(
+        mean_c1, mean_c2, 4000, lag_range=200, hop=2000, sigma=20, distance_metric='l1', init_min_dist=1E6)
     # utils.plot_lag(lag_res[0], lag_res[1])
 
-    # sync_chrom = SyncChromatograms(
-    #     utils.remove_peak(mean_c1, peak_idx=8910, window_size=30),
-    #     chromatograms2['F2000'],
-    #     1, np.linspace(0.997, 1.003, 30), 1E6, threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
-    # )
-    # optimized_chrom = sync_chrom.adjust_chromatogram(initial_lag=300, algo=4)
-
-
     synced_chromatograms1 = cl.sync_individual_chromatograms(
-        mean_c1, chromatograms1, np.linspace(0.997, 1.003, 30), initial_lag=50, algo=4,
-        lag_res=None
+        mean_c1, chromatograms1, np.linspace(0.997, 1.003, 30), initial_lag=50
     )
     synced_chromatograms2 = cl.sync_individual_chromatograms(
-        mean_c1, chromatograms2, np.linspace(0.980, 1.020, 80), initial_lag=250, algo=4,
-        lag_res=None
+        mean_c1, chromatograms2, np.linspace(0.980, 1.020, 80), initial_lag=250
     )
-    cut_length = min(min(len(lst) for lst in synced_chromatograms1.values()), min(len(lst) for lst in synced_chromatograms2.values()))
+    cut_length = min(
+        min(len(lst) for lst in synced_chromatograms1.values()),
+        min(len(lst) for lst in synced_chromatograms2.values())
+    )
     synced_chromatograms1 = {key: value[:cut_length] for key, value in synced_chromatograms1.items()}
     synced_chromatograms2 = {key: value[:cut_length] for key, value in synced_chromatograms2.items()}
     norm_synced_chromatograms1 = utils.normalize_dict(synced_chromatograms1, scaler='standard')
@@ -92,68 +98,44 @@ if __name__ == "__main__":
         xlsx_loader = DataLoader(xlsx_path, normalize=False)
         np.save(os.path.expanduser(npy_path), xlsx_loader.data)
 
+    # Choose the chromatograms to analyze
+    # data1 =chromatograms1.values()
+    data1 = synced_chromatograms1.values()
+    labels1 = synced_chromatograms1.keys()
+    chem_name1 = os.path.splitext(file_name1)[0].split('/')[-1]
+    # data2 = chromatograms2.values()
+    data2 = synced_chromatograms2.values()
+    labels2 = synced_chromatograms2.keys()
+    chem_name2 = os.path.splitext(file_name2)[0].split('/')[-1]
 
-    # # Instance of the class, load data, etc.
-    # analysis = WineAnalysis(npy_path, normalize=True)
+    if not pca:
+        # # Classification of individual datasets (leave-one-out)
+        # print(f"Estimating LOO accuracy on dataset {chem_name1}...")
+        # cls = Classifier(np.array(list(data1)), np.array(list(labels1)), classifier_type='LDA')
+        # cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
+        # print(f"Estimating LOO accuracy on dataset {chem_name2}...")
+        # cls = Classifier(np.array(list(data2)), np.array(list(labels2)), classifier_type='LDA')
+        # cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
 
-    if pca:
+        # Classification of one dataset training on the other
+        print(f"Estimating cross-dataset accuracy...")
+        # 'LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB', and 'GBC'.
+        cls = Classifier(data1, labels1, classifier_type='LDA')
+        cls.train_and_evaluate_separate_datasets(
+            np.array(list(data1)), process_labels(labels1, vintage),
+            np.array(list(data2)), np.array(list(labels2)),
+            n_splits=250, normalize=True, scaler_type='standard'
+        )
+    else:
         # PCA-reduce
-        cls = Classifier(analysis.data, analysis.labels)  # to use _process_labels
-        reducer = DimensionalityReducer(analysis.data)
-
+        cls = Classifier(data1, labels1)  # to use _process_labels
+        reducer = DimensionalityReducer(data1)
         pca_dict, cumulative_variance, n_components = reducer.cumulative_variance(
-             analysis.labels, variance_threshold=0.97, plot=True, dataset_name=analysis.chem_name)
+              np.array(labels1), variance_threshold=0.97, plot=True, dataset_name=chem_name1
+        )
         reducer.cross_validate_pca_classification(
             cls._process_labels(vintage=vintage), n_splits=n_splits, vthresh=0.97, test_size=None
         )
-    else:
-        # Classification
-        # cls = Classifier(np.array(list(chromatograms1.values())), np.array(list(chromatograms1.keys())), classifier_type='LDA')
-        # cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
-        # cls = Classifier(np.array(list(chromatograms2.values())), np.array(list(chromatograms2.keys())), classifier_type='LDA')
-        # cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
-        # cls = Classifier(np.array(list(synced_chromatograms1.values())), np.array(list(synced_chromatograms1.keys())), classifier_type='LDA')
-        # cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
-        # cls = Classifier(np.array(list(synced_chromatograms2.values())), np.array(list(synced_chromatograms2.keys())), classifier_type='LDA')
-        # cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
-
-        # cls = Classifier(np.array(list(chromatograms1.values())), np.array(list(chromatograms1.keys())), classifier_type='LDA')
-        # cls.train_and_evaluate_separate_datasets(
-        #     np.array(list(chromatograms1.values())), process_labels(chromatograms1.keys(), vintage),
-        #     np.array(list(chromatograms2.values())), process_labels(chromatograms2.keys(), vintage),
-        #     normalize=True, scaler_type='standard'
-        # )
-        cls = Classifier(np.array(list(synced_chromatograms1.values())), np.array(list(synced_chromatograms1.keys())), classifier_type='LDA')
-        cls.train_and_evaluate_separate_datasets(
-            np.array(list(synced_chromatograms1.values())), process_labels(synced_chromatograms1.keys(), vintage),
-            np.array(list(synced_chromatograms2.values())), np.array(list(synced_chromatograms2.keys())),
-            n_splits=100, normalize=True, scaler_type='standard'
-        )
-        print('here')
-
-        # analysis.run_tsne()
-        # analysis.run_umap(n_neighbors=5, random_state=90)
-        # analysis.run_umap(n_neighbors=30, random_state=52) # 2022 oak old
-        # analysis.run_umap(n_neighbors=70, random_state=84)  # 2018 oak old
-        # run_tsne_and_evaluate(analysis.data, cls._process_labels(vintage), analysis.chem_name)
-        # best_perp, best_rs, best_score = run_tsne_and_evaluate(
-        #     analysis,
-        #     cls._process_labels(vintage),
-        #     analysis.chem_name,
-        #     perplexities=range(30, 60, 10),
-        #     random_states=range(0, 64, 16)
-        # )
-        # analysis.run_tsne(perplexity=best_perp, random_state=best_rs, plot=True)
-        #
-        # best_neigh, best_rs, best_score = run_umap_and_evaluate(
-        #     analysis,
-        #     cls._process_labels(vintage),
-        #     analysis.chem_name,
-        #     neigh_range=range(30, 100, 10),
-        #     random_states=range(0, 64, 16)
-        # )
-        # analysis.run_umap(n_neighbors=best_neigh, random_state=best_rs, plot=True)
-
 
     # # Example usage of DimensionalityReducer
     # data_loader = DataLoader('/home/luiscamara/PycharmProjects/wine_scheck/data/oak.npy')

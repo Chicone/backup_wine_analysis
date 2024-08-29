@@ -6,6 +6,36 @@ from sklearn.preprocessing import StandardScaler
 
 
 class DataLoader:
+    """
+        The DataLoader class is responsible for loading, processing, and normalizing wine-related datasets.
+
+        This class handles various file formats, including `.npy` and `.xlsx`, and provides methods to
+        preprocess the data, normalize it, and prepare it for further analysis. The DataLoader class is designed
+        to streamline the data preparation process, ensuring that the data is in the correct format and
+        standardized for consistent use in analysis and modeling.
+
+        Attributes
+        ----------
+        file_path : str
+            The path to the dataset file.
+        data : dict
+            A dictionary containing the processed and normalized data.
+        df : pandas.DataFrame
+            A DataFrame representation of the processed data.
+
+        Methods
+        -------
+        __init__(file_path, normalize=True)
+            Initializes the DataLoader with the specified file path and optionally normalizes the data.
+        load_data()
+            Loads the data from the specified file and processes it according to the file format.
+        get_standardized_data()
+            Returns the data after applying standard scaling normalization.
+        normalize_dict()
+            Normalizes the dictionary values using standard scaling.
+        process_xlsx(df, file_path)
+            Processes Excel files to extract and format the data according to specific rules based on the file name.
+        """
     def __init__(self, file_path, normalize=True):
         self.file_path = file_path
         self.data, self.df = self.load_data()
@@ -96,7 +126,6 @@ class DataLoader:
                     continue
                 key = col  # detect the header
                 data[key] =[float(value) for value in df[col].tolist()[1:]]
-
 
         return data
 
