@@ -19,7 +19,7 @@ The Wine Analysis Library is a comprehensive toolkit designed for analyzing and 
 To use the Wine Analysis Library, clone the repository and install the required dependencies:
 
 ```bash
-git clone https://github.com/your-username/wine-analysis.git
+git clone https://github.com/Chicone/wine-analysis.git
 cd wine-analysis
 pip install -r requirements.txt
 ```
