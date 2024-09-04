@@ -30,7 +30,7 @@ from scipy.ndimage import gaussian_filter
 from wine_analysis import SyncChromatograms
 
 if __name__ == "__main__":
-    n_splits = 100
+    n_splits = 200
     vintage = False
     pca = False
 
@@ -78,6 +78,8 @@ if __name__ == "__main__":
     synced_chromatograms2 = cl.sync_individual_chromatograms(
         mean_c1, chromatograms2, np.linspace(0.980, 1.020, 80), initial_lag=250
     )
+    # synced_chromatograms1 = chromatograms1
+    # synced_chromatograms2 = chromatograms2
     cut_length = min(
         min(len(lst) for lst in synced_chromatograms1.values()),
         min(len(lst) for lst in synced_chromatograms2.values())

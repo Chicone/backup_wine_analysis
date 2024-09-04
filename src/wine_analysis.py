@@ -301,7 +301,48 @@ class ChromatogramAnalysis:
         """
 
         from wine_analysis import SyncChromatograms
+        def plot_average_profile_with_std(data, num_points=500, title='Average Profile with Standard Deviation'):
+            """
+            Plots the average profile with standard deviation for a list of (x, y) tuples.
 
+            Parameters:
+            - data: list of tuples, where each tuple contains two numpy arrays (x, y).
+            - num_points: int, the number of points in the common x grid for interpolation (default is 500).
+
+            Returns:
+            - None
+            """
+            # Define a common x grid based on the min and max x values across all profiles
+            x_common = np.linspace(min([min(x) for x, _ in data]), max([max(x) for x, _ in data]), num_points)
+
+            # Interpolate the y values to the common x grid
+            interpolated_y_values = []
+            for x, y in data:
+                # Create an interpolation function
+                f = interp1d(x, y, bounds_error=False, fill_value="extrapolate")
+                # Interpolate y values to the common x grid
+                y_interp = f(x_common)
+                interpolated_y_values.append(y_interp)
+
+            # Convert the list to a numpy array for easier computation
+            interpolated_y_values = np.array(interpolated_y_values)
+
+            # Calculate the mean and standard deviation across the y values
+            y_mean = np.mean(interpolated_y_values, axis=0)
+            y_std = np.std(interpolated_y_values, axis=0)
+
+            # Plot the mean profile with the standard deviation as a shaded region
+            plt.figure(figsize=(10, 6))
+            plt.plot(x_common, y_mean, label='Average Profile', color='blue')
+            plt.fill_between(x_common, y_mean - y_std, y_mean + y_std, color='blue', alpha=0.3,
+                             label='±1 Standard Deviation')
+            plt.xlabel('Retention time')
+            plt.ylabel('Local retention time correction')
+            plt.title(title)
+            plt.legend()
+            plt.show()
+
+        lag_profiles = []
         synced_chromatograms = {}
         for i, key in enumerate(input_chromatograms.keys()):
             print(i, key)
@@ -311,8 +352,10 @@ class ChromatogramAnalysis:
                 peak_prominence=0.00
             )
             optimized_chrom = sync_chrom.adjust_chromatogram()
+            lag_profiles.append(sync_chrom.lag_res[0:2])
             synced_chromatograms[key] = optimized_chrom
 
+        # plot_average_profile_with_std(lag_profiles, title='Lag distribution 2018 dataset')
         return synced_chromatograms
 
     def stacked_2D_plots_3D(self, data_dict):
@@ -412,6 +455,7 @@ class ChromatogramAnalysis:
             resampled_chrom2 = self.resample_chromatogram(chrom2, length)
 
         return resampled_chrom1, resampled_chrom2
+
 
 class SyncChromatograms:
     """
@@ -549,7 +593,7 @@ class SyncChromatograms:
         c2 = np.roll(c2, initial_lag)  # Apply the global shift
 
         lags = []
-        lags_loc = []
+        lags_location = []
         for i in range(0, len(c2) - segment_length + 1, hop):
             segment_c2 = c2[i:i + segment_length]
             start = max(0, i)
@@ -589,14 +633,14 @@ class SyncChromatograms:
                         best_lag = lag
 
             lags.append(best_lag + initial_lag)
-            lags_loc.append(i)
+            lags_location.append(i)
             # print(min_distance)
 
         # # Add one last point equal to the last one at 30000
         lags.append(lags[-1])
-        lags_loc.append(30000)
+        lags_location.append(30000)
 
-        return np.array(lags_loc), np.array(lags)
+        return np.array(lags_location), np.array(lags)
 
 
     def lag_profile_from_peaks(self, reference_chromatogram, target_chromatogram, alignment_tolerance, num_segments,
@@ -625,7 +669,7 @@ class SyncChromatograms:
 
         Returns
         -------
-        lags_loc : numpy.ndarray
+        lags_location : numpy.ndarray
             The locations of the lags in `target_chromatogram` after alignment.
         lags : numpy.ndarray
             The lag values corresponding to each peak after alignment.
@@ -644,7 +688,7 @@ class SyncChromatograms:
 
         Examples
         --------
-        >>> lags_loc, lags, target_chromatogram_aligned = obj.lag_profile_from_peaks(reference_chromatogram, target_chromatogram, alignment_tolerance=50, num_segments=50)
+        >>> lags_location, lags, target_chromatogram_aligned = obj.lag_profile_from_peaks(reference_chromatogram, target_chromatogram, alignment_tolerance=50, num_segments=50)
         """
 
         if apply_global_alignment:
@@ -688,7 +732,7 @@ class SyncChromatograms:
         num_initial_peaks = min(len(target_peaks), len(reference_peaks))
 
         lags = []
-        lags_loc = []
+        lags_location = []
 
         for i in range(1, num_initial_peaks):
             # Select the previous and current peaks from the target chromatogram
@@ -741,23 +785,25 @@ class SyncChromatograms:
                 break
 
             # Skip peaks that would move backwards in retention time
-            if len(lags_loc) > 0 and any(target_peak + accum_lag <= loc for loc in lags_loc):
+            if len(lags_location) > 0 and any(target_peak + accum_lag <= loc for loc in lags_location):
                 continue
 
             # Append the accumulated lag and its location
             lags.append(accum_lag)
-            lags_loc.append(target_peak + accum_lag)
+            lags_location.append(target_peak + accum_lag)
 
         # Ensure the first lag is consistent with the rest
         if len(lags) > 0:
             lags.insert(0, lags[0])
-            lags_loc.insert(0, 0)
+            lags_location.insert(0, 0)
+            lags.append(lags[-1])
+            lags_location.append(30000)
 
-        return np.array(lags_loc), np.array(lags), target_chromatogram_aligned
+        return np.array(lags_location), np.array(lags), target_chromatogram_aligned
 
     def lag_profile_moving_peaks_individually(
             self, reference_chromatogram, target_chromatogram, alignment_tolerance, num_segments, apply_global_alignment=True,
-            scan_range=1, peak_order=0, scaling_distance=100, interval_after=500, min_avg_peak_distance=50):
+            scan_range=1, peak_order=0, interval_after=500, min_avg_peak_distance=50):
         """
         Align peaks between a reference signal and a target signal by moving target peaks independently,
         and calculate the lag profile. The peaks are moved by rescaling the intervals with their adjacent peaks to both
@@ -780,10 +826,8 @@ class SyncChromatograms:
             The range within which to scan for matching peaks. Default is 1.
         peak_order : int, optional
             The rank of the peak to select within each segment. Default is 0 (highest peak).
-        scaling_distance : int, optional
-            Distance used to calculate the scaling factor. Default is 100.
         interval_after : int, optional
-            Interval length after the peak for stretching/compression. Default is 500.
+            Interval length after the peak to improve similarity measure. Default is 500.
         min_avg_peak_distance : float, optional
             Minimum average peak distance required for accepting the scaling. Default is 50.
 
@@ -840,6 +884,71 @@ class SyncChromatograms:
 
             return average_distance, distances, peaks1, peaks2
 
+        def calculate_weighted_average_peak_distance(signal1, signal2, prominence=1E-6, distance_type='mean',
+                                                     weight_power=1):
+            """
+            Calculate the weighted average distance between peaks in two signals, with weights based on the relative heights of both peaks.
+
+            Parameters
+            ----------
+            signal1, signal2 : array-like
+                The signals for which peak distances are calculated.
+            prominence : float, optional
+                The prominence of peaks to consider. Default is 1E-6.
+            distance_type : str, optional
+                Type of distance to calculate ('mean' or 'mean_square'). Default is 'mean'.
+            weight_power : float, optional
+                The power to raise the relative height ratio, allowing for non-linearity in the weighting. Default is 1 (linear).
+
+            Returns
+            -------
+            float
+                The weighted average distance between peaks.
+            list
+                List of distances between matched peaks.
+            numpy.ndarray
+                Peaks in the first signal.
+            numpy.ndarray
+                Peaks in the second signal.
+            """
+            peaks1, properties1 = find_peaks(signal1, prominence=prominence)
+            peaks2, properties2 = find_peaks(signal2, prominence=prominence)
+
+            if len(peaks1) == 0 or len(peaks2) == 0:
+                raise ValueError("No peaks found in one of the signals")
+
+            distances = []
+            weights = []  # Store weights based on relative peak heights
+            for peak1, height1 in zip(peaks1, properties1["prominences"]):
+                # Find the closest peak in signal2 to peak1
+                closest_peak2_idx = np.argmin(np.abs(peaks2 - peak1))
+                closest_peak2 = peaks2[closest_peak2_idx]
+                height2 = properties2["prominences"][closest_peak2_idx]  # Get height of the closest peak2
+
+                # Calculate the distance between the two peaks
+                distance = abs(peak1 - closest_peak2)
+                distances.append(distance)
+
+                # Calculate the relative weight based on peak heights
+                relative_height_ratio = min(height1, height2) / max(height1, height2)
+
+                # Apply the weight_power to introduce non-linearity
+                weight = relative_height_ratio ** weight_power
+                weights.append(weight)
+
+            # Normalize the weights so they sum to 1
+            normalized_weights = np.array(weights) / np.sum(weights)
+
+            # Compute the weighted average distance
+            if distance_type == 'mean':
+                weighted_average_distance = np.average(distances, weights=normalized_weights)
+            elif distance_type == 'mean_square':
+                weighted_average_distance = np.average(np.square(distances), weights=normalized_weights)
+            else:
+                raise ValueError("Invalid distance_type. Choose 'mean' or 'mean_square'.")
+
+            return weighted_average_distance, distances, peaks1, peaks2
+
         #### End local functions ####
 
         if apply_global_alignment:
@@ -871,7 +980,7 @@ class SyncChromatograms:
 
         # Initialize lists to store the calculated lags and their corresponding locations
         lags = []
-        lags_loc = []
+        lags_location = []
 
         num_initial_peaks = min(len(target_peaks), len(reference_peaks))
 
@@ -942,7 +1051,10 @@ class SyncChromatograms:
 
                 try:
                     # Calculate the average peak distance between the normalized segments of target and reference
-                    avg_peak_dist = calculate_average_peak_distance(
+                    # avg_peak_dist = calculate_average_peak_distance(
+                    #     norm_reference_segment, norm_target_segment, prominence=1E-6, distance_type='mean'
+                    # )[0]
+                    avg_peak_dist = calculate_weighted_average_peak_distance(
                         norm_reference_segment, norm_target_segment, prominence=1E-6, distance_type='mean'
                     )[0]
                 except Exception:
@@ -1024,20 +1136,20 @@ class SyncChromatograms:
 
             # Avoid the adjusted peak position (target_peak + stretch) ending up at or before any of the existing lag
             # locations
-            if len(lags_loc) > 0 and any(target_peak + stretch <= loc for loc in lags_loc):
+            if len(lags_location) > 0 and any(target_peak + stretch <= loc for loc in lags_location):
                 continue
 
             # Append the calculated stretch and its location to the lags list
             lags.append(stretch)
-            lags_loc.append(target_peak + stretch)
+            lags_location.append(target_peak + stretch)
 
         # Add one last point equal to the last one at a specific position (e.g., 30000) to avoid spline growing too large
         if len(lags) > 0:
             lags.append(lags[-1])
-            lags_loc.append(30000)
+            lags_location.append(30000)
 
         # Return the arrays of lag locations and lag values
-        return np.array(lags_loc), np.array(lags)
+        return np.array(lags_location), np.array(lags), target_chromatogram_aligned
 
     def ensure_peaks_in_segments(self, signal, peaks_in_signal, num_segments=10, last_segment=None, peak_ord=0):
         """
@@ -1258,15 +1370,15 @@ class SyncChromatograms:
         # each order improves accuracy
         for ord in [0, 0, 0, 1, 1, 1, 1, 1]:
             self.lag_res = self.lag_profile_moving_peaks_individually(
-                c1, corrected_c2, alignment_tolerance=200, num_segments=10, apply_global_alignment=False, scan_range=3,
-                peak_order=ord, scaling_distance=250, interval_after=3000, min_avg_peak_distance=10
+                c1, corrected_c2, alignment_tolerance=250, num_segments=10, apply_global_alignment=False, scan_range=3,
+                peak_order=ord, interval_after=3000, min_avg_peak_distance=10
             )
+            print(self.lag_res[0], self.lag_res[1])
 
-            print(self.lag_res[1])
-
-            # Apply spline-based correction to the chromatogram based on the current lag profile
-            corrected_c2 = correct_with_spline(corrected_c2, 20, 1, normalize=False, plot=plot)
-            corrected_c2_sharp = correct_with_spline(corrected_c2_sharp, 20, 1, normalize=False, plot=plot)
+            # # Apply spline-based correction to the chromatogram based on the current lag profile
+            # corrected_c2 = correct_with_spline(corrected_c2, 20, 1, normalize=False, plot=plot)
+            # corrected_c2_sharp = correct_with_spline(corrected_c2_sharp, 20, 1, normalize=False, plot=plot)
+            corrected_c2 = self.lag_res[2]
             cnt += 1
         # corrected_c2 = corrected_c2_sharp
 
