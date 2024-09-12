@@ -67,18 +67,18 @@ if __name__ == "__main__":
     mean_c1 = cl.calculate_mean_chromatogram(chromatograms1)
     mean_c2 = cl.calculate_mean_chromatogram(chromatograms2)
     mean_c1 = utils.remove_peak(mean_c1, peak_idx=8910, window_size=30)
-    sc_inst = SyncChromatograms(mean_c1, mean_c2, 10, 1,)
+    sc_inst = SyncChromatograms(mean_c1, mean_c2, mean_c2, 10, 1,)
     lag_res = sc_inst.calculate_lag_profile(
         mean_c1, mean_c2, 4000, lag_range=200, hop=2000, sigma=20, distance_metric='l1', init_min_dist=1E6)
     # utils.plot_lag(lag_res[0], lag_res[1])
 
-    synced_chromatograms1 = cl.sync_individual_chromatograms(
-        mean_c1, chromatograms1, np.linspace(0.997, 1.003, 30), initial_lag=50
-    )
+    # synced_chromatograms1 = cl.sync_individual_chromatograms(
+    #     mean_c1, chromatograms1, mean_c2, np.linspace(0.997, 1.003, 30), initial_lag=50
+    # )
     synced_chromatograms2 = cl.sync_individual_chromatograms(
-        mean_c1, chromatograms2, np.linspace(0.980, 1.020, 80), initial_lag=250
+        mean_c1, chromatograms2, mean_c2, np.linspace(0.980, 1.020, 80), initial_lag=250
     )
-    # synced_chromatograms1 = chromatograms1
+    synced_chromatograms1 = chromatograms1
     # synced_chromatograms2 = chromatograms2
     cut_length = min(
         min(len(lst) for lst in synced_chromatograms1.values()),

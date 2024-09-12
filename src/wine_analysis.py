@@ -41,6 +41,7 @@ import pandas as pd
 import os
 import math
 from dcor import distance_correlation
+from dtw import *
 
 import utils
 from data_loader import DataLoader
@@ -269,7 +270,7 @@ class ChromatogramAnalysis:
         # analysis.run_umap(n_neighbors=10, random_state=10, best_score=10)
 #
 
-    def sync_individual_chromatograms(self, reference_chromatogram, input_chromatograms, scales, initial_lag=300):
+    def sync_individual_chromatograms(self, reference_chromatogram, input_chromatograms, mean_input_chromatograms, scales, initial_lag=300):
         """
         Synchronize individual chromatograms with a reference chromatogram.
 
@@ -342,21 +343,58 @@ class ChromatogramAnalysis:
             plt.legend()
             plt.show()
 
+        mean_chrom = mean_input_chromatograms
+
         lag_profiles = []
         synced_chromatograms = {}
         for i, key in enumerate(input_chromatograms.keys()):
             print(i, key)
             chrom = input_chromatograms[key]
             sync_chrom = SyncChromatograms(
-                reference_chromatogram, chrom, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50,
+                reference_chromatogram, chrom, mean_chrom, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50,
                 peak_prominence=0.00
             )
-            optimized_chrom = sync_chrom.adjust_chromatogram()
+            if i == 0:
+                # Coarse round
+                global_align = True
+                sync_mean_chrom = SyncChromatograms(reference_chromatogram, mean_chrom, mean_chrom, 1, scales, 1E6,
+                                               threshold=0.00, max_sep_threshold=50, peak_prominence=0.00)
+                lag_res = sync_mean_chrom.lag_profile_from_avg_peak_distance(
+                    gaussian_filter(sync_mean_chrom.c1, 10),  gaussian_filter(sync_mean_chrom.mean_c2, 10), initial_slice_length=5000,
+                    hop_size=1000, scan_range=250,  apply_global_alignment=global_align,
+                    min_peaks=10, max_slice_length=10000, prominence=1E-4, min_avg_peak_dist=25
+                )
+                sync_mean_chrom.lag_res = lag_res
+                optimized_mean2 = sync_mean_chrom.adjust_chromatogram(sync_mean_chrom.lag_res)
+                from utils import plot_data_from_dict
+                plt.figure(figsize=(18,4))
+                plt.plot(min_max_normalize(reference_chromatogram, 0, 0.1))
+                plt.plot(min_max_normalize(optimized_mean2, 0, 0.1))
+
+                # TODO Accumulate all displacemnents from the different passes on the loop
+                for sl in [1000, 500]:
+                    # Fine round
+                    global_align = False
+                    sync_mean_chrom = SyncChromatograms(reference_chromatogram, optimized_mean2, optimized_mean2, 1, scales, 1E6,
+                                                   threshold=0.00, max_sep_threshold=50, peak_prominence=0.00)
+                    lag_res = sync_mean_chrom.lag_profile_from_correlation(
+                        gaussian_filter(sync_mean_chrom.c1, 10),  gaussian_filter(sync_mean_chrom.mean_c2, 10), initial_slice_length=sl,
+                        hop_size=sl // 2, scan_range=150,  apply_global_alignment=global_align,
+                        max_slice_length=sl, score=0
+                    )
+                    sync_mean_chrom.lag_res = lag_res
+                    optimized_mean2 = sync_mean_chrom.adjust_chromatogram(sync_mean_chrom.lag_res)
+
+
+            sync_chrom.lag_res = lag_res
+            optimized_chrom = sync_chrom.adjust_chromatogram(sync_chrom.lag_res)
             lag_profiles.append(sync_chrom.lag_res[0:2])
             synced_chromatograms[key] = optimized_chrom
 
         # plot_average_profile_with_std(lag_profiles, title='Lag distribution 2018 dataset')
         return synced_chromatograms
+
+
 
     def stacked_2D_plots_3D(self, data_dict):
         """
@@ -475,9 +513,10 @@ class SyncChromatograms:
         This class is ideal for researchers who need to compare chromatographic data across multiple wine samples, ensuring that peaks and retention times are aligned for accurate analysis.
         """
 
-    def __init__(self, c1, c2, n_segments, scales, min_peaks=5, max_iterations=100, threshold=0.5, max_sep_threshold=50, peak_prominence=0.1):
+    def __init__(self, c1, c2, mean_c2, n_segments, scales, min_peaks=5, max_iterations=100, threshold=0.5, max_sep_threshold=50, peak_prominence=0.1):
         self.c1 = c1
         self.c2 = c2
+        self.mean_c2 = mean_c2
         self.n_segments = n_segments
         self.scales = scales
         self.min_peaks = min_peaks
@@ -801,6 +840,820 @@ class SyncChromatograms:
 
         return np.array(lags_location), np.array(lags), target_chromatogram_aligned
 
+    def calculate_weighted_average_peak_distance(self, signal1, signal2, prominence=1E-6, distance_type='mean',
+                                                 weight_power=1):
+        """
+        Calculate the weighted average distance between peaks in two signals, with weights based on the relative heights of both peaks.
+
+        Parameters
+        ----------
+        signal1, signal2 : array-like
+            The signals for which peak distances are calculated.
+        prominence : float, optional
+            The prominence of peaks to consider. Default is 1E-6.
+        distance_type : str, optional
+            Type of distance to calculate ('mean' or 'mean_square'). Default is 'mean'.
+        weight_power : float, optional
+            The power to raise the relative height ratio, allowing for non-linearity in the weighting. Default is 1 (linear).
+
+        Returns
+        -------
+        float
+            The weighted average distance between peaks.
+        list
+            List of distances between matched peaks.
+        numpy.ndarray
+            Peaks in the first signal.
+        numpy.ndarray
+            Peaks in the second signal.
+        int
+            The number of peaks used for the distance calculation.
+        """
+        peaks1, properties1 = find_peaks(signal1, prominence=prominence)
+        peaks2, properties2 = find_peaks(signal2, prominence=prominence)
+
+        # If no peaks are found in either signal, return an infinite distance
+        if len(peaks1) == 0 or len(peaks2) == 0:
+            return np.inf, None, peaks1, peaks2, 0  # Return 0 as the number of peaks used
+
+        distances = []
+        weights = []  # Store weights based on relative peak heights
+
+        # Iterate through peaks in signal1 and find closest peak in signal2
+        for peak1, height1 in zip(peaks1, properties1["prominences"]):
+            closest_peak2_idx = np.argmin(np.abs(peaks2 - peak1))
+            closest_peak2 = peaks2[closest_peak2_idx]
+            height2 = properties2["prominences"][closest_peak2_idx]  # Get height of the closest peak2
+
+            # Calculate the distance between the two peaks
+            distance = abs(peak1 - closest_peak2)
+            distances.append(distance)
+
+            # Calculate the relative weight based on peak heights
+            relative_height_ratio = min(height1, height2) / max(height1, height2)
+
+            # Apply the weight_power to introduce non-linearity
+            weight = relative_height_ratio ** weight_power
+            weights.append(weight)
+
+        # Normalize the weights so they sum to 1
+        normalized_weights = np.array(weights) / np.sum(weights)
+
+        # Compute the weighted average distance
+        if distance_type == 'mean':
+            weighted_average_distance = np.average(distances, weights=normalized_weights)
+        elif distance_type == 'mean_square':
+            weighted_average_distance = np.average(np.square(distances), weights=normalized_weights)
+        else:
+            raise ValueError("Invalid distance_type. Choose 'mean' or 'mean_square'.")
+
+        # The number of peaks actually used is the number of distances calculated
+        num_peaks_used = len(distances)
+
+        return weighted_average_distance, num_peaks_used, distances, peaks1, peaks2
+
+    def lag_profile_from_avg_peak_distance(self, reference_chromatogram, target_chromatogram, initial_slice_length,
+                                           hop_size=1, scan_range=10, apply_global_alignment=True,
+                                           min_peaks=3, max_slice_length=None, prominence=1E-3, min_avg_peak_dist=50):
+        """
+        Generate a lag profile by scanning slices of the target chromatogram and comparing them with slices in the reference chromatogram.
+
+        For each datapoint selected in `target_chromatogram`, the function takes a slice of variable length and compares it
+        with different slices from `reference_chromatogram`. The slice length increases dynamically until a minimum number
+        of peaks is found. The best matching slice is determined based on the minimum weighted average peak distance.
+
+        Parameters
+        ----------
+        reference_chromatogram : array-like
+            The reference chromatogram (e.g., the mean chromatogram of a given dataset).
+        target_chromatogram : array-like
+            The chromatogram to be aligned with `reference_chromatogram`.
+        initial_slice_length : int
+            The initial length of the slice taken from `target_chromatogram`.
+        hop_size : int, optional
+            The step size for scanning through `target_chromatogram`. Default is 1 (scan every point).
+        scan_range : int, optional
+            The range within which to scan for left and right values of the target slice in the reference chromatogram. Default is 10.
+        apply_global_alignment : bool, optional
+            If True, apply a global time shift to align the chromatograms before local adjustments. Default is True.
+        min_peaks : int, optional
+            The minimum number of peaks required in the slices. Default is 3.
+        max_slice_length : int, optional
+            The maximum allowable slice length. Default is twice the `initial_slice_length`.
+
+        Returns
+        -------
+        lags_location : numpy.ndarray
+            The locations of the lags in `target_chromatogram` after alignment.
+        lags : numpy.ndarray
+            The lag values corresponding to each slice after alignment.
+        """
+
+        if apply_global_alignment:
+            # Apply global alignment by finding the best scale and lag
+            best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
+                gaussian_filter(reference_chromatogram[:10000], 50),
+                gaussian_filter(target_chromatogram[:10000], 50),
+                np.linspace(1.0, 1.0, 1)
+            )
+            target_chromatogram_aligned = gaussian_filter(
+                self.correct_segment(target_chromatogram, best_scale, best_lag), 5
+            )
+        else:
+            target_chromatogram_aligned = target_chromatogram
+            best_lag = 0
+
+        reference_chromatogram = utils.normalize_amplitude_minmax(reference_chromatogram)
+        target_chromatogram_aligned = utils.normalize_amplitude_minmax(target_chromatogram_aligned)
+
+        if max_slice_length is None:
+            max_slice_length = initial_slice_length * 2  # Set default maximum slice length
+
+        safe_boundary = initial_slice_length + scan_range
+
+        lags = []
+        lags_location = []
+
+        # Iterate through the datapoints in the target chromatogram
+        for i in range(safe_boundary, len(target_chromatogram_aligned) - safe_boundary, hop_size):
+            slice_length = initial_slice_length
+            half_slice = slice_length // 2
+            num_peaks_used = 0
+
+            # best_curr_lag = 0
+            # for offset in range(-scan_range, scan_range + 1):
+            #     reference_center = i + offset
+            #     start_ref_idx = max(reference_center - half_slice, 0)
+            #     end_ref_idx = min(reference_center + half_slice, len(reference_chromatogram))
+            #     reference_slice = reference_chromatogram[start_ref_idx:end_ref_idx]
+            #     start_idx = max(i - half_slice, 0)
+            #     end_idx = min(i + half_slice, len(target_chromatogram_aligned))
+            #     target_slice = target_chromatogram_aligned[start_idx:end_idx]
+            #
+            #     correlation_matrix = np.corrcoef(reference_slice, target_slice)
+            #     normalized_correlation = correlation_matrix[0, 1]
+            #     if normalized_correlation < min_avg_peak_dist:
+            #         min_avg_peak_dist = normalized_correlation
+            #         best_curr_lag = offset
+
+            # Dynamically adjust slice length until minimum peaks are found or max_slice_length is reached
+            while num_peaks_used < min_peaks and slice_length <= max_slice_length:
+                # Update slice indices based on the new slice length
+                half_slice = slice_length // 2
+                start_idx = max(i - half_slice, 0)
+                end_idx = min(i + half_slice, len(target_chromatogram_aligned))
+                target_slice = target_chromatogram_aligned[start_idx:end_idx]
+
+                min_dist = min_avg_peak_dist
+                best_curr_lag = 0
+
+                # Scan values within the scan_range in the reference chromatogram
+                for offset in range(-scan_range, scan_range + 1):
+                    reference_center = i + offset
+                    start_ref_idx = max(reference_center - half_slice, 0)
+                    end_ref_idx = min(reference_center + half_slice, len(reference_chromatogram))
+                    reference_slice = reference_chromatogram[start_ref_idx:end_ref_idx]
+
+                    # Calculate weighted average peak distance and number of peaks used
+                    avg_peak_dist, num_used_peaks, distances = self.calculate_weighted_average_peak_distance(
+                        reference_slice, target_slice, prominence=prominence, distance_type='mean', weight_power=1)[0:3]
+
+                    if len(distances) >=  min_peaks:
+                        distances.sort()
+                        avg_peak_dist = np.mean(distances[:min_peaks])
+
+                    # Update the best alignment if the current one is better
+                    if avg_peak_dist < min_dist:
+                        min_dist = avg_peak_dist
+                        best_curr_lag = offset
+                        num_peaks_used = num_used_peaks
+
+                if num_peaks_used < min_peaks:
+                    # Increase the slice length and try again
+                    slice_length += initial_slice_length # // 2
+                    if slice_length > max_slice_length:
+                        slice_length = max_slice_length
+                        break  # Exit if maximum slice length is reached
+                else:
+                    break  # Desired number of peaks found
+
+            # Append the lag and its location
+            lags.append(best_lag + best_curr_lag)
+            lags_location.append(i)
+
+        # Ensure the first and last lags are consistent
+        if len(lags) > 0:
+            lags.insert(0, lags[0])
+            lags_location.insert(0, 0)
+            lags.append(lags[-1])
+            lags_location.append(len(target_chromatogram_aligned))
+
+        return np.array(lags_location), np.array(lags)
+
+    def lag_profile_from_correlation(self, reference_chromatogram, target_chromatogram, initial_slice_length,
+                                           hop_size=1, scan_range=10, apply_global_alignment=True,
+                                           max_slice_length=None,  score=0):
+
+        if apply_global_alignment:
+            # Apply global alignment by finding the best scale and lag
+            best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
+                gaussian_filter(reference_chromatogram[:10000], 50),
+                gaussian_filter(target_chromatogram[:10000], 50),
+                np.linspace(1.0, 1.0, 1)
+            )
+            target_chromatogram_aligned = gaussian_filter(
+                self.correct_segment(target_chromatogram, best_scale, best_lag), 5
+            )
+        else:
+            target_chromatogram_aligned = target_chromatogram
+            best_lag = 0
+
+        reference_chromatogram = utils.normalize_amplitude_minmax(reference_chromatogram)
+        target_chromatogram_aligned = utils.normalize_amplitude_minmax(target_chromatogram_aligned)
+
+        safe_boundary = initial_slice_length + scan_range
+
+        lags = []
+        lags_location = []
+
+        # Iterate through the datapoints in the target chromatogram
+        for i in range(safe_boundary, len(target_chromatogram_aligned) - safe_boundary, hop_size):
+            slice_length = initial_slice_length
+            half_slice = slice_length // 2
+
+            best_curr_lag = 0
+            best_score = score
+            for offset in range(-scan_range, scan_range + 1):
+                reference_center = i + offset
+                start_ref_idx = max(reference_center - half_slice, 0)
+                end_ref_idx = min(reference_center + half_slice, len(reference_chromatogram))
+                reference_slice = reference_chromatogram[start_ref_idx:end_ref_idx]
+                start_idx = max(i - half_slice, 0)
+                end_idx = min(i + half_slice, len(target_chromatogram_aligned))
+                target_slice = target_chromatogram_aligned[start_idx:end_idx]
+
+                correlation_matrix = np.corrcoef(reference_slice, target_slice)
+                normalized_correlation = correlation_matrix[0, 1]
+                if normalized_correlation > best_score:
+                    best_score  = normalized_correlation
+                    best_curr_lag = offset
+
+            # Append the lag and its location
+            lags.append(best_lag + best_curr_lag)
+            lags_location.append(i)
+
+        # Ensure the first and last lags are consistent
+        if len(lags) > 0:
+            lags.insert(0, lags[0])
+            lags_location.insert(0, 0)
+            lags.append(lags[-1])
+            lags_location.append(len(target_chromatogram_aligned))
+
+        return np.array(lags_location), np.array(lags)
+
+    # def lag_profile_from_avg_peak_distance(self, reference_chromatogram, target_chromatogram, slice_length, hop_size=1,
+    #                                        scan_range=10, apply_global_alignment=True):
+    #     """
+    #     Generate a lag profile by scanning slices of the target chromatogram and comparing them with different slices in the reference chromatogram.
+    #
+    #     For each datapoint selected in `target_chromatogram`, the function takes a slice of a given length ahead and behind and compares it
+    #     with different slices from `reference_chromatogram`. The best matching slice is determined based on the minimum weighted
+    #     average peak distance.
+    #
+    #     Parameters
+    #     ----------
+    #     reference_chromatogram : array-like
+    #         The reference chromatogram (e.g. the mean chromatogram of a given dataset).
+    #     target_chromatogram : array-like
+    #         The chromatogram to be aligned with `reference_chromatogram`.
+    #     slice_length : int
+    #         The length of the slice taken from `target_chromatogram`.
+    #     hop_size : int, optional
+    #         The step size for scanning through `target_chromatogram`. Default is 1 (scan every point).
+    #     scan_range : int, optional
+    #         The range within which to scan for left and right values of the target slice in the reference chromatogram. Default is 10.
+    #     apply_global_alignment : bool, optional
+    #         If True, apply a global time shift to align the chromatograms before local adjustments. Default is True.
+    #
+    #     Returns
+    #     -------
+    #     lags_location : numpy.ndarray
+    #         The locations of the lags in `target_chromatogram` after alignment.
+    #     lags : numpy.ndarray
+    #         The lag values corresponding to each slice after alignment.
+    #     target_chromatogram_aligned : numpy.ndarray
+    #         The aligned chromatogram `target_chromatogram` after applying the per-slice adjustments.
+    #
+    #     """
+    #     if apply_global_alignment:
+    #         # Apply global alignment by finding the best scale and lag
+    #         best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
+    #             gaussian_filter(reference_chromatogram[:10000], 50),
+    #             gaussian_filter(target_chromatogram[:10000], 50),
+    #             np.linspace(1.0, 1.0, 1)
+    #         )
+    #         target_chromatogram_aligned = gaussian_filter(
+    #             self.correct_segment(target_chromatogram, best_scale, best_lag), 5
+    #         )
+    #         # accum_lag = best_lag
+    #     else:
+    #         target_chromatogram_aligned = target_chromatogram
+    #         # accum_lag = 0
+    #         best_lag = 0
+    #
+    #     reference_chromatogram = utils.normalize_amplitude_minmax(reference_chromatogram)
+    #     target_chromatogram_aligned = utils.normalize_amplitude_minmax(target_chromatogram_aligned)
+    #
+    #     half_slice = slice_length // 2
+    #     safe_boundary = half_slice + scan_range
+    #
+    #     lags = []
+    #     lags_location = []
+    #
+    #     # Iterate through the datapoints in the target chromatogram, using hop_size to skip points
+    #     for i in range(safe_boundary, len(target_chromatogram_aligned) - safe_boundary, hop_size):
+    #         # Center the slice around the current point `i`
+    #         start_idx = i - half_slice
+    #         end_idx = i + half_slice
+    #         target_slice = target_chromatogram_aligned[start_idx:end_idx]
+    #
+    #         # Initialize variables to keep track of the best aligned chromatogram and the smallest peak distance
+    #         min_avg_peak_dist = float('inf')
+    #         best_curr_lag = 0
+    #
+    #         # Scan values to the left and right of the current datapoint within the scan_range in the reference chromatogram
+    #         for offset in range(-scan_range, scan_range + 1):
+    #             reference_center = i + offset
+    #             # Center the slice around the current point `i`
+    #             start_idx = reference_center - half_slice
+    #             end_idx = reference_center + half_slice
+    #             reference_slice = reference_chromatogram[start_idx:end_idx]
+    #
+    #             # reference_start = reference_center - half_slice
+    #             # reference_end = reference_center + half_slice
+    #
+    #             # if reference_start < 0 or reference_end >= len(reference_chromatogram):
+    #             #     continue  # Skip invalid slices
+    #             #
+    #             # # Take the reference slice from the reference chromatogram
+    #             # reference_slice = reference_chromatogram[reference_start:reference_end]
+    #
+    #             # Calculate the weighted average peak distance between the target slice and the reference slice
+    #             avg_peak_dist, num_used_peaks = self.calculate_weighted_average_peak_distance(
+    #                 reference_slice, target_slice, prominence=1E-3, distance_type='mean', weight_power=1)[0:2]
+    #
+    #             # Update the best alignment if the current one is better (smaller average peak distance)
+    #             if avg_peak_dist < min_avg_peak_dist:
+    #                 min_avg_peak_dist = avg_peak_dist
+    #                 best_curr_lag = offset
+    #                 best_reference_slice = reference_slice
+    #
+    #         # # Accumulate the lag
+    #         # accum_lag += best_curr_lag
+    #
+    #         # After scanning, update the lag and its location
+    #         lags.append(best_lag + best_curr_lag)
+    #         lags_location.append(i)
+    #
+    #     # Ensure the first lag is consistent with the rest
+    #     if len(lags) > 0:
+    #         lags.insert(0, lags[0])
+    #         lags_location.insert(0, 0)
+    #         lags.append(lags[-1])
+    #         lags_location.append(len(target_chromatogram_aligned))
+    #
+    #     return np.array(lags_location), np.array(lags)
+
+    def lag_profile_from_peaks_between(self, reference_chromatogram, target_chromatogram, alignment_tolerance,
+                                       num_segments, apply_global_alignment=True, scan_range=10, interval_after=1000):
+        """
+        Generate a lag profile from peaks in two chromatograms by aligning segments and scanning left and right of each peak.
+
+        This function aligns peaks in `target_chromatogram` to peaks in `reference_chromatogram` and adjusts the chromatogram
+        `target_chromatogram` accordingly. It then computes the lag profile based on the difference in peak positions between
+        the two chromatograms and scans the left and right of the target peaks to find the best alignment based on a weighted
+        peak distance metric.
+
+        Parameters
+        ----------
+        reference_chromatogram : array-like
+            The reference chromatogram (e.g. the mean chromatogram of a given dataset).
+        target_chromatogram : array-like
+            The chromatogram to be aligned with `reference_chromatogram`.
+        alignment_tolerance : float
+            The maximum allowed distance between aligned peaks in `reference_chromatogram` and `target_chromatogram`. Peaks in
+            `target_chromatogram` that are too far from the corresponding peak in `reference_chromatogram` will be skipped.
+        num_segments : int
+            The number of segments to divide the chromatograms into for peak alignment. The highest peak from each segment
+            is typically selected.
+        apply_global_alignment : bool, optional
+            If True, apply a global time shift to align the chromatograms before local adjustments. Default is True.
+        scan_range : int, optional
+            The range within which to scan for left and right values of the target peak. Default is 10.
+
+        Returns
+        -------
+        lags_location : numpy.ndarray
+            The locations of the lags in `target_chromatogram` after alignment.
+        lags : numpy.ndarray
+            The lag values corresponding to each peak after alignment.
+        target_chromatogram_aligned : numpy.ndarray
+            The aligned chromatogram `target_chromatogram` after applying the per-section adjustments.
+
+        Raises
+        ------
+        ValueError
+            If some segments in `target_chromatogram` do not have peaks.
+        """
+
+        if apply_global_alignment:
+            # Apply global alignment by finding the best scale (currently turned off) and lag
+            best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
+                gaussian_filter(reference_chromatogram[:10000], 50),
+                gaussian_filter(target_chromatogram[:10000], 50),
+                np.linspace(1.0, 1.0, 1)
+            )
+            target_chromatogram_aligned = gaussian_filter(
+                self.correct_segment(target_chromatogram, best_scale, best_lag), 5
+            )
+            accum_lag = best_lag
+        else:
+            target_chromatogram_aligned = target_chromatogram
+            accum_lag = 0
+
+        reference_chromatogram = utils.normalize_amplitude_minmax(reference_chromatogram)
+        target_chromatogram_aligned = utils.normalize_amplitude_minmax(target_chromatogram_aligned)
+
+        # Find peaks in the reference chromatogram
+        reference_peaks, _ = find_peaks(reference_chromatogram)
+
+        # Remove peak at a known standard position in the reference chromatogram
+        reference_peaks = np.delete(reference_peaks, np.where(reference_peaks == 8918))
+
+        # Find peaks in the globally aligned target chromatogram
+        target_peaks, _ = find_peaks(target_chromatogram_aligned)
+
+        # # Ensure there is a maximum of one peak per segment (the highest) in both chromatograms
+        # reference_peaks, valid = self.ensure_peaks_in_segments(
+        #     reference_chromatogram, reference_peaks, num_segments=num_segments
+        # )
+        target_peaks, valid = self.ensure_peaks_in_segments(
+            target_chromatogram_aligned, target_peaks, num_segments=num_segments
+        )
+
+        if not valid:
+            raise ValueError("Please change parameters, some segments in chromatograms do not have peaks.")
+
+        # Add zero to scale the first part of the chromatogram up to the first peak
+        reference_peaks = np.concatenate([np.array([0]), reference_peaks])
+        target_peaks = np.concatenate([np.array([0]), target_peaks])
+        num_initial_peaks = min(len(target_peaks), len(reference_peaks))
+
+        lags = []
+        lags_location = []
+
+        for i in range(1, num_initial_peaks):
+            # Select the previous and current peaks from the target chromatogram
+            target_peak_prev = target_peaks[i - 1]
+            target_peak = target_peaks[i]
+
+            # Initialize the corresponding previous peak in the reference chromatogram
+            reference_peak_prev = target_peak_prev
+
+            # Find the closest peak in the reference chromatogram to the current target peak
+            reference_peak = reference_peaks[np.argmin(np.abs(reference_peaks - target_peak))]
+
+            # Skip if the current peak in target is too far from the reference or in the wrong order
+            if np.abs(reference_peak - target_peak) > alignment_tolerance or reference_peak <= reference_peak_prev:
+                if i >= len(target_peaks) - 1:
+                    break
+                else:
+                    continue
+
+            # Initialize variables to keep track of the best aligned chromatogram and the smallest peak distance
+            best_target_chromatogram_aligned = target_chromatogram_aligned.copy()
+            min_avg_peak_dist = float('inf')
+
+            # Scan values to the left and right of the target peak within the scan_range
+            best_curr_lag = 0
+            for offset in range(-scan_range, scan_range + 1, 1):
+                target_peak_offset = target_peak + offset
+                if target_peak_offset < 0 or target_peak_offset >= len(target_chromatogram_aligned):
+                    continue  # Skip invalid offset
+
+                # Accumulate the lag
+                lag = reference_peak - target_peak_offset
+
+                # Calculate the scaling factor and adjust the target segment
+                interval_target = target_peak_offset - target_peak_prev
+                interval_reference = reference_peak - reference_peak_prev
+                if interval_target <= 0:
+                    continue
+                scale = interval_reference / interval_target
+                start = min(target_peak_prev, target_peak_offset)
+                end = max(target_peak_prev, target_peak_offset)
+                target_segment = target_chromatogram_aligned[start:end]
+                try:
+                    # Scale the section
+                    scaled_segment = self.scale_chromatogram(target_segment, scale)
+                except Exception:
+                    print('Error scaling next segment.')
+                    continue
+
+                if len(scaled_segment) == 0:
+                    continue  # Skip if the scaled segment is empty
+
+                # Calculate the new aligned target chromatogram with the current scaled segment
+                temp_target_chromatogram_aligned = np.concatenate([
+                    target_chromatogram_aligned[:start], scaled_segment, target_chromatogram_aligned[end:]
+                ])
+
+                # Calculate the weighted average peak distance for this alignment
+                reference_segment = utils.normalize_amplitude_zscore(
+                    reference_chromatogram[reference_peak_prev:reference_peak + interval_after])
+                target_segment = utils.normalize_amplitude_zscore(
+                    np.concatenate([scaled_segment, target_chromatogram_aligned[end:end + interval_after]]))
+
+                # cut = min(len(norm_reference_segment), len(norm_target_segment))
+                avg_peak_dist = self.calculate_weighted_average_peak_distance(
+                    reference_segment, target_segment, prominence=1E-6, distance_type='mean', weight_power=0)[0]
+                # Calculate the MSE for this alignment
+                # mse = np.mean((norm_reference_segment[:cut] - norm_target_segment[:cut]) ** 2)
+
+                # Update the best alignment if the current one is better (smaller average peak distance)
+                if avg_peak_dist < min_avg_peak_dist:
+                    min_avg_peak_dist = avg_peak_dist
+                    best_target_chromatogram_aligned = temp_target_chromatogram_aligned.copy()
+                    best_curr_lag = lag
+
+            accum_lag += best_curr_lag
+
+            # After scanning, update the aligned chromatogram with the best found alignment
+            target_chromatogram_aligned = best_target_chromatogram_aligned.copy()
+
+            # Recalculate peaks in the updated target chromatogram
+            target_peaks, _ = find_peaks(target_chromatogram_aligned)
+            target_peaks, valid = self.ensure_peaks_in_segments(
+                target_chromatogram_aligned, target_peaks, num_segments=num_segments
+            )
+
+            if not valid:
+                raise ValueError("Please change parameters, some segments do not have peaks.")
+            target_peaks = np.concatenate([np.array([0]), target_peaks])
+
+            if len(target_peaks) < num_initial_peaks and i >= len(target_peaks) - 1:
+                break
+
+            # Skip peaks that would move backwards in retention time
+            if len(lags_location) > 0 and any(target_peak + accum_lag <= loc for loc in lags_location):
+                continue
+
+            # Append the accumulated lag and its location
+            lags.append(accum_lag)
+            lags_location.append(target_peak + accum_lag)
+
+        # Ensure the first lag is consistent with the rest
+        if len(lags) > 0:
+            lags.insert(0, lags[0])
+            lags_location.insert(0, 0)
+            lags.append(lags[-1])
+            lags_location.append(30000)
+
+        return np.array(lags_location), np.array(lags), target_chromatogram_aligned
+
+
+    def move_peaks_to_closest(
+            self, reference_chromatogram, target_chromatogram, target_chromatogram_sharp, alignment_tolerance,
+            num_segments, apply_global_alignment=True, peak_order=0, interval_after=500, min_avg_peak_distance=50):
+        """
+        Align peaks between a reference signal and a target signal by moving target peaks independently,
+        and calculate the lag profile. The peaks are moved by rescaling the intervals with their adjacent peaks to both
+         left and right of each peak.
+        .
+
+        Parameters
+        ----------
+        reference_chromatogram : array-like
+            The reference chromatogram used for peak alignment.
+        target_chromatogram : array-like
+            The target chromatogram to be aligned with the reference signal.
+        alignment_tolerance : float
+            The maximum allowed distance between aligned peaks.
+        num_segments : int
+            Number of segments to divide the signal into.
+        apply_global_alignment : bool, optional
+            If True, apply a global time shift before peak alignment. Default is True.
+        scan_range : int, optional
+            The range within which to scan for matching peaks. Default is 1.
+        peak_order : int, optional
+            The rank of the peak to select within each segment. Default is 0 (highest peak).
+        interval_after : int, optional
+            Interval length after the peak to improve similarity measure. Default is 500.
+        min_avg_peak_distance : float, optional
+            Minimum average peak distance required for accepting the scaling. Default is 50.
+
+        Returns
+        -------
+        numpy.ndarray
+            Locations of the lags in the target signal after alignment.
+        numpy.ndarray
+            The lag values corresponding to each peak after alignment.
+        """
+
+        if apply_global_alignment:
+            # Apply a global time shift using the best scale and lag
+            best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
+                gaussian_filter(reference_chromatogram[:10000], 50),
+                gaussian_filter(target_chromatogram[:10000], 50),
+                np.linspace(1., 1.1, 1)
+            )
+            target_chromatogram_aligned = self.correct_segment(target_chromatogram, best_scale, best_lag)
+            target_chromatogram_sharp_aligned = self.correct_segment(target_chromatogram_sharp, best_scale, best_lag)
+            accumulated_lag = best_lag
+        else:
+            target_chromatogram_aligned = target_chromatogram
+            target_chromatogram_sharp_aligned = target_chromatogram_sharp
+            accumulated_lag = 0
+
+        reference_peaks, _ = find_peaks(reference_chromatogram)
+        all_target_peaks, _ = find_peaks(target_chromatogram_aligned)
+
+        # Ensure peaks are within segments in the target signal
+        target_peaks, valid = self.ensure_peaks_in_segments(
+            target_chromatogram_aligned, all_target_peaks, num_segments=num_segments, peak_ord=peak_order
+        )
+        if not valid:
+            raise ValueError("Please change parameters, peaks found in target.")
+
+        # Add zero to scale the first part of the chromatogram
+        reference_peaks = np.concatenate([np.array([0]), reference_peaks])
+        target_peaks = np.concatenate([np.array([0]), target_peaks])
+
+        # Initialize lists to store the calculated lags and their corresponding locations
+        lags = []
+        lags_location = []
+
+        num_initial_peaks = min(len(target_peaks), len(reference_peaks))
+
+        # Loop over each peak, starting from the second peak (index 1) to the last peak
+        for i in range(1, num_initial_peaks):
+            try:
+                # Find the previous peak by scanning to the left until minimum distance is found
+                target_peak_prev = self.find_previous_peak_with_min_distance(all_target_peaks, target_peaks[i], 100)
+            except IndexError:
+                print('Error finding previous peak in target signal.')
+                continue  # If the previous peak cannot be found, skip this iteration
+
+            try:
+                # Find the next peak by scanning to the right until minimum distance is found
+                next_peak = self.find_next_peak_with_min_distance(all_target_peaks, target_peaks[i], 100)
+            except IndexError:
+                print('Error finding next peak in target signal.')
+                continue  # If the next peak cannot be found, skip this iteration
+
+            # Get the current target peak
+            target_peak = target_peaks[i]
+            target_peak_height = utils.normalize_amplitude_zscore(target_chromatogram_aligned)[target_peak]  # Get the height of the current target peak
+
+            reference_peak_prev = target_peak_prev  # INitialize the previous reference peak to the previous target peak
+
+            # Find the closest peak in the reference signal to the current target peak
+            closest_index = np.argmin(np.abs(reference_peaks - target_peaks[i]))
+            reference_peak = reference_peaks[closest_index]
+            reference_peak_height = utils.normalize_amplitude_zscore(reference_chromatogram)[reference_peak]
+            if reference_peak_height >= 3 * target_peak_height or reference_peak_height <= 0.333 * target_peak_height:
+                continue
+
+            # Define the start and end retention times of the segment in the target signal that will be adjusted
+            start = min(target_peak_prev, target_peak)
+            end = max(target_peak_prev, target_peak)
+
+            # Check if the current peaks fall within the valid range of the chromatogram
+            if ((reference_peak + interval_after > len(reference_chromatogram)) or
+                    (target_peak + interval_after > len(target_chromatogram_aligned))):
+                continue
+
+            # Calculate the intervals between the current and previous peaks for both signals
+            interval_target = target_peak - target_peak_prev
+            interval_reference = reference_peak - reference_peak_prev
+
+            # Ensure the intervals are valid and within the allowed alignment tolerance
+            if (
+                    abs(reference_peak - target_peak) > alignment_tolerance or
+                    interval_target <= 0 or
+                    interval_reference <= 0 or
+                    (end - start) <= 0
+            ):
+                continue
+
+            # Calculate the scaling factor based on the ratio of intervals
+            scale = interval_reference / interval_target
+
+            # Extract the segment from the target signal and apply the scaling
+            target_segment = target_chromatogram_aligned[start:end]
+            target_segment_sharp = target_chromatogram_sharp_aligned[start:end]
+            scaled_segment = self.scale_chromatogram(target_segment, scale)
+            scaled_segment_sharp = self.scale_chromatogram(target_segment_sharp, scale)
+
+            if len(scaled_segment) == 0:
+                continue  # Skip if the scaled segment is empty
+
+            # Calculate the stretch required to align the peaks
+            stretch = target_peak - reference_peak
+
+            # # Identify the next peak in the target signal (this is to scale interval on the right of target)
+            # next_peak = all_target_peaks[np.where(all_target_peaks == target_peaks[i])[0] + 1][0]
+
+            # If there is another peak after and sufficient space after the peak to apply the stretch
+            if i + 1 < len(target_peaks) and len(target_chromatogram_aligned[end:next_peak]) > np.abs(stretch):
+                next_segment = target_chromatogram_aligned[end:next_peak]  # Extract the section to be scaled
+                next_segment_sharp = target_chromatogram_sharp_aligned[end:next_peak]  # Extract the section to be scaled
+                compensate_factor = (len(next_segment) + stretch) / len(next_segment)
+                try:
+                    # Scale the section using the compensating factor
+                    next_segment_corrected = self.scale_chromatogram(next_segment, compensate_factor)
+                    next_segment_sharp_corrected = self.scale_chromatogram(next_segment_sharp, compensate_factor)
+                except Exception:
+                    print('Error scaling next segment.')
+                    continue
+
+                # Update the aligned target signal with the corrected segment
+                temp_target_chromatogram_aligned = np.concatenate(
+                    [
+                        target_chromatogram_aligned[:start],
+                        scaled_segment,
+                        next_segment_corrected,
+                        target_chromatogram_aligned[next_peak:]
+                     ]
+                )
+                temp_target_chromatogram_sharp_aligned = np.concatenate(
+                    [
+                        target_chromatogram_sharp_aligned[:start],
+                        scaled_segment_sharp,
+                        next_segment_sharp_corrected,
+                        target_chromatogram_sharp_aligned[next_peak:]
+                     ]
+                )
+            else:
+                # If compensation is not needed or possible, just update the aligned target signal with the best segment
+                temp_target_chromatogram_aligned = np.concatenate(
+                    [target_chromatogram_aligned[:start], scaled_segment, target_chromatogram_aligned[end:]]
+                )
+                temp_target_chromatogram_sharp_aligned = np.concatenate(
+                    [target_chromatogram_sharp_aligned[:start], scaled_segment_sharp, target_chromatogram_sharp_aligned[end:]]
+                )
+            # Update peaks after realignment and ensure they remain in their respective segments
+            temp_target_peaks, _ = find_peaks(temp_target_chromatogram_aligned)
+            all_target_peaks = temp_target_peaks
+            target_peaks, valid = self.ensure_peaks_in_segments(
+                temp_target_chromatogram_aligned, temp_target_peaks, num_segments=num_segments, peak_ord=peak_order
+            )
+            if not valid:
+                raise ValueError("Please change parameters, no peaks found.")
+
+            target_peaks = np.concatenate([np.array([0]), target_peaks])
+
+            # If not enough peaks are left after alignment, break the loop
+            if len(target_peaks) < num_initial_peaks and i >= len(target_peaks) - 1:
+                break
+
+            # Update the aligned target signal
+            target_chromatogram_aligned = temp_target_chromatogram_aligned
+            target_chromatogram_sharp_aligned = temp_target_chromatogram_sharp_aligned
+
+            # Avoid the adjusted peak position (target_peak + stretch) ending up at or before any of the existing lag
+            # locations
+            if len(lags_location) > 0 and any(target_peak + stretch <= loc for loc in lags_location):
+                continue
+
+            # Append the calculated stretch and its location to the lags list
+            lags.append(stretch)
+            lags_location.append(target_peak + stretch)
+
+        # Add one last point equal to the last one at a specific position (e.g., 30000) to avoid spline growing too large
+        if len(lags) > 0:
+            lags.append(lags[-1])
+            lags_location.append(30000)
+
+        # Return the arrays of lag locations and lag values
+        return np.array(lags_location), np.array(lags), target_chromatogram_aligned, target_chromatogram_sharp_aligned
+
+
+    def find_previous_peak_with_min_distance(self, all_target_peaks, target_peak, min_distance):
+        # Scan for the previous peak with a minimum distance from the current target_peak
+        for i in reversed(range(len(all_target_peaks))):
+            if all_target_peaks[i] < target_peak and abs(all_target_peaks[i] - target_peak) >= min_distance:
+                return all_target_peaks[i]
+        raise IndexError("No previous peak found with the required minimum distance.")
+
+    def find_next_peak_with_min_distance(self, all_target_peaks, target_peak, min_distance):
+        # Scan for the next peak with a minimum distance from the current target_peak
+        for i in range(len(all_target_peaks)):
+            if all_target_peaks[i] > target_peak and abs(all_target_peaks[i] - target_peak) >= min_distance:
+                return all_target_peaks[i]
+        raise IndexError("No next peak found with the required minimum distance.")
+
+
     def lag_profile_moving_peaks_individually(
             self, reference_chromatogram, target_chromatogram, alignment_tolerance, num_segments, apply_global_alignment=True,
             scan_range=1, peak_order=0, interval_after=500, min_avg_peak_distance=50):
@@ -884,70 +1737,70 @@ class SyncChromatograms:
 
             return average_distance, distances, peaks1, peaks2
 
-        def calculate_weighted_average_peak_distance(signal1, signal2, prominence=1E-6, distance_type='mean',
-                                                     weight_power=1):
-            """
-            Calculate the weighted average distance between peaks in two signals, with weights based on the relative heights of both peaks.
-
-            Parameters
-            ----------
-            signal1, signal2 : array-like
-                The signals for which peak distances are calculated.
-            prominence : float, optional
-                The prominence of peaks to consider. Default is 1E-6.
-            distance_type : str, optional
-                Type of distance to calculate ('mean' or 'mean_square'). Default is 'mean'.
-            weight_power : float, optional
-                The power to raise the relative height ratio, allowing for non-linearity in the weighting. Default is 1 (linear).
-
-            Returns
-            -------
-            float
-                The weighted average distance between peaks.
-            list
-                List of distances between matched peaks.
-            numpy.ndarray
-                Peaks in the first signal.
-            numpy.ndarray
-                Peaks in the second signal.
-            """
-            peaks1, properties1 = find_peaks(signal1, prominence=prominence)
-            peaks2, properties2 = find_peaks(signal2, prominence=prominence)
-
-            if len(peaks1) == 0 or len(peaks2) == 0:
-                raise ValueError("No peaks found in one of the signals")
-
-            distances = []
-            weights = []  # Store weights based on relative peak heights
-            for peak1, height1 in zip(peaks1, properties1["prominences"]):
-                # Find the closest peak in signal2 to peak1
-                closest_peak2_idx = np.argmin(np.abs(peaks2 - peak1))
-                closest_peak2 = peaks2[closest_peak2_idx]
-                height2 = properties2["prominences"][closest_peak2_idx]  # Get height of the closest peak2
-
-                # Calculate the distance between the two peaks
-                distance = abs(peak1 - closest_peak2)
-                distances.append(distance)
-
-                # Calculate the relative weight based on peak heights
-                relative_height_ratio = min(height1, height2) / max(height1, height2)
-
-                # Apply the weight_power to introduce non-linearity
-                weight = relative_height_ratio ** weight_power
-                weights.append(weight)
-
-            # Normalize the weights so they sum to 1
-            normalized_weights = np.array(weights) / np.sum(weights)
-
-            # Compute the weighted average distance
-            if distance_type == 'mean':
-                weighted_average_distance = np.average(distances, weights=normalized_weights)
-            elif distance_type == 'mean_square':
-                weighted_average_distance = np.average(np.square(distances), weights=normalized_weights)
-            else:
-                raise ValueError("Invalid distance_type. Choose 'mean' or 'mean_square'.")
-
-            return weighted_average_distance, distances, peaks1, peaks2
+        # def calculate_weighted_average_peak_distance(signal1, signal2, prominence=1E-6, distance_type='mean',
+        #                                              weight_power=1):
+        #     """
+        #     Calculate the weighted average distance between peaks in two signals, with weights based on the relative heights of both peaks.
+        #
+        #     Parameters
+        #     ----------
+        #     signal1, signal2 : array-like
+        #         The signals for which peak distances are calculated.
+        #     prominence : float, optional
+        #         The prominence of peaks to consider. Default is 1E-6.
+        #     distance_type : str, optional
+        #         Type of distance to calculate ('mean' or 'mean_square'). Default is 'mean'.
+        #     weight_power : float, optional
+        #         The power to raise the relative height ratio, allowing for non-linearity in the weighting. Default is 1 (linear).
+        #
+        #     Returns
+        #     -------
+        #     float
+        #         The weighted average distance between peaks.
+        #     list
+        #         List of distances between matched peaks.
+        #     numpy.ndarray
+        #         Peaks in the first signal.
+        #     numpy.ndarray
+        #         Peaks in the second signal.
+        #     """
+        #     peaks1, properties1 = find_peaks(signal1, prominence=prominence)
+        #     peaks2, properties2 = find_peaks(signal2, prominence=prominence)
+        #
+        #     if len(peaks1) == 0 or len(peaks2) == 0:
+        #         raise ValueError("No peaks found in one of the signals")
+        #
+        #     distances = []
+        #     weights = []  # Store weights based on relative peak heights
+        #     for peak1, height1 in zip(peaks1, properties1["prominences"]):
+        #         # Find the closest peak in signal2 to peak1
+        #         closest_peak2_idx = np.argmin(np.abs(peaks2 - peak1))
+        #         closest_peak2 = peaks2[closest_peak2_idx]
+        #         height2 = properties2["prominences"][closest_peak2_idx]  # Get height of the closest peak2
+        #
+        #         # Calculate the distance between the two peaks
+        #         distance = abs(peak1 - closest_peak2)
+        #         distances.append(distance)
+        #
+        #         # Calculate the relative weight based on peak heights
+        #         relative_height_ratio = min(height1, height2) / max(height1, height2)
+        #
+        #         # Apply the weight_power to introduce non-linearity
+        #         weight = relative_height_ratio ** weight_power
+        #         weights.append(weight)
+        #
+        #     # Normalize the weights so they sum to 1
+        #     normalized_weights = np.array(weights) / np.sum(weights)
+        #
+        #     # Compute the weighted average distance
+        #     if distance_type == 'mean':
+        #         weighted_average_distance = np.average(distances, weights=normalized_weights)
+        #     elif distance_type == 'mean_square':
+        #         weighted_average_distance = np.average(np.square(distances), weights=normalized_weights)
+        #     else:
+        #         raise ValueError("Invalid distance_type. Choose 'mean' or 'mean_square'.")
+        #
+        #     return weighted_average_distance, distances, peaks1, peaks2
 
         #### End local functions ####
 
@@ -971,6 +1824,7 @@ class SyncChromatograms:
         target_peaks, valid = self.ensure_peaks_in_segments(
             target_chromatogram_aligned, all_target_peaks, num_segments=num_segments, peak_ord=peak_order
         )
+        # TODO Select only omne peak per section in reference
         if not valid:
             raise ValueError("Please change parameters, peaks found in target.")
 
@@ -1054,7 +1908,7 @@ class SyncChromatograms:
                     # avg_peak_dist = calculate_average_peak_distance(
                     #     norm_reference_segment, norm_target_segment, prominence=1E-6, distance_type='mean'
                     # )[0]
-                    avg_peak_dist = calculate_weighted_average_peak_distance(
+                    avg_peak_dist = self.calculate_weighted_average_peak_distance(
                         norm_reference_segment, norm_target_segment, prominence=1E-6, distance_type='mean'
                     )[0]
                 except Exception:
@@ -1151,6 +2005,7 @@ class SyncChromatograms:
         # Return the arrays of lag locations and lag values
         return np.array(lags_location), np.array(lags), target_chromatogram_aligned
 
+
     def ensure_peaks_in_segments(self, signal, peaks_in_signal, num_segments=10, last_segment=None, peak_ord=0):
         """
         Ensure that each segment of the signal has at least one peak by selecting the most prominent peaks.
@@ -1216,7 +2071,7 @@ class SyncChromatograms:
         # Return the array of selected peaks and True, indicating successful peak selection
         return np.array(new_peaks), True
 
-    def adjust_chromatogram(self):
+    def adjust_chromatogram(self, lag_res):
         """
         Adjusts the chromatogram to match a reference chromatogram.
 
@@ -1225,7 +2080,6 @@ class SyncChromatograms:
         numpy.ndarray
             The adjusted chromatogram after applying the synchronization algorithm.
         """
-
         #### Local functions ####
         def apply_shift_spline(c2, t, spline):
             """
@@ -1346,41 +2200,72 @@ class SyncChromatograms:
             return corrected_c2
         ##### End of local functions #####
 
-
         corrected_c2 = self.c2
 
         # Start first adjustment based on scaling of retention times between main peaks
-        for prox in [40]:
-            self.lag_res = self.lag_profile_from_peaks(
-                self.c1, corrected_c2, alignment_tolerance=prox, num_segments=50, apply_global_alignment=True
-            )
-            corrected_c2 = correct_with_spline(corrected_c2, 50, 1, normalize=True, plot=False)
-            corrected_c2_sharp = correct_with_spline(self.c2, 50, 1, normalize=True, plot=False)
-
-        # Start second adjustment based on moving individual peaks to match the reference's
-        c1 = self.c1.copy()
-        # Apply Gaussian smoothing to the chromatograms (sigma value found experimentally)
-        c1 = gaussian_filter(c1, 10)
-        corrected_c2 = gaussian_filter(corrected_c2, 10)
-
-        plot = False
+        # for hs in [5000, 5000, 5000, 5000, 5000, 5000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 1000, 1000, 1000, 1000]:
         cnt = 0
+        for hs in [1000]:
+            # self.lag_res = self.lag_profile_from_avg_peak_distance(
+            #     gaussian_filter(self.c1, 5), corrected_c2, alignment_tolerance=prox, num_segments=30, apply_global_alignment=True,
+            #     scan_range=100, interval_after=0)
+            if cnt == 0:
+                global_align = True
+            else:
+                global_align = False
 
-        # Iterate over the specified peak order sequence to refine the alignment. Iteratively doing it several times for
-        # each order improves accuracy
-        for ord in [0, 0, 0, 1, 1, 1, 1, 1]:
-            self.lag_res = self.lag_profile_moving_peaks_individually(
-                c1, corrected_c2, alignment_tolerance=250, num_segments=10, apply_global_alignment=False, scan_range=3,
-                peak_order=ord, interval_after=3000, min_avg_peak_distance=10
-            )
-            print(self.lag_res[0], self.lag_res[1])
+            # self.lag_res = self.lag_profile_from_avg_peak_distance(
+            #     gaussian_filter(self.c1, 10),  gaussian_filter(corrected_c2, 10), initial_slice_length=500,
+            #     hop_size=hs, scan_range=50,  apply_global_alignment=global_align,
+            #     min_peaks=10, max_slice_length=1000, prominence=1E-4, min_avg_peak_dist=15
+            # )
 
-            # # Apply spline-based correction to the chromatogram based on the current lag profile
-            # corrected_c2 = correct_with_spline(corrected_c2, 20, 1, normalize=False, plot=plot)
-            # corrected_c2_sharp = correct_with_spline(corrected_c2_sharp, 20, 1, normalize=False, plot=plot)
-            corrected_c2 = self.lag_res[2]
+            # self.lag_res = self.lag_profile_from_avg_peak_distance(
+            #     gaussian_filter(self.c1, 10),  gaussian_filter(self.mean_c2, 10), initial_slice_length=1000,
+            #     hop_size=hs, scan_range=250,  apply_global_alignment=global_align,
+            #     min_peaks=10, max_slice_length=10000, prominence=1E-4, min_avg_peak_dist=15
+            # )
+
+            self.lag_res = lag_res
+
+
+            # corrected_c2 = self.lag_res[2]
+            corrected_c2 = correct_with_spline(corrected_c2, 50, 1, normalize=False, plot=False)
+            corrected_c2_sharp = correct_with_spline(self.c2, 50, 1, normalize=True, plot=False)
             cnt += 1
-        # corrected_c2 = corrected_c2_sharp
+
+
+        # # Start second adjustment based on moving individual peaks to match the reference's
+        # c1 = self.c1.copy()
+        # # Apply Gaussian smoothing to the chromatograms (sigma value found experimentally)
+        # c1 = gaussian_filter(c1, 10)
+        # corrected_c2 = gaussian_filter(corrected_c2, 10)
+        #
+        # plot = False
+        # cnt = 0
+        #
+        # # Iterate over the specified peak order sequence to refine the alignment. Iteratively doing it several times for
+        # # each order improves accuracy
+        # for ord in [0]:
+        # # for ord in [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9]:
+        # #     self.lag_res = self.lag_profile_moving_peaks_individually(
+        # #         c1, corrected_c2, alignment_tolerance=250, num_segments=10, apply_global_alignment=False, scan_range=3,
+        # #         peak_order=ord, interval_after=1000, min_avg_peak_distance=10
+        # #     )
+        #
+        #     self.lag_res = self.move_peaks_to_closest(
+        #         c1, corrected_c2, corrected_c2_sharp, alignment_tolerance=300, num_segments=10, apply_global_alignment=False,
+        #         peak_order=ord, interval_after=0, min_avg_peak_distance=10
+        #     )
+        #     print(self.lag_res[0], self.lag_res[1])
+        #
+        #     # # Apply spline-based correction to the chromatogram based on the current lag profile
+        #     # corrected_c2 = correct_with_spline(corrected_c2, 20, 1, normalize=False, plot=plot)
+        #     # corrected_c2_sharp = correct_with_spline(corrected_c2_sharp, 20, 1, normalize=False, plot=plot)
+        #     corrected_c2 = self.lag_res[2]
+        #     corrected_c2_sharp = self.lag_res[3]
+        #     cnt += 1
+        # # corrected_c2 = corrected_c2_sharp
 
         return np.array(corrected_c2)
 
