@@ -350,49 +350,186 @@ class ChromatogramAnalysis:
         for i, key in enumerate(input_chromatograms.keys()):
             print(i, key)
             chrom = input_chromatograms[key]
+
+            # Coarse round
+            global_align = True
+            sync_mean_chrom = SyncChromatograms(reference_chromatogram, mean_chrom, mean_chrom, 1, scales, 1E6,
+                                           threshold=0.00, max_sep_threshold=50, peak_prominence=0.00)
+            lag_res = sync_mean_chrom.lag_profile_from_avg_peak_distance(
+                gaussian_filter(sync_mean_chrom.c1, 10),  gaussian_filter(sync_mean_chrom.mean_c2, 10), initial_slice_length=5000,
+                hop_size=1000, scan_range=250,  apply_global_alignment=global_align,
+                min_peaks=10, max_slice_length=10000, prominence=1E-4, min_avg_peak_dist=25
+            )
+            sync_mean_chrom.lag_res = lag_res
+            optimized_mean2 = sync_mean_chrom.adjust_chromatogram(sync_mean_chrom.lag_res)
+
             sync_chrom = SyncChromatograms(
                 reference_chromatogram, chrom, mean_chrom, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50,
                 peak_prominence=0.00
             )
-            if i == 0:
-                # Coarse round
-                global_align = True
-                sync_mean_chrom = SyncChromatograms(reference_chromatogram, mean_chrom, mean_chrom, 1, scales, 1E6,
-                                               threshold=0.00, max_sep_threshold=50, peak_prominence=0.00)
-                lag_res = sync_mean_chrom.lag_profile_from_avg_peak_distance(
-                    gaussian_filter(sync_mean_chrom.c1, 10),  gaussian_filter(sync_mean_chrom.mean_c2, 10), initial_slice_length=5000,
-                    hop_size=1000, scan_range=250,  apply_global_alignment=global_align,
-                    min_peaks=10, max_slice_length=10000, prominence=1E-4, min_avg_peak_dist=25
+            sync_chrom.lag_res = lag_res
+            optimized_chrom = sync_chrom.adjust_chromatogram(sync_chrom.lag_res)
+
+            from utils import plot_data_from_dict
+            plt.figure(figsize=(18,4))
+            plt.plot(min_max_normalize(reference_chromatogram, 0, 0.1))
+            plt.plot(min_max_normalize(optimized_mean2, 0, 0.1))
+
+            # TODO Accumulate all displacements from the different passes on the loop
+            for sl in [2000, 1000, 500]:
+                # Fine round
+                global_align = False
+                sync_mean_chrom = SyncChromatograms(
+                    reference_chromatogram, optimized_mean2, optimized_mean2, 1, scales, 1E6,
+                    threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
+                )
+                lag_res = sync_mean_chrom.lag_profile_from_correlation(
+                    gaussian_filter(sync_mean_chrom.c1, 10),  gaussian_filter(sync_mean_chrom.mean_c2, 10), initial_slice_length=sl,
+                    hop_size=sl // 2, scan_range=150,  apply_global_alignment=global_align,
+                    max_slice_length=sl, score=0
                 )
                 sync_mean_chrom.lag_res = lag_res
                 optimized_mean2 = sync_mean_chrom.adjust_chromatogram(sync_mean_chrom.lag_res)
-                from utils import plot_data_from_dict
-                plt.figure(figsize=(18,4))
-                plt.plot(min_max_normalize(reference_chromatogram, 0, 0.1))
-                plt.plot(min_max_normalize(optimized_mean2, 0, 0.1))
 
-                # TODO Accumulate all displacemnents from the different passes on the loop
-                for sl in [1000, 500]:
-                    # Fine round
-                    global_align = False
-                    sync_mean_chrom = SyncChromatograms(reference_chromatogram, optimized_mean2, optimized_mean2, 1, scales, 1E6,
-                                                   threshold=0.00, max_sep_threshold=50, peak_prominence=0.00)
-                    lag_res = sync_mean_chrom.lag_profile_from_correlation(
-                        gaussian_filter(sync_mean_chrom.c1, 10),  gaussian_filter(sync_mean_chrom.mean_c2, 10), initial_slice_length=sl,
-                        hop_size=sl // 2, scan_range=150,  apply_global_alignment=global_align,
-                        max_slice_length=sl, score=0
-                    )
-                    sync_mean_chrom.lag_res = lag_res
-                    optimized_mean2 = sync_mean_chrom.adjust_chromatogram(sync_mean_chrom.lag_res)
+                sync_chrom = SyncChromatograms(
+                    reference_chromatogram, optimized_chrom, mean_chrom, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50,
+                    peak_prominence=0.00
+                )
+                sync_chrom.lag_res = lag_res
+                optimized_chrom = sync_chrom.adjust_chromatogram(sync_chrom.lag_res)
 
-
-            sync_chrom.lag_res = lag_res
-            optimized_chrom = sync_chrom.adjust_chromatogram(sync_chrom.lag_res)
-            lag_profiles.append(sync_chrom.lag_res[0:2])
             synced_chromatograms[key] = optimized_chrom
 
         # plot_average_profile_with_std(lag_profiles, title='Lag distribution 2018 dataset')
         return synced_chromatograms
+
+
+
+    # def sync_individual_chromatograms(self, reference_chromatogram, input_chromatograms, mean_input_chromatograms, scales, initial_lag=300):
+    #     """
+    #     Synchronize individual chromatograms with a reference chromatogram.
+    #
+    #     Parameters
+    #     ----------
+    #     reference_chromatogram : array-like
+    #         The reference chromatogram to which the individual chromatograms will be synchronized.
+    #     input_chromatograms : dict
+    #         A dictionary where keys are labels for each chromatogram, and values are the chromatograms to be synchronized.
+    #     scales : array-like
+    #         Scaling factors to be applied during synchronization.
+    #     initial_lag : int, optional
+    #         The initial lag to be considered for synchronization, by default 300.
+    #
+    #     Returns
+    #     -------
+    #     dict
+    #         A dictionary with the same keys as `input_chromatograms`, where each value is the synchronized chromatogram.
+    #
+    #     Notes
+    #     -----
+    #     This function uses the `SyncChromatograms` class from the `wine_analysis` module to perform the synchronization.
+    #
+    #     Examples
+    #     --------
+    #     >>> synced_chromatograms = obj.sync_individual_chromatograms(reference_chromatogram, input_chromatograms, scales)
+    #     >>> print(synced_chromatograms['label1'])
+    #
+    #     """
+    #
+    #     from wine_analysis import SyncChromatograms
+    #     def plot_average_profile_with_std(data, num_points=500, title='Average Profile with Standard Deviation'):
+    #         """
+    #         Plots the average profile with standard deviation for a list of (x, y) tuples.
+    #
+    #         Parameters:
+    #         - data: list of tuples, where each tuple contains two numpy arrays (x, y).
+    #         - num_points: int, the number of points in the common x grid for interpolation (default is 500).
+    #
+    #         Returns:
+    #         - None
+    #         """
+    #         # Define a common x grid based on the min and max x values across all profiles
+    #         x_common = np.linspace(min([min(x) for x, _ in data]), max([max(x) for x, _ in data]), num_points)
+    #
+    #         # Interpolate the y values to the common x grid
+    #         interpolated_y_values = []
+    #         for x, y in data:
+    #             # Create an interpolation function
+    #             f = interp1d(x, y, bounds_error=False, fill_value="extrapolate")
+    #             # Interpolate y values to the common x grid
+    #             y_interp = f(x_common)
+    #             interpolated_y_values.append(y_interp)
+    #
+    #         # Convert the list to a numpy array for easier computation
+    #         interpolated_y_values = np.array(interpolated_y_values)
+    #
+    #         # Calculate the mean and standard deviation across the y values
+    #         y_mean = np.mean(interpolated_y_values, axis=0)
+    #         y_std = np.std(interpolated_y_values, axis=0)
+    #
+    #         # Plot the mean profile with the standard deviation as a shaded region
+    #         plt.figure(figsize=(10, 6))
+    #         plt.plot(x_common, y_mean, label='Average Profile', color='blue')
+    #         plt.fill_between(x_common, y_mean - y_std, y_mean + y_std, color='blue', alpha=0.3,
+    #                          label='±1 Standard Deviation')
+    #         plt.xlabel('Retention time')
+    #         plt.ylabel('Local retention time correction')
+    #         plt.title(title)
+    #         plt.legend()
+    #         plt.show()
+    #
+    #     mean_chrom = mean_input_chromatograms
+    #
+    #     lag_profiles = []
+    #     synced_chromatograms = {}
+    #     for i, key in enumerate(input_chromatograms.keys()):
+    #         print(i, key)
+    #         chrom = input_chromatograms[key]
+    #         sync_chrom = SyncChromatograms(
+    #             reference_chromatogram, chrom, mean_chrom, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50,
+    #             peak_prominence=0.00
+    #         )
+    #         if i == 0:
+    #             # Coarse round
+    #             global_align = True
+    #             sync_mean_chrom = SyncChromatograms(reference_chromatogram, mean_chrom, mean_chrom, 1, scales, 1E6,
+    #                                            threshold=0.00, max_sep_threshold=50, peak_prominence=0.00)
+    #             lag_res = sync_mean_chrom.lag_profile_from_avg_peak_distance(
+    #                 gaussian_filter(sync_mean_chrom.c1, 10),  gaussian_filter(sync_mean_chrom.mean_c2, 10), initial_slice_length=5000,
+    #                 hop_size=1000, scan_range=250,  apply_global_alignment=global_align,
+    #                 min_peaks=10, max_slice_length=10000, prominence=1E-4, min_avg_peak_dist=25
+    #             )
+    #             sync_mean_chrom.lag_res = lag_res
+    #             optimized_mean2 = sync_mean_chrom.adjust_chromatogram(sync_mean_chrom.lag_res)
+    #             from utils import plot_data_from_dict
+    #             plt.figure(figsize=(18,4))
+    #             plt.plot(min_max_normalize(reference_chromatogram, 0, 0.1))
+    #             plt.plot(min_max_normalize(optimized_mean2, 0, 0.1))
+    #
+    #             # TODO Accumulate all displacements from the different passes on the loop
+    #             for sl in [1000]:
+    #                 # Fine round
+    #                 global_align = False
+    #                 sync_mean_chrom = SyncChromatograms(
+    #                     reference_chromatogram, optimized_mean2, optimized_mean2, 1, scales, 1E6,
+    #                     threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
+    #                 )
+    #                 lag_res = sync_mean_chrom.lag_profile_from_correlation(
+    #                     gaussian_filter(sync_mean_chrom.c1, 10),  gaussian_filter(sync_mean_chrom.mean_c2, 10), initial_slice_length=sl,
+    #                     hop_size=sl // 2, scan_range=150,  apply_global_alignment=global_align,
+    #                     max_slice_length=sl, score=0
+    #                 )
+    #                 sync_mean_chrom.lag_res = lag_res
+    #                 optimized_mean2 = sync_mean_chrom.adjust_chromatogram(sync_mean_chrom.lag_res)
+    #
+    #
+    #         sync_chrom.lag_res = lag_res
+    #         optimized_chrom = sync_chrom.adjust_chromatogram(sync_chrom.lag_res)
+    #         lag_profiles.append(sync_chrom.lag_res[0:2])
+    #         synced_chromatograms[key] = optimized_chrom
+    #
+    #     # plot_average_profile_with_std(lag_profiles, title='Lag distribution 2018 dataset')
+    #     return synced_chromatograms
 
 
 
