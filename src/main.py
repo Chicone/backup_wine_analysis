@@ -67,7 +67,7 @@ if __name__ == "__main__":
     mean_c1 = cl.calculate_mean_chromatogram(chromatograms1)
     mean_c2 = cl.calculate_mean_chromatogram(chromatograms2)
     mean_c1 = utils.remove_peak(mean_c1, peak_idx=8910, window_size=30)
-    sc_inst = SyncChromatograms(mean_c1, mean_c2, 10, 1,)
+    sc_inst = SyncChromatograms(mean_c1, mean_c2, chromatograms2, 10, 1,)
     lag_res = sc_inst.calculate_lag_profile(
         mean_c1, mean_c2, 4000, lag_range=200, hop=2000, sigma=20, distance_metric='l1', init_min_dist=1E6)
     # utils.plot_lag(lag_res[0], lag_res[1])
@@ -126,7 +126,7 @@ if __name__ == "__main__":
         cls.train_and_evaluate_separate_datasets(
             np.array(list(data1)), process_labels(labels1, vintage),
             np.array(list(data2)), np.array(list(labels2)),
-            n_splits=250, normalize=True, scaler_type='standard'
+            n_splits=200, normalize=True, scaler_type='standard'
         )
     else:
         # PCA-reduce

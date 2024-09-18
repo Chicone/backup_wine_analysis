@@ -348,7 +348,7 @@ class ChromatogramAnalysis:
             print(i, key)
             chrom = input_chromatograms[key]
             sync_chrom = SyncChromatograms(
-                reference_chromatogram, chrom, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50,
+                reference_chromatogram, chrom, input_chromatograms, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50,
                 peak_prominence=0.00
             )
             optimized_chrom = sync_chrom.adjust_chromatogram()
@@ -475,9 +475,10 @@ class SyncChromatograms:
         This class is ideal for researchers who need to compare chromatographic data across multiple wine samples, ensuring that peaks and retention times are aligned for accurate analysis.
         """
 
-    def __init__(self, c1, c2, n_segments, scales, min_peaks=5, max_iterations=100, threshold=0.5, max_sep_threshold=50, peak_prominence=0.1):
+    def __init__(self, c1, c2, c2s, n_segments, scales, min_peaks=5, max_iterations=100, threshold=0.5, max_sep_threshold=50, peak_prominence=0.1):
         self.c1 = c1
         self.c2 = c2
+        self.c2s = c2s
         self.n_segments = n_segments
         self.scales = scales
         self.min_peaks = min_peaks
@@ -642,9 +643,147 @@ class SyncChromatograms:
 
         return np.array(lags_location), np.array(lags)
 
+    def lag_profile_from_correlation(self, reference_chromatogram, target_chromatogram, initial_slice_length,
+                                     hop_size=1, scan_range=10, apply_global_alignment=True,
+                                     max_slice_length=None, score=0):
+
+        if apply_global_alignment:
+            # Apply global alignment by finding the best scale and lag
+            best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
+                gaussian_filter(reference_chromatogram[:10000], 50),
+                gaussian_filter(target_chromatogram[:10000], 50),
+                np.linspace(1.0, 1.0, 1)
+            )
+            target_chromatogram_aligned = gaussian_filter(
+                self.correct_segment(target_chromatogram, best_scale, best_lag), 5
+            )
+        else:
+            target_chromatogram_aligned = target_chromatogram
+            best_lag = 0
+
+        reference_chromatogram = utils.normalize_amplitude_minmax(reference_chromatogram)
+        target_chromatogram_aligned = utils.normalize_amplitude_minmax(target_chromatogram_aligned)
+
+        safe_boundary = initial_slice_length + scan_range
+
+        lags = []
+        lags_location = []
+
+        # Iterate through the datapoints in the target chromatogram
+        for i in range(safe_boundary, len(target_chromatogram_aligned) - safe_boundary, hop_size):
+            # If max_slice_length is provided and greater than initial_slice_length, adjust the slice_length
+            if max_slice_length and max_slice_length > initial_slice_length:
+                available_slice_length = min(i * 2, (len(target_chromatogram_aligned) - i) * 2)
+                slice_length = min(available_slice_length, max_slice_length)
+            else:
+                slice_length = initial_slice_length
+
+            half_slice = slice_length // 2
+
+            best_curr_lag = 0
+            best_score = score
+
+            for offset in range(-scan_range, scan_range + 1):
+                reference_center = i + offset
+                start_ref_idx = max(reference_center - half_slice, 0)
+                end_ref_idx = min(reference_center + half_slice, len(reference_chromatogram))
+                reference_slice = reference_chromatogram[start_ref_idx:end_ref_idx]
+
+                start_idx = max(i - half_slice, 0)
+                end_idx = min(i + half_slice, len(target_chromatogram_aligned))
+                target_slice = target_chromatogram_aligned[start_idx:end_idx]
+
+                # Find the minimum length between the two slices
+                min_length = min(len(reference_slice), len(target_slice))
+
+                # Trim both slices to the same length
+                reference_slice = reference_slice[:min_length]
+                target_slice = target_slice[:min_length]
+
+                correlation_matrix = np.corrcoef(reference_slice, target_slice)
+                normalized_correlation = correlation_matrix[0, 1]
+                if normalized_correlation > best_score:
+                    best_score = normalized_correlation
+                    best_curr_lag = offset
+
+            # Append the lag and its location
+            lags.append(best_lag + best_curr_lag)
+            lags_location.append(i)
+
+        # Ensure the first and last lags are consistent
+        if len(lags) > 0:
+            lags.insert(0, lags[0])
+            lags_location.insert(0, 0)
+            lags.append(lags[-1])
+            lags_location.append(len(target_chromatogram_aligned))
+
+        return np.array(lags_location), np.array(lags)
+
+    # def lag_profile_from_correlation(self, reference_chromatogram, target_chromatogram, initial_slice_length,
+    #                                        hop_size=1, scan_range=10, apply_global_alignment=True,
+    #                                        max_slice_length=None,  score=0):
+    #
+    #     if apply_global_alignment:
+    #         # Apply global alignment by finding the best scale and lag
+    #         best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
+    #             gaussian_filter(reference_chromatogram[:10000], 50),
+    #             gaussian_filter(target_chromatogram[:10000], 50),
+    #             np.linspace(1.0, 1.0, 1)
+    #         )
+    #         target_chromatogram_aligned = gaussian_filter(
+    #             self.correct_segment(target_chromatogram, best_scale, best_lag), 5
+    #         )
+    #     else:
+    #         target_chromatogram_aligned = target_chromatogram
+    #         best_lag = 0
+    #
+    #     reference_chromatogram = utils.normalize_amplitude_minmax(reference_chromatogram)
+    #     target_chromatogram_aligned = utils.normalize_amplitude_minmax(target_chromatogram_aligned)
+    #
+    #     safe_boundary = initial_slice_length + scan_range
+    #
+    #     lags = []
+    #     lags_location = []
+    #
+    #     # Iterate through the datapoints in the target chromatogram
+    #     for i in range(safe_boundary, len(target_chromatogram_aligned) - safe_boundary, hop_size):
+    #         slice_length = initial_slice_length
+    #         half_slice = slice_length // 2
+    #
+    #         best_curr_lag = 0
+    #         best_score = score
+    #         for offset in range(-scan_range, scan_range + 1):
+    #             reference_center = i + offset
+    #             start_ref_idx = max(reference_center - half_slice, 0)
+    #             end_ref_idx = min(reference_center + half_slice, len(reference_chromatogram))
+    #             reference_slice = reference_chromatogram[start_ref_idx:end_ref_idx]
+    #             start_idx = max(i - half_slice, 0)
+    #             end_idx = min(i + half_slice, len(target_chromatogram_aligned))
+    #             target_slice = target_chromatogram_aligned[start_idx:end_idx]
+    #
+    #             correlation_matrix = np.corrcoef(reference_slice, target_slice)
+    #             normalized_correlation = correlation_matrix[0, 1]
+    #             if normalized_correlation > best_score:
+    #                 best_score  = normalized_correlation
+    #                 best_curr_lag = offset
+    #
+    #         # Append the lag and its location
+    #         lags.append(best_lag + best_curr_lag)
+    #         lags_location.append(i)
+    #
+    #     # Ensure the first and last lags are consistent
+    #     if len(lags) > 0:
+    #         lags.insert(0, lags[0])
+    #         lags_location.insert(0, 0)
+    #         lags.append(lags[-1])
+    #         lags_location.append(len(target_chromatogram_aligned))
+    #
+    #     return np.array(lags_location), np.array(lags)
+
+
 
     def lag_profile_from_peaks(self, reference_chromatogram, target_chromatogram, alignment_tolerance, num_segments,
-                               apply_global_alignment=True):
+                               apply_global_alignment=True, only_shift=False):
         """
         Generate a lag profile from peaks in two chromatograms by aligning segments.
 
@@ -701,6 +840,9 @@ class SyncChromatograms:
             target_chromatogram_aligned = gaussian_filter(
                 self.correct_segment(target_chromatogram, best_scale, best_lag), 5
             )
+            if only_shift:
+                return np.linspace(0, 30000, num=num_segments + 2), np.full(num_segments + 2, best_lag), target_chromatogram_aligned
+
             accum_lag = best_lag
         else:
             target_chromatogram_aligned = target_chromatogram
@@ -1348,41 +1490,192 @@ class SyncChromatograms:
 
 
         corrected_c2 = self.c2
+        mean_c2s = np.mean(np.array(list(self.c2s.values())), axis=0)
 
         # Start first adjustment based on scaling of retention times between main peaks
         for prox in [40]:
             self.lag_res = self.lag_profile_from_peaks(
-                self.c1, corrected_c2, alignment_tolerance=prox, num_segments=50, apply_global_alignment=True
+                self.c1, corrected_c2, alignment_tolerance=prox, num_segments=5, apply_global_alignment=True,
+                only_shift=True
             )
+            # self.lag_res = self.lag_profile_from_peaks(
+            #     self.c1, mean_c2s, alignment_tolerance=prox, num_segments=10, apply_global_alignment=True,
+            #     only_shift=False
+            # )
             corrected_c2 = correct_with_spline(corrected_c2, 50, 1, normalize=True, plot=False)
             corrected_c2_sharp = correct_with_spline(self.c2, 50, 1, normalize=True, plot=False)
 
-        # Start second adjustment based on moving individual peaks to match the reference's
-        c1 = self.c1.copy()
-        # Apply Gaussian smoothing to the chromatograms (sigma value found experimentally)
-        c1 = gaussian_filter(c1, 10)
-        corrected_c2 = gaussian_filter(corrected_c2, 10)
 
-        plot = False
-        cnt = 0
-
-        # Iterate over the specified peak order sequence to refine the alignment. Iteratively doing it several times for
-        # each order improves accuracy
-        for ord in [0, 0, 0, 1, 1, 1, 1, 1]:
-            self.lag_res = self.lag_profile_moving_peaks_individually(
-                c1, corrected_c2, alignment_tolerance=250, num_segments=10, apply_global_alignment=False, scan_range=3,
-                peak_order=ord, interval_after=3000, min_avg_peak_distance=10
+        # for sl in [8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000]:
+        lengths = [8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000,
+                   8000, 4000, 2000, 8000, 4000, 2000]
+        step_size = (100 - 25) / len(lengths)
+        for i, sl in enumerate(lengths):
+        # for sl in [8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000,]:
+            # Fine round
+            global_align = False
+            sync_chrom = SyncChromatograms(
+                self.c1, corrected_c2, 1, self.scales, 1E6,
+                threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
             )
-            print(self.lag_res[0], self.lag_res[1])
+            lag_res = sync_chrom.lag_profile_from_correlation(
+                gaussian_filter(sync_chrom.c1, 10), gaussian_filter(corrected_c2, 10),
+                initial_slice_length=max(4000, sl), max_slice_length=max(4000, sl),
+                hop_size=sl, scan_range=int(100 ) , apply_global_alignment=global_align, score=0
+            )
+            sync_chrom.lag_res = lag_res
+            corrected_c2 = sync_chrom.correct_with_spline(corrected_c2, 4, 1, normalize=False, plot=False)
 
-            # # Apply spline-based correction to the chromatogram based on the current lag profile
-            # corrected_c2 = correct_with_spline(corrected_c2, 20, 1, normalize=False, plot=plot)
-            # corrected_c2_sharp = correct_with_spline(corrected_c2_sharp, 20, 1, normalize=False, plot=plot)
-            corrected_c2 = self.lag_res[2]
-            cnt += 1
-        # corrected_c2 = corrected_c2_sharp
+
+
+        # # Start second adjustment based on moving individual peaks to match the reference's
+        # c1 = self.c1.copy()
+        # # Apply Gaussian smoothing to the chromatograms (sigma value found experimentally)
+        # c1 = gaussian_filter(c1, 10)
+        # corrected_c2 = gaussian_filter(corrected_c2, 10)
+        #
+        # plot = False
+        # cnt = 0
+        #
+        # # Iterate over the specified peak order sequence to refine the alignment. Iteratively doing it several times for
+        # # each order improves accuracy
+        # for ord in [0, 0, 0, 1, 1, 1, 1, 1]:
+        #     self.lag_res = self.lag_profile_moving_peaks_individually(
+        #         c1, corrected_c2, alignment_tolerance=250, num_segments=10, apply_global_alignment=False, scan_range=3,
+        #         peak_order=ord, interval_after=3000, min_avg_peak_distance=10
+        #     )
+        #     print(self.lag_res[0], self.lag_res[1])
+        #
+        #     # # Apply spline-based correction to the chromatogram based on the current lag profile
+        #     # corrected_c2 = correct_with_spline(corrected_c2, 20, 1, normalize=False, plot=plot)
+        #     # corrected_c2_sharp = correct_with_spline(corrected_c2_sharp, 20, 1, normalize=False, plot=plot)
+        #     corrected_c2 = self.lag_res[2]
+        #     cnt += 1
+        # # corrected_c2 = corrected_c2_sharp
 
         return np.array(corrected_c2)
+
+    def apply_shift_spline(self, c2, t, spline):
+        """
+        Apply a spline-based retention time shift to a chromatogram signal.
+
+        Parameters
+        ----------
+        c2 : array-like
+            The chromatogram to be adjusted.
+        t : array-like
+            The time indices in the chromatogram.
+        spline : UnivariateSpline
+            The spline function representing the time shift to be applied.
+
+        Returns
+        -------
+        numpy.ndarray
+            The chromatogram after the shift has been applied.
+        """
+        shifted_t = t - spline(t)
+        interpolator = interp1d(t, c2, fill_value="extrapolate", bounds_error=False)
+        return interpolator(shifted_t)
+
+
+    def objective_function_spline(self, params, c1, c2, t, spline, loss='l2'):
+        """
+        Objective function to minimize the difference between the reference and adjusted chromatograms.
+
+        Parameters
+        ----------
+        params : array-like
+            Parameters to optimize, typically the smoothing factor for the spline.
+        c1 : array-like
+            The reference chromatogram.
+        c2 : array-like
+            The chromatogram to be adjusted.
+        t : array-like
+            The time points corresponding to the chromatograms.
+        spline : UnivariateSpline
+            The spline function representing the shift to be applied.
+        loss : str, optional
+            The loss function to be used in the optimization. Options are:
+            - 'l1': Mean absolute error
+            - 'l2': Mean squared error (default)
+            - 'corr': Negative maximum cross-correlation
+            - 'mse': Mean squared error
+
+        Returns
+        -------
+        float
+            The value of the loss function for the given parameters.
+        """
+        try:
+            spline.set_smoothing_factor(params[0])
+        except:
+            print('Error in spline.set_smoothing_factor(params[0])')
+        c2_shifted = self.apply_shift_spline(c2, t, spline)
+        if loss == 'l1':
+            return np.sum(np.abs(c1 - c2_shifted))
+        elif loss == 'l2':
+            return np.sum((c2_shifted - c1) ** 2)
+        elif loss == 'corr':
+            cross_corr = correlate(c1, c2_shifted, mode='valid')
+            return -np.max(cross_corr)
+        elif loss == 'mse':
+            return np.mean((c2_shifted - c1) ** 2)
+
+
+    def correct_with_spline(self, corrected_c2, s, k, normalize=True, plot=False):
+        """
+        Correct the chromatogram using a spline-based shift.
+
+        Parameters
+        ----------
+        corrected_c2 : array-like
+            The chromatogram to be corrected.
+        s : float
+            Smoothing factor for the spline.
+        k : int
+            Degree of the spline.
+        normalize : bool, optional
+            Whether to normalize the chromatograms before correction. Default is True.
+        plot : bool, optional
+            Whether to plot the results. Default is False.
+
+        Returns
+        -------
+        numpy.ndarray
+            The corrected chromatogram after applying the spline-based shift.
+        """
+        min_len = min(len(self.c1), len(corrected_c2))
+        ref = min_max_normalize(self.c1, 0, 1)[:min_len]
+        if normalize:
+            chrom = min_max_normalize(corrected_c2, 0, 1)[:min_len]
+        else:
+            chrom = corrected_c2[:min_len]
+
+        try:
+            spline = UnivariateSpline(self.lag_res[0], self.lag_res[1], s=s, k=k)
+        except:
+            print("Error creating spline")
+            return chrom
+
+        t = np.arange(len(ref))
+
+        initial_guess = [s]
+        bounds = [(0, None)]
+        result = minimize(
+            self.objective_function_spline, initial_guess, args=(ref, chrom, t, spline, 'mse'), bounds=bounds
+        )
+
+        optimized_smoothing_factor = result.x[0]
+        spline.set_smoothing_factor(optimized_smoothing_factor)
+        corrected_c2 = self.apply_shift_spline(chrom, t, spline)
+        if plot:
+            self.plot_signal_and_fit(
+                t, ref, chrom, corrected_c2, fit_type='spline', fit_params=spline, data_points=self.lag_res
+            )
+
+        return corrected_c2
+
+
 
     # Function to plot the results
     def plot_signal_and_fit(self, t, ref, chrom, corrected_c2, fit_type='spline', fit_params=None, data_points=None):
