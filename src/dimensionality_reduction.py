@@ -159,7 +159,7 @@ class DimensionalityReducer:
         """
         # Perform PCA to calculate variance
         pca = PCA()
-        # pca_transformed = pca.fit_transform(self.data)
+        pca_transformed = pca.fit_transform(self.data)
 
         # Calculate the cumulative variance explained by the components
         cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
@@ -358,7 +358,7 @@ def run_umap_and_evaluate(analysis, labels, chem_name, neigh_range=range(30, 100
     for neighbour in neigh_range:
         for random_state in random_states:
             # Perform UMAP with the current parameters
-            umap_df = analysis.run_umap(n_neighbors=neighbour, random_state=random_state, plot=False)
+            umap_df = analysis.run_umap(n_neighbors=neighbour, random_state=random_state, plot=False, labels=labels)
 
             # Create cluster assignments for UMAP results
             umap_clusters = pd.cut(umap_df.iloc[:, 0], bins=len(set(labels)))
@@ -389,7 +389,7 @@ def run_umap_and_evaluate(analysis, labels, chem_name, neigh_range=range(30, 100
     return best_params[0], best_params[1], best_score
 
 
-def run_tsne_and_evaluate(analysis, labels, chem_name, neigh_range=range(30, 100, 5), random_states=range(0, 100, 4)):
+def run_tsne_and_evaluate(analysis, labels, chem_name, perplexity_range=range(30, 100, 5), random_states=range(0, 100, 4)):
     """
     Run t-SNE on the dataset and evaluate the results using the Silhouette Score.
 
@@ -417,21 +417,40 @@ def run_tsne_and_evaluate(analysis, labels, chem_name, neigh_range=range(30, 100
     best_score = -1
     best_params = None
 
+    calinski_min = 0
+    calinski_max = 3000  # Threshold found by running on an example dataset
+
     # Iterate over the range of neighbors and random states
-    for neighbour in neigh_range:
+    for perplexity in perplexity_range:
         for random_state in random_states:
             # Perform t-SNE with the current parameters
-            tsne_df = analysis.run_tsne(n_neighbors=neighbour, random_state=random_state, plot=False)
+            tsne_df = analysis.run_tsne(perplexity=perplexity, random_state=random_state, plot=False, labels=labels)
 
-            # Calculate the Silhouette Score for the current t-SNE result
-            score = silhouette_score(tsne_df, labels)
-            print(f"Perplexity: {neighbour}, Random State: {random_state}, Silhouette Score: {score}")
+            # Create cluster assignments for t-SNE results
+            tsne_clusters = pd.cut(tsne_df.iloc[:, 0], bins=len(set(labels)))
+            tsne_cluster_codes = tsne_clusters.codes if hasattr(tsne_clusters, 'codes') else tsne_clusters.cat.codes
+
+            # Calculate the clustering scores
+            silhouette = silhouette_score(tsne_df, labels)
+            calinski_harabasz = calinski_harabasz_score(tsne_df, labels)
+            adjusted_rand = adjusted_rand_score(labels, tsne_cluster_codes)
+
+            # Normalize the scores so they can be combined
+            norm_silhouette = (silhouette - (-1)) / (1 - (-1))  # Normalize silhouette score [-1, 1]
+            norm_calinski_harabasz = (calinski_harabasz - calinski_min) / (calinski_max - calinski_min)
+            norm_adjusted_rand = (adjusted_rand - (-1)) / (1 - (-1))  # Normalize adjusted rand index [-1, 1]
+
+            # Calculate the combined score by averaging the normalized scores
+            combined_score = (norm_silhouette + norm_calinski_harabasz + norm_adjusted_rand) / 3
+
+            print(f"Perplexity: {perplexity}, Random State: {random_state}, Score: {combined_score}")
             print(f"Best score {best_score}. Best parameters so far: {best_params}")
 
             # Update the best score and parameters if the current score is better
-            if score > best_score:
-                best_score = score
-                best_params = (neighbour, random_state)
+            if combined_score > best_score:
+                best_score = combined_score
+                best_params = (perplexity, random_state)
 
     print(f"Best Perplexity: {best_params[0]}, Best Random State: {best_params[1]}, Best Silhouette Score: {best_score}")
+
     return best_params[0], best_params[1], best_score

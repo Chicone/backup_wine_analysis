@@ -50,7 +50,7 @@ class DataLoader:
             data = np.load(self.file_path, allow_pickle=True).item()
             df = pd.DataFrame(data).T
         elif self.file_path.endswith('.xlsx'):
-            df = pd.read_excel(self.file_path)
+            df = pd.read_excel(self.file_path, header=[0, 1])
             data = self.process_xlsx(df, self.file_path)
             df = pd.DataFrame(data).T
         else:
@@ -80,8 +80,32 @@ class DataLoader:
                  '2022 4 new bordeaux Oak Masse 5 NORMALIZED 052022 SM2 .xlsx',     #  4
                  '2022 01 7 chateaux Oak All vintages Masse 5 NORMALIZED SM.xlsx',  #  5
                  '2022 01 7 chateaux Oak Old vintages Masse 5 NORMALIZED SM.xlsx',  #  6
+                 'Pinot_Noir_R0_normalisés_Changins_042022.xlsx',                   #  7
+                 'Pinot_Noir_R0_normalisés_ISVV_052022.xlsx'                        #  8
                  ]
         file_name = os.path.basename(file_path)
+
+        if file_name in [files[7]]:
+            # Remove the last 2 rows to avoid nan
+            df = df.iloc[:-3]
+
+            data = {}
+            for col in df.columns:
+                if col[1] != 'AREA':
+                    continue
+                key = col[0]  # detect the header
+                data[key] = [float(value) for value in df[col[0]][col[1]]]
+
+        if file_name in [files[8]]:
+            # Remove the last 105 rows to avoid nan
+            df = df.iloc[:-105]
+
+            data = {}
+            for col in df.columns:
+                if col[1] != 'AREA':
+                    continue
+                key = col[0]  # detect the header
+                data[key] = [float(value) for value in df[col[0]][col[1]]]
 
         if file_name in files[0:3]:
             # Remove first few rows with text

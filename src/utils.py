@@ -297,6 +297,13 @@ def normalize_dict(data, scaler='standard'):
     norm_data = {key: values_scaled[idx, :].tolist() for idx, key in enumerate(keys)}
     return norm_data
 
+def filter_dict_by_keys(original_dict, keys_to_keep):
+    return {key: original_dict[key] for key in keys_to_keep if key in original_dict}
+
+def filter_dict_by_first_letter(original_dict, letters):
+    return {key: original_dict[key] for key in original_dict if key[0] in letters}
+
+
 
 def plot_data_from_dict(data_dict, title, legend=False):
     """

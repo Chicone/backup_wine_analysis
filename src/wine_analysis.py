@@ -65,6 +65,8 @@ from scipy.ndimage import gaussian_filter
 from sklearn.metrics import mutual_info_score
 from scipy.stats import spearmanr, kendalltau
 import utils
+from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
+                            assign_continent_to_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir)
 
 class WineAnalysis:
     """
@@ -109,7 +111,7 @@ class WineAnalysis:
         clf = Classifier(data, self.labels, classifier_type=classifier_type)
         return clf.train_and_evaluate(n_splits, vintage=vintage, test_size=test_size)
 
-    def run_tsne(self, perplexity=60, random_state=16, best_score=None, plot=None):
+    def run_tsne(self, perplexity=60, random_state=16, best_score=None, plot=None, title=None, labels=None):
         """
         Runs t-Distributed Stochastic Neighbor Embedding (t-SNE) on the data and plots the results.
         """
@@ -117,12 +119,14 @@ class WineAnalysis:
         tsne_result = reducer.tsne(components=2, perplexity=perplexity, random_state=random_state)
         # tsne_result = reducer.tsne(components=2, perplexity=15, random_state=10)
         tsne_result = -tsne_result  # change the sign of the axes to show data like in the paper
-        tsne_df = pd.DataFrame(data=tsne_result, columns=['t-SNE Component 1', 't-SNE Component 2'], index=self.labels)
-        title = f'tSNE on {self.chem_name}; {len(self.data)} wines\nSilhouette score: {best_score} '
+        tsne_df = pd.DataFrame(data=tsne_result, columns=['t-SNE Component 1', 't-SNE Component 2'], index=labels)
+        title = f'{title}; {len(self.data)} wines\n Score: {best_score} '
         if plot:
             Visualizer.plot_2d_results(tsne_df, title, 't-SNE Component 1', 't-SNE Component 2')
 
-    def run_umap(self, n_neighbors=60, random_state=16, best_score=None, plot=None, title=None):
+        return tsne_df
+
+    def run_umap(self, n_neighbors=60, random_state=16, best_score=None, plot=None, title=None, labels=None):
         """
         Runs Uniform Manifold Approximation and Projection (UMAP) on the data and plots the results.
         """
@@ -132,8 +136,8 @@ class WineAnalysis:
         # umap_result = reducer.umap(components=2, n_neighbors=60, random_state=20)  # for oak
         # umap_result = reducer.umap(components=2, n_neighbors=50, random_state=0)  # for 7 estates 2018+2022
         # umap_result = reducer.umap(components=2, n_neighbors=75, random_state=70)  # from searchgrid
-        umap_result = -umap_result  # change the sign of the axes to show data like in the paper
-        umap_df = pd.DataFrame(data=umap_result, columns=['UMAP Component 1', 'UMAP Component 2'], index=self.labels)
+        umap_result = -umap_result
+        umap_df = pd.DataFrame(data=umap_result, columns=['UMAP Component 1', 'UMAP Component 2'], index=labels)
         title = f'{title}; {len(self.data)} wines\n Score: {best_score} '
         if plot:
             Visualizer.plot_2d_results(umap_df, title, 'UMAP Component 1', 'UMAP Component 2')
@@ -241,31 +245,70 @@ class ChromatogramAnalysis:
         f = interp1d(x_old, chrom, kind='linear')
         return f(x_new)
 
-    def tsne_analysis(self, data_dict, vintage, chem_name):
+    def tsne_analysis(self, data_dict, vintage, chem_name, perplexity_range=range(10, 60, 10),
+            random_states=range(0, 96, 16), wk='bordeaux', region='winery'):
         analysis = WineAnalysis(data_dict=data_dict, normalize=False)
-        cls = Classifier(analysis.data, analysis.labels)
+        cls = Classifier(analysis.data, analysis.labels, wine_kind=wk)
+        if wk == 'bordeaux':
+            labels = cls._process_labels(vintage)
+        else:
+            if region == 'continent':
+                labels = assign_continent_to_to_pinot_noir(cls.labels)
+            elif region == 'country':
+                labels = assign_country_to_pinot_noir(cls.labels)
+            elif region == 'origin':
+                labels = assign_origin_to_pinot_noir(cls.labels)
+            elif region == 'winery':
+                labels = assign_winery_to_pinot_noir(cls.labels)
+            elif region == 'year':
+                labels = assign_year_to_pinot_noir(cls.labels)
+            else:
+                raise ValueError(f"Incorrect region entered: '{region}'. Valid options are 'continent', 'country', "
+                                 f"'origin', 'winery', or 'year'.")
         perplexity, random_state, best_score = run_tsne_and_evaluate(
             analysis,
-            cls._process_labels(vintage),
+            labels,
             chem_name,
-            perplexities=range(10, 60, 10),
-            random_states=range(0, 96, 16)
+            perplexity_range=perplexity_range,
+            random_states=random_states
         )
-        analysis.run_tsne(perplexity=perplexity, random_state=random_state, best_score=best_score, plot=True)
-        # analysis.run_umap(n_neighbors=10, random_state=10, best_score=10)
-#
-    def umap_analysis(self, data_dict, vintage, chem_name, neigh_range=range(10, 60, 10), random_states=range(0, 96, 16)):
+        title = f't_SNE on {chem_name}; perpl={perplexity}, random state={random_state}'
+        analysis.run_tsne(perplexity=perplexity, random_state=random_state, best_score=best_score, plot=True, title=title, labels=labels)
+
+
+    def umap_analysis(self, data_dict, vintage, chem_name, neigh_range=range(10, 60, 10),
+                      random_states=range(0, 96, 16), wk='bordeaux', region='winery'
+                      ):
         analysis = WineAnalysis(data_dict=data_dict, normalize=False)
-        cls = Classifier(analysis.data, analysis.labels)
+        cls = Classifier(analysis.data, analysis.labels, wine_kind=wk)
+        if wk == 'bordeaux':
+            labels = cls._process_labels(vintage)
+        else:
+            if region == 'continent':
+                labels = assign_continent_to_to_pinot_noir(cls.labels)
+            elif region == 'country':
+                labels = assign_country_to_pinot_noir(cls.labels)
+            elif region == 'origin':
+                labels = assign_origin_to_pinot_noir(cls.labels)
+            elif region == 'winery':
+                labels = assign_winery_to_pinot_noir(cls.labels)
+            elif region == 'year':
+                labels = assign_year_to_pinot_noir(cls.labels)
+            else:
+                raise ValueError(f"Incorrect region entered: '{region}'. Valid options are 'continent', 'country', "
+                                 f"'origin', 'winery', or 'year'.")
+
+
         n_neighbors, random_state, best_score = run_umap_and_evaluate(
             analysis,
-            cls._process_labels(vintage),
+            labels,
             chem_name,
             neigh_range=neigh_range,
             random_states=random_states
         )
         title = f'UMAP on {chem_name}; neigh={n_neighbors}, random state={random_state}'
-        analysis.run_umap(n_neighbors=n_neighbors, random_state=random_state, best_score=best_score, plot=True, title=title)
+        analysis.run_umap(n_neighbors=n_neighbors, random_state=random_state, best_score=best_score, plot=True,
+                          title=title, labels=labels)
         # analysis.run_umap(n_neighbors=10, random_state=10, best_score=10)
 #
 
@@ -1502,13 +1545,14 @@ class SyncChromatograms:
             #     self.c1, mean_c2s, alignment_tolerance=prox, num_segments=10, apply_global_alignment=True,
             #     only_shift=False
             # )
-            corrected_c2 = correct_with_spline(corrected_c2, 50, 1, normalize=True, plot=False)
+            corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)
             corrected_c2_sharp = correct_with_spline(self.c2, 50, 1, normalize=True, plot=False)
 
 
         # for sl in [8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000]:
         lengths = [8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000,
                    8000, 4000, 2000, 8000, 4000, 2000]
+        # lengths = [8000, 4000, 2000]
         step_size = (100 - 25) / len(lengths)
         for i, sl in enumerate(lengths):
         # for sl in [8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000,]:
@@ -1519,9 +1563,9 @@ class SyncChromatograms:
                 threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
             )
             lag_res = sync_chrom.lag_profile_from_correlation(
-                gaussian_filter(sync_chrom.c1, 10), gaussian_filter(corrected_c2, 10),
+                gaussian_filter(sync_chrom.c1, 50), gaussian_filter(corrected_c2, 50),
                 initial_slice_length=max(4000, sl), max_slice_length=max(4000, sl),
-                hop_size=sl, scan_range=int(100 ) , apply_global_alignment=global_align, score=0
+                hop_size=sl, scan_range=int(25) , apply_global_alignment=global_align, score=0
             )
             sync_chrom.lag_res = lag_res
             corrected_c2 = sync_chrom.correct_with_spline(corrected_c2, 4, 1, normalize=False, plot=False)

@@ -8,6 +8,118 @@ class Visualizer:
     """
 
     @staticmethod
+    def assign_color(label):
+        """
+        Assigns a corresponding color to a label.
+
+        Parameters
+        ----------
+        label : str
+            The original label.
+
+        Returns
+        -------
+        tuple
+            A tuple containing:
+            - modified_label (str): The label with the first letter changed.
+            - color (str): The color corresponding to the original first letter.
+        """
+        s = list(label)
+        if label[0] == 'C':
+            color = 'b'
+        elif label[0] == 'D':
+            color = 'g'
+        elif label[0] == 'E':
+            color = 'r'
+        elif label[0] == 'H':
+            color = 'm'
+        elif label[0] == 'J':
+            color = 'k'
+        elif label[0] == 'K':
+            color = 'y'
+        elif label[0] == 'L':
+            color = 'c'
+        elif label[0] == 'M':
+            color = 'peru'
+        elif label[0] == 'N':
+            color = 'limegreen'
+        elif label[0] == 'P':
+            color = 'cornflowerblue'
+        elif label[0] == 'Q':
+            color = 'olive'
+        elif label[0] == 'R':
+            color = 'tomato'
+        elif label[0] == 'U':
+            color = 'orange'
+        elif label[0] == 'W':
+            color = 'slateblue'
+        elif label[0] == 'X':
+            color = 'darkcyan'
+        elif label[0] == 'Y':
+            color = 'gold'
+        elif label[0] == 'Z':
+            color = 'firebrick'
+
+        if label == 'France':
+            color = 'b'
+        elif label == 'Switzerland':
+            color = 'g'
+        elif label == 'US':
+            color = 'r'
+
+        if label == 'Beaune':
+            color = 'b'
+        elif label == 'Alsace':
+            color = 'g'
+        elif label == 'Neuchatel':
+            color = 'r'
+        elif label == 'Genève':
+            color = 'k'
+        elif label== 'Valais':
+            color = 'y'
+        elif label == 'Californie':
+            color = 'c'
+        elif label == 'Oregon':
+            color = 'limegreen'
+
+        if label == '09':
+            color = 'b'
+        elif label == '10':
+            color = 'g'
+        elif label == '11':
+            color = 'r'
+        elif label == '12':
+            color = 'm'
+        elif label == '13':
+            color = 'k'
+        elif label == '14':
+            color = 'y'
+        elif label == '15':
+            color = 'c'
+        elif label == '16':
+            color = 'peru'
+        elif label == '17':
+            color = 'limegreen'
+        elif label == '18':
+            color = 'cornflowerblue'
+        elif label == '19':
+            color = 'olive'
+        elif label == '20':
+            color = 'tomato'
+        elif label == '88':
+            color = 'orange'
+        elif label == '95':
+            color = 'slateblue'
+        elif label == '01':
+            color = 'darkcyan'
+        elif label == '08':
+            color = 'gold'
+
+
+        return color
+
+
+    @staticmethod
     def change_letter_and_color(label):
         """
         Changes the first letter of a label and assigns a corresponding color.
@@ -93,13 +205,17 @@ class Visualizer:
             labels = label_groups[first_letter]
             plt.scatter([], [], label=first_letter, color=color)  # Empty scatter plot for legend
             for i, label in enumerate(labels):
-                annotation, color = Visualizer.change_letter_and_color(label)
-                x = result.loc[label, xlabel]
-                y = result.loc[label, ylabel]
-                # x = result.loc[label, xlabel].iloc[i]
-                # y = result.loc[label, ylabel].iloc[i]
-                plt.scatter(-x, -y, s=28, c=[color])
-                plt.annotate(annotation, (-x, -y), fontsize=9, color=color)
+                if 'pinot' in title.lower():
+                    annotation = label[:3]
+                    color = Visualizer.assign_color(label)
+                else:
+                    annotation, color = Visualizer.change_letter_and_color(label)
+                # x = result.loc[label, xlabel]
+                # y = result.loc[label, ylabel]
+                x = result.loc[label, xlabel].iloc[i]
+                y = result.loc[label, ylabel].iloc[i]
+                plt.scatter(-x, -y, s=32, c=[color])
+                plt.annotate(annotation, (-x, -y), fontsize=8, color=color)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         plt.title(title)
