@@ -592,7 +592,7 @@ def assign_origin_to_pinot_noir(original_keys):
     return origin_keys
 
 
-def assign_continent_to_to_pinot_noir(original_keys):
+def assign_continent_to_pinot_noir(original_keys):
     """
     Map wine sample keys to their corresponding continent.
 
@@ -614,7 +614,7 @@ def assign_continent_to_to_pinot_noir(original_keys):
     Examples
     --------
     >>> original_keys = ['C14', 'M08', 'U08', 'D10', 'X13']
-    >>> assign_continent_to_to_pinot_noir(original_keys)
+    >>> assign_continent_to_pinot_noir(original_keys)
     ['Europe', 'Europe', 'North America', 'Europe', 'North America']
 
     Notes
@@ -654,6 +654,48 @@ def assign_continent_to_to_pinot_noir(original_keys):
     continent_keys = [letter_to_continent[key[0]] for key in original_keys]
 
     return continent_keys
+
+
+def assign_north_south_to_beaune(original_keys):
+    """
+    Map wine sample keys to either 'North Beaune (NB)' or 'South Beaune (SB)'.
+
+    This function takes a list of wine sample keys, where the first letter of each key represents
+    a region of origin, and returns a list of corresponding regions ('North Beaune' or 'South Beaune') for each key.
+
+    Parameters
+    ----------
+    original_keys : list of str
+        A list of strings where each string is a wine sample key. The first letter of each key
+        corresponds to a specific region of origin.
+
+    Returns
+    -------
+    beaune_region_keys : list of str
+        A list of strings where each string is either 'North Beaune' or 'South Beaune' based on the
+        first letter of the key.
+
+    """
+    if len(original_keys) != 61:
+        raise ValueError(f"Incorrect wines passed. Input should be Beaume wines only")
+
+    # Dictionary to map letters to North or South Beaune
+    letter_to_beaune_region = {
+        # North Beaune (NB) or Côte de Nuits
+        'Q': 'NB',
+        'R': 'NB',
+        'Z': 'NB',
+
+        # South Beaune (SB) or Côte de Beaune
+        'D': 'SB',
+        'E': 'SB',
+        'P': 'SB',
+    }
+
+    # Create a new list by mapping the first letter of each key to North or South Beaune
+    beaune_region_keys = [letter_to_beaune_region[key[0]] for key in original_keys]
+
+    return beaune_region_keys
 
 
 def assign_winery_to_pinot_noir(labels):

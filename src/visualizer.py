@@ -115,6 +115,11 @@ class Visualizer:
         elif label == '08':
             color = 'gold'
 
+        if label == 'NB':
+            color = 'b'
+        elif label == 'SB':
+            color = 'g'
+
 
         return color
 
@@ -176,7 +181,7 @@ class Visualizer:
         return "".join(s), color
 
     @staticmethod
-    def plot_2d_results(result, title, xlabel, ylabel):
+    def plot_2d_results(result, title, xlabel, ylabel, offset=0.02):
         """
         Plots the results of a dimensionality reduction algorithm with different colors for different label groups.
 
@@ -215,7 +220,7 @@ class Visualizer:
                 x = result.loc[label, xlabel].iloc[i]
                 y = result.loc[label, ylabel].iloc[i]
                 plt.scatter(-x, -y, s=32, c=[color])
-                plt.annotate(annotation, (-x, -y), fontsize=8, color=color)
+                plt.annotate(annotation, (-x + offset, -y + offset), fontsize=8, color=color)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         plt.title(title)

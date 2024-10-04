@@ -45,7 +45,7 @@ from dcor import distance_correlation
 import utils
 from data_loader import DataLoader
 from sklearn.preprocessing import StandardScaler
-from classification import Classifier
+from classification import Classifier, assign_north_south_to_beaune
 from dimensionality_reduction import DimensionalityReducer
 from visualizer import Visualizer
 from dimensionality_reduction import run_umap_and_evaluate, run_tsne_and_evaluate
@@ -66,7 +66,7 @@ from sklearn.metrics import mutual_info_score
 from scipy.stats import spearmanr, kendalltau
 import utils
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
-                            assign_continent_to_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir)
+                            assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir)
 
 class WineAnalysis:
     """
@@ -122,7 +122,7 @@ class WineAnalysis:
         tsne_df = pd.DataFrame(data=tsne_result, columns=['t-SNE Component 1', 't-SNE Component 2'], index=labels)
         title = f'{title}; {len(self.data)} wines\n Score: {best_score} '
         if plot:
-            Visualizer.plot_2d_results(tsne_df, title, 't-SNE Component 1', 't-SNE Component 2')
+            Visualizer.plot_2d_results(tsne_df, title, 't-SNE Component 1', 't-SNE Component 2', offset=0.02)
 
         return tsne_df
 
@@ -253,7 +253,7 @@ class ChromatogramAnalysis:
             labels = cls._process_labels(vintage)
         else:
             if region == 'continent':
-                labels = assign_continent_to_to_pinot_noir(cls.labels)
+                labels = assign_continent_to_pinot_noir(cls.labels)
             elif region == 'country':
                 labels = assign_country_to_pinot_noir(cls.labels)
             elif region == 'origin':
@@ -262,6 +262,8 @@ class ChromatogramAnalysis:
                 labels = assign_winery_to_pinot_noir(cls.labels)
             elif region == 'year':
                 labels = assign_year_to_pinot_noir(cls.labels)
+            elif region == 'beaume':
+                labels = assign_north_south_to_beaune(cls.labels)
             else:
                 raise ValueError(f"Incorrect region entered: '{region}'. Valid options are 'continent', 'country', "
                                  f"'origin', 'winery', or 'year'.")
@@ -285,7 +287,7 @@ class ChromatogramAnalysis:
             labels = cls._process_labels(vintage)
         else:
             if region == 'continent':
-                labels = assign_continent_to_to_pinot_noir(cls.labels)
+                labels = assign_continent_to_pinot_noir(cls.labels)
             elif region == 'country':
                 labels = assign_country_to_pinot_noir(cls.labels)
             elif region == 'origin':
@@ -294,6 +296,8 @@ class ChromatogramAnalysis:
                 labels = assign_winery_to_pinot_noir(cls.labels)
             elif region == 'year':
                 labels = assign_year_to_pinot_noir(cls.labels)
+            elif region == 'beaume':
+                labels = assign_north_south_to_beaune(cls.labels)
             else:
                 raise ValueError(f"Incorrect region entered: '{region}'. Valid options are 'continent', 'country', "
                                  f"'origin', 'winery', or 'year'.")
@@ -695,7 +699,8 @@ class SyncChromatograms:
             best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
                 gaussian_filter(reference_chromatogram[:10000], 50),
                 gaussian_filter(target_chromatogram[:10000], 50),
-                np.linspace(1.0, 1.0, 1)
+                np.linspace(1.0, 1.0, 1),
+                max_lag=1000
             )
             target_chromatogram_aligned = gaussian_filter(
                 self.correct_segment(target_chromatogram, best_scale, best_lag), 5
@@ -878,7 +883,8 @@ class SyncChromatograms:
             best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
                 gaussian_filter(reference_chromatogram[:10000], 50),
                 gaussian_filter(target_chromatogram[:10000], 50),
-                np.linspace(1.0, 1.0, 1)
+                np.linspace(1.0, 1.0, 1),
+                max_lag=1000
             )
             target_chromatogram_aligned = gaussian_filter(
                 self.correct_segment(target_chromatogram, best_scale, best_lag), 5
@@ -1545,7 +1551,7 @@ class SyncChromatograms:
             #     self.c1, mean_c2s, alignment_tolerance=prox, num_segments=10, apply_global_alignment=True,
             #     only_shift=False
             # )
-            corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)
+            corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)[:25000]
             corrected_c2_sharp = correct_with_spline(self.c2, 50, 1, normalize=True, plot=False)
 
 
@@ -1553,7 +1559,7 @@ class SyncChromatograms:
         lengths = [8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000,
                    8000, 4000, 2000, 8000, 4000, 2000]
         # lengths = [8000, 4000, 2000]
-        step_size = (100 - 25) / len(lengths)
+        # step_size = (100 - 25) / len(lengths)
         for i, sl in enumerate(lengths):
         # for sl in [8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000,]:
             # Fine round
@@ -1565,7 +1571,7 @@ class SyncChromatograms:
             lag_res = sync_chrom.lag_profile_from_correlation(
                 gaussian_filter(sync_chrom.c1, 50), gaussian_filter(corrected_c2, 50),
                 initial_slice_length=max(4000, sl), max_slice_length=max(4000, sl),
-                hop_size=sl, scan_range=int(25) , apply_global_alignment=global_align, score=0
+                hop_size=sl, scan_range=int(1000) , apply_global_alignment=global_align, score=0
             )
             sync_chrom.lag_res = lag_res
             corrected_c2 = sync_chrom.correct_with_spline(corrected_c2, 4, 1, normalize=False, plot=False)

@@ -22,7 +22,8 @@ from data_loader import DataLoader
 from dimensionality_reduction import DimensionalityReducer
 from wine_analysis import WineAnalysis, ChromatogramAnalysis
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
-                            assign_continent_to_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir)
+                            assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
+                            assign_north_south_to_beaune)
 from visualizer import Visualizer, plot_all_acc_LDA, plot_stacked_chromatograms
 from dimensionality_reduction import run_umap_and_evaluate, run_tsne_and_evaluate
 import matplotlib.pyplot as plt
@@ -75,9 +76,9 @@ if __name__ == "__main__":
 
     # chromatograms1, chromatograms2 = cl.resample_chromatograms(chromatograms1, chromatograms2, start=100, length=30000)
 
-    # Remove the first chromatogram from each dataset as a reference
-    ref_chrom1 = chromatograms1.pop(next(iter(chromatograms1)))
-    ref_chrom2 = chromatograms2.pop(next(iter(chromatograms2)))
+    # # Remove the first chromatogram from each dataset as a reference
+    # ref_chrom1 = chromatograms1.pop(next(iter(chromatograms1)))
+    # ref_chrom2 = chromatograms2.pop(next(iter(chromatograms2)))
 
     neuchatel = ['M', 'N']
     geneve = ['J', 'L']
@@ -86,8 +87,10 @@ if __name__ == "__main__":
     oregon = ['X']
     beaune = ['D', 'E', 'Q', 'P', 'R', 'Z']
     alsace = ['C', 'K', 'W', 'Y']
-    # chromatograms1 = utils.filter_dict_by_first_letter(chromatograms1,  neuchatel + geneve + valais )
-    # chromatograms2 = utils.filter_dict_by_first_letter(chromatograms2,  neuchatel + geneve + valais )
+    chromatograms1 = utils.filter_dict_by_first_letter(chromatograms1,  neuchatel + geneve + valais + california + oregon + beaune + alsace )
+    chromatograms2 = utils.filter_dict_by_first_letter(chromatograms2,  neuchatel + geneve + valais + california + oregon + beaune + alsace)
+    # chromatograms1 = utils.filter_dict_by_first_letter(chromatograms1,  beaune)
+    # chromatograms2 = utils.filter_dict_by_first_letter(chromatograms2,  beaune)
 
     norm_chromatograms1 = utils.normalize_dict(chromatograms1, scaler='standard')
     norm_chromatograms2 = utils.normalize_dict(chromatograms2, scaler='standard')
@@ -96,33 +99,35 @@ if __name__ == "__main__":
 
 
 
-    # mean_c1 = cl.calculate_mean_chromatogram(chromatograms1)
-    # mean_c2 = cl.calculate_mean_chromatogram(chromatograms2)
+    mean_c1 = cl.calculate_mean_chromatogram(chromatograms1)
+    mean_c2 = cl.calculate_mean_chromatogram(chromatograms2)
     # sc_inst = SyncChromatograms(mean_c1, mean_c2, chromatograms2, 10, 1,)
     # lag_res = sc_inst.calculate_lag_profile(
     #     mean_c1, mean_c2, 4000, lag_range=200, hop=2000, sigma=20, distance_metric='l1', init_min_dist=1E6)
     # utils.plot_lag(lag_res[0], lag_res[1])
 
-    synced_chromatograms1 = cl.sync_individual_chromatograms(
-        ref_chrom1, chromatograms1, np.linspace(0.997, 1.003, 30), initial_lag=25
-    )
-    synced_chromatograms2 = cl.sync_individual_chromatograms(
-        ref_chrom2, chromatograms2, np.linspace(0.980, 1.020, 80), initial_lag=25
-    )
-    # # # synced_chromatograms1 = chromatograms1
-    # # # synced_chromatograms2 = chromatograms2
-    # # cut_length = min(
-    # #     min(len(lst) for lst in synced_chromatograms1.values()),
-    # #     min(len(lst) for lst in synced_chromatograms2.values())
-    # # )
-    synced_chromatograms1 = {key: value[:28000] for key, value in synced_chromatograms1.items()}
-    synced_chromatograms2 = {key: value[:28000] for key, value in synced_chromatograms2.items()}
-    norm_chromatograms1 = utils.normalize_dict(synced_chromatograms1, scaler='standard')
-    norm_chromatograms2 = utils.normalize_dict(synced_chromatograms2, scaler='standard')
+    sync_chroms = True
+    if sync_chroms == True:
+        synced_chromatograms1 = cl.sync_individual_chromatograms(
+            mean_c1, chromatograms1, np.linspace(0.997, 1.003, 30), initial_lag=25
+        )
+        synced_chromatograms2 = cl.sync_individual_chromatograms(
+            mean_c1, chromatograms2, np.linspace(0.980, 1.020, 80), initial_lag=25
+        )
+        # # # synced_chromatograms1 = chromatograms1
+        # # # synced_chromatograms2 = chromatograms2
+        # # cut_length = min(
+        # #     min(len(lst) for lst in synced_chromatograms1.values()),
+        # #     min(len(lst) for lst in synced_chromatograms2.values())
+        # # )
+        synced_chromatograms1 = {key: value[:28000] for key, value in synced_chromatograms1.items()}
+        synced_chromatograms2 = {key: value[:28000] for key, value in synced_chromatograms2.items()}
+        norm_chromatograms1 = utils.normalize_dict(synced_chromatograms1, scaler='standard')
+        norm_chromatograms2 = utils.normalize_dict(synced_chromatograms2, scaler='standard')
 
     # norm_merged_chrom = cl.merge_chromatograms(norm_synced_chromatograms1, norm_synced_chromatograms2)
     # # cl.stacked_2D_plots_3D(cl.merge_chromatograms({label: cl.min_max_normalize(chromatogram, 0, 1) for label, chromatogram in chromatograms1.items()}, {label: cl.min_max_normalize(chromatogram, 0, 1) for label, chromatogram in chromatograms2.items()}))
-    # # cl.stacked_2D_plots_3D(cl.merge_chromatograms(synced_chromatograms1, synced_chromatograms2))
+    cl.stacked_2D_plots_3D(cl.merge_chromatograms(synced_chromatograms1, synced_chromatograms2))
     # # cl.umap_analysis(norm_merged_chrom, vintage, "Original data;", neigh_range=range(10, 61, 5), random_states=range(0, 97, 8))
     # # cl.plot_chromatograms(mean_c1, mean_c2, file_name1, file_name2, cl)
     # cl.umap_analysis(chromatograms1, vintage, "Pinot Noir;", neigh_range=range(10, 11, 5),
@@ -141,8 +146,8 @@ if __name__ == "__main__":
 
     region = 'winery'
     if region == 'continent':
-        labels1 = assign_continent_to_to_pinot_noir(labels1)
-        labels2 = assign_continent_to_to_pinot_noir(labels2)
+        labels1 = assign_continent_to_pinot_noir(labels1)
+        labels2 = assign_continent_to_pinot_noir(labels2)
     elif region == 'country':
         labels1 = assign_country_to_pinot_noir(labels1)
         labels2 = assign_country_to_pinot_noir(labels2)
@@ -155,6 +160,9 @@ if __name__ == "__main__":
     elif region == 'year':
         labels1 = assign_year_to_pinot_noir(labels1)
         labels2 = assign_year_to_pinot_noir(labels2)
+    elif region == 'beaume':
+        labels1 = assign_north_south_to_beaune(labels1)
+        labels2 = assign_north_south_to_beaune(labels2)
     else:
         raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
 
