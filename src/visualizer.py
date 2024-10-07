@@ -82,6 +82,8 @@ class Visualizer:
         elif label == 'Oregon':
             color = 'limegreen'
 
+
+        # this is for year
         if label == '09':
             color = 'b'
         elif label == '10':
@@ -115,10 +117,20 @@ class Visualizer:
         elif label == '08':
             color = 'gold'
 
+
+        # this is for Beaume
         if label == 'NB':
             color = 'b'
         elif label == 'SB':
             color = 'g'
+
+        # this is for merlot22
+        if label[0] == 'A':
+            color = 'b'
+        elif label[0] == 'B':
+            color = 'g'
+        elif label[0] == 'C':
+            color = 'r'
 
 
         return color
@@ -213,6 +225,13 @@ class Visualizer:
                 if 'pinot' in title.lower():
                     annotation = label[:3]
                     color = Visualizer.assign_color(label)
+                elif 'merlot' in title.lower():
+                    annotation = label[:3]
+                    color = Visualizer.assign_color(label)
+                elif 'cabernet' in title.lower():
+                    annotation = label[:3]
+                    color = Visualizer.assign_color(label)
+
                 else:
                     annotation, color = Visualizer.change_letter_and_color(label)
                 # x = result.loc[label, xlabel]

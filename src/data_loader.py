@@ -50,7 +50,7 @@ class DataLoader:
             data = np.load(self.file_path, allow_pickle=True).item()
             df = pd.DataFrame(data).T
         elif self.file_path.endswith('.xlsx'):
-            df = pd.read_excel(self.file_path, header=[0, 1])
+            df = pd.read_excel(self.file_path, header=[0, 1]) # , nrows=10)
             data = self.process_xlsx(df, self.file_path)
             df = pd.DataFrame(data).T
         else:
@@ -81,11 +81,24 @@ class DataLoader:
                  '2022 01 7 chateaux Oak All vintages Masse 5 NORMALIZED SM.xlsx',  #  5
                  '2022 01 7 chateaux Oak Old vintages Masse 5 NORMALIZED SM.xlsx',  #  6
                  'Pinot_Noir_R0_normalisés_Changins_042022.xlsx',                   #  7
-                 'Pinot_Noir_R0_normalisés_ISVV_052022.xlsx'                        #  8
+                 'Pinot_Noir_R0_normalisés_ISVV_052022.xlsx'    ,                   #  8
+                 'Tot_Chromato_2022_MERLOT_PRESSE_MIS_EN_FORME_SM.xlsx',            #  9
+                 'Tot_Chromato_2022_CABERNET_SAUV_PRESSE_MIS_EN_FORME_SM.xlsx',     # 10
                  ]
         file_name = os.path.basename(file_path)
 
-        if file_name in [files[7]]:
+        if file_name in files[9:11]:
+            # # Remove the last 2 rows to avoid nan
+            # df = df.iloc[:-3]
+
+            data = {}
+            for col in df.columns:
+                if col[1] != 'signal':
+                    continue
+                key = col[0]  # detect the header
+                data[key] = [float(value) for value in df[col[0]][col[1]]]
+
+        if file_name in [files[7:8]]:
             # Remove the last 2 rows to avoid nan
             df = df.iloc[:-3]
 

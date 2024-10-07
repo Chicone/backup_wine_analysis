@@ -45,7 +45,7 @@ from dcor import distance_correlation
 import utils
 from data_loader import DataLoader
 from sklearn.preprocessing import StandardScaler
-from classification import Classifier, assign_north_south_to_beaune
+from classification import Classifier, assign_north_south_to_beaune, assign_category_to_press_wine
 from dimensionality_reduction import DimensionalityReducer
 from visualizer import Visualizer
 from dimensionality_reduction import run_umap_and_evaluate, run_tsne_and_evaluate
@@ -264,6 +264,8 @@ class ChromatogramAnalysis:
                 labels = assign_year_to_pinot_noir(cls.labels)
             elif region == 'beaume':
                 labels = assign_north_south_to_beaune(cls.labels)
+            elif region == 'category':
+                labels = assign_category_to_press_wine(cls.labels)
             else:
                 raise ValueError(f"Incorrect region entered: '{region}'. Valid options are 'continent', 'country', "
                                  f"'origin', 'winery', or 'year'.")
@@ -298,6 +300,8 @@ class ChromatogramAnalysis:
                 labels = assign_year_to_pinot_noir(cls.labels)
             elif region == 'beaume':
                 labels = assign_north_south_to_beaune(cls.labels)
+            elif region == 'category':
+                labels = assign_category_to_press_wine(cls.labels)
             else:
                 raise ValueError(f"Incorrect region entered: '{region}'. Valid options are 'continent', 'country', "
                                  f"'origin', 'winery', or 'year'.")
@@ -700,7 +704,7 @@ class SyncChromatograms:
                 gaussian_filter(reference_chromatogram[:10000], 50),
                 gaussian_filter(target_chromatogram[:10000], 50),
                 np.linspace(1.0, 1.0, 1),
-                max_lag=1000
+                max_lag=100
             )
             target_chromatogram_aligned = gaussian_filter(
                 self.correct_segment(target_chromatogram, best_scale, best_lag), 5
@@ -878,13 +882,16 @@ class SyncChromatograms:
         >>> lags_location, lags, target_chromatogram_aligned = obj.lag_profile_from_peaks(reference_chromatogram, target_chromatogram, alignment_tolerance=50, num_segments=50)
         """
 
+        # Use only the first third of the chromatogram for the global shifting
+        comp_length = int(len(reference_chromatogram) / 3)
+
         if apply_global_alignment:
             # Apply global alignment by finding the best scale (currently turned off) and lag
             best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
-                gaussian_filter(reference_chromatogram[:10000], 50),
-                gaussian_filter(target_chromatogram[:10000], 50),
+                gaussian_filter(reference_chromatogram[:comp_length], 50),
+                gaussian_filter(target_chromatogram[:comp_length], 50),
                 np.linspace(1.0, 1.0, 1),
-                max_lag=1000
+                max_lag=100
             )
             target_chromatogram_aligned = gaussian_filter(
                 self.correct_segment(target_chromatogram, best_scale, best_lag), 5
@@ -1556,25 +1563,27 @@ class SyncChromatograms:
 
 
         # for sl in [8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000]:
-        lengths = [8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000,
-                   8000, 4000, 2000, 8000, 4000, 2000]
-        # lengths = [8000, 4000, 2000]
-        # step_size = (100 - 25) / len(lengths)
-        for i, sl in enumerate(lengths):
-        # for sl in [8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000,]:
-            # Fine round
-            global_align = False
-            sync_chrom = SyncChromatograms(
-                self.c1, corrected_c2, 1, self.scales, 1E6,
-                threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
-            )
-            lag_res = sync_chrom.lag_profile_from_correlation(
-                gaussian_filter(sync_chrom.c1, 50), gaussian_filter(corrected_c2, 50),
-                initial_slice_length=max(4000, sl), max_slice_length=max(4000, sl),
-                hop_size=sl, scan_range=int(1000) , apply_global_alignment=global_align, score=0
-            )
-            sync_chrom.lag_res = lag_res
-            corrected_c2 = sync_chrom.correct_with_spline(corrected_c2, 4, 1, normalize=False, plot=False)
+        # lengths = [8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000,
+        #            8000, 4000, 2000, 8000, 4000, 2000]
+        # lengths = [4000, 2000, 1000, 4000, 2000, 1000, 4000, 2000, 1000, 4000, 2000, 1000, 4000, 2000, 1000]
+        # lengths = [4000, 2000, 1000, 2000, 1000]
+        # lengths = [4000, 2000, 1000, 3000, 1500, 750, 4000, 2000, 1000,]
+        # # step_size = (100 - 25) / len(lengths)
+        # for i, sl in enumerate(lengths):
+        # # for sl in [8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000,]:
+        #     # Fine round
+        #     global_align = False
+        #     sync_chrom = SyncChromatograms(
+        #         self.c1, corrected_c2, 1, self.scales, 1E6,
+        #         threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
+        #     )
+        #     lag_res = sync_chrom.lag_profile_from_correlation(
+        #         gaussian_filter(sync_chrom.c1, 50), gaussian_filter(corrected_c2, 50),
+        #         initial_slice_length=max(4000, sl), max_slice_length=max(4000, sl),
+        #         hop_size=sl, scan_range=int(100) , apply_global_alignment=global_align, score=0
+        #     )
+        #     sync_chrom.lag_res = lag_res
+        #     corrected_c2 = sync_chrom.correct_with_spline(corrected_c2, 4, 1, normalize=False, plot=False)
 
 
 

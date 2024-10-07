@@ -309,7 +309,6 @@ class Classifier:
             processed_labels = self.labels
         elif self.wine_kind == 'bordeaux':
             processed_labels = []
-
             # Iterate over each label in the labels list
             for label in self.labels:
                 # Search for the first digit in the label
@@ -327,6 +326,8 @@ class Classifier:
                         # Otherwise, take the character directly before the first digit
                         lb = label[match.start() - 1]
                     processed_labels.append(lb)
+        elif self.wine_kind == 'press_wines':
+            processed_labels = self.labels
 
         # Return the processed labels as a numpy array
         return np.array(processed_labels)
@@ -736,6 +737,26 @@ def assign_year_to_pinot_noir(labels):
     first_letters = [label[-2:] for label in labels]
 
     return first_letters
+
+
+def assign_category_to_press_wine(labels):
+    """
+    Assign the fifth letters of each label, which corresponds to the category.
+
+    Parameters
+    ----------
+    labels : list of str
+        A list of label strings.
+
+    Returns
+    -------
+    category : list of str
+        A list of the categories  from each label.
+    """
+    # Create a list of the first letters of each label
+    category = [label[4] for label in labels]
+
+    return category
 
 
 
