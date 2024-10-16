@@ -19,7 +19,7 @@ Key Features:
 import numpy as np
 import os
 from data_loader import DataLoader
-from dimensionality_reduction import DimensionalityReducer
+# from dimensionality_reduction import DimensionalityReducer
 from wine_analysis import WineAnalysis, ChromatogramAnalysis
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
@@ -32,7 +32,7 @@ from scipy.ndimage import gaussian_filter
 from wine_analysis import SyncChromatograms
 
 if __name__ == "__main__":
-    n_splits = 100
+    n_splits = 500
     vintage = False
     pca = False
 
@@ -106,7 +106,7 @@ if __name__ == "__main__":
     #     mean_c1, mean_c2, 4000, lag_range=200, hop=2000, sigma=20, distance_metric='l1', init_min_dist=1E6)
     # utils.plot_lag(lag_res[0], lag_res[1])
 
-    sync_chroms = True
+    sync_chroms = False
     if sync_chroms == True:
         synced_chromatograms1 = cl.sync_individual_chromatograms(
             mean_c1, chromatograms1, np.linspace(0.997, 1.003, 30), initial_lag=25
@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
     # norm_merged_chrom = cl.merge_chromatograms(norm_synced_chromatograms1, norm_synced_chromatograms2)
     # # cl.stacked_2D_plots_3D(cl.merge_chromatograms({label: cl.min_max_normalize(chromatogram, 0, 1) for label, chromatogram in chromatograms1.items()}, {label: cl.min_max_normalize(chromatogram, 0, 1) for label, chromatogram in chromatograms2.items()}))
-    cl.stacked_2D_plots_3D(cl.merge_chromatograms(synced_chromatograms1, synced_chromatograms2))
+    # cl.stacked_2D_plots_3D(cl.merge_chromatograms(synced_chromatograms1, synced_chromatograms2))
     # # cl.umap_analysis(norm_merged_chrom, vintage, "Original data;", neigh_range=range(10, 61, 5), random_states=range(0, 97, 8))
     # # cl.plot_chromatograms(mean_c1, mean_c2, file_name1, file_name2, cl)
     # cl.umap_analysis(chromatograms1, vintage, "Pinot Noir;", neigh_range=range(10, 11, 5),
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     labels2 = norm_chromatograms2.keys()
     chem_name2 = os.path.splitext(file_name2)[0].split('/')[-1]
 
-    region = 'winery'
+    region = 'origin'
     if region == 'continent':
         labels1 = assign_continent_to_pinot_noir(labels1)
         labels2 = assign_continent_to_pinot_noir(labels2)
@@ -173,34 +173,35 @@ if __name__ == "__main__":
     # cl.umap_analysis(chromatograms1, vintage, "Pinot Noir Origins in CH", neigh_range=range(20, 101, 2),
     #                  random_states=range(0, 121, 32), wk=wine_kind, region=region)  # continent, country, origin
 
-    if not pca:
-        # Classification of individual datasets (leave-one-out)
-        print(f"Estimating LOO accuracy on dataset {chem_name1}...")
-        cls = Classifier(np.array(list(data1)), np.array(list(labels1)), classifier_type='LDA', wine_kind=wine_kind)
-        cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
-        print(f"Estimating LOO accuracy on dataset {chem_name2}...")
-        cls = Classifier(np.array(list(data2)), np.array(list(labels2)), classifier_type='LDA', wine_kind=wine_kind)
-        cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard')
+    # if not pca:
+    # Classification of individual datasets (leave-one-out)
+    print(f"Estimating LOO accuracy on dataset {chem_name1}...")
+    cls = Classifier(np.array(list(data1)), np.array(list(labels1)), classifier_type='LDA', wine_kind=wine_kind)
+    cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca, vthresh=0.995)
+    print(f"Estimating LOO accuracy on dataset {chem_name2}...")
+    cls = Classifier(np.array(list(data2)), np.array(list(labels2)), classifier_type='LDA', wine_kind=wine_kind)
+    cls.train_and_evaluate(n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca, vthresh=0.995)
 
-        # # Classification of one dataset training on the other
-        # print(f"Estimating cross-dataset accuracy...")
-        # # 'LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB', and 'GBC'.
-        # cls = Classifier(data1, labels1, classifier_type='LDA')
-        # cls.train_and_evaluate_separate_datasets(
-        #     np.array(list(data1)), process_labels(labels1, vintage),
-        #     np.array(list(data2)), np.array(list(labels2)),
-        #     n_splits=200, normalize=True, scaler_type='standard'
-        # )
-    else:
-        # PCA-reduce
-        cls = Classifier(data1, labels1)  # to use _process_labels
-        reducer = DimensionalityReducer(data1)
-        pca_dict, cumulative_variance, n_components = reducer.cumulative_variance(
-              np.array(labels1), variance_threshold=0.97, plot=True, dataset_name=chem_name1
-        )
-        reducer.cross_validate_pca_classification(
-            cls._process_labels(vintage=vintage), n_splits=n_splits, vthresh=0.97, test_size=None
-        )
+    # chance_with_priors = utils.calculate_chance_accuracy_with_priors(assign_winery_to_pinot_noir(labels1)) * 100
+
+    # # Classification of one dataset training on the other
+    # print(f"Estimating cross-dataset accuracy...")
+    # # 'LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB', and 'GBC'.
+    # cls = Classifier(data1, labels1, classifier_type='LDA')
+    # cls.train_and_evaluate_separate_datasets(
+    #     np.array(list(data1)), process_labels(labels1, vintage),
+    #     np.array(list(data2)), np.array(list(labels2)),
+    #     n_splits=200, normalize=True, scaler_type='standard'
+    # )
+    # else:
+    #     # PCA-reduce
+    #     cls = Classifier(data1, labels1, classifier_type='LDA', wine_kind=wine_kind)  # to use _process_labels
+    #     # reducer = DimensionalityReducer(data1)
+    #     reducer = DimensionalityReducer(np.array(list(data1)).T)
+    #     pca_dict, cumulative_variance, n_components = reducer.cumulative_variance(
+    #           np.array(labels1), variance_threshold=0.97, plot=True, dataset_name=chem_name1
+    #     )
+    #     reducer.cross_validate_pca_classification(cls, n_splits=n_splits, vthresh=0.97, test_size=None)
 
     # # Example usage of DimensionalityReducer
     # data_loader = DataLoader('/home/luiscamara/PycharmProjects/wine_scheck/data/oak.npy')

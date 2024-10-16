@@ -1,14 +1,19 @@
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, Perceptron, RidgeClassifier, PassiveAggressiveClassifier, SGDClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, HistGradientBoostingClassifier
+from dimensionality_reduction import DimensionalityReducer
+from sklearn.decomposition import PCA
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import classification_report, precision_score, recall_score, f1_score, confusion_matrix
+
 from utils import find_first_and_last_position, normalize_dict, normalize_data
 import numpy as np
 import re
+import numpy as np
+
 
 class Classifier:
     """
@@ -59,10 +64,11 @@ class Classifier:
         sklearn.base.BaseEstimator
             An instance of the selected scikit-learn classifier.
         """
+        print(f'Classifier: {classifier_type}')
         if classifier_type == 'LDA':
             return LinearDiscriminantAnalysis()
         elif classifier_type == 'LR':
-            return LogisticRegression(C=1.0, random_state=0, n_jobs=-1, max_iter=1000)
+            return LogisticRegression(C=1.0, random_state=0, n_jobs=-1, max_iter=10000)
         elif classifier_type == 'RFC':
             return RandomForestClassifier(n_estimators=100)
         elif classifier_type == 'PAC':
@@ -82,15 +88,137 @@ class Classifier:
         elif classifier_type == 'GNB':
             return GaussianNB()
         elif classifier_type == 'GBC':
-            return GradientBoostingClassifier(n_estimators=100)
+            return GradientBoostingClassifier(n_estimators=50, max_depth=3, learning_rate=0.1)
+        elif classifier_type == 'HGBC':
+            return HistGradientBoostingClassifier(max_leaf_nodes=31, learning_rate=0.2, max_iter=50, max_bins=128)
 
-    from sklearn.metrics import classification_report, precision_score, recall_score, f1_score, confusion_matrix
-    import numpy as np
+
+    # def train_and_evaluate(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
+    #                        scaler_type='standard'):
+    #     """
+    #     Train and evaluate the classifier using cross-validation, and calculate the mean confusion matrix.
+    #
+    #     Parameters
+    #     ----------
+    #     n_splits : int, optional
+    #         The number of splits for cross-validation. Default is 50.
+    #     vintage : bool, optional
+    #         Whether to process labels for vintage data. Default is False.
+    #     random_seed : int, optional
+    #         The random seed for reproducibility. Default is 42.
+    #     test_size : float, optional
+    #         The proportion of the dataset to include in the test split. If None, only one sample
+    #         is used for testing. Default is None.
+    #     normalize : bool, optional
+    #         Whether to normalize the data. Default is False.
+    #     scaler_type : str, optional
+    #         The type of scaler to use for normalization if `normalize` is True. Default is 'standard'.
+    #
+    #     Returns
+    #     -------
+    #     dict
+    #         A dictionary containing mean accuracy, precision, recall, F1-score, and the mean confusion matrix.
+    #
+    #     Notes
+    #     -----
+    #     This function performs cross-validation on the classifier and prints accuracy, precision, recall, F1-score,
+    #     and the mean confusion matrix over all splits.
+    #     """
+    #     from sklearn.metrics import classification_report, precision_score, recall_score, f1_score, confusion_matrix
+    #
+    #     # Set the random seed for reproducibility of the results
+    #     np.random.seed(random_seed)
+    #
+    #     # Initialize lists to store scores for different metrics
+    #     accuracy_scores = []
+    #     precision_scores = []
+    #     recall_scores = []
+    #     f1_scores = []
+    #
+    #     # Initialize a confusion matrix accumulator
+    #     confusion_matrix_sum = None
+    #     custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+    #     # custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+    #
+    #     print('Split', end=' ', flush=True)
+    #
+    #     # Perform cross-validation over the specified number of splits
+    #     for i in range(n_splits):
+    #         # Split the data into training and testing sets
+    #         train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
+    #             vintage=vintage, test_size=test_size
+    #         )
+    #
+    #         # Normalize the data if normalization is enabled
+    #         if normalize:
+    #             X_train, scaler = normalize_data(X_train, scaler=scaler_type)  # Fit scaler on training data
+    #             X_test = scaler.transform(X_test)  # Transform test data using the train scaler
+    #
+    #         # Train the classifier on the training data
+    #         self.classifier.fit(X_train, y_train)
+    #
+    #         # Print the current split number every 5 iterations to show progress
+    #         print(i, end=' ', flush=True) if i % 5 == 0 else None
+    #
+    #         # Make predictions on the test set
+    #         y_pred = self.classifier.predict(X_test)
+    #
+    #         # Calculate accuracy and other metrics
+    #         accuracy_scores.append(self.classifier.score(X_test, y_test))
+    #         precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
+    #         recall_scores.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
+    #         f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
+    #
+    #         # Compute the confusion matrix for the current split
+    #
+    #         cm = confusion_matrix(y_test, y_pred, labels=custom_order)
+    #
+    #         # Accumulate the confusion matrix
+    #         if confusion_matrix_sum is None:
+    #             confusion_matrix_sum = np.zeros_like(cm)  # Initialize the accumulator with zeros the same shape as `cm`
+    #
+    #         confusion_matrix_sum += cm  # Add the confusion matrix from the current split
+    #
+    #     # Print a new line after the loop completes
+    #     print()
+    #
+    #     # Convert lists of scores to numpy arrays for easier statistical calculations
+    #     accuracy_scores = np.asarray(accuracy_scores)
+    #     precision_scores = np.asarray(precision_scores)
+    #     recall_scores = np.asarray(recall_scores)
+    #     f1_scores = np.asarray(f1_scores)
+    #
+    #     # Calculate the mean confusion matrix by dividing the accumulated matrix by the number of splits
+    #     mean_confusion_matrix = confusion_matrix_sum / n_splits
+    #
+    #     # Print summary of results
+    #     print("\033[96m" + "Accuracy: %0.3f (+/- %0.3f)" % (
+    #     accuracy_scores.mean(), accuracy_scores.std() * 2) + "\033[0m")
+    #     print("\033[96m" + "Precision: %0.3f (+/- %0.3f)" % (
+    #     precision_scores.mean(), precision_scores.std() * 2) + "\033[0m")
+    #     print("\033[96m" + "Recall: %0.3f (+/- %0.3f)" % (recall_scores.mean(), recall_scores.std() * 2) + "\033[0m")
+    #     print("\033[96m" + "F1 Score: %0.3f (+/- %0.3f)" % (f1_scores.mean(), f1_scores.std() * 2) + "\033[0m")
+    #
+    #     # Optionally print the mean confusion matrix
+    #     print("\033[96m" + "Mean Confusion Matrix (over all splits):" + "\033[0m")
+    #     print(mean_confusion_matrix)
+    #     print(custom_order)
+    #     print(y_test)
+    #
+    #     # Return the mean scores and the mean confusion matrix
+    #     return {
+    #         'mean_accuracy': accuracy_scores.mean(),
+    #         'mean_precision': precision_scores.mean(),
+    #         'mean_recall': recall_scores.mean(),
+    #         'mean_f1_score': f1_scores.mean(),
+    #         'mean_confusion_matrix': mean_confusion_matrix
+    #     }
 
     def train_and_evaluate(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
-                           scaler_type='standard'):
+                           scaler_type='standard', use_pca=False, vthresh=0.97):
         """
         Train and evaluate the classifier using cross-validation, and calculate the mean confusion matrix.
+        Can also perform PCA-based classification when `pca=True`.
 
         Parameters
         ----------
@@ -101,52 +229,70 @@ class Classifier:
         random_seed : int, optional
             The random seed for reproducibility. Default is 42.
         test_size : float, optional
-            The proportion of the dataset to include in the test split. If None, only one sample
-            is used for testing. Default is None.
+            The proportion of the dataset to include in the test split. If None, only one sample is used for testing. Default is None.
         normalize : bool, optional
             Whether to normalize the data. Default is False.
         scaler_type : str, optional
             The type of scaler to use for normalization if `normalize` is True. Default is 'standard'.
+        pca : bool, optional
+            Whether to apply PCA to the data. Default is False.
+        vthresh : float, optional
+            The variance threshold to be explained by the PCA components. Default is 0.97.
 
         Returns
         -------
         dict
             A dictionary containing mean accuracy, precision, recall, F1-score, and the mean confusion matrix.
-
-        Notes
-        -----
-        This function performs cross-validation on the classifier and prints accuracy, precision, recall, F1-score,
-        and the mean confusion matrix over all splits.
         """
-        from sklearn.metrics import classification_report, precision_score, recall_score, f1_score, confusion_matrix
 
-        # Set the random seed for reproducibility of the results
+        from sklearn.utils.class_weight import compute_sample_weight
+
+        # Set the random seed for reproducibility
         np.random.seed(random_seed)
 
-        # Initialize lists to store scores for different metrics
+        # Initialize metrics accumulators
         accuracy_scores = []
         precision_scores = []
         recall_scores = []
         f1_scores = []
-
-        # Initialize a confusion matrix accumulator
         confusion_matrix_sum = None
+        # custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+        custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+
+        n_components = 100
+
+
+        if use_pca:
+            # Estimate best number of components (on all data)
+            reducer = DimensionalityReducer(self.data)
+            _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
+            pca = PCA(n_components=n_components, svd_solver='randomized')
+
+            print(f'Applying PCA with {vthresh} variance threshold')
+            print(f'PCA components= {n_components}')
 
         print('Split', end=' ', flush=True)
-
         # Perform cross-validation over the specified number of splits
         for i in range(n_splits):
             # Split the data into training and testing sets
             train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
                 vintage=vintage, test_size=test_size
             )
+            # sample_weights = compute_sample_weight(class_weight='balanced', y=y_train)
 
             # Normalize the data if normalization is enabled
             if normalize:
                 X_train, scaler = normalize_data(X_train, scaler=scaler_type)  # Fit scaler on training data
                 X_test = scaler.transform(X_test)  # Transform test data using the train scaler
 
-            # Train the classifier on the training data
+            # Apply PCA if enabled
+            if use_pca:
+                # Perform PCA on the training data
+                X_train = pca.fit_transform(X_train[:, ::10])
+                X_test = pca.transform(X_test[:, ::10])
+
+            # Train the classifier on the (optionally PCA-transformed) training data
+            # self.classifier.fit(X_train, y_train, sample_weight=sample_weights)
             self.classifier.fit(X_train, y_train)
 
             # Print the current split number every 5 iterations to show progress
@@ -162,7 +308,7 @@ class Classifier:
             f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
 
             # Compute the confusion matrix for the current split
-            cm = confusion_matrix(y_test, y_pred)
+            cm = confusion_matrix(y_test, y_pred, labels=custom_order)
 
             # Accumulate the confusion matrix
             if confusion_matrix_sum is None:
@@ -193,7 +339,6 @@ class Classifier:
         # Optionally print the mean confusion matrix
         print("\033[96m" + "Mean Confusion Matrix (over all splits):" + "\033[0m")
         print(mean_confusion_matrix)
-        print(y_test)
 
         # Return the mean scores and the mean confusion matrix
         return {
@@ -289,7 +434,7 @@ class Classifier:
         # Return the mean accuracy score as the final result
         return scores.mean()
 
-    def _process_labels(self, vintage):
+    def _process_labels(self, vintage=False):
         """
         Process the labels to extract relevant parts based on whether the data is vintage or not.
 
@@ -305,7 +450,7 @@ class Classifier:
         numpy.ndarray
             An array of processed labels.
         """
-        if self.wine_kind == 'pinot':
+        if self.wine_kind == 'pinot_noir':
             processed_labels = self.labels
         elif self.wine_kind == 'bordeaux':
             processed_labels = []

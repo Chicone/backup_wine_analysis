@@ -5,7 +5,7 @@ import umap
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
-from classification import LinearDiscriminantAnalysis
+# from classification import LinearDiscriminantAnalysis
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
 from visualizer import Visualizer
@@ -196,13 +196,13 @@ class DimensionalityReducer:
 
         return pca_dict, cumulative_variance, n_components
 
-    def cross_validate_pca_classification(self, processed_labels, n_splits=50, vthresh=0.97, test_size=None):
+    def cross_validate_pca_classification(self, cls, n_splits=50, vthresh=0.97, test_size=None):
         """
         Perform cross-validation on a PCA-based classification model.
 
         Parameters
         ----------
-        processed_labels : list
+        cls : classifier instance
             The labels associated with the dataset, used for classification.
         n_splits : int, optional
             The number of cross-validation splits. Default is 50.
@@ -216,6 +216,8 @@ class DimensionalityReducer:
         float
             The average accuracy of the model across the cross-validation splits.
         """
+        processed_labels = cls._process_labels()
+
         accuracies = []
         print(f'Using PCA at {vthresh} accumulated variance')
         print('Split', end=' ', flush=True)
@@ -253,11 +255,13 @@ class DimensionalityReducer:
             X_test_pca = pca.transform(X_test)
 
             # Train a classifier on the PCA-transformed training data
-            classifier = LinearDiscriminantAnalysis()
-            classifier.fit(X_train_pca, y_train)
+            # classifier = LinearDiscriminantAnalysis()
+            # classifier.fit(X_train_pca, y_train)
+            cls.classifier.fit(X_train_pca, y_train)
 
             # Predict and evaluate accuracy on the PCA-transformed testing data
-            y_pred = classifier.predict(X_test_pca)
+            # y_pred = classifier.predict(X_test_pca)
+            y_pred = cls.classifier.predict(X_test_pca)
             accuracy = accuracy_score(y_test, y_pred)
             accuracies.append(accuracy)
 

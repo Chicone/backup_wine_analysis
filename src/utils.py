@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from matplotlib import pyplot as plt
 from scipy.signal import correlate, find_peaks
 from scipy.ndimage import gaussian_filter
+from collections import Counter
 
 
 def collapse_lists(d):
@@ -400,3 +401,39 @@ def remove_peak(signal, peak_idx, window_size=5):
     signal_smooth[left_idx:right_idx] = interpolated_values
 
     return signal_smooth
+
+
+def calculate_chance_accuracy_with_priors(labels):
+    """
+    Calculate the chance accuracy with priors based on class distribution.
+
+    This function computes the chance accuracy by using the class priors.
+    The chance accuracy is the sum of squared class proportions, where the
+    proportion of each class is based on its occurrence in the dataset.
+
+    Parameters
+    ----------
+    labels : list of str
+        A list of labels representing the classes of the samples.
+
+    Returns
+    -------
+    float
+        The calculated chance accuracy with priors.
+
+    Examples
+    --------
+    >>> labels = ['E', 'L', 'Q', 'D', 'P', 'E', 'E', 'Q', 'D', 'P', 'L', 'E', 'R', 'X', 'M']
+    >>> calculate_chance_accuracy_with_priors(labels)
+    0.06842374493702534
+    """
+    # Create a Counter object to count occurrences of each class
+    class_counts = Counter(labels)
+
+    # Calculate the total number of samples
+    total_samples = sum(class_counts.values())
+
+    # Calculate chance accuracy by summing the square of the class proportions
+    chance_accuracy = sum((count / total_samples) ** 2 for count in class_counts.values())
+
+    return chance_accuracy
