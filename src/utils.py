@@ -1,7 +1,8 @@
 import numpy as np
 import re
 import os
-
+import subprocess
+import pandas as pd
 import utils
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from matplotlib import pyplot as plt
@@ -339,6 +340,7 @@ def plot_data_from_dict(data_dict, title, legend=False):
         plt.plot(data, label=label, color=next(color_cycle))
 
     plt.xlabel('Retention time')
+    # plt.xlabel('m/z')
     plt.ylabel('Intensity')
     plt.title(title)
     if legend:
@@ -437,3 +439,127 @@ def calculate_chance_accuracy_with_priors(labels):
     chance_accuracy = sum((count / total_samples) ** 2 for count in class_counts.values())
 
     return chance_accuracy
+
+
+def load_ms_data_from_directories(directory, columns, row_start, row_end):
+    """
+    Reads CSV files from all .D directories in the specified directory and extracts specific columns and row ranges.
+
+    Args:
+        directory (str): The path to the main directory containing .D directories.
+        columns (list of int): A list of column indices to extract from each CSV file.
+        row_start (int): The starting row index to extract (inclusive).
+        row_end (int): The ending row index to extract (exclusive).
+
+    Returns:
+        dict of numpy arrays: A dictionary where each key is a .D directory name (without the .D suffix),
+                              and each value is a numpy array containing the extracted data from each CSV file.
+    """
+    data_dict = {}
+
+    # Loop through all .D directories in the specified directory
+    for subdir in sorted(os.listdir(directory)):
+        if subdir.endswith('.D'):
+            # Remove the '.D' part for use as the dictionary key
+            dir_name = subdir[:-2]
+
+            # Construct the expected CSV file path
+            # csv_file_path = os.path.join(directory, subdir, f"{dir_name}_MS.csv")
+            csv_file_path = os.path.join(directory, subdir, f"{dir_name}.csv")
+
+            # Check if the expected CSV file exists
+            if os.path.isfile(csv_file_path):
+                try:
+                    # Read the CSV file with pandas
+                    df = pd.read_csv(csv_file_path)
+
+                    # Select the specified columns and row range
+                    extracted_data = df.iloc[row_start:row_end, columns].to_numpy()
+
+                    # Store the extracted data in the dictionary with the directory name as the key
+                    data_dict[dir_name] = extracted_data
+
+                except Exception as e:
+                    print(f"Error processing file {csv_file_path}: {e}")
+            else:
+                print(f"No matching CSV file found in {subdir}.")
+
+    return data_dict
+
+def find_data_margins_in_csv(directory):
+    """
+       Finds the first CSV file in a .D directory within the specified directory,
+       returns the number of rows, and identifies the indices of the first and last columns
+       with integer headers.
+
+       Args:
+           directory (str): Path to the main directory containing .D directories.
+
+       Returns:
+           tuple: (int, int, int) where:
+               - The first element is the row count in the CSV,
+               - The second element is the index of the first integer-named column,
+               - The third element is the index of the last integer-named column.
+           Returns (None, None, None) if no valid CSV file is found.
+       """
+    # Traverse through each .D subdirectory
+    for subdir in sorted(os.listdir(directory)):
+        if subdir.endswith('.D'):
+            dir_name = subdir[:-2]
+            csv_file_path = os.path.join(directory, subdir, f"{dir_name}.csv")
+
+            # Check if the expected CSV file exists
+            if os.path.isfile(csv_file_path):
+                try:
+                    # Load the entire CSV to get an accurate row count and column information
+                    df = pd.read_csv(csv_file_path)
+
+                    # Row count, excluding the header row
+                    row_count = len(df)
+
+                    # Load only the header to get column names
+                    df = pd.read_csv(csv_file_path, nrows=5)
+
+                    # Identify columns with integer names
+                    integer_columns = [i for i, col in enumerate(df.columns) if col.isdigit()]
+
+                    if integer_columns:
+                        # Get the first and last indices
+                        first_integer_col = integer_columns[0]
+                        last_integer_col = integer_columns[-1]
+
+                        return row_count + 1, first_integer_col, last_integer_col
+
+                except Exception as e:
+                    print(f"Error processing file {csv_file_path}: {e}")
+                    return None, None, None
+
+    print("No CSV file found in any .D directory.")
+    return None, None, None
+
+
+def sum_data_in_data_dict(data_dict, axis=1):
+    """
+    Takes a dictionary with arrays as values and returns a new dictionary with the same keys.
+    Depending on the axis parameter, each value is a list of either row sums or column sums.
+
+    Args:
+        data_dict (dict): A dictionary where keys are directory names, and values are 2D numpy arrays.
+        axis (int): Axis along which to sum:
+                    - 1 for summing all columns in a row (default)
+                    - 0 for summing all rows in a column
+    Returns:
+        dict: A dictionary with the same keys as data_dict. Each value is a list of sums along the specified axis.
+    """
+    sum_dict = {}
+
+    # Loop through each key and array in the input dictionary
+    for key, array in data_dict.items():
+        # Calculate the sum along the specified axis and convert to a list
+        sums = array.sum(axis=axis).tolist()
+        # Store the list of sums in the new dictionary
+        sum_dict[key] = sums
+
+    return sum_dict
+
+

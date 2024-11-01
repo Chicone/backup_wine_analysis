@@ -41,6 +41,7 @@ import pandas as pd
 import os
 import math
 from dcor import distance_correlation
+from docutils.nodes import target
 
 import utils
 from data_loader import DataLoader
@@ -160,7 +161,7 @@ class ChromatogramAnalysis:
 
         """
 
-    def __init__(self, file_path1, file_path2):
+    def __init__(self, file_path1=None, file_path2=None):
         self.file_path1 = file_path1
         self.file_path2 = file_path2
 
@@ -195,6 +196,18 @@ class ChromatogramAnalysis:
         all_data = np.array(list(chromatograms.values()))
         mean_chromatogram = np.mean(all_data, axis=0)
         return mean_chromatogram
+
+    def closest_to_mean_chromatogram(self, chromatograms, mean_chromatogram):
+        closest_sample = None
+        highest_correlation = -1
+
+        for sample, tic in chromatograms.items():
+            correlation, _ = pearsonr(tic, mean_chromatogram)
+            if correlation > highest_correlation:
+                highest_correlation = correlation
+                closest_sample = (sample, tic)
+
+        return closest_sample
 
 
     def merge_chromatograms(self, chrom1, chrom2, norm=False):
@@ -316,7 +329,8 @@ class ChromatogramAnalysis:
         # analysis.run_umap(n_neighbors=10, random_state=10, best_score=10)
 #
 
-    def sync_individual_chromatograms(self, reference_chromatogram, input_chromatograms, scales, initial_lag=300):
+    def sync_individual_chromatograms(
+            self, reference_chromatogram, referenmce_ms, input_chromatograms, all_ms, scales, initial_lag=300):
         """
         Synchronize individual chromatograms with a reference chromatogram.
 
@@ -394,8 +408,10 @@ class ChromatogramAnalysis:
         for i, key in enumerate(input_chromatograms.keys()):
             print(i, key)
             chrom = input_chromatograms[key]
+            target
+            target_ms =  all_ms[key]
             sync_chrom = SyncChromatograms(
-                reference_chromatogram, chrom, input_chromatograms, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50,
+                reference_chromatogram, chrom, input_chromatograms, referenmce_ms, target_ms, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50,
                 peak_prominence=0.00
             )
             optimized_chrom = sync_chrom.adjust_chromatogram()
@@ -522,10 +538,12 @@ class SyncChromatograms:
         This class is ideal for researchers who need to compare chromatographic data across multiple wine samples, ensuring that peaks and retention times are aligned for accurate analysis.
         """
 
-    def __init__(self, c1, c2, c2s, n_segments, scales, min_peaks=5, max_iterations=100, threshold=0.5, max_sep_threshold=50, peak_prominence=0.1):
+    def __init__(self, c1, c2, c2s, ref_ms, target_ms, n_segments, scales, min_peaks=5, max_iterations=100, threshold=0.5, max_sep_threshold=50, peak_prominence=0.1):
         self.c1 = c1
         self.c2 = c2
         self.c2s = c2s
+        self.ref_ms = ref_ms
+        self.target_ms = target_ms
         self.n_segments = n_segments
         self.scales = scales
         self.min_peaks = min_peaks
@@ -557,6 +575,38 @@ class SyncChromatograms:
             corrected_segment = scaled_segment
 
         return corrected_segment
+
+    def correct_matrix_lag(self, matrix, lag):
+        """
+        Shifts the rows of a matrix by a specified lag, keeping the row content intact.
+        New positions are padded with zeros.
+
+        Parameters
+        ----------
+        matrix : 2D array-like
+            The matrix where each row contains data that should be shifted as a whole.
+        lag : int
+            The number of rows to shift. Positive values shift down, negative values shift up.
+
+        Returns
+        -------
+        shifted_matrix : numpy.ndarray
+            The matrix with rows shifted by the specified lag, with padding for empty rows.
+        """
+        # Initialize a zero matrix with the same shape as the input matrix
+        shifted_matrix = np.zeros_like(matrix)
+
+        if lag > 0:
+            # Shift rows down, filling top rows with zeros
+            shifted_matrix[lag:] = matrix[:-lag]
+        elif lag < 0:
+            # Shift rows up, filling bottom rows with zeros
+            shifted_matrix[:lag] = matrix[-lag:]
+        else:
+            # No shift, return the original matrix
+            shifted_matrix = matrix
+
+        return shifted_matrix
 
     def find_best_scale_and_lag_corr(self, chrom1, chrom2, scales, max_lag=300):
         """
@@ -827,6 +877,87 @@ class SyncChromatograms:
     #         lags_location.append(len(target_chromatogram_aligned))
     #
     #     return np.array(lags_location), np.array(lags)
+
+
+    def lag_profile_from_ms_data(self, reference_chromatogram, target_chromatogram,
+                         reference_matrix, target_matrix, num_segments, sep_thresh, show_corrections=False):
+        """
+        Divide the reference chromatogram into segments, extract maximum peaks, and for each peak,
+        find the best matching row in the target matrix within a specified window using Euclidean distance.
+
+        Parameters
+        ----------
+        reference_chromatogram : array-like
+            The reference chromatogram.
+        target_chromatogram : array-like
+            The target chromatogram.
+        reference_matrix : 2D array-like
+            The MS data matrix for the reference chromatogram.
+        target_matrix : 2D array-like
+            The MS data matrix for the target chromatogram.
+        num_segments : int
+            Number of segments to divide the chromatogram into.
+
+        Returns
+        -------
+        index_differences : list of int
+            A list containing the index difference between each reference peak and its best match in the target.
+
+        Notes
+        -----
+        This function divides the chromatogram into segments, identifies the maximum peak in each segment,
+        and finds the best match within the target matrix for each peak based on Pearson's coefficient.
+        """
+
+        # Ensure peaks in segments of the reference chromatogram
+        reference_peaks, _ = find_peaks(reference_chromatogram)
+        reference_peaks, valid = self.ensure_peaks_in_segments(
+            reference_chromatogram, reference_peaks, num_segments=num_segments
+        )
+        if not valid:
+            raise ValueError("Some segments in the reference chromatogram do not have peaks. Adjust segmentation parameters.")
+        target_peaks, _ = find_peaks(target_chromatogram)
+        target_peaks, valid = self.ensure_peaks_in_segments(
+            target_chromatogram, target_peaks, num_segments= 3 * num_segments
+        )
+        if not valid:
+            raise ValueError("Some segments in the target chromatogram do not have peaks. Adjust segmentation parameters.")
+
+        index_differences = []
+        locations = []
+
+        for peak_index in reference_peaks:
+
+            # Extract the corresponding row from the reference matrix
+            reference_row = reference_matrix[peak_index]
+            # reference_row = utils.normalize_amplitude_minmax(reference_row)
+
+            # Initialize maximum correlation and best matching index
+            max_correlation = -1  # Pearson correlation ranges from -1 to 1
+            best_match_index = None
+
+            # Compare the reference row to each row within the window in the target matrix
+            for target_index in target_peaks:
+                if np.abs(peak_index - target_index) > sep_thresh:
+                    continue
+                target_row = target_matrix[target_index]
+                target_row = utils.normalize_amplitude_minmax(target_row)
+                correlation, _ = pearsonr(reference_row, target_row)
+
+                # Update best match if the correlation is higher
+                if correlation > 0.98 and correlation > max_correlation:
+                    max_correlation = correlation
+                    best_match_index = target_index
+
+            # Compute the index difference and store it
+            if best_match_index is not None:
+                index_difference = peak_index - best_match_index
+                index_differences.append(index_difference)
+                locations.append(best_match_index)
+                if show_corrections:
+                    print(f"Reference peak at index {peak_index} best matches target at index {best_match_index} (difference: {index_difference})")
+
+        return np.array(locations), np.array(index_differences)
 
 
 
@@ -1547,34 +1678,41 @@ class SyncChromatograms:
                 self.c1, corrected_c2, alignment_tolerance=prox, num_segments=5, apply_global_alignment=True,
                 only_shift=True
             )
-            # self.lag_res = self.lag_profile_from_peaks(
-            #     self.c1, mean_c2s, alignment_tolerance=prox, num_segments=10, apply_global_alignment=True,
-            #     only_shift=False
-            # )
-            corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)[:25000]
-            corrected_c2_sharp = correct_with_spline(self.c2, 50, 1, normalize=True, plot=False)
+            # corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)[:25000]
+            offset = self.lag_res[1][0]
+            offset_corrected_c2 = self.correct_segment(corrected_c2, 1, offset)
+            self.target_ms = self.correct_matrix_lag(self.target_ms, offset)
 
+        self.lag_res = self.lag_profile_from_ms_data(
+            gaussian_filter(self.c1,5), gaussian_filter(offset_corrected_c2, 5), self.ref_ms, self.target_ms,
+            50, 100, show_corrections=False
+        )
+        self.lag_res = list(self.lag_res)
+        self.lag_res[1] = self.lag_res[1] + offset
+        self.lag_res = tuple(self.lag_res)
+        # corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)[:25000]
+        corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)
 
-        # for sl in [8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000]:
-        lengths = [8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000,
-                   8000, 4000, 2000, 8000, 4000, 2000]
-        # lengths = [8000, 4000, 2000]
-        # step_size = (100 - 25) / len(lengths)
-        for i, sl in enumerate(lengths):
-        # for sl in [8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000,]:
-            # Fine round
-            global_align = False
-            sync_chrom = SyncChromatograms(
-                self.c1, corrected_c2, 1, self.scales, 1E6,
-                threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
-            )
-            lag_res = sync_chrom.lag_profile_from_correlation(
-                gaussian_filter(sync_chrom.c1, 50), gaussian_filter(corrected_c2, 50),
-                initial_slice_length=max(4000, sl), max_slice_length=max(4000, sl),
-                hop_size=sl, scan_range=int(1000) , apply_global_alignment=global_align, score=0
-            )
-            sync_chrom.lag_res = lag_res
-            corrected_c2 = sync_chrom.correct_with_spline(corrected_c2, 4, 1, normalize=False, plot=False)
+        # # for sl in [8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000]:
+        # lengths = [8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000,
+        #            8000, 4000, 2000, 8000, 4000, 2000]
+        # # lengths = [8000, 4000, 2000]
+        # # step_size = (100 - 25) / len(lengths)
+        # for i, sl in enumerate(lengths):
+        # # for sl in [8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000, 8000, 4000, 2000, 1000,]:
+        #     # Fine round
+        #     global_align = False
+        #     sync_chrom = SyncChromatograms(
+        #         self.c1, corrected_c2, 1, self.scales, 1E6,
+        #         threshold=0.00, max_sep_threshold=50, peak_prominence=0.00
+        #     )
+        #     lag_res = sync_chrom.lag_profile_from_correlation(
+        #         gaussian_filter(sync_chrom.c1, 50), gaussian_filter(corrected_c2, 50),
+        #         initial_slice_length=max(4000, sl), max_slice_length=max(4000, sl),
+        #         hop_size=sl, scan_range=int(1000) , apply_global_alignment=global_align, score=0
+        #     )
+        #     sync_chrom.lag_res = lag_res
+        #     corrected_c2 = sync_chrom.correct_with_spline(corrected_c2, 4, 1, normalize=False, plot=False)
 
 
 

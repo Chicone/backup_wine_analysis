@@ -1,6 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from data_provider import AccuracyDataProvider
+import pandas as pd
 
 class Visualizer:
     """
@@ -337,4 +338,98 @@ def plot_stacked_chromatograms(analysis, labels):
     ax.set_zlabel('Wines')
     ax.set_title('Stacked 2D Plots')
     ax.legend()
+    plt.show()
+
+
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_classification_accuracy():
+    """
+    Plots classification accuracy for Pinot Noir ISVV (LLE) and Bordeaux Oak 2018 across multiple classifiers,
+    comparing values before and after alignment, with and without PCA pre-processing.
+    """
+
+    # Updated data with column E
+    data = {
+        "Classifier": [
+            "LDA", "LR", "RFC", "PAC", "PER", "RGC", "SGD", "SVM", "KNN", "DTC", "GNB", "GBC"
+        ],
+        "Pinot Noir ISVV (LLE) No PCA Before Alignment (A)": [
+            0.466, 0.630, 0.360, 0.634, 0.589, 0.693, 0.626, 0.196, 0.277, 0.339, 0.300, 0.376
+        ],
+        "Pinot Noir ISVV (LLE) PCA Before Alignment (B)": [
+            0.613, 0.703, 0.269, 0.661, 0.589, 0.674, 0.643, 0.189, 0.297, 0.316, 0.350, 0.329
+        ],
+        "Pinot Noir ISVV (LLE) No PCA After Alignment (C)": [
+            0.650, 0.683, 0.464, 0.650, 0.617, 0.743, 0.661, 0.154, 0.287, 0.357, 0.423, 0.000
+        ],
+        "Pinot Noir ISVV (LLE) PCA After Alignment (D)": [
+            0.723, 0.694, 0.370, 0.683, 0.553, 0.753, 0.620, 0.163, 0.273, 0.443, 0.406, 0.407
+        ],
+        "Pinot Noir ISVV (LLE) Accumulated Abundance (E)": [
+            0.614, 0.647, 0.284, 0.751, 0.639, 0.774, 0.563, 0.166, 0.311, 0.307, 0.309, 0.360
+        ],
+        "Bordeaux Oak 2018 No PCA Before Alignment (A)": [
+            0.894, 0.949, 0.889, 0.917, 0.879, 0.946, 0.906, 0.849, 0.869, 0.717, 0.700, 0.000
+        ],
+        "Bordeaux Oak 2018 PCA Before Alignment (B)": [
+            0.967, 0.939, 0.811, 0.921, 0.850, 0.929, 0.899, 0.839, 0.867, 0.544, 0.784, 0.669
+        ],
+        "Bordeaux Oak 2018 No PCA After Alignment (C)": [
+            0.886, 0.920, 0.830, 0.890, 0.854, 0.921, 0.837, 0.773, 0.806, 0.646, 0.637, 0.000
+        ],
+        "Bordeaux Oak 2018 PCA After Alignment (D)": [
+            0.921, 0.920, 0.780, 0.900, 0.833, 0.923, 0.834, 0.786, 0.834, 0.571, 0.700, 0.603
+        ],
+        "Bordeaux Oak 2018 Accumulated Abundance (E)": [
+            0.853, 0.859, 0.726, 0.853, 0.743, 0.789, 0.770, 0.766, 0.699, 0.553, 0.599, 0.623
+        ]
+    }
+
+    # Convert to DataFrame
+    df = pd.DataFrame(data)
+
+    # Plotting setup
+    bar_width = 0.15  # Adjusted for 5 bars per group
+    index = np.arange(len(df["Classifier"]))  # Classifier positions
+
+    # Create subplots for Pinot Noir ISVV (LLE) and Bordeaux Oak 2018
+    fig, ax = plt.subplots(2, 1, figsize=(14, 12), sharex=True)
+
+    # Colors for bars
+    colors = ['#1f77b4', '#6baed6', '#ff7f0e', '#fdbe85', '#2ca02c']  # Adding a distinct color for E
+
+    # Plot for Pinot Noir ISVV (LLE)
+    ax[0].bar(index, df["Pinot Noir ISVV (LLE) No PCA Before Alignment (A)"], bar_width, label="A: No PCA Before Alignment", color=colors[0])
+    ax[0].bar(index + bar_width, df["Pinot Noir ISVV (LLE) PCA Before Alignment (B)"], bar_width, label="B: PCA Before Alignment", color=colors[1])
+    ax[0].bar(index + 2 * bar_width, df["Pinot Noir ISVV (LLE) No PCA After Alignment (C)"], bar_width, label="C: No PCA After Alignment", color=colors[2])
+    ax[0].bar(index + 3 * bar_width, df["Pinot Noir ISVV (LLE) PCA After Alignment (D)"], bar_width, label="D: PCA After Alignment", color=colors[3])
+    ax[0].bar(index + 4 * bar_width, df["Pinot Noir ISVV (LLE) Accumulated Abundance (E)"], bar_width, label="E: Accumulated Abundance", color=colors[4])
+    ax[0].set_title("Pinot Noir ISVV (LLE) - Classification Accuracy")
+    ax[0].set_ylabel("Accuracy")
+    ax[0].set_ylim(0, 1.02)  # Set y-axis range from 0 to 1.02
+    ax[0].set_xticks(index + 2 * bar_width)
+    ax[0].set_xticklabels(df["Classifier"])
+    ax[0].legend(loc='upper right', bbox_to_anchor=(0.95, 1))  # Adjusted legend position
+    ax[0].grid(axis='y')
+
+    # Plot for Bordeaux Oak 2018
+    ax[1].bar(index, df["Bordeaux Oak 2018 No PCA Before Alignment (A)"], bar_width, label="A: No PCA Before Alignment", color=colors[0])
+    ax[1].bar(index + bar_width, df["Bordeaux Oak 2018 PCA Before Alignment (B)"], bar_width, label="B: PCA Before Alignment", color=colors[1])
+    ax[1].bar(index + 2 * bar_width, df["Bordeaux Oak 2018 No PCA After Alignment (C)"], bar_width, label="C: No PCA After Alignment", color=colors[2])
+    ax[1].bar(index + 3 * bar_width, df["Bordeaux Oak 2018 PCA After Alignment (D)"], bar_width, label="D: PCA After Alignment", color=colors[3])
+    ax[1].bar(index + 4 * bar_width, df["Bordeaux Oak 2018 Accumulated Abundance (E)"], bar_width, label="E: Accumulated Abundance", color=colors[4])
+    ax[1].set_title("Bordeaux Oak 2018 - Classification Accuracy")
+    ax[1].set_xlabel("Classifier")
+    ax[1].set_ylabel("Accuracy")
+    ax[1].set_ylim(0, 1.02)  # Set y-axis range from 0 to 1.02
+    ax[1].set_xticks(index + 2 * bar_width)
+    ax[1].set_xticklabels(df["Classifier"])
+    ax[1].legend(loc='upper right', bbox_to_anchor=(0.95, 1))
+    ax[1].grid(axis='y')
+
+    plt.tight_layout()
     plt.show()

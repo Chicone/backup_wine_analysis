@@ -7,7 +7,8 @@ from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.metrics import classification_report, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, balanced_accuracy_score
+from sklearn.utils.class_weight import compute_sample_weight
 
 from utils import find_first_and_last_position, normalize_dict, normalize_data
 import numpy as np
@@ -215,7 +216,7 @@ class Classifier:
     #     }
 
     def train_and_evaluate(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
-                           scaler_type='standard', use_pca=False, vthresh=0.97):
+                           scaler_type='standard', use_pca=False, vthresh=0.97, region=None):
         """
         Train and evaluate the classifier using cross-validation, and calculate the mean confusion matrix.
         Can also perform PCA-based classification when `pca=True`.
@@ -256,8 +257,15 @@ class Classifier:
         recall_scores = []
         f1_scores = []
         confusion_matrix_sum = None
-        # custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
-        custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+        if region == 'winery':
+            custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+        elif region  == 'origin':
+            custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+        else:
+           custom_order = None
+        # elif region  == 'bordeaux_chateaux':
+        #     custom_order = ['D', 'E', 'F', 'G', 'A', 'B', 'C']
+
 
         n_components = 100
 
@@ -287,7 +295,7 @@ class Classifier:
 
             # Apply PCA if enabled
             if use_pca:
-                # Perform PCA on the training data
+               # Perform PCA on the training data
                 X_train = pca.fit_transform(X_train[:, ::10])
                 X_test = pca.transform(X_test[:, ::10])
 
@@ -308,7 +316,10 @@ class Classifier:
             f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
 
             # Compute the confusion matrix for the current split
-            cm = confusion_matrix(y_test, y_pred, labels=custom_order)
+            if custom_order is not None:
+                cm = confusion_matrix(y_test, y_pred, labels=custom_order)
+            else:
+                cm = confusion_matrix(y_test, y_pred)
 
             # Accumulate the confusion matrix
             if confusion_matrix_sum is None:
@@ -346,6 +357,111 @@ class Classifier:
             'mean_precision': precision_scores.mean(),
             'mean_recall': recall_scores.mean(),
             'mean_f1_score': f1_scores.mean(),
+            'mean_confusion_matrix': mean_confusion_matrix
+        }
+
+    def train_and_evaluate_balanced(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
+                                    scaler_type='standard', use_pca=False, vthresh=0.97, region=None):
+        """
+        Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
+
+        Parameters
+        ----------
+        (same as original)
+
+        Returns
+        -------
+        dict
+            A dictionary containing mean accuracy, balanced accuracy, weighted accuracy, precision, recall, F1-score, and
+            the mean confusion matrix.
+        """
+        # Initialize accumulators for metrics
+        accuracy_scores = []
+        balanced_accuracy_scores = []
+        weighted_accuracy_scores = []
+        precision_scores = []
+        recall_scores = []
+        f1_scores = []
+        confusion_matrix_sum = None
+
+        if region == 'winery':
+            custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+        elif region  == 'origin':
+            custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+        else:
+           custom_order = None
+
+        if use_pca:
+            # Apply PCA if enabled, estimating number of components to capture specified variance
+            reducer = DimensionalityReducer(self.data)
+            _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
+            pca = PCA(n_components=n_components, svd_solver='randomized')
+
+        print('Split', end=' ', flush=True)
+        # Cross-validation loop
+        for i in range(n_splits):
+            # Split data into train and test sets
+            train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(vintage=vintage,
+                                                                                            test_size=test_size)
+
+            # Normalize data if enabled
+            if normalize:
+                X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+                X_test = scaler.transform(X_test)
+
+            # Apply PCA if enabled
+            if use_pca:
+                X_train = pca.fit_transform(X_train)
+                X_test = pca.transform(X_test)
+
+            # Train the classifier without sample_weight
+            self.classifier.fit(X_train, y_train)
+
+            # Print the current split number every 5 iterations to show progress
+            print(i, end=' ', flush=True) if i % 5 == 0 else None
+
+            # Predictions on test data
+            y_pred = self.classifier.predict(X_test)
+
+            # Calculate metrics
+            accuracy_scores.append(self.classifier.score(X_test, y_test))
+            balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
+
+            # Compute weighted accuracy, precision, recall, and F1-score with sample weights
+            sample_weights = compute_sample_weight(class_weight='balanced', y=y_test)
+            weighted_accuracy = np.average(y_pred == y_test, weights=sample_weights)
+            weighted_accuracy_scores.append(weighted_accuracy)
+            precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
+            recall_scores.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
+            f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
+
+            # Confusion matrix for the current split
+            cm = confusion_matrix(y_test, y_pred, labels=custom_order if custom_order else None)
+            confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
+
+        # Print the current split number every 5 iterations to show progress
+        print(i, end=' ', flush=True) if i % 5 == 0 else None
+
+        # Calculate mean confusion matrix and print results
+        mean_confusion_matrix = confusion_matrix_sum / n_splits
+        print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
+        print(
+            f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
+        print(
+            f"Weighted Accuracy: {np.mean(weighted_accuracy_scores):.3f} (+/- {np.std(weighted_accuracy_scores) * 2:.3f})")
+        print(f"Precision: {np.mean(precision_scores):.3f}")
+        print(f"Recall: {np.mean(recall_scores):.3f}")
+        print(f"F1 Score: {np.mean(f1_scores):.3f}")
+        print("Mean Confusion Matrix:", mean_confusion_matrix)
+
+        # Return metrics
+        return {
+            'mean_accuracy': np.mean(accuracy_scores),
+            'mean_balanced_accuracy': np.mean(balanced_accuracy_scores),
+            'mean_weighted_accuracy': np.mean(weighted_accuracy_scores),
+            'mean_precision': np.mean(precision_scores),
+            'mean_recall': np.mean(recall_scores),
+            'mean_f1_score': np.mean(f1_scores),
             'mean_confusion_matrix': mean_confusion_matrix
         }
 
@@ -519,11 +635,11 @@ class Classifier:
         The samples are randomly shuffled before splitting to ensure randomness in the selection.
         """
 
-        if self.wine_kind == 'bordeaux':
-            # Process the labels according to whether they are vintage or not
-            processed_labels = self._process_labels(vintage)
-        else:
-            processed_labels = self.labels
+        # if self.wine_kind == 'bordeaux':
+        #     # Process the labels according to whether they are vintage or not
+        #     processed_labels = self._process_labels(vintage)
+        # else:
+        processed_labels = self.labels
 
         # Initialize lists to store indices for training and testing samples
         test_indices = []
