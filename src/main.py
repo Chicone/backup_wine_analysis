@@ -32,15 +32,17 @@ from scipy.ndimage import gaussian_filter
 from wine_analysis import SyncChromatograms
 
 if __name__ == "__main__":
-    plot_classification_accuracy()
-    n_splits = 100
+    # plot_classification_accuracy()
+    n_splits = 20
+    chrom_cap = 25000
     vintage = False
     pca = False          # True for classification on PCA-reduced data
-    sync_chroms = True  # True to use retention time alignment
+    sync_chroms = False  # True to use retention time alignment
 
-    # main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/DLLME_SCAN/"
-    main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/LLE_SCAN/"
+    main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/DLLME_SCAN/"
     chem_name = 'PINOT_NOIR_LLE_SCAN'
+    # main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/LLE_SCAN/"
+    # chem_name = 'PINOT_NOIR_LLE_SCAN'
     # main_directory = "/home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/"
     # chem_name = 'BORDEAUX_OAK_PAPER_OAK_WOOD'
     row_start = 1
@@ -58,7 +60,9 @@ if __name__ == "__main__":
     row_sum_dict = utils.sum_data_in_data_dict(data_dict, axis=0)
 
     chromatograms = col_sum_dict
+    norm_chromatograms = utils.normalize_dict(chromatograms, scaler='standard')
     # chromatograms = row_sum_dict
+    # norm_chromatograms = chromatograms
 
     cl = ChromatogramAnalysis()
 
@@ -82,77 +86,90 @@ if __name__ == "__main__":
     # # chromatograms1 = utils.filter_dict_by_first_letter(chromatograms1,  beaune)
     # # chromatograms2 = utils.filter_dict_by_first_letter(chromatograms2,  beaune)
 
-    # norm_chromatograms = utils.normalize_dict(chromatograms, scaler='standard')
-    norm_chromatograms = chromatograms
+
     # chromatograms1 = utils.normalize_amplitude_dict(chromatograms1)
     # chromatograms2 = utils.normalize_amplitude_dict(chromatograms2)
 
     mean_c = cl.calculate_mean_chromatogram(chromatograms)
     closest_to_mean = cl.closest_to_mean_chromatogram(chromatograms, mean_c)
 
-    if sync_chroms == True:
-        # synced_chromatograms1 = cl.sync_individual_chromatograms(
-        #     mean_c1, chromatograms1, np.linspace(0.997, 1.003, 30), initial_lag=25
+    for sync_chroms in [True]:
+        if sync_chroms == True:
+            # synced_chromatograms1 = cl.sync_individual_chromatograms(
+            #     mean_c1, chromatograms1, np.linspace(0.997, 1.003, 30), initial_lag=25
+            # )
+            synced_chromatograms = cl.sync_individual_chromatograms(
+                closest_to_mean[1],
+                data_dict[closest_to_mean[0]],
+                chromatograms,
+                data_dict,
+                np.linspace(0.980, 1.020, 80), initial_lag=25
+            )
+
+            synced_chromatograms = {key: value[:chrom_cap] for key, value in synced_chromatograms.items()}
+            norm_chromatograms = utils.normalize_dict(synced_chromatograms, scaler='standard')
+
+        # Concatenation
+        norm_chromatograms = {key: utils.normalize_amplitude_zscore(signal) for key, signal in norm_chromatograms.items()}
+        row_sum_dict = {key: utils.normalize_amplitude_zscore(signal) for key, signal in row_sum_dict.items()}
+        norm_chromatograms = {key: list(value) for key, value in norm_chromatograms.items()}
+        row_sum_dict = {key: list(value) for key, value in row_sum_dict.items()}
+        norm_chromatograms = utils.concatenate_dict_values(norm_chromatograms, row_sum_dict)
+        # norm_chromatograms = {key: utils.normalize_amplitude_minmax(signal) for key, signal in chromatograms.items()}
+
+        # Choose the chromatograms to analyze
+        data = norm_chromatograms.values()
+        # data = synced_chromatograms.values()
+        labels = norm_chromatograms.keys()
+
+
+        if wine_kind == "bordeaux":
+            region = 'bordeaux_chateaux'
+            labels = process_labels(labels, vintage=vintage)
+        elif wine_kind == "pinot_noir":
+            region = 'winery'
+            if region == 'continent':
+                labels = assign_continent_to_pinot_noir(labels)
+            elif region == 'country':
+                labels = assign_country_to_pinot_noir(labels)
+            elif region == 'origin':
+                labels = assign_origin_to_pinot_noir(labels)
+            elif region =='winery':
+                labels = assign_winery_to_pinot_noir(labels)
+            elif region == 'year':
+                labels = assign_year_to_pinot_noir(labels)
+            elif region == 'beaume':
+                labels = assign_north_south_to_beaune(labels)
+            else:
+                raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
+
+        # cl.stacked_2D_plots_3D(synced_chromatograms)
+        # cl.tsne_analysis(chromatograms, vintage,"Pinot Noir", perplexity_range=range(10, len(labels1) - 1, 2),
+        #                  random_states=range(0, 121, 32), wk=wine_kind, region=region)
+        # cl.umap_analysis(
+        #     chromatograms, vintage, "Bordeaux", neigh_range=range(10, 11, 4),
+        #     random_states=range(0, 1, 4), wk=wine_kind, region=region
         # )
-        synced_chromatograms = cl.sync_individual_chromatograms(
-            closest_to_mean[1],
-            data_dict[closest_to_mean[0]],
-            chromatograms,
-            data_dict,
-            np.linspace(0.980, 1.020, 80), initial_lag=25
-        )
 
-        synced_chromatograms = {key: value for key, value in synced_chromatograms.items()}
-        norm_chromatograms = utils.normalize_dict(synced_chromatograms, scaler='standard')
-
-
-    # Choose the chromatograms to analyze
-    data = norm_chromatograms.values()
-    # data = synced_chromatograms.values()
-    labels = norm_chromatograms.keys()
-
-
-    if wine_kind == "bordeaux":
-        region = 'bordeaux_chateaux'
-        labels = process_labels(labels, vintage=vintage)
-    elif wine_kind == "pinot_noir":
-        region = 'origin'
-        if region == 'continent':
-            labels = assign_continent_to_pinot_noir(labels)
-        elif region == 'country':
-            labels = assign_country_to_pinot_noir(labels)
-        elif region == 'origin':
-            labels = assign_origin_to_pinot_noir(labels)
-        elif region =='winery':
-            labels = assign_winery_to_pinot_noir(labels)
-        elif region == 'year':
-            labels = assign_year_to_pinot_noir(labels)
-        elif region == 'beaume':
-            labels = assign_north_south_to_beaune(labels)
-        else:
-            raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
-
-    # cl.stacked_2D_plots_3D(synced_chromatograms)
-    # cl.tsne_analysis(chromatograms, vintage,"Pinot Noir", perplexity_range=range(10, len(labels1) - 1, 2),
-    #                  random_states=range(0, 121, 32), wk=wine_kind, region=region)
-    # cl.umap_analysis(
-    #     chromatograms, vintage, "Bordeaux", neigh_range=range(10, 11, 4),
-    #     random_states=range(0, 1, 4), wk=wine_kind, region=region
-    # )
-
-
-    for cls_type in ['LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB', 'GBC', 'HGBC']:
-    # for cls_type in ['LDA']:
-        print(f"Estimating LOO accuracy on dataset {chem_name}...")
-        cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=wine_kind)
-        # cls.train_and_evaluate(
-        #     n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca,
-        #     vthresh=0.995, region=region
-        # )
-        cls.train_and_evaluate_balanced(
-            n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca,
-            vthresh=0.995, region=region
-        )
+        for pca in [False]:
+            # if not sync_chroms and not pca:
+            #     continue
+            for cls_type in ['LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
+            # for cls_type in ['LDA', 'RGC']:
+                print("")
+                print (f'sync_chroms {sync_chroms}')
+                print (f'PCA {pca}')
+                print(f"Estimating LOO accuracy on dataset {chem_name}...")
+                cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=wine_kind)
+                # cls.train_and_evaluate(
+                #     n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca,
+                #     vthresh=0.995, region=region
+                # )
+                # TODO add parameter to pass second set of features
+                cls.train_and_evaluate_balanced(
+                    n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca,
+                    vthresh=0.995, region=region
+                )
 
 
     # cl.stacked_2D_plots_3D(synced_chromatograms)
