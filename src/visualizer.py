@@ -348,88 +348,72 @@ import matplotlib.pyplot as plt
 
 def plot_classification_accuracy():
     """
-    Plots classification accuracy for Pinot Noir ISVV (LLE) and Bordeaux Oak 2018 across multiple classifiers,
-    comparing values before and after alignment, with and without PCA pre-processing.
+    Plots classification accuracy for Pinot Noir ISVV (LLE scan) and Pinot Noir ISVV (DLLME scan) across multiple classifiers,
+    comparing values for different settings A, B, C, and D.
     """
-
-    # Updated data with column E
+    # Data for Pinot Noir ISVV (LLE scan) and Pinot Noir ISVV (DLLME scan)
     data = {
         "Classifier": [
-            "LDA", "LR", "RFC", "PAC", "PER", "RGC", "SGD", "SVM", "KNN", "DTC", "GNB", "GBC"
+            "LDA", "LR", "RFC", "PAC", "PER", "RGC", "SGD", "SVM", "KNN", "DTC", "GNB"
         ],
-        "Pinot Noir ISVV (LLE) No PCA Before Alignment (A)": [
-            0.466, 0.630, 0.360, 0.634, 0.589, 0.693, 0.626, 0.196, 0.277, 0.339, 0.300, 0.376
+        "Pinot Noir ISVV (LLE scan) A": [
+            0.453, 0.475, 0.294, 0.431, 0.428, 0.503, 0.403, 0.153, 0.231, 0.225, 0.234
         ],
-        "Pinot Noir ISVV (LLE) PCA Before Alignment (B)": [
-            0.613, 0.703, 0.269, 0.661, 0.589, 0.674, 0.643, 0.189, 0.297, 0.316, 0.350, 0.329
+        "Pinot Noir ISVV (LLE scan) B": [
+            0.487, 0.503, 0.319, 0.515, 0.406, 0.562, 0.509, 0.169, 0.197, 0.225, 0.222
         ],
-        "Pinot Noir ISVV (LLE) No PCA After Alignment (C)": [
-            0.650, 0.683, 0.464, 0.650, 0.617, 0.743, 0.661, 0.154, 0.287, 0.357, 0.423, 0.000
+        "Pinot Noir ISVV (LLE scan) C": [
+            0.503, 0.491, 0.410, 0.522, 0.463, 0.562, 0.477, 0.347, 0.356, 0.293, 0.321
         ],
-        "Pinot Noir ISVV (LLE) PCA After Alignment (D)": [
-            0.723, 0.694, 0.370, 0.683, 0.553, 0.753, 0.620, 0.163, 0.273, 0.443, 0.406, 0.407
+        "Pinot Noir ISVV (LLE scan) D": [
+            0.531, 0.603, 0.466, 0.556, 0.556, 0.619, 0.556, 0.263, 0.369, 0.300, 0.312
         ],
-        "Pinot Noir ISVV (LLE) Accumulated Abundance (E)": [
-            0.614, 0.647, 0.284, 0.751, 0.639, 0.774, 0.563, 0.166, 0.311, 0.307, 0.309, 0.360
+        "Pinot Noir ISVV (DLLME scan) A": [
+            0.406, 0.378, 0.259, 0.394, 0.366, 0.428, 0.353, 0.169, 0.150, 0.159, 0.188
         ],
-        "Bordeaux Oak 2018 No PCA Before Alignment (A)": [
-            0.894, 0.949, 0.889, 0.917, 0.879, 0.946, 0.906, 0.849, 0.869, 0.717, 0.700, 0.000
+        "Pinot Noir ISVV (DLLME scan) B": [
+            0.472, 0.537, 0.334, 0.522, 0.478, 0.566, 0.484, 0.231, 0.191, 0.184, 0.206
         ],
-        "Bordeaux Oak 2018 PCA Before Alignment (B)": [
-            0.967, 0.939, 0.811, 0.921, 0.850, 0.929, 0.899, 0.839, 0.867, 0.544, 0.784, 0.669
+        "Pinot Noir ISVV (DLLME scan) C": [
+            0.275, 0.347, 0.275, 0.369, 0.328, 0.416, 0.306, 0.125, 0.247, 0.212, 0.103
         ],
-        "Bordeaux Oak 2018 No PCA After Alignment (C)": [
-            0.886, 0.920, 0.830, 0.890, 0.854, 0.921, 0.837, 0.773, 0.806, 0.646, 0.637, 0.000
-        ],
-        "Bordeaux Oak 2018 PCA After Alignment (D)": [
-            0.921, 0.920, 0.780, 0.900, 0.833, 0.923, 0.834, 0.786, 0.834, 0.571, 0.700, 0.603
-        ],
-        "Bordeaux Oak 2018 Accumulated Abundance (E)": [
-            0.853, 0.859, 0.726, 0.853, 0.743, 0.789, 0.770, 0.766, 0.699, 0.553, 0.599, 0.623
+        "Pinot Noir ISVV (DLLME scan) D": [
+            0.537, 0.506, 0.406, 0.525, 0.537, 0.575, 0.547, 0.341, 0.341, 0.237, 0.328
         ]
     }
-
     # Convert to DataFrame
     df = pd.DataFrame(data)
-
     # Plotting setup
-    bar_width = 0.15  # Adjusted for 5 bars per group
+    bar_width = 0.2  # Adjusted for 4 bars per group
     index = np.arange(len(df["Classifier"]))  # Classifier positions
-
-    # Create subplots for Pinot Noir ISVV (LLE) and Bordeaux Oak 2018
-    fig, ax = plt.subplots(2, 1, figsize=(14, 12), sharex=True)
-
-    # Colors for bars
-    colors = ['#1f77b4', '#6baed6', '#ff7f0e', '#fdbe85', '#2ca02c']  # Adding a distinct color for E
-
-    # Plot for Pinot Noir ISVV (LLE)
-    ax[0].bar(index, df["Pinot Noir ISVV (LLE) No PCA Before Alignment (A)"], bar_width, label="A: No PCA Before Alignment", color=colors[0])
-    ax[0].bar(index + bar_width, df["Pinot Noir ISVV (LLE) PCA Before Alignment (B)"], bar_width, label="B: PCA Before Alignment", color=colors[1])
-    ax[0].bar(index + 2 * bar_width, df["Pinot Noir ISVV (LLE) No PCA After Alignment (C)"], bar_width, label="C: No PCA After Alignment", color=colors[2])
-    ax[0].bar(index + 3 * bar_width, df["Pinot Noir ISVV (LLE) PCA After Alignment (D)"], bar_width, label="D: PCA After Alignment", color=colors[3])
-    ax[0].bar(index + 4 * bar_width, df["Pinot Noir ISVV (LLE) Accumulated Abundance (E)"], bar_width, label="E: Accumulated Abundance", color=colors[4])
-    ax[0].set_title("Pinot Noir ISVV (LLE) - Classification Accuracy")
+    # Create subplots for Pinot Noir ISVV (LLE scan) and Pinot Noir ISVV (DLLME scan)
+    fig, ax = plt.subplots(2, 1, figsize=(14, 12))
+    # Standard color palette
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#9370DB']  # Blue, Orange, Green, Re
+    # Plot for Pinot Noir ISVV (LLE scan)
+    ax[0].bar(index, df["Pinot Noir ISVV (LLE scan) A"], bar_width, label="A: Original TIC", color=colors[0])
+    ax[0].bar(index + bar_width, df["Pinot Noir ISVV (LLE scan) B"], bar_width, label="B: TIC after Alignment", color=colors[1])
+    ax[0].bar(index + 2 * bar_width, df["Pinot Noir ISVV (LLE scan) C"], bar_width, label="C: Total Ion Spectrum (TIS)", color=colors[2])
+    ax[0].bar(index + 3 * bar_width, df["Pinot Noir ISVV (LLE scan) D"], bar_width, label="D: Aligned TIC + TIS", color=colors[3])
+    ax[0].set_title("Pinot Noir ISVV (LLE scan) - Classification Accuracy", size=14)
     ax[0].set_ylabel("Accuracy")
-    ax[0].set_ylim(0, 1.02)  # Set y-axis range from 0 to 1.02
-    ax[0].set_xticks(index + 2 * bar_width)
-    ax[0].set_xticklabels(df["Classifier"])
-    ax[0].legend(loc='upper right', bbox_to_anchor=(0.95, 1))  # Adjusted legend position
+    ax[0].set_ylim(0, 1.02)
+    ax[0].set_xticks(index + 1.5 * bar_width)
+    ax[0].set_xticklabels(df["Classifier"], fontsize=12)  # Set x-tick labels and size for the top plot
+    ax[0].legend(loc='upper right', bbox_to_anchor=(1, 1))
     ax[0].grid(axis='y')
-
-    # Plot for Bordeaux Oak 2018
-    ax[1].bar(index, df["Bordeaux Oak 2018 No PCA Before Alignment (A)"], bar_width, label="A: No PCA Before Alignment", color=colors[0])
-    ax[1].bar(index + bar_width, df["Bordeaux Oak 2018 PCA Before Alignment (B)"], bar_width, label="B: PCA Before Alignment", color=colors[1])
-    ax[1].bar(index + 2 * bar_width, df["Bordeaux Oak 2018 No PCA After Alignment (C)"], bar_width, label="C: No PCA After Alignment", color=colors[2])
-    ax[1].bar(index + 3 * bar_width, df["Bordeaux Oak 2018 PCA After Alignment (D)"], bar_width, label="D: PCA After Alignment", color=colors[3])
-    ax[1].bar(index + 4 * bar_width, df["Bordeaux Oak 2018 Accumulated Abundance (E)"], bar_width, label="E: Accumulated Abundance", color=colors[4])
-    ax[1].set_title("Bordeaux Oak 2018 - Classification Accuracy")
+    # Plot for Pinot Noir ISVV (DLLME scan)
+    ax[1].bar(index, df["Pinot Noir ISVV (DLLME scan) A"], bar_width, label="A: Original TIC", color=colors[0])
+    ax[1].bar(index + bar_width, df["Pinot Noir ISVV (DLLME scan) B"], bar_width, label="B: TIC after Alignment", color=colors[1])
+    ax[1].bar(index + 2 * bar_width, df["Pinot Noir ISVV (DLLME scan) C"], bar_width, label="C: Total Ion Spectrum (TIS)", color=colors[2])
+    ax[1].bar(index + 3 * bar_width, df["Pinot Noir ISVV (DLLME scan) D"], bar_width, label="D: Aligned TIC + TIS", color=colors[3])
+    ax[1].set_title("Pinot Noir ISVV (DLLME scan) - Classification Accuracy", size=14)
     ax[1].set_xlabel("Classifier")
     ax[1].set_ylabel("Accuracy")
-    ax[1].set_ylim(0, 1.02)  # Set y-axis range from 0 to 1.02
-    ax[1].set_xticks(index + 2 * bar_width)
-    ax[1].set_xticklabels(df["Classifier"])
-    ax[1].legend(loc='upper right', bbox_to_anchor=(0.95, 1))
+    ax[1].set_ylim(0, 1.02)
+    ax[1].set_xticks(index + 1.5 * bar_width)
+    ax[1].set_xticklabels(df["Classifier"], fontsize=12)  # Set x-tick labels and size for the bottom plot
+    ax[1].legend(loc='upper right', bbox_to_anchor=(1, 1))
     ax[1].grid(axis='y')
-
     plt.tight_layout()
     plt.show()

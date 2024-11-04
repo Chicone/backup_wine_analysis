@@ -33,16 +33,16 @@ from wine_analysis import SyncChromatograms
 
 if __name__ == "__main__":
     # plot_classification_accuracy()
-    n_splits = 20
+    n_splits = 500
     chrom_cap = 25000
     vintage = False
     pca = False          # True for classification on PCA-reduced data
     sync_chroms = False  # True to use retention time alignment
 
-    main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/DLLME_SCAN/"
-    chem_name = 'PINOT_NOIR_LLE_SCAN'
-    # main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/LLE_SCAN/"
+    # main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/DLLME_SCAN/"
     # chem_name = 'PINOT_NOIR_LLE_SCAN'
+    main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/LLE_SCAN/"
+    chem_name = 'PINOT_NOIR_LLE_SCAN'
     # main_directory = "/home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/"
     # chem_name = 'BORDEAUX_OAK_PAPER_OAK_WOOD'
     row_start = 1
@@ -154,8 +154,8 @@ if __name__ == "__main__":
         for pca in [False]:
             # if not sync_chroms and not pca:
             #     continue
-            for cls_type in ['LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
-            # for cls_type in ['LDA', 'RGC']:
+            # for cls_type in ['LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
+            for cls_type in ['RGC']:
                 print("")
                 print (f'sync_chroms {sync_chroms}')
                 print (f'PCA {pca}')

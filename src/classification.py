@@ -452,7 +452,7 @@ class Classifier:
         print(f"Precision: {np.mean(precision_scores):.3f}")
         print(f"Recall: {np.mean(recall_scores):.3f}")
         print(f"F1 Score: {np.mean(f1_scores):.3f}")
-        # print("Mean Confusion Matrix:", mean_confusion_matrix)
+        print("Mean Confusion Matrix:", mean_confusion_matrix)
 
         # Return metrics
         return {
