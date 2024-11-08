@@ -930,7 +930,7 @@ class SyncChromatograms:
 
             # Extract the corresponding row from the reference matrix
             reference_row = reference_matrix[peak_index]
-            # reference_row = utils.normalize_amplitude_minmax(reference_row)
+            reference_row = utils.normalize_amplitude_zscore(reference_row)
 
             # Initialize maximum correlation and best matching index
             max_correlation = -1  # Pearson correlation ranges from -1 to 1
@@ -941,7 +941,7 @@ class SyncChromatograms:
                 if np.abs(peak_index - target_index) > sep_thresh:
                     continue
                 target_row = target_matrix[target_index]
-                target_row = utils.normalize_amplitude_minmax(target_row)
+                target_row = utils.normalize_amplitude_zscore(target_row)
                 correlation, _ = pearsonr(reference_row, target_row)
 
                 # Update best match if the correlation is higher
@@ -1680,18 +1680,29 @@ class SyncChromatograms:
             )
             # corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)[:25000]
             offset = self.lag_res[1][0]
+
+            # Update the TIC and the rows of the MS matrix to account for the global shift
             offset_corrected_c2 = self.correct_segment(corrected_c2, 1, offset)
             self.target_ms = self.correct_matrix_lag(self.target_ms, offset)
 
         self.lag_res = self.lag_profile_from_ms_data(
             gaussian_filter(self.c1,5), gaussian_filter(offset_corrected_c2, 5), self.ref_ms, self.target_ms,
-            50, 100, show_corrections=False
+            200, 100, show_corrections=False
         )
+        # Ensure the first and last lags are consistent
         self.lag_res = list(self.lag_res)
-        self.lag_res[1] = self.lag_res[1] + offset
+        if len(self.lag_res[0]) > 0:
+            self.lag_res[0] = np.concatenate(([0], self.lag_res[0], [len(offset_corrected_c2)]))
+            self.lag_res[1] = np.concatenate(([self.lag_res[1][0]], self.lag_res[1], [self.lag_res[1][-1]]))
         self.lag_res = tuple(self.lag_res)
-        # corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)[:25000]
-        corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)
+
+
+        # self.lag_res = list(self.lag_res)
+        # self.lag_res[1] = self.lag_res[1] + offset
+        # self.lag_res[0] = self.lag_res[0] - offset
+        # self.lag_res = tuple(self.lag_res)
+        # corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)
+        corrected_c2 = correct_with_spline(offset_corrected_c2, 0, 1, normalize=False, plot=False)
 
         # # for sl in [8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000]:
         # lengths = [8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000, 8000, 4000, 2000,

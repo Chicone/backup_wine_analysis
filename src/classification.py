@@ -395,6 +395,10 @@ class Classifier:
             # Apply PCA if enabled, estimating number of components to capture specified variance
             reducer = DimensionalityReducer(self.data)
             _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
+            # Find number of classes in training splits and correct n_components if larger
+            check_classes = self.split_data(vintage=vintage, test_size=test_size)
+            n_components = min(n_components, len(check_classes[0]))
+            print(f'PCA = {n_components}')
             pca = PCA(n_components=n_components, svd_solver='randomized')
 
         print('Split', end=' ', flush=True)
