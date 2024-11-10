@@ -588,3 +588,32 @@ def string_to_latex_confusion_matrix(data_str, headers):
 
     # Print without escape characters
     print(latex_string)
+
+
+def plot_image(image_tensor):
+    """
+    Plot a 3, 224, 224 image tensor using Matplotlib.
+
+    Parameters:
+    -----------
+    image_tensor : torch.Tensor
+        A tensor of shape (3, H, W) representing an RGB image.
+    """
+    if image_tensor.shape[0] == 3:  # Ensure it's 3-channel
+        image_tensor = image_tensor.permute(1, 2, 0)  # Rearrange to (H, W, C)
+    else:
+        raise ValueError("Input tensor should have 3 channels (RGB).")
+
+    # Convert tensor to numpy array
+    image = image_tensor.cpu().numpy()
+
+    # De-normalize if needed (ImageNet stats)
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+    image = std * image + mean  # De-normalize
+    image = image.clip(0, 1)  # Clip values to [0, 1] for display
+
+    # Plot the image
+    plt.imshow(image)
+    plt.axis('off')  # Turn off axes
+    plt.show()

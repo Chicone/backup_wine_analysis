@@ -10,10 +10,474 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, balanced_accuracy_score
 from sklearn.utils.class_weight import compute_sample_weight
 
+
+
 from utils import find_first_and_last_position, normalize_dict, normalize_data
 import numpy as np
 import re
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.nn.parallel import DataParallel
+from sklearn.metrics import accuracy_score
+from torch.utils.data import DataLoader, Dataset, random_split
+from torchvision import models
+from torchvision import transforms
+
+class CustomDataParallel(torch.nn.DataParallel):
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
+
+# class CNNClassifier(nn.Module):
+    # def __init__(self, input_channels, num_classes, input_height, input_width):
+    #     super(CNNClassifier, self).__init__()
+    #     self.device = "cpu"
+    #     self.conv1 = nn.Conv2d(input_channels, 16, kernel_size=3, stride=1, padding=1)
+    #     self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
+    #     self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+    #
+    #     # Calculate the output size after convolution and pooling
+    #     conv_output_height = input_height // 4  # Two pooling layers reduce height by a factor of 4
+    #     conv_output_width = input_width // 4  # Two pooling layers reduce width by a factor of 4
+    #     flattened_size = 32 * conv_output_height * conv_output_width
+    #
+    #     self.fc1 = nn.Linear(flattened_size, 128)
+    #     self.fc2 = nn.Linear(128, num_classes)
+    #     self.relu = nn.ReLU()
+    #
+    # def forward(self, x):
+    #     x = self.pool(self.relu(self.conv1(x)))
+    #     x = self.pool(self.relu(self.conv2(x)))
+    #     x = x.view(x.size(0), -1)
+    #     x = self.relu(self.fc1(x))
+    #     x = self.fc2(x)
+    #     return x
+
+
+class SimpleGCMSCNN(nn.Module):
+    def __init__(self, input_channels, num_classes, input_height, input_width):
+        super(SimpleGCMSCNN, self).__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.conv1 = nn.Conv2d(input_channels, 16, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.flatten = nn.Flatten()
+
+        # Dynamically calculate the size of the feature map after convolutions and pooling
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, input_channels, input_height, input_width)
+            dummy_output = self.pool(self.conv2(self.pool(self.conv1(dummy_input))))
+            dummy_output = self.pool(self.conv3(dummy_output))
+            flattened_size = dummy_output.numel()
+
+        # Calculate the size of the feature map after convolution and pooling
+        self.fc1 = nn.Linear(flattened_size, 128)  # Adjust size based on input image size
+        self.fc2 = nn.Linear(128, num_classes)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = self.relu(self.conv1(x))
+        x = self.pool(self.relu(self.conv2(x)))
+        x = self.pool(self.relu(self.conv3(x)))
+        x = self.pool(x)  # Additional pooling layer
+        x = self.flatten(x)
+        x = self.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
+
+    def fit(self, X_train, y_train, X_val, y_val, batch_size=32, num_epochs=20, learning_rate=0.001):
+        """
+        Train the model with validation checks.
+
+        Parameters:
+        ----------
+        X_train : Tensor
+            Training data of shape (num_train_samples, input_channels, input_height, input_width).
+        y_train : Tensor
+            Training labels of shape (num_train_samples,).
+        X_val : Tensor
+            Validation data of shape (num_val_samples, input_channels, input_height, input_width).
+        y_val : Tensor
+            Validation labels of shape (num_val_samples,).
+        batch_size : int
+            Batch size for training.
+        num_epochs : int
+            Number of epochs to train.
+        learning_rate : float
+            Learning rate for optimizer.
+
+        Returns:
+        -------
+        self : SimpleGCMSCNN
+            The trained model.
+        """
+
+
+        self.reset_parameters()
+
+        # Create DataLoader for training and validation
+        # X_train = preprocess_images(X_train)
+        train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+        # X_val = preprocess_images(X_val)
+        val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+
+        # Define optimizer and loss function
+        optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        loss_fn = nn.CrossEntropyLoss()
+
+        self.to(self.device)
+        self.train()
+
+        for epoch in range(num_epochs):
+            total_loss = 0
+            self.train()  # Set model to training mode
+            for batch_X, batch_y in train_loader:
+                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
+
+                optimizer.zero_grad()
+                outputs = self(batch_X)
+                loss = loss_fn(outputs, batch_y)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+
+            # Validation step
+            self.eval()  # Set model to evaluation mode
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for val_X, val_y in val_loader:
+                    val_X, val_y = val_X.to(self.device), val_y.to(self.device)
+                    outputs = self(val_X)
+                    _, predicted = torch.max(outputs, 1)
+                    total += val_y.size(0)
+                    correct += (predicted == val_y).sum().item()
+
+            val_accuracy = correct / total
+
+            print(
+                f"Epoch {epoch + 1}/{num_epochs}, "
+                f"Training Loss: {total_loss / len(train_loader):.4f}, "
+                f"Validation Accuracy: {val_accuracy:.4f}"
+            )
+
+        return self
+
+    def predict(self, X):
+        """
+        Predict the class labels for the given input data.
+
+        Parameters:
+        ----------
+        X : numpy.ndarray
+            Input data, assumed to be of shape (num_samples, input_channels, input_height, input_width).
+
+        Returns:
+        -------
+        y_pred : numpy.ndarray
+            Predicted class labels.
+        """
+        self.eval()
+        # X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+
+        with torch.no_grad():
+            outputs = self(X)
+            _, y_pred = torch.max(outputs, 1)
+
+        return y_pred.cpu().numpy()
+
+    def score(self, X_test, y_test):
+        """
+        Compute the accuracy of the model on test data.
+
+        Parameters:
+        -----------
+        X_test : Tensor
+            Test feature data.
+        y_test : Tensor
+            True labels for the test data.
+
+        Returns:
+        --------
+        float
+            Accuracy of the model.
+        """
+        self.eval()  # Switch to evaluation mode
+        correct = 0
+        total = 0
+
+        with torch.no_grad():  # Disable gradient computation
+            for inputs, labels in DataLoader(torch.utils.data.TensorDataset(X_test, y_test), batch_size=32):
+                outputs = self(inputs)
+                _, predicted = torch.max(outputs, 1)  # Get predicted class
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        return correct / total
+
+    def reset_parameters(self):
+        """
+        Reset all model parameters to their initial states.
+        """
+
+        for layer in self.children():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.running_mean.zero_()
+                layer.running_var.fill_(1)
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
+
+
+class MobileNetClassifier(nn.Module):
+    def __init__(self, input_channels, num_classes):
+        super(MobileNetClassifier, self).__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Load the pre-trained MobileNetV2 model
+        self.mobilenet = models.mobilenet_v2(pretrained=True)
+
+        # Freeze all the feature extractor layers
+        for param in self.mobilenet.features.parameters():
+            param.requires_grad = False
+
+        # Modify the first convolutional layer to accept the desired number of input channels
+        self.mobilenet.features[0][0] = nn.Conv2d(
+            input_channels, 32, kernel_size=3, stride=2, padding=1, bias=False
+        )
+
+        # Replace the classifier to match the number of classes
+        self.mobilenet.classifier = nn.Sequential(
+            nn.Linear(self.mobilenet.last_channel, 128),  # Add a hidden layer for flexibility
+            nn.ReLU(),
+            nn.Linear(128, num_classes)  # Final layer for classification
+        )
+
+    def forward(self, x):
+        return self.mobilenet(x)
+
+    def fit(self, X_train, y_train, X_val, y_val, batch_size=32, num_epochs=20, learning_rate=0.001):
+        """
+        Train the MobileNet model with validation checks.
+
+        Parameters:
+        ----------
+        X_train : Tensor
+            Training data of shape (num_train_samples, input_channels, input_height, input_width).
+        y_train : Tensor
+            Training labels of shape (num_train_samples,).
+        X_val : Tensor
+            Validation data of shape (num_val_samples, input_channels, input_height, input_width).
+        y_val : Tensor
+            Validation labels of shape (num_val_samples,).
+        batch_size : int
+            Batch size for training.
+        num_epochs : int
+            Number of epochs to train.
+        learning_rate : float
+            Learning rate for optimizer.
+
+        Returns:
+        -------
+        self : MobileNetClassifier
+            The trained model.
+        """
+        # Reset model parameters in the classifier head (only trainable layers)
+        for layer in self.mobilenet.classifier:
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
+        # self.reset_parameters()
+
+        # # Define preprocessing transforms
+        # preprocess = transforms.Compose([
+        #     transforms.ToPILImage(),  # Convert tensor to PIL image
+        #     transforms.Resize((224, 224)),  # Resize to 224x224
+        #     transforms.Grayscale(num_output_channels=3),  # Convert single-channel to 3 channels
+        #     transforms.ToTensor(),  # Convert back to tensor
+        #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize to ImageNet stats
+        # ])
+        #
+        # # Apply the preprocessing to each image in the dataset
+        # def preprocess_images(train_tensor):
+        #     processed_images = []
+        #     for img in train_tensor:  # Loop through each image in the dataset
+        #         processed_img = preprocess(
+        #             img.squeeze(0).cpu().numpy())  # Remove channel dimension and apply preprocess
+        #         processed_images.append(processed_img)
+        #     return torch.stack(processed_images)
+
+        # Create DataLoader for training and validation
+        # X_train = preprocess_images(X_train)
+        train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+        # X_val = preprocess_images(X_val)
+        val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+
+        # Define optimizer and loss function
+        optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        loss_fn = nn.CrossEntropyLoss()
+
+        self.to(self.device)
+        self.train()
+
+        for epoch in range(num_epochs):
+            total_loss = 0
+            self.train()  # Set model to training mode
+            for batch_X, batch_y in train_loader:
+                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
+
+                optimizer.zero_grad()
+                outputs = self(batch_X)
+                loss = loss_fn(outputs, batch_y)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+
+            # Validation step
+            self.eval()  # Set model to evaluation mode
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for val_X, val_y in val_loader:
+                    val_X, val_y = val_X.to(self.device), val_y.to(self.device)
+                    outputs = self(val_X)
+                    _, predicted = torch.max(outputs, 1)
+                    total += val_y.size(0)
+                    correct += (predicted == val_y).sum().item()
+
+            val_accuracy = correct / total
+
+            print(
+                f"Epoch {epoch + 1}/{num_epochs}, "
+                f"Training Loss: {total_loss / len(train_loader):.4f}, "
+                f"Validation Accuracy: {val_accuracy:.4f}"
+            )
+
+        return self
+
+    # def fit(self, X_tensor, y_tensor, batch_size=32, epochs=20, learning_rate=0.001):
+    #     """
+    #     Train the CNN model.
+    #
+    #     Parameters:
+    #     ----------
+    #     X : numpy.ndarray
+    #         Training data, assumed to be of shape (num_samples, input_channels, input_height, input_width).
+    #     y : numpy.ndarray
+    #         Labels corresponding to the training data, shape (num_samples,).
+    #     batch_size : int
+    #         Batch size for training.
+    #     epochs : int
+    #         Number of epochs to train.
+    #     learning_rate : float
+    #         Learning rate for optimizer.
+    #
+    #     Returns:
+    #     -------
+    #     self : CNNClassifier
+    #         The trained model.
+    #     """
+    #
+    #     # Reset model parameters
+    #     self.reset_parameters()
+    #
+    #     # Create DataLoader
+    #     dataset = torch.utils.data.TensorDataset(X_tensor, y_tensor)
+    #     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    #
+    #     # Define optimizer and loss function
+    #     optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+    #     loss_fn = nn.CrossEntropyLoss()
+    #
+    #     self.to(self.device)
+    #     self.train()
+    #
+    #     for epoch in range(epochs):
+    #         total_loss = 0
+    #         for batch_X, batch_y in data_loader:
+    #             optimizer.zero_grad()
+    #             outputs = self(batch_X)
+    #             loss = loss_fn(outputs, batch_y)
+    #             loss.backward()
+    #             optimizer.step()
+    #             total_loss += loss.item()
+    #
+    #         print(f"Epoch {epoch + 1}/{epochs}, Loss: {total_loss / len(data_loader):.4f}")
+    #
+    #     return self
+
+    def predict(self, X):
+        """
+        Predict the class labels for the given input data.
+
+        Parameters:
+        ----------
+        X : numpy.ndarray
+            Input data, assumed to be of shape (num_samples, input_channels, input_height, input_width).
+
+        Returns:
+        -------
+        y_pred : numpy.ndarray
+            Predicted class labels.
+        """
+        self.eval()
+        # X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+
+        with torch.no_grad():
+            outputs = self(X)
+            _, y_pred = torch.max(outputs, 1)
+
+        return y_pred.cpu().numpy()
+
+    def score(self, X_test, y_test):
+        """
+        Compute the accuracy of the model on test data.
+
+        Parameters:
+        -----------
+        X_test : Tensor
+            Test feature data.
+        y_test : Tensor
+            True labels for the test data.
+
+        Returns:
+        --------
+        float
+            Accuracy of the model.
+        """
+        self.eval()  # Switch to evaluation mode
+        correct = 0
+        total = 0
+
+        with torch.no_grad():  # Disable gradient computation
+            for inputs, labels in DataLoader(torch.utils.data.TensorDataset(X_test, y_test), batch_size=32):
+                outputs = self(inputs)
+                _, predicted = torch.max(outputs, 1)  # Get predicted class
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        return correct / total
+
+    def reset_parameters(self):
+        """
+        Reset all model parameters to their initial states.
+        """
+
+        for layer in self.children():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.running_mean.zero_()
+                layer.running_var.fill_(1)
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
 
 
 class Classifier:
@@ -92,128 +556,22 @@ class Classifier:
             return GradientBoostingClassifier(n_estimators=50, max_depth=3, learning_rate=0.1)
         elif classifier_type == 'HGBC':
             return HistGradientBoostingClassifier(max_leaf_nodes=31, learning_rate=0.2, max_iter=50, max_bins=128)
+        elif classifier_type == 'CNN':
+            return self._initialize_cnn()
 
+    def _initialize_cnn(self):
+        """
+        Initialize the CNN classifier. This method can be extended with hyperparameters as needed.
+        """
+        input_channels = 1  # Assuming grayscale images, modify for other cases
+        num_classes = len(set(self.labels))  # Number of unique labels
+        height, width = self.data.shape[-2:]
+        # model = CNNClassifier(input_channels, num_classes, height, width)
+        # model = MobileNetClassifier(input_channels, num_classes)
+        model = SimpleGCMSCNN(input_channels, num_classes, 224, 224)
+        model = CustomDataParallel(model)
+        return model
 
-    # def train_and_evaluate(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
-    #                        scaler_type='standard'):
-    #     """
-    #     Train and evaluate the classifier using cross-validation, and calculate the mean confusion matrix.
-    #
-    #     Parameters
-    #     ----------
-    #     n_splits : int, optional
-    #         The number of splits for cross-validation. Default is 50.
-    #     vintage : bool, optional
-    #         Whether to process labels for vintage data. Default is False.
-    #     random_seed : int, optional
-    #         The random seed for reproducibility. Default is 42.
-    #     test_size : float, optional
-    #         The proportion of the dataset to include in the test split. If None, only one sample
-    #         is used for testing. Default is None.
-    #     normalize : bool, optional
-    #         Whether to normalize the data. Default is False.
-    #     scaler_type : str, optional
-    #         The type of scaler to use for normalization if `normalize` is True. Default is 'standard'.
-    #
-    #     Returns
-    #     -------
-    #     dict
-    #         A dictionary containing mean accuracy, precision, recall, F1-score, and the mean confusion matrix.
-    #
-    #     Notes
-    #     -----
-    #     This function performs cross-validation on the classifier and prints accuracy, precision, recall, F1-score,
-    #     and the mean confusion matrix over all splits.
-    #     """
-    #     from sklearn.metrics import classification_report, precision_score, recall_score, f1_score, confusion_matrix
-    #
-    #     # Set the random seed for reproducibility of the results
-    #     np.random.seed(random_seed)
-    #
-    #     # Initialize lists to store scores for different metrics
-    #     accuracy_scores = []
-    #     precision_scores = []
-    #     recall_scores = []
-    #     f1_scores = []
-    #
-    #     # Initialize a confusion matrix accumulator
-    #     confusion_matrix_sum = None
-    #     custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
-    #     # custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
-    #
-    #     print('Split', end=' ', flush=True)
-    #
-    #     # Perform cross-validation over the specified number of splits
-    #     for i in range(n_splits):
-    #         # Split the data into training and testing sets
-    #         train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
-    #             vintage=vintage, test_size=test_size
-    #         )
-    #
-    #         # Normalize the data if normalization is enabled
-    #         if normalize:
-    #             X_train, scaler = normalize_data(X_train, scaler=scaler_type)  # Fit scaler on training data
-    #             X_test = scaler.transform(X_test)  # Transform test data using the train scaler
-    #
-    #         # Train the classifier on the training data
-    #         self.classifier.fit(X_train, y_train)
-    #
-    #         # Print the current split number every 5 iterations to show progress
-    #         print(i, end=' ', flush=True) if i % 5 == 0 else None
-    #
-    #         # Make predictions on the test set
-    #         y_pred = self.classifier.predict(X_test)
-    #
-    #         # Calculate accuracy and other metrics
-    #         accuracy_scores.append(self.classifier.score(X_test, y_test))
-    #         precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
-    #         recall_scores.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
-    #         f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
-    #
-    #         # Compute the confusion matrix for the current split
-    #
-    #         cm = confusion_matrix(y_test, y_pred, labels=custom_order)
-    #
-    #         # Accumulate the confusion matrix
-    #         if confusion_matrix_sum is None:
-    #             confusion_matrix_sum = np.zeros_like(cm)  # Initialize the accumulator with zeros the same shape as `cm`
-    #
-    #         confusion_matrix_sum += cm  # Add the confusion matrix from the current split
-    #
-    #     # Print a new line after the loop completes
-    #     print()
-    #
-    #     # Convert lists of scores to numpy arrays for easier statistical calculations
-    #     accuracy_scores = np.asarray(accuracy_scores)
-    #     precision_scores = np.asarray(precision_scores)
-    #     recall_scores = np.asarray(recall_scores)
-    #     f1_scores = np.asarray(f1_scores)
-    #
-    #     # Calculate the mean confusion matrix by dividing the accumulated matrix by the number of splits
-    #     mean_confusion_matrix = confusion_matrix_sum / n_splits
-    #
-    #     # Print summary of results
-    #     print("\033[96m" + "Accuracy: %0.3f (+/- %0.3f)" % (
-    #     accuracy_scores.mean(), accuracy_scores.std() * 2) + "\033[0m")
-    #     print("\033[96m" + "Precision: %0.3f (+/- %0.3f)" % (
-    #     precision_scores.mean(), precision_scores.std() * 2) + "\033[0m")
-    #     print("\033[96m" + "Recall: %0.3f (+/- %0.3f)" % (recall_scores.mean(), recall_scores.std() * 2) + "\033[0m")
-    #     print("\033[96m" + "F1 Score: %0.3f (+/- %0.3f)" % (f1_scores.mean(), f1_scores.std() * 2) + "\033[0m")
-    #
-    #     # Optionally print the mean confusion matrix
-    #     print("\033[96m" + "Mean Confusion Matrix (over all splits):" + "\033[0m")
-    #     print(mean_confusion_matrix)
-    #     print(custom_order)
-    #     print(y_test)
-    #
-    #     # Return the mean scores and the mean confusion matrix
-    #     return {
-    #         'mean_accuracy': accuracy_scores.mean(),
-    #         'mean_precision': precision_scores.mean(),
-    #         'mean_recall': recall_scores.mean(),
-    #         'mean_f1_score': f1_scores.mean(),
-    #         'mean_confusion_matrix': mean_confusion_matrix
-    #     }
 
     def train_and_evaluate(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
                            scaler_type='standard', use_pca=False, vthresh=0.97, region=None):
@@ -361,7 +719,8 @@ class Classifier:
         }
 
     def train_and_evaluate_balanced(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
-                                    scaler_type='standard', use_pca=False, vthresh=0.97, region=None):
+                                    scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
+                                    cnn=False, batch_size=32, num_epochs=10, learning_rate=0.001):
         """
         Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
 
@@ -418,8 +777,53 @@ class Classifier:
                 X_train = pca.fit_transform(X_train)
                 X_test = pca.transform(X_test)
 
-            # Train the classifier without sample_weight
-            self.classifier.fit(X_train, y_train)
+
+            # Transform input data for CNN
+            if cnn:
+                # Define preprocessing transforms
+                preprocess = transforms.Compose([
+                    transforms.ToPILImage(),  # Convert tensor to PIL image
+                    transforms.Resize((224, 224)),  # Resize to 224x224
+                    transforms.Grayscale(num_output_channels=1),  # Convert single-channel to 3 channels
+                    transforms.ToTensor(),  # Convert back to tensor
+                    # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                    transforms.Normalize(mean=[0.5], std=[0.5])
+                    # Normalize to ImageNet stats
+                ])
+
+                # Apply the preprocessing to each image in the dataset
+                def preprocess_images(train_tensor):
+                    processed_images = []
+                    for img in train_tensor:  # Loop through each image in the dataset
+                        processed_img = preprocess(
+                            img.squeeze(0).cpu().numpy())  # Remove channel dimension and apply preprocess
+                        processed_images.append(processed_img)
+                    return torch.stack(processed_images)
+
+                # Convert labels to integers
+                label_to_index = {label: idx for idx, label in enumerate(set(y_train))}
+                integer_labels = [label_to_index[label] for label in y_train]
+                integer_labels = np.repeat(integer_labels, X_train.shape[1])
+                y_train = torch.tensor(integer_labels, dtype=torch.long).to("cpu")
+
+                # Flatten the first two dimensions
+                X_train = X_train.reshape(-1, X_train.shape[2], X_train.shape[3])
+                X_train = torch.tensor(X_train, dtype=torch.float32).to("cpu").unsqueeze(1)
+                X_train = preprocess_images(X_train)
+
+                integer_labels = [label_to_index[label] for label in y_test]
+                integer_labels = np.repeat(integer_labels, X_test.shape[1])
+                y_test = torch.tensor(integer_labels, dtype=torch.long).to("cpu")
+
+                X_test = X_test.reshape(-1, X_test.shape[2], X_test.shape[3])
+                X_test = torch.tensor(X_test, dtype=torch.float32).to("cpu").unsqueeze(1)
+                X_test = preprocess_images(X_test)
+
+                self.classifier.fit(X_train, y_train, X_test, y_test,
+                                    batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate)
+            else:
+                # Train the classifier without sample_weight
+                self.classifier.fit(X_train, y_train)
 
             # Print the current split number every 5 iterations to show progress
             print(i, end=' ', flush=True) if i % 5 == 0 else None
@@ -429,6 +833,7 @@ class Classifier:
 
             # Calculate metrics
             accuracy_scores.append(self.classifier.score(X_test, y_test))
+            print(accuracy_scores)
             balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
 
             # Compute weighted accuracy, precision, recall, and F1-score with sample weights
@@ -440,14 +845,14 @@ class Classifier:
             f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
 
             # Confusion matrix for the current split
-            cm = confusion_matrix(y_test, y_pred, labels=custom_order if custom_order else None)
-            confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
+            # cm = confusion_matrix(y_test, y_pred, labels=custom_order if custom_order else None)
+            # confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
 
         # Print the current split number every 5 iterations to show progress
         print(i, end=' ', flush=True) if i % 5 == 0 else None
 
         # Calculate mean confusion matrix and print results
-        mean_confusion_matrix = confusion_matrix_sum / n_splits
+        # mean_confusion_matrix = confusion_matrix_sum / n_splits
         print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
         print(
             f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
@@ -456,7 +861,7 @@ class Classifier:
         print(f"Precision: {np.mean(precision_scores):.3f}")
         print(f"Recall: {np.mean(recall_scores):.3f}")
         print(f"F1 Score: {np.mean(f1_scores):.3f}")
-        print("Mean Confusion Matrix:", mean_confusion_matrix)
+        # print("Mean Confusion Matrix:", mean_confusion_matrix)
 
         # Return metrics
         return {
@@ -466,7 +871,7 @@ class Classifier:
             'mean_precision': np.mean(precision_scores),
             'mean_recall': np.mean(recall_scores),
             'mean_f1_score': np.mean(f1_scores),
-            'mean_confusion_matrix': mean_confusion_matrix
+            # 'mean_confusion_matrix': mean_confusion_matrix
         }
 
     def train_and_evaluate_separate_datasets(self, X_train, y_train, X_test, y_test, n_splits=50, vintage=False,
@@ -538,6 +943,7 @@ class Classifier:
 
             # Evaluate the classifier on the "out" sample and append the score to the list
             scores.append(self.classifier.score(X_out, y_out))
+            print(self.classifier.score(X_out, y_out))
 
             # Print the current split number every 5 iterations to show progress
             print(i, end=' ', flush=True) if i % 5 == 0 else None
@@ -1001,6 +1407,5 @@ def assign_year_to_pinot_noir(labels):
     first_letters = [label[-2:] for label in labels]
 
     return first_letters
-
 
 
