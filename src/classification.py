@@ -24,6 +24,7 @@ from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import models
 from torchvision import transforms
+import torch.nn.functional as F
 
 class CustomDataParallel(torch.nn.DataParallel):
     def __getattr__(self, name):
@@ -780,25 +781,52 @@ class Classifier:
 
             # Transform input data for CNN
             if cnn:
-                # Define preprocessing transforms
-                preprocess = transforms.Compose([
-                    transforms.ToPILImage(),  # Convert tensor to PIL image
-                    transforms.Resize((224, 224)),  # Resize to 224x224
-                    transforms.Grayscale(num_output_channels=1),  # Convert single-channel to 3 channels
-                    transforms.ToTensor(),  # Convert back to tensor
-                    # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-                    transforms.Normalize(mean=[0.5], std=[0.5])
-                    # Normalize to ImageNet stats
-                ])
+                # # Define preprocessing transforms
+                # preprocess = transforms.Compose([
+                #     transforms.ToPILImage(),  # Convert tensor to PIL image
+                #     transforms.Resize((224, 224)),  # Resize to 224x224
+                #     # transforms.Grayscale(num_output_channels=3),  # Convert single-channel to 3 channels
+                #     transforms.ToTensor(),  # Convert back to tensor
+                #     # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                #     transforms.Normalize(mean=[0.5], std=[0.5])
+                #     # Normalize to ImageNet stats
+                # ])
+                #
+                # # Apply the preprocessing to each image in the dataset
+                # def preprocess_images(train_tensor):
+                #     processed_images = []
+                #     for img in train_tensor:  # Loop through each image in the dataset
+                #         processed_img = preprocess(
+                #             img.squeeze(0).cpu().numpy())  # Remove channel dimension and apply preprocess
+                #         processed_images.append(processed_img)
+                #     return torch.stack(processed_images)
 
-                # Apply the preprocessing to each image in the dataset
-                def preprocess_images(train_tensor):
-                    processed_images = []
-                    for img in train_tensor:  # Loop through each image in the dataset
-                        processed_img = preprocess(
-                            img.squeeze(0).cpu().numpy())  # Remove channel dimension and apply preprocess
-                        processed_images.append(processed_img)
-                    return torch.stack(processed_images)
+                def preprocess_images_fast(train_tensor, target_size=(224, 224)):
+                    """
+                    Preprocess images in a tensor by resizing, normalizing, and optionally converting to 3 channels.
+
+                    Parameters:
+                    -----------
+                    train_tensor : torch.Tensor
+                        Tensor of shape (num_samples, channels, height, width).
+                    target_size : tuple
+                        Target size (height, width) for resizing.
+
+                    Returns:
+                    --------
+                    torch.Tensor
+                        Preprocessed tensor of shape (num_samples, channels, target_height, target_width).
+                    """
+                    # Resize using interpolation (fast and supports batch processing)
+                    train_tensor = F.interpolate(train_tensor, size=target_size, mode='bilinear', align_corners=False)
+
+                    # Normalize the tensor (e.g., mean=[0.5], std=[0.5])
+                    mean = torch.tensor([0.5]).view(1, -1, 1, 1).to(train_tensor.device)  # Match dimensions
+                    std = torch.tensor([0.5]).view(1, -1, 1, 1).to(train_tensor.device)
+
+                    train_tensor = (train_tensor - mean) / std
+
+                    return train_tensor
 
                 # Convert labels to integers
                 label_to_index = {label: idx for idx, label in enumerate(set(y_train))}
@@ -809,7 +837,7 @@ class Classifier:
                 # Flatten the first two dimensions
                 X_train = X_train.reshape(-1, X_train.shape[2], X_train.shape[3])
                 X_train = torch.tensor(X_train, dtype=torch.float32).to("cpu").unsqueeze(1)
-                X_train = preprocess_images(X_train)
+                X_train = preprocess_images_fast(X_train)
 
                 integer_labels = [label_to_index[label] for label in y_test]
                 integer_labels = np.repeat(integer_labels, X_test.shape[1])
@@ -817,7 +845,7 @@ class Classifier:
 
                 X_test = X_test.reshape(-1, X_test.shape[2], X_test.shape[3])
                 X_test = torch.tensor(X_test, dtype=torch.float32).to("cpu").unsqueeze(1)
-                X_test = preprocess_images(X_test)
+                X_test = preprocess_images_fast(X_test)
 
                 self.classifier.fit(X_train, y_train, X_test, y_test,
                                     batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate)

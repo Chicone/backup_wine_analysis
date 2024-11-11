@@ -128,6 +128,7 @@ if __name__ == "__main__":
         data_dict = {key: array[::n, :] for key, array in data_dict.items()}
         # Create a dictionary containing crops for each sample
         cropped_data_dict = generate_crops(data_dict, crop_size, stride)
+        print(f'Num. Crops = {len(cropped_data_dict)}')
 
         # # Decimate the retention times by a factor n while keeping the MS data intact
         # data_dict = {key: array[::n, :].flatten(order='C') for key, array in data_dict.items()}
