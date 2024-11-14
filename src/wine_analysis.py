@@ -42,7 +42,7 @@ import os
 import math
 from dcor import distance_correlation
 from docutils.nodes import target
-
+import scipy.ndimage
 import utils
 from data_loader import DataLoader
 from sklearn.preprocessing import StandardScaler
@@ -1928,6 +1928,148 @@ class SyncChromatograms:
         plt.tight_layout()
         plt.show()
 
+
+class GCMSDataProcessor:
+    def __init__(self, data):
+        """
+        Initialize the GCMSDataProcessor with GC-MS data.
+
+        Parameters:
+        ----------
+        data : dict
+            A dictionary where keys are sample names and values are 2D arrays
+            with shape (retention_times, m/z channels).
+        """
+        self.data = data
+
+    def aggregate(self, axis, method="mean"):
+        """
+        Aggregate the data along a specific axis (retention time or m/z).
+
+        Parameters:
+        ----------
+        axis : int
+            The axis to aggregate along. 0 for retention times, 1 for m/z channels.
+        method : str
+            Aggregation method: "mean", "sum", or "max".
+
+        Returns:
+        -------
+        dict
+            A dictionary where each sample contains aggregated data.
+        """
+        operations = {
+            "mean": np.mean,
+            "sum": np.sum,
+            "max": np.max
+        }
+
+        if method not in operations:
+            raise ValueError(f"Invalid method: {method}. Choose from {list(operations.keys())}.")
+
+        return {key: operations[method](matrix, axis=axis) for key, matrix in self.data.items()}
+
+    def select_profile(self, mz_index):
+        """
+        Extract individual m/z profiles from the data.
+
+        Parameters:
+        ----------
+        mz_index : int
+            The index of the m/z channel to extract.
+
+        Returns:
+        -------
+        dict
+            A dictionary with retention time profiles for the specified m/z index.
+        """
+        return {key: matrix[:, mz_index] for key, matrix in self.data.items()}
+
+    def normalize(self, axis, method="zscore"):
+        """
+        Normalize the data along a specific axis.
+
+        Parameters:
+        ----------
+        axis : int
+            The axis to normalize along. 0 for retention times, 1 for m/z channels.
+        method : str
+            Normalization method: "zscore" or "minmax".
+
+        Returns:
+        -------
+        dict
+            A dictionary with normalized data.
+        """
+        def zscore(matrix, axis):
+            mean = np.mean(matrix, axis=axis, keepdims=True)
+            std = np.std(matrix, axis=axis, keepdims=True)
+            return (matrix - mean) / (std + 1e-8)  # Add epsilon to avoid division by zero
+
+        def minmax(matrix, axis):
+            min_val = np.min(matrix, axis=axis, keepdims=True)
+            max_val = np.max(matrix, axis=axis, keepdims=True)
+            return (matrix - min_val) / (max_val - min_val + 1e-8)
+
+        operations = {
+            "zscore": zscore,
+            "minmax": minmax
+        }
+
+        if method not in operations:
+            raise ValueError(f"Invalid method: {method}. Choose from {list(operations.keys())}.")
+
+        return {key: operations[method](matrix, axis=axis) for key, matrix in self.data.items()}
+
+    def smooth(self, sigma=1):
+        """
+        Smooth the data using a Gaussian filter.
+
+        Parameters:
+        ----------
+        sigma : float
+            The standard deviation for Gaussian kernel.
+
+        Returns:
+        -------
+        dict
+            A dictionary with smoothed data.
+        """
+        return {key: scipy.ndimage.gaussian_filter(matrix, sigma=sigma) for key, matrix in self.data.items()}
+
+    def resample(self, new_length, axis=1):
+        """
+        Resample the data along a specific axis (e.g., m/z channels).
+
+        Parameters:
+        ----------
+        new_length : int
+            The new length for the resampled dimension.
+        axis : int
+            The axis to resample. 0 for retention times, 1 for m/z channels.
+
+        Returns:
+        -------
+        dict
+            A dictionary with resampled data.
+        """
+        def resample_matrix(matrix, new_length, axis):
+            original_length = matrix.shape[axis]
+            new_indices = np.linspace(0, original_length - 1, new_length)
+            return np.take(matrix, indices=new_indices.astype(int), axis=axis)
+
+        return {key: resample_matrix(matrix, new_length, axis) for key, matrix in self.data.items()}
+
+    def get_data(self):
+        """
+        Retrieve the processed data.
+
+        Returns:
+        -------
+        dict
+            The current state of the GC-MS data.
+        """
+        return self.data
 
 
 

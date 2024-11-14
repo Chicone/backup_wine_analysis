@@ -1,3 +1,4 @@
+from pynndescent.optimal_transport import total_cost
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, Perceptron, RidgeClassifier, PassiveAggressiveClassifier, SGDClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, HistGradientBoostingClassifier
@@ -21,7 +22,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.nn.parallel import DataParallel
 from sklearn.metrics import accuracy_score
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset, random_split, TensorDataset
 from torchvision import models
 from torchvision import transforms
 import torch.nn.functional as F
@@ -32,6 +33,213 @@ class CustomDataParallel(torch.nn.DataParallel):
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
+
+class CNN1D(nn.Module):
+    def __init__(self, input_length, num_classes, num_channels=1, nconv=2):
+        """
+        A flexible 1D CNN where the number of convolutional layers can be set via `nconv`.
+
+        Parameters:
+        ----------
+        input_length : int
+            Length of the input sequence.
+        num_classes : int
+            Number of output classes.
+        num_channels : int
+            Number of input channels (e.g., m/z channels).
+        nconv : int
+            Number of convolutional layers.
+        """
+        super(CNN1D, self).__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.nconv = nconv
+
+        # Base number of filters and kernel size
+        base_filters = 16
+        kernel_size = 3
+
+        # Dynamically create convolutional and batch normalization layers
+        self.conv_layers = nn.ModuleList()
+        self.bn_layers = nn.ModuleList()
+
+        in_channels = num_channels  # Dynamically set the number of input channels
+        for i in range(nconv):
+            out_channels = base_filters * (2 ** i)  # Double the number of filters at each step
+            self.conv_layers.append(nn.Conv1d(in_channels, out_channels, kernel_size, stride=1, padding=kernel_size // 2))
+            self.bn_layers.append(nn.BatchNorm1d(out_channels))
+            in_channels = out_channels  # Update for the next layer
+
+        # Pooling and dropout
+        self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
+        self.dropout = nn.Dropout(p=0.5)
+
+        # Dynamically calculate the input size for the fully connected layer
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, num_channels, input_length)  # Shape: (batch_size, channels, length)
+            for conv, bn in zip(self.conv_layers, self.bn_layers):
+                dummy_input = self.pool(F.relu(bn(conv(dummy_input))))
+            fc_input_size = dummy_input.numel()
+
+        # Fully connected layers
+        self.fc1 = nn.Linear(fc_input_size, 128)
+        self.fc2 = nn.Linear(128, num_classes)
+        self.flatten = nn.Flatten()
+
+        self._initialize_weights()
+
+    def forward(self, x):
+        # Apply convolutional layers with pooling, batch normalization, and ReLU
+        for conv, bn in zip(self.conv_layers, self.bn_layers):
+            x = self.pool(F.relu(bn(conv(x))))
+
+        # Flatten the output
+        x = self.flatten(x)
+
+        # Fully connected layers with dropout
+        x = self.dropout(F.relu(self.fc1(x)))
+        x = self.fc2(x)
+        return x
+
+    def _initialize_weights(self):
+        """
+        Initialize weights for convolutional and fully connected layers.
+        Uses Kaiming Normal Initialization for weights and constant initialization for biases.
+        """
+        for layer in self.modules():
+            if isinstance(layer, nn.Conv1d):
+                nn.init.kaiming_normal_(layer.weight, mode='fan_in', nonlinearity='relu')
+                if layer.bias is not None:
+                    nn.init.constant_(layer.bias, 0)
+            elif isinstance(layer, nn.Linear):
+                nn.init.kaiming_normal_(layer.weight, mode='fan_in', nonlinearity='relu')
+                if layer.bias is not None:
+                    nn.init.constant_(layer.bias, 0)
+
+
+    def fit(self, X_train, y_train, X_val, y_val, batch_size=32, num_epochs=10, learning_rate=0.001):
+        """
+        Train the model with validation checks.
+
+        Parameters:
+        ----------
+        train_loader : DataLoader
+            DataLoader for training data.
+        val_loader : DataLoader
+            DataLoader for validation data.
+        num_epochs : int
+            Number of epochs to train.
+        learning_rate : float
+            Learning rate for optimizer.
+        """
+        weight_decay = 1e-3
+
+        print(f'Batch size =   {batch_size}')
+        print(f'Epochs =       {num_epochs}')
+        print(f'Conv layers =  {self.nconv}')
+        print(f'Learn rate =   {learning_rate}')
+        print(f'Weight decay = {weight_decay}')
+
+
+        # train_dataset = TensorDataset(X_train.unsqueeze(1), y_train)
+        train_dataset = TensorDataset(X_train.squeeze(), y_train)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        # plt.figure();plt.imshow(train_dataset[2][0].permute(1, 2, 0).numpy())
+
+        # val_dataset =  TensorDataset(X_val.unsqueeze(1), y_val)
+        val_dataset =  TensorDataset(X_val.squeeze(), y_val)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+
+        # Define loss and optimizer
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(self.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+
+        for epoch in range(num_epochs):
+            self.to(self.device)
+            # Training phase
+            self.train()
+            running_loss = 0.0
+            for tics_batch, labels_batch in train_loader:
+                optimizer.zero_grad()
+                outputs = self(tics_batch)
+                loss = criterion(outputs, labels_batch)
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item()
+
+            scheduler.step()  # Adjust learning rate
+
+            # Validation phase
+            self.eval()
+            val_loss = 0.0
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for tics_batch, labels_batch in val_loader:
+                    outputs = self(tics_batch)
+                    loss = criterion(outputs, labels_batch)
+                    val_loss += loss.item()
+
+                    _, predicted = outputs.max(1)
+                    total += labels_batch.size(0)
+                    correct += (predicted == labels_batch).sum().item()
+
+            val_accuracy = correct / total
+            print(
+                f"Epoch {epoch + 1}/{num_epochs}, "
+                f"Train Loss: {running_loss / len(train_loader):.5f}, "
+                f"Val Loss: {val_loss / len(val_loader):.5f}, "
+                f"Val Accuracy: {val_accuracy:.5f}"
+            )
+
+
+    def predict(self, images):
+        """
+        Predict the class labels for the given input images.
+
+        Parameters:
+        ----------
+        images : Tensor
+            Input data, assumed to be of shape (batch_size, 3, 224, 224).
+
+        Returns:
+        -------
+        y_pred : Tensor
+            Predicted class labels.
+        """
+        self.eval()
+        images = images.to(self.device)
+        with torch.no_grad():
+            outputs = self(images)
+            _, y_pred = outputs.max(1)
+        return y_pred.cpu()
+
+
+    def score(self, data_loader):
+        """
+        Compute the accuracy of the model on test data.
+
+        Parameters:
+        ----------
+        data_loader : DataLoader
+            DataLoader for test data.
+
+        Returns:
+        -------
+        float
+            Accuracy of the model.
+        """
+        self.model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for images, labels in data_loader:
+                images, labels = images.to(self.device), labels.to(self.device)
+                outputs = self.model(images)
+                _, predicted = outputs.max(1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        return correct / total
 
 # class CNNClassifier(nn.Module):
     # def __init__(self, input_channels, num_classes, input_height, input_width):
@@ -58,6 +266,544 @@ class CustomDataParallel(torch.nn.DataParallel):
     #     x = self.fc2(x)
     #     return x
 
+class PretrainedGoogleNet(nn.Module):
+    def __init__(self, num_classes, pretrained=True):
+        super(PretrainedGoogleNet, self).__init__()
+        # Load pretrained GoogleNet
+        self.model = models.googlenet(pretrained=pretrained)
+
+        # Freeze all layers except the fully connected (fc) layer
+        for name, param in self.model.named_parameters():
+            if "fc" not in name:  # Freeze everything except "fc"
+                param.requires_grad = False
+
+        # # Unfreeze specific layers (e.g., the last inception block and auxiliary layers)
+        # for name, param in self.model.named_parameters():
+        #     if "inception5" in name:  # Unfreeze certain layers
+        #         param.requires_grad = True
+
+        # Replace the final fully connected layer
+        self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
+
+        # Define device
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = self.model.to(self.device)
+
+        # # Print which layers are frozen
+        # for name, param in self.model.named_parameters():
+        #     print(f"{name} is {'trainable' if param.requires_grad else 'frozen'}")
+
+    def forward(self, x):
+        return self.model(x)
+
+    def fit(self, X_train, y_train, X_val, y_val, batch_size =32, num_epochs=10, learning_rate=0.001):
+        """
+        Train the model with validation checks.
+
+        Parameters:
+        ----------
+        train_loader : DataLoader
+            DataLoader for training data.
+        val_loader : DataLoader
+            DataLoader for validation data.
+        num_epochs : int
+            Number of epochs to train.
+        learning_rate : float
+            Learning rate for optimizer.
+        """
+
+        class ToThreeChannels:
+            def __call__(self, img):
+                if len(img.shape) == 2:  # Ensure input is (H, W)
+                    img = img.unsqueeze(0)  # Add channel dimension -> (1, H, W)
+                return img.repeat(3, 1, 1)  # Duplicate channel -> (3, H, W)
+
+        transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            ToThreeChannels(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
+        class TransformTensorDataset(torch.utils.data.Dataset):
+            def __init__(self, tensors, transform=None):
+                """
+                Custom dataset to apply transforms on a TensorDataset.
+
+                Parameters:
+                ----------
+                tensors : tuple
+                    A tuple of tensors, e.g., (X_train, y_train).
+                transform : callable, optional
+                    Transform to apply to the first tensor (e.g., X_train).
+                """
+                self.tensors = tensors
+                self.transform = transform
+
+            def __len__(self):
+                return len(self.tensors[0])
+
+            def __getitem__(self, idx):
+                x = self.tensors[0][idx]
+                y = self.tensors[1][idx]
+
+                if self.transform:
+                    x = transforms.ToPILImage()(x)
+                    x = self.transform(x)  # Apply transform to X only
+
+                return x, y
+
+        train_dataset = TransformTensorDataset((X_train, y_train), transform=transform)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        # plt.figure();plt.imshow(train_dataset[2][0].permute(1, 2, 0).numpy())
+
+        val_dataset = TransformTensorDataset((X_val, y_val), transform=transform)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+
+        # Define loss and optimizer
+        criterion = nn.CrossEntropyLoss()
+        # optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()), lr=0.001)
+
+
+        for epoch in range(num_epochs):
+            # Training phase
+            self.model.train()
+            running_loss = 0.0
+            for images, labels in train_loader:
+                images, labels = images.to(self.device), labels.to(self.device)
+
+                optimizer.zero_grad()
+                outputs = self.model(images)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item()
+
+            # Validation phase
+            self.model.eval()
+            val_loss = 0.0
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for images, labels in val_loader:
+                    images, labels = images.to(self.device), labels.to(self.device)
+                    outputs = self.model(images)
+                    loss = criterion(outputs, labels)
+                    val_loss += loss.item()
+
+                    _, predicted = outputs.max(1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+
+            val_accuracy = correct / total
+            print(
+                f"Epoch {epoch+1}/{num_epochs}, "
+                f"Train Loss: {running_loss / len(train_loader):.4f}, "
+                f"Val Loss: {val_loss / len(val_loader):.4f}, "
+                f"Val Accuracy: {val_accuracy:.4f}"
+            )
+
+    def predict(self, images):
+        """
+        Predict the class labels for the given input images.
+
+        Parameters:
+        ----------
+        images : Tensor
+            Input data, assumed to be of shape (batch_size, 3, 224, 224).
+
+        Returns:
+        -------
+        y_pred : Tensor
+            Predicted class labels.
+        """
+        self.model.eval()
+        images = images.to(self.device)
+        with torch.no_grad():
+            outputs = self.model(images)
+            _, y_pred = outputs.max(1)
+        return y_pred.cpu()
+
+    def score(self, data_loader):
+        """
+        Compute the accuracy of the model on test data.
+
+        Parameters:
+        ----------
+        data_loader : DataLoader
+            DataLoader for test data.
+
+        Returns:
+        -------
+        float
+            Accuracy of the model.
+        """
+        self.model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for images, labels in data_loader:
+                images, labels = images.to(self.device), labels.to(self.device)
+                outputs = self.model(images)
+                _, predicted = outputs.max(1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        return correct / total
+
+
+class InceptionBlock(nn.Module):
+    def __init__(self, in_channels, out_1x1, red_3x3, out_3x3, red_5x5, out_5x5, out_pool):
+        super(InceptionBlock, self).__init__()
+        self.branch1 = nn.Conv2d(in_channels, out_1x1, kernel_size=1)
+
+        self.branch2 = nn.Sequential(
+            nn.Conv2d(in_channels, red_3x3, kernel_size=1),
+            nn.ReLU(),
+            nn.Conv2d(red_3x3, out_3x3, kernel_size=3, padding=1),
+        )
+
+        self.branch3 = nn.Sequential(
+            nn.Conv2d(in_channels, red_5x5, kernel_size=1),
+            nn.ReLU(),
+            nn.Conv2d(red_5x5, out_5x5, kernel_size=5, padding=2),
+        )
+
+        self.branch4 = nn.Sequential(
+            nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels, out_pool, kernel_size=1),
+        )
+
+    def forward(self, x):
+        branch1 = self.branch1(x)
+        branch2 = self.branch2(x)
+        branch3 = self.branch3(x)
+        branch4 = self.branch4(x)
+        return torch.cat([branch1, branch2, branch3, branch4], dim=1)
+
+# Define the GoogleNet-like Architecture
+class GoogleNetLike(nn.Module):
+    def __init__(self, input_channels, num_classes):
+        super(GoogleNetLike, self).__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Initial Convolution and Pooling Layers
+        self.conv1 = nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3)
+        self.pool1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(64, 192, kernel_size=3, padding=1)
+        self.pool2 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+        # Inception Blocks
+        self.inception3a = InceptionBlock(192, 64, 96, 128, 16, 32, 32)
+        self.inception3b = InceptionBlock(256, 128, 128, 192, 32, 96, 64)
+
+        self.pool3 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+        self.inception4a = InceptionBlock(480, 192, 96, 208, 16, 48, 64)
+        self.inception4b = InceptionBlock(512, 160, 112, 224, 24, 64, 64)
+        self.inception4c = InceptionBlock(512, 128, 128, 256, 24, 64, 64)
+
+        self.pool4 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+        # Final Layers
+        self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.flatten = nn.Flatten()
+        self.fc = nn.Linear(512, num_classes)
+
+    def forward(self, x):
+        x = self.pool1(torch.relu(self.conv1(x)))
+        x = self.pool2(torch.relu(self.conv2(x)))
+
+        x = self.inception3a(x)
+        x = self.inception3b(x)
+
+        x = self.pool3(x)
+
+        x = self.inception4a(x)
+        x = self.inception4b(x)
+        x = self.inception4c(x)
+
+        x = self.pool4(x)
+
+        x = self.global_avg_pool(x)
+        x = self.flatten(x)
+        x = self.fc(x)
+        return x
+
+    def fit(self, X_train, y_train, X_val, y_val, batch_size=32, num_epochs=20, learning_rate=0.001):
+        train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+        val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+
+        optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        loss_fn = nn.CrossEntropyLoss()
+
+        self.to(self.device)
+        self.train()
+
+        for epoch in range(num_epochs):
+            total_loss = 0
+            self.train()
+            for batch_X, batch_y in train_loader:
+                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
+
+                optimizer.zero_grad()
+                outputs = self(batch_X)
+                loss = loss_fn(outputs, batch_y)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+
+            # Validation
+            self.eval()
+            correct, total = 0, 0
+            with torch.no_grad():
+                for val_X, val_y in val_loader:
+                    val_X, val_y = val_X.to(self.device), val_y.to(self.device)
+                    outputs = self(val_X)
+                    _, predicted = torch.max(outputs, 1)
+                    total += val_y.size(0)
+                    correct += (predicted == val_y).sum().item()
+
+            val_accuracy = correct / total
+            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {total_loss / len(train_loader):.4f}, Val Acc: {val_accuracy:.4f}")
+
+        return self
+
+    def predict(self, X):
+        self.eval()
+        with torch.no_grad():
+            outputs = self(X.to(self.device))
+            _, y_pred = torch.max(outputs, 1)
+        return y_pred.cpu().numpy()
+
+    def score(self, X_test, y_test):
+        self.eval()
+        correct, total = 0, 0
+        with torch.no_grad():
+            for inputs, labels in DataLoader(torch.utils.data.TensorDataset(X_test, y_test), batch_size=32):
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                outputs = self(inputs)
+                _, predicted = torch.max(outputs, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        return correct / total
+
+    def reset_parameters(self):
+        for layer in self.children():
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU()
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size, stride, padding)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+
+        # Shortcut connection to match dimensions
+        self.shortcut = nn.Sequential()
+        if in_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1),
+                nn.BatchNorm2d(out_channels),
+            )
+
+    def forward(self, x):
+        identity = self.shortcut(x)
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += identity  # Add the residual connection
+        out = self.relu(out)
+        return out
+
+class ImprovedGCMSCNN(nn.Module):
+    def __init__(self, input_channels, num_classes, input_height, input_width):
+        super(ImprovedGCMSCNN, self).__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Convolutional and residual layers
+        self.block1 = ResidualBlock(input_channels, 32)
+        self.block2 = ResidualBlock(32, 64)
+        self.block3 = ResidualBlock(64, 128)
+        self.block4 = ResidualBlock(128, 256)
+        self.block5 = ResidualBlock(256, 512)
+
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.global_avg_pool = nn.AdaptiveAvgPool2d(1)  # Global average pooling
+        self.flatten = nn.Flatten()
+
+        # Fully connected layers
+        self.fc1 = nn.Linear(512, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, num_classes)
+        self.dropout = nn.Dropout(p=0.5)
+
+    def forward(self, x):
+        x = self.pool(self.block1(x))
+        x = self.pool(self.block2(x))
+        x = self.pool(self.block3(x))
+        x = self.pool(self.block4(x))
+        x = self.pool(self.block5(x))
+        x = self.global_avg_pool(x)  # Replace flattening with global avg pooling
+        x = self.flatten(x)
+        x = self.dropout(self.fc1(x))
+        x = self.dropout(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+    def fit(self, X_train, y_train, X_val, y_val, batch_size=32, num_epochs=20, learning_rate=0.001):
+        """
+        Train the model with validation checks.
+
+        Parameters:
+        ----------
+        X_train : Tensor
+            Training data of shape (num_train_samples, input_channels, input_height, input_width).
+        y_train : Tensor
+            Training labels of shape (num_train_samples,).
+        X_val : Tensor
+            Validation data of shape (num_val_samples, input_channels, input_height, input_width).
+        y_val : Tensor
+            Validation labels of shape (num_val_samples,).
+        batch_size : int
+            Batch size for training.
+        num_epochs : int
+            Number of epochs to train.
+        learning_rate : float
+            Learning rate for optimizer.
+
+        Returns:
+        -------
+        self : SimpleGCMSCNN
+            The trained model.
+        """
+
+
+        self.reset_parameters()
+
+        # Create DataLoader for training and validation
+        # X_train = preprocess_images(X_train)
+        train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+        # X_val = preprocess_images(X_val)
+        val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+
+        # Define optimizer and loss function
+        optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        loss_fn = nn.CrossEntropyLoss()
+
+        self.to(self.device)
+        self.train()
+
+        for epoch in range(num_epochs):
+            total_loss = 0
+            self.train()  # Set model to training mode
+            for batch_X, batch_y in train_loader:
+                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
+
+                optimizer.zero_grad()
+                outputs = self(batch_X)
+                loss = loss_fn(outputs, batch_y)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+
+            # Validation step
+            self.eval()  # Set model to evaluation mode
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for val_X, val_y in val_loader:
+                    val_X, val_y = val_X.to(self.device), val_y.to(self.device)
+                    outputs = self(val_X)
+                    _, predicted = torch.max(outputs, 1)
+                    total += val_y.size(0)
+                    correct += (predicted == val_y).sum().item()
+
+            val_accuracy = correct / total
+
+            print(
+                f"Epoch {epoch + 1}/{num_epochs}, "
+                f"Training Loss: {total_loss / len(train_loader):.4f}, "
+                f"Validation Accuracy: {val_accuracy:.4f}"
+            )
+
+        return self
+
+
+    def predict(self, X):
+        """
+        Predict the class labels for the given input data.
+
+        Parameters:
+        ----------
+        X : numpy.ndarray
+            Input data, assumed to be of shape (num_samples, input_channels, input_height, input_width).
+
+        Returns:
+        -------
+        y_pred : numpy.ndarray
+            Predicted class labels.
+        """
+        self.eval()
+        # X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+
+        with torch.no_grad():
+            outputs = self(X)
+            _, y_pred = torch.max(outputs, 1)
+
+        return y_pred.cpu().numpy()
+
+    def score(self, X_test, y_test):
+        """
+        Compute the accuracy of the model on test data.
+
+        Parameters:
+        -----------
+        X_test : Tensor
+            Test feature data.
+        y_test : Tensor
+            True labels for the test data.
+
+        Returns:
+        --------
+        float
+            Accuracy of the model.
+        """
+        self.eval()  # Switch to evaluation mode
+        correct = 0
+        total = 0
+
+        with torch.no_grad():  # Disable gradient computation
+            for inputs, labels in DataLoader(torch.utils.data.TensorDataset(X_test, y_test), batch_size=32):
+                outputs = self(inputs)
+                _, predicted = torch.max(outputs, 1)  # Get predicted class
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        return correct / total
+
+    def reset_parameters(self):
+        """
+        Reset all model parameters to their initial states.
+        """
+
+        for layer in self.children():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.running_mean.zero_()
+                layer.running_var.fill_(1)
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
+
 
 class SimpleGCMSCNN(nn.Module):
     def __init__(self, input_channels, num_classes, input_height, input_width):
@@ -66,6 +812,8 @@ class SimpleGCMSCNN(nn.Module):
         self.conv1 = nn.Conv2d(input_channels, 16, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
         self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.conv4 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
+        self.conv5 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.flatten = nn.Flatten()
 
@@ -73,7 +821,9 @@ class SimpleGCMSCNN(nn.Module):
         with torch.no_grad():
             dummy_input = torch.zeros(1, input_channels, input_height, input_width)
             dummy_output = self.pool(self.conv2(self.pool(self.conv1(dummy_input))))
-            dummy_output = self.pool(self.conv3(dummy_output))
+            dummy_output = self.pool(self.conv5(self.pool(self.conv4(self.pool(self.conv3(
+                self.pool(self.conv2(self.pool(self.conv1(dummy_input))))
+            ))))))
             flattened_size = dummy_output.numel()
 
         # Calculate the size of the feature map after convolution and pooling
@@ -85,6 +835,8 @@ class SimpleGCMSCNN(nn.Module):
         x = self.relu(self.conv1(x))
         x = self.pool(self.relu(self.conv2(x)))
         x = self.pool(self.relu(self.conv3(x)))
+        x = self.pool(self.relu(self.conv4(x)))
+        x = self.pool(self.relu(self.conv5(x)))
         x = self.pool(x)  # Additional pooling layer
         x = self.flatten(x)
         x = self.relu(self.fc1(x))
@@ -171,6 +923,7 @@ class SimpleGCMSCNN(nn.Module):
             )
 
         return self
+
 
     def predict(self, X):
         """
@@ -514,6 +1267,8 @@ class Classifier:
         self.labels = labels
         self.classifier = self._get_classifier(classifier_type)
         self.wine_kind = wine_kind
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
 
     def _get_classifier(self, classifier_type):
         """
@@ -559,20 +1314,35 @@ class Classifier:
             return HistGradientBoostingClassifier(max_leaf_nodes=31, learning_rate=0.2, max_iter=50, max_bins=128)
         elif classifier_type == 'CNN':
             return self._initialize_cnn()
+        elif classifier_type == 'CNN1D':
+            return self._initialize_cnn1d()
+
+    def _initialize_cnn1d(self):
+        """
+        Initialize the 1D CNN classifier. This method can be extended with hyperparameters as needed.
+        """
+        input_length = self.data.shape[2]
+        channels = self.data.shape[1]
+        num_classes = len(set(self.labels))  # Number of unique labels
+        model = CNN1D(input_length, num_classes, num_channels=channels, nconv=1)
+        return model
 
     def _initialize_cnn(self):
         """
         Initialize the CNN classifier. This method can be extended with hyperparameters as needed.
         """
-        input_channels = 1  # Assuming grayscale images, modify for other cases
+        input_channels = 3  # Assuming grayscale images, modify for other cases
         num_classes = len(set(self.labels))  # Number of unique labels
         height, width = self.data.shape[-2:]
         # model = CNNClassifier(input_channels, num_classes, height, width)
         # model = MobileNetClassifier(input_channels, num_classes)
-        model = SimpleGCMSCNN(input_channels, num_classes, 224, 224)
-        model = CustomDataParallel(model)
-        return model
+        # model = SimpleGCMSCNN(input_channels, num_classes, height, width)
+        # model = ImprovedGCMSCNN(input_channels, num_classes, height, width)
+        # model = GoogleNetLike(input_channels, num_classes)
+        model = PretrainedGoogleNet(num_classes, pretrained=True)
 
+        # model = CustomDataParallel(model)
+        return model
 
     def train_and_evaluate(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
                            scaler_type='standard', use_pca=False, vthresh=0.97, region=None):
@@ -721,7 +1491,7 @@ class Classifier:
 
     def train_and_evaluate_balanced(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
                                     scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
-                                    cnn=False, batch_size=32, num_epochs=10, learning_rate=0.001):
+                                    cnn='1D', batch_size=32, num_epochs=10, learning_rate=0.001):
         """
         Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
 
@@ -780,28 +1550,9 @@ class Classifier:
 
 
             # Transform input data for CNN
-            if cnn:
-                # # Define preprocessing transforms
-                # preprocess = transforms.Compose([
-                #     transforms.ToPILImage(),  # Convert tensor to PIL image
-                #     transforms.Resize((224, 224)),  # Resize to 224x224
-                #     # transforms.Grayscale(num_output_channels=3),  # Convert single-channel to 3 channels
-                #     transforms.ToTensor(),  # Convert back to tensor
-                #     # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-                #     transforms.Normalize(mean=[0.5], std=[0.5])
-                #     # Normalize to ImageNet stats
-                # ])
-                #
-                # # Apply the preprocessing to each image in the dataset
-                # def preprocess_images(train_tensor):
-                #     processed_images = []
-                #     for img in train_tensor:  # Loop through each image in the dataset
-                #         processed_img = preprocess(
-                #             img.squeeze(0).cpu().numpy())  # Remove channel dimension and apply preprocess
-                #         processed_images.append(processed_img)
-                #     return torch.stack(processed_images)
+            if cnn == '2D':
 
-                def preprocess_images_fast(train_tensor, target_size=(224, 224)):
+                def preprocess_images_fast(train_tensor):
                     """
                     Preprocess images in a tensor by resizing, normalizing, and optionally converting to 3 channels.
 
@@ -818,12 +1569,12 @@ class Classifier:
                         Preprocessed tensor of shape (num_samples, channels, target_height, target_width).
                     """
                     # Resize using interpolation (fast and supports batch processing)
-                    train_tensor = F.interpolate(train_tensor, size=target_size, mode='bilinear', align_corners=False)
+                    # train_tensor = F.interpolate(train_tensor, size=target_size, mode='bilinear', align_corners=False)
 
                     # Normalize the tensor (e.g., mean=[0.5], std=[0.5])
-                    mean = torch.tensor([0.5]).view(1, -1, 1, 1).to(train_tensor.device)  # Match dimensions
-                    std = torch.tensor([0.5]).view(1, -1, 1, 1).to(train_tensor.device)
-
+                    mean = train_tensor.mean(dim=(0, 2, 3), keepdim=True).to(train_tensor.device)  # Mean across batch, height, and width
+                    std = train_tensor.std(dim=(0, 2, 3), keepdim=True).to(train_tensor.device)
+                    std = std + 1e-6
                     train_tensor = (train_tensor - mean) / std
 
                     return train_tensor
@@ -832,23 +1583,45 @@ class Classifier:
                 label_to_index = {label: idx for idx, label in enumerate(set(y_train))}
                 integer_labels = [label_to_index[label] for label in y_train]
                 integer_labels = np.repeat(integer_labels, X_train.shape[1])
-                y_train = torch.tensor(integer_labels, dtype=torch.long).to("cpu")
+                y_train = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
 
                 # Flatten the first two dimensions
                 X_train = X_train.reshape(-1, X_train.shape[2], X_train.shape[3])
-                X_train = torch.tensor(X_train, dtype=torch.float32).to("cpu").unsqueeze(1)
-                X_train = preprocess_images_fast(X_train)
+                X_train = torch.tensor(X_train, dtype=torch.float32).to(self.device).unsqueeze(1)
+                # X_train = preprocess_images_fast(X_train)
 
                 integer_labels = [label_to_index[label] for label in y_test]
                 integer_labels = np.repeat(integer_labels, X_test.shape[1])
-                y_test = torch.tensor(integer_labels, dtype=torch.long).to("cpu")
+                y_test = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
 
                 X_test = X_test.reshape(-1, X_test.shape[2], X_test.shape[3])
-                X_test = torch.tensor(X_test, dtype=torch.float32).to("cpu").unsqueeze(1)
-                X_test = preprocess_images_fast(X_test)
+                X_test = torch.tensor(X_test, dtype=torch.float32).to(self.device).unsqueeze(1)
+                # X_test = preprocess_images_fast(X_test)
 
                 self.classifier.fit(X_train, y_train, X_test, y_test,
                                     batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate)
+            elif cnn == '1D':
+                # Convert labels to integers
+                label_to_index = {label: idx for idx, label in enumerate(set(y_train))}
+                integer_labels = [label_to_index[label] for label in y_train]
+                # integer_labels = np.repeat(integer_labels, X_train.shape[1])
+                y_train = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
+
+                # Reshape
+                # X_train = torch.tensor(X_train.reshape(len(y_train), X_train.shape[2]), dtype=torch.float32).to(self.device)
+                X_train = torch.tensor(X_train, dtype=torch.float32).to(self.device)
+
+
+                integer_labels = [label_to_index[label] for label in y_test]
+                # integer_labels = np.repeat(integer_labels, X_test.shape[1])
+                y_test = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
+
+                # X_test = torch.tensor(X_test.reshape(len(y_test), X_test.shape[2]), dtype=torch.float32).to(self.device)
+                X_test = torch.tensor(X_test, dtype=torch.float32).to(self.device)
+
+                self.classifier.fit(X_train, y_train, X_test, y_test,
+                                    batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate)
+
             else:
                 # Train the classifier without sample_weight
                 self.classifier.fit(X_train, y_train)

@@ -31,25 +31,27 @@ import matplotlib.pyplot as plt
 import utils
 from scipy.ndimage import gaussian_filter
 from wine_analysis import SyncChromatograms
+import torch
+import torch.nn.functional as F
 
 if __name__ == "__main__":
     # plot_classification_accuracy()
-    n_splits = 1
+    n_splits = 20
     chrom_cap = 25000
     vintage = False
     use_3d = False
-    cnn = True
-    collapse_axis = "TIC-TIS"  # TIS, TIC-TIS
-    sync_state = True  # True to use retention time alignment
+    cnn = '1D' # '1D', '2D', None
+    collapse_axis = "GCMS"  # TIC, TIS, TIC-TIS, GCMS
+    sync_state = False  # True to use retention time alignment
     pca_state = [False]   # True for classification on PCA-reduced data
-    n = 5  # decimation factor for the 3D data
+    n = 1  # decimation factor for the 3D data
 
     # For CNN
-    crop_size = (181, 181)  # Example crop size
-    stride = (90, 181)     # Example stride for overlapping crops
-    batch_size = 32
+    crop_size = (500, 128)  # Example crop size  181
+    stride = (150, 128)     # Example stride for overlapping crops
+    batch_size = 64
     num_epochs = 100
-    learning_rate = 0.001
+    learning_rate = 0.0001
 
 
     # main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/LLE_SCAN/"
@@ -88,52 +90,86 @@ if __name__ == "__main__":
         norm_tics = utils.normalize_dict(synced_tics, scaler='standard')
         return norm_tics
 
-    def generate_crops(data_dict, crop_size, stride):
-        """
-        Generate crops from each sample in the data dictionary.
+    if cnn == '2D':  # uses all MS data in crops
+        def generate_crops(data_dict, crop_size, stride):
+            """
+            Generate crops from each sample in the data dictionary.
 
-        Parameters:
-        -----------
-        data_dict : dict
-            A dictionary where keys are sample names and values are 2D numpy arrays (matrices).
-        crop_size : tuple
-            A tuple specifying the (height, width) of each crop.
-        stride : tuple
-            A tuple specifying the (vertical, horizontal) stride for the sliding window.
+            Parameters:
+            -----------
+            data_dict : dict
+                A dictionary where keys are sample names and values are 2D numpy arrays (matrices).
+            crop_size : tuple
+                A tuple specifying the (height, width) of each crop.
+            stride : tuple
+                A tuple specifying the (vertical, horizontal) stride for the sliding window.
 
-        Returns:
-        --------
-        cropped_data_dict : dict
-            A dictionary where keys are sample names and values are lists of cropped matrices.
-        """
-        cropped_data_dict = {}
+            Returns:
+            --------
+            cropped_data_dict : dict
+                A dictionary where keys are sample names and values are lists of cropped matrices.
+            """
+            cropped_data_dict = {}
 
-        for sample, matrix in data_dict.items():
-            crops = []
-            num_rows, num_cols = matrix.shape
-            crop_height = min(crop_size[0], num_rows)
-            crop_width = min(crop_size[1], num_cols)
-            stride_vertical, stride_horizontal = stride
+            for sample, matrix in data_dict.items():
+                crops = []
+                num_rows, num_cols = matrix.shape
+                crop_height = min(crop_size[0], num_rows)
+                crop_width = min(crop_size[1], num_cols)
+                stride_vertical, stride_horizontal = stride
 
-            for row_start in range(0, num_rows - crop_height + 1, stride_vertical):
-                for col_start in range(0, num_cols - crop_width + 1, stride_horizontal):
-                    crop = matrix[row_start:row_start + crop_height, col_start:col_start + crop_width]
-                    crops.append(crop)
+                for row_start in range(0, num_rows - crop_height + 1, stride_vertical):
+                    for col_start in range(0, num_cols - crop_width + 1, stride_horizontal):
+                        crop = matrix[row_start:row_start + crop_height, col_start:col_start + crop_width]
+                        crops.append(crop)
 
-            cropped_data_dict[sample] = crops
+                cropped_data_dict[sample] = crops
 
-        return cropped_data_dict
+            return cropped_data_dict
+        def resample_gcms_pytorch(data_dict, original_size, new_size):
+            """
+            Resample the m/z dimension using PyTorch for GPU acceleration.
 
-    if cnn:  # uses all MS data in crops
-        data_dict = {key: array[::n, :] for key, array in data_dict.items()}
+            Parameters:
+            ----------
+            data_dict : dict
+                Dictionary where keys are sample names and values are 2D numpy arrays (25000, original_size).
+            original_size : int
+                Original size of the m/z dimension.
+            new_size : int
+                New size of the m/z dimension.
+
+            Returns:
+            -------
+            resampled_dict : dict
+                Dictionary with resampled 2D tensors (25000, new_size).
+            """
+            resampled_dict = {}
+            scale_factor = new_size / original_size
+
+            for sample_name, data in data_dict.items():
+                # print(sample_name)
+                # Convert data to PyTorch tensor and add batch and channel dimensions
+                tensor_data = torch.tensor(data, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(
+                    "cuda")  # Shape: (1, 1, 25000, 181)
+
+                # Resample using interpolate
+                resampled_tensor = F.interpolate(tensor_data, scale_factor=(1, scale_factor), mode='bicubic',
+                                                 align_corners=False)
+
+                # Remove batch and channel dimensions, convert back to numpy
+                resampled_dict[sample_name] = resampled_tensor.squeeze(0).squeeze(0).cpu().numpy()
+
+            return resampled_dict
+        data_dict = resample_gcms_pytorch(data_dict, original_size=181, new_size=500)
+        aggregated_dict = {}
+        for sample_name, image in data_dict.items():
+            aggregated_image = utils.aggregate_retention_times(image, n, method='max')
+            aggregated_dict[sample_name] = aggregated_image
+        data_dict = aggregated_dict
         # Create a dictionary containing crops for each sample
         cropped_data_dict = generate_crops(data_dict, crop_size, stride)
-        print(f'Num. Crops = {len(cropped_data_dict)}')
-
-        # # Decimate the retention times by a factor n while keeping the MS data intact
-        # data_dict = {key: array[::n, :].flatten(order='C') for key, array in data_dict.items()}
-        # data_dict = {key: value[:chrom_cap] for key, value in data_dict.items()}
-
+        print(f'Num. Crops = {len(cropped_data_dict[list(cropped_data_dict)[0]])}')
     else:  # use the collapsed accumulated data
         if collapse_axis == "TIC":
             if sync_state:
@@ -161,11 +197,14 @@ if __name__ == "__main__":
 
             # Concatenate normalized TIC and TIS
             chromatograms = utils.concatenate_dict_values(tics, tiss)
+        elif collapse_axis == "GCMS":
+            # data_dict = utils.smooth_mz_profiles(data_dict, sigma=10)
+            data_dict = utils.normalize_mz_profiles_amplitude(data_dict, method='min-max')
+            chromatograms = {sample_name: np.hsplit(matrix, matrix.shape[1]) for sample_name, matrix in data_dict.items()}
         else:
             raise ValueError("Invalid 'collapse_axis' option. Options are 'TIC', 'TIS', and 'TIC-TIS'")
 
-
-    if cnn:
+    if cnn == '2D':
         data = cropped_data_dict.values()
         labels = cropped_data_dict.keys()
     else:
@@ -173,7 +212,6 @@ if __name__ == "__main__":
         data = chromatograms.values()
         # data = synced_chromatograms.values()
         labels = chromatograms.keys()
-
 
     if wine_kind == "bordeaux":
         region = 'bordeaux_chateaux'
@@ -208,7 +246,7 @@ if __name__ == "__main__":
         #     continue
         # for cls_type in ['LDA', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
         # for cls_type in ['LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
-        for cls_type in ['CNN']:
+        for cls_type in ['CNN1D']:
             print("")
             print (f'sync {sync_state}')
             print (f'PCA {pca}')

@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 from scipy.signal import correlate, find_peaks
 from scipy.ndimage import gaussian_filter
 from collections import Counter
+from scipy.ndimage import gaussian_filter1d
 
 
 def collapse_lists(d):
@@ -162,6 +163,86 @@ def min_max_normalize(data, min_range=0, max_range=1):
     normalized_data = min_range + ((data - min_val) * (max_range - min_range) / (max_val - min_val))
 
     return normalized_data
+
+def normalize_mz_profiles_amplitude(data_dict, method="z-score"):
+    """
+    Normalize the amplitude of each m/z profile (column-wise normalization
+    across retention times) using z-score or min-max normalization.
+
+    Parameters:
+    -----------
+    data_dict : dict
+        Dictionary where each key is a sample and each value is a 2D matrix
+        (rows: retention times, columns: m/z values).
+    method : str
+        Normalization method, either "z-score" or "min-max".
+
+    Returns:
+    --------
+    dict
+        Dictionary with normalized matrices.
+    """
+    if method not in ["z-score", "min-max"]:
+        raise ValueError("Invalid method. Choose 'z-score' or 'min-max'.")
+
+    normalized_dict = {}
+    for key, matrix in data_dict.items():
+        # Convert matrix to NumPy array if not already
+        matrix = np.array(matrix)
+
+        if method == "z-score":
+            # Z-score normalization
+            col_mean = matrix.mean(axis=0, keepdims=True)  # Mean for each column (m/z profile)
+            col_std = matrix.std(axis=0, keepdims=True)    # Standard deviation for each column (m/z profile)
+            normalized_matrix = (matrix - col_mean) / col_std
+
+            # Handle columns with zero standard deviation (avoid NaN)
+            normalized_matrix[np.isnan(normalized_matrix)] = 0  # Replace NaN with 0
+
+        elif method == "min-max":
+            # Min-max normalization
+            col_min = matrix.min(axis=0, keepdims=True)  # Min for each column (m/z profile)
+            col_max = matrix.max(axis=0, keepdims=True)  # Max for each column (m/z profile)
+            normalized_matrix = (matrix - col_min) / (col_max - col_min)
+
+            # Handle columns with zero range (avoid division by zero)
+            normalized_matrix[np.isnan(normalized_matrix)] = 0  # Replace NaN with 0
+
+        # Store the normalized matrix in the dictionary
+        normalized_dict[key] = normalized_matrix
+
+    return normalized_dict
+
+
+def smooth_mz_profiles(data_dict, sigma=1):
+    """
+    Smooth the m/z profiles using a Gaussian filter.
+
+    Parameters:
+    -----------
+    data_dict : dict
+        Dictionary where each key is a sample and each value is a 2D matrix
+        (rows: retention times, columns: m/z values).
+    sigma : float
+        The standard deviation for the Gaussian kernel. Larger values result in smoother profiles.
+
+    Returns:
+    --------
+    dict
+        Dictionary with smoothed matrices.
+    """
+    smoothed_dict = {}
+    for key, matrix in data_dict.items():
+        # Convert to NumPy array if not already
+        matrix = np.array(matrix)
+
+        # Apply Gaussian filter along each m/z profile (column)
+        smoothed_matrix = gaussian_filter1d(matrix, sigma=sigma, axis=0)
+
+        # Store in the new dictionary
+        smoothed_dict[key] = smoothed_matrix
+
+    return smoothed_dict
 
 
 def normalize_amplitude_minmax(signal):
@@ -590,30 +671,94 @@ def string_to_latex_confusion_matrix(data_str, headers):
     print(latex_string)
 
 
-def plot_image(image_tensor):
+def plot_image(image):
     """
-    Plot a 3, 224, 224 image tensor using Matplotlib.
+    Plot a 1-channel or 3-channel image (either a torch.Tensor or a numpy.ndarray) using Matplotlib.
 
     Parameters:
     -----------
-    image_tensor : torch.Tensor
-        A tensor of shape (3, H, W) representing an RGB image.
+    image : torch.Tensor or numpy.ndarray
+        A 1-channel or 3-channel image of shape (1, H, W), (3, H, W), (H, W), or (H, W, 3).
     """
-    if image_tensor.shape[0] == 3:  # Ensure it's 3-channel
-        image_tensor = image_tensor.permute(1, 2, 0)  # Rearrange to (H, W, C)
+    import torch
+    # Handle PyTorch tensor input
+    if isinstance(image, torch.Tensor):
+        # Ensure the image is on the CPU and not batched
+        if len(image.shape) == 4:  # Handle batch dimension
+            image = image[0]
+        image = image.cpu()  # Move to CPU if needed
+
+        if image.shape[0] == 3:  # Convert 3-channel tensor to (H, W, 3)
+            image = image.permute(1, 2, 0).numpy()
+        elif image.shape[0] == 1:  # Convert 1-channel tensor to (H, W)
+            image = image.squeeze(0).numpy()
+        else:
+            raise ValueError("Input tensor should have shape (1, H, W), (3, H, W), or (N, 3/1, H, W).")
+
+    # Handle NumPy array input
+    elif isinstance(image, np.ndarray):
+        if len(image.shape) == 3 and image.shape[-1] == 3:  # (H, W, 3)
+            pass  # Already in the correct format
+        elif len(image.shape) == 2:  # (H, W)
+            pass  # Already single-channel
+        else:
+            raise ValueError("Input numpy array should have shape (H, W) or (H, W, 3).")
     else:
-        raise ValueError("Input tensor should have 3 channels (RGB).")
+        raise TypeError("Input should be a torch.Tensor or numpy.ndarray.")
 
-    # Convert tensor to numpy array
-    image = image_tensor.cpu().numpy()
-
-    # De-normalize if needed (ImageNet stats)
+    # De-normalize if needed (for 3-channel images, using ImageNet stats)
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
-    image = std * image + mean  # De-normalize
-    image = image.clip(0, 1)  # Clip values to [0, 1] for display
+    if len(image.shape) == 3:  # (H, W, 3)
+        if image.max() > 1.0:  # Assume it's in the [0, 255] range
+            image = image / 255.0
+        image = (image * std) + mean  # De-normalize
+        image = np.clip(image, 0, 1)  # Clip values to [0, 1] for display
 
     # Plot the image
-    plt.imshow(image)
+    if len(image.shape) == 3:  # RGB Image
+        plt.imshow(image)
+    elif len(image.shape) == 2:  # Grayscale Image
+        plt.imshow(image, cmap="gray")  # Use grayscale colormap
+    else:
+        raise ValueError("Unexpected image format for plotting.")
+
     plt.axis('off')  # Turn off axes
     plt.show()
+
+def aggregate_retention_times(data, window_size, method="mean"):
+    """
+    Aggregate GCMS data along the retention time dimension.
+
+    Parameters:
+    ----------
+    data : numpy.ndarray
+        A 2D array with shape (retention time, m/z).
+    window_size : int
+        The number of retention times to aggregate into one.
+    method : str
+        The aggregation method: "mean", "max", or "median".
+
+    Returns:
+    -------
+    aggregated_data : numpy.ndarray
+        A 2D array with reduced retention time dimension.
+    """
+    # Ensure the number of retention times is divisible by the window size
+    n_retention_times = data.shape[0]
+    truncated_data = data[:n_retention_times // window_size * window_size, :]
+
+    # Reshape for aggregation
+    reshaped_data = truncated_data.reshape(-1, window_size, data.shape[1])  # (num_windows, window_size, m/z)
+
+    # Perform aggregation
+    if method == "mean":
+        aggregated_data = reshaped_data.mean(axis=1)  # Aggregate along the window size dimension
+    elif method == "max":
+        aggregated_data = reshaped_data.max(axis=1)
+    elif method == "median":
+        aggregated_data = np.median(reshaped_data, axis=1)
+    else:
+        raise ValueError("Invalid method. Choose 'mean', 'max', or 'median'.")
+
+    return aggregated_data
