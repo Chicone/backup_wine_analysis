@@ -2,6 +2,8 @@ from pynndescent.optimal_transport import total_cost
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, Perceptron, RidgeClassifier, PassiveAggressiveClassifier, SGDClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, HistGradientBoostingClassifier
+
+import utils
 from dimensionality_reduction import DimensionalityReducer
 from sklearn.decomposition import PCA
 from sklearn.svm import SVC
@@ -10,7 +12,6 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, balanced_accuracy_score
 from sklearn.utils.class_weight import compute_sample_weight
-
 
 
 from utils import find_first_and_last_position, normalize_dict, normalize_data
@@ -35,7 +36,7 @@ class CustomDataParallel(torch.nn.DataParallel):
             return getattr(self.module, name)
 
 class CNN1D(nn.Module):
-    def __init__(self, input_length, num_classes, num_channels=1, nconv=2):
+    def __init__(self, input_length, num_classes, num_channels=1, nconv=2, multichannel=None):
         """
         A flexible 1D CNN where the number of convolutional layers can be set via `nconv`.
 
@@ -52,6 +53,8 @@ class CNN1D(nn.Module):
         """
         super(CNN1D, self).__init__()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.multichannel=multichannel
+
         self.nconv = nconv
 
         # Base number of filters and kernel size
@@ -140,13 +143,18 @@ class CNN1D(nn.Module):
         print(f'Weight decay = {weight_decay}')
 
 
-        # train_dataset = TensorDataset(X_train.unsqueeze(1), y_train)
-        train_dataset = TensorDataset(X_train.squeeze(), y_train)
+        # TODO add conditions for single or
+        if not self.multichannel:
+            train_dataset = TensorDataset(X_train.unsqueeze(1), y_train)
+        else:
+            train_dataset = TensorDataset(X_train.squeeze(), y_train)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         # plt.figure();plt.imshow(train_dataset[2][0].permute(1, 2, 0).numpy())
 
-        # val_dataset =  TensorDataset(X_val.unsqueeze(1), y_val)
-        val_dataset =  TensorDataset(X_val.squeeze(), y_val)
+        if not self.multichannel:
+            val_dataset =  TensorDataset(X_val.unsqueeze(1), y_val)
+        else:
+            val_dataset =  TensorDataset(X_val.squeeze(), y_val)
         val_loader = DataLoader(val_dataset, batch_size=batch_size)
 
         # Define loss and optimizer
@@ -1262,15 +1270,20 @@ class Classifier:
         - 'GNB': Gaussian Naive Bayes
         - 'GBC': Gradient Boosting Classifier
     """
-    def __init__(self, data, labels, classifier_type='LDA', wine_kind='bordeaux'):
+    def __init__(self, data, labels, classifier_type='LDA', wine_kind='bordeaux', cnn_dim=1, multichannel=True,
+                 window_size=5000, stride=2500):
         self.data = data
         self.labels = labels
-        self.classifier = self._get_classifier(classifier_type)
+        self.multichannel = multichannel
+        self.window_size = window_size
+        self.stride = stride
+        self.classifier = self._get_classifier(classifier_type, multichannel=self.multichannel)
         self.wine_kind = wine_kind
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.cnn_dim = cnn_dim
 
 
-    def _get_classifier(self, classifier_type):
+    def _get_classifier(self, classifier_type, multichannel=None):
         """
         Return the classifier object based on the classifier type.
 
@@ -1321,10 +1334,14 @@ class Classifier:
         """
         Initialize the 1D CNN classifier. This method can be extended with hyperparameters as needed.
         """
-        input_length = self.data.shape[2]
-        channels = self.data.shape[1]
+        # input_length = self.data.shape[2]
+        input_length = self.window_size
+        if not self.multichannel:
+            channels = 1
+        else:
+            channels = self.data.shape[1]
         num_classes = len(set(self.labels))  # Number of unique labels
-        model = CNN1D(input_length, num_classes, num_channels=channels, nconv=1)
+        model = CNN1D(input_length, num_classes, num_channels=channels, nconv=1, multichannel=self.multichannel)
         return model
 
     def _initialize_cnn(self):
@@ -1491,7 +1508,8 @@ class Classifier:
 
     def train_and_evaluate_balanced(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
                                     scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
-                                    cnn='1D', batch_size=32, num_epochs=10, learning_rate=0.001):
+                                    batch_size=32, num_epochs=10, learning_rate=0.001,
+                                   ):
         """
         Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
 
@@ -1548,79 +1566,88 @@ class Classifier:
                 X_train = pca.fit_transform(X_train)
                 X_test = pca.transform(X_test)
 
+            if self.cnn_dim:
+                # Transform input data for CNN
+                if self.cnn_dim == 2:
 
-            # Transform input data for CNN
-            if cnn == '2D':
+                    def preprocess_images_fast(train_tensor):
+                        """
+                        Preprocess images in a tensor by resizing, normalizing, and optionally converting to 3 channels.
 
-                def preprocess_images_fast(train_tensor):
-                    """
-                    Preprocess images in a tensor by resizing, normalizing, and optionally converting to 3 channels.
+                        Parameters:
+                        -----------
+                        train_tensor : torch.Tensor
+                            Tensor of shape (num_samples, channels, height, width).
+                        target_size : tuple
+                            Target size (height, width) for resizing.
 
-                    Parameters:
-                    -----------
-                    train_tensor : torch.Tensor
-                        Tensor of shape (num_samples, channels, height, width).
-                    target_size : tuple
-                        Target size (height, width) for resizing.
+                        Returns:
+                        --------
+                        torch.Tensor
+                            Preprocessed tensor of shape (num_samples, channels, target_height, target_width).
+                        """
+                        # Resize using interpolation (fast and supports batch processing)
+                        # train_tensor = F.interpolate(train_tensor, size=target_size, mode='bilinear', align_corners=False)
 
-                    Returns:
-                    --------
-                    torch.Tensor
-                        Preprocessed tensor of shape (num_samples, channels, target_height, target_width).
-                    """
-                    # Resize using interpolation (fast and supports batch processing)
-                    # train_tensor = F.interpolate(train_tensor, size=target_size, mode='bilinear', align_corners=False)
+                        # Normalize the tensor (e.g., mean=[0.5], std=[0.5])
+                        mean = train_tensor.mean(dim=(0, 2, 3), keepdim=True).to(train_tensor.device)  # Mean across batch, height, and width
+                        std = train_tensor.std(dim=(0, 2, 3), keepdim=True).to(train_tensor.device)
+                        std = std + 1e-6
+                        train_tensor = (train_tensor - mean) / std
 
-                    # Normalize the tensor (e.g., mean=[0.5], std=[0.5])
-                    mean = train_tensor.mean(dim=(0, 2, 3), keepdim=True).to(train_tensor.device)  # Mean across batch, height, and width
-                    std = train_tensor.std(dim=(0, 2, 3), keepdim=True).to(train_tensor.device)
-                    std = std + 1e-6
-                    train_tensor = (train_tensor - mean) / std
+                        return train_tensor
 
-                    return train_tensor
+                    # Convert labels to integers
+                    label_to_index = {label: idx for idx, label in enumerate(set(y_train))}
+                    integer_labels = [label_to_index[label] for label in y_train]
+                    integer_labels = np.repeat(integer_labels, X_train.shape[1])
+                    y_train = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
 
-                # Convert labels to integers
-                label_to_index = {label: idx for idx, label in enumerate(set(y_train))}
-                integer_labels = [label_to_index[label] for label in y_train]
-                integer_labels = np.repeat(integer_labels, X_train.shape[1])
-                y_train = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
+                    # Flatten the first two dimensions
+                    X_train = X_train.reshape(-1, X_train.shape[2], X_train.shape[3])
+                    X_train = torch.tensor(X_train, dtype=torch.float32).to(self.device).unsqueeze(1)
+                    # X_train = preprocess_images_fast(X_train)
 
-                # Flatten the first two dimensions
-                X_train = X_train.reshape(-1, X_train.shape[2], X_train.shape[3])
-                X_train = torch.tensor(X_train, dtype=torch.float32).to(self.device).unsqueeze(1)
-                # X_train = preprocess_images_fast(X_train)
+                    integer_labels = [label_to_index[label] for label in y_test]
+                    integer_labels = np.repeat(integer_labels, X_test.shape[1])
+                    y_test = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
 
-                integer_labels = [label_to_index[label] for label in y_test]
-                integer_labels = np.repeat(integer_labels, X_test.shape[1])
-                y_test = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
+                    X_test = X_test.reshape(-1, X_test.shape[2], X_test.shape[3])
+                    X_test = torch.tensor(X_test, dtype=torch.float32).to(self.device).unsqueeze(1)
+                    # X_test = preprocess_images_fast(X_test)
 
-                X_test = X_test.reshape(-1, X_test.shape[2], X_test.shape[3])
-                X_test = torch.tensor(X_test, dtype=torch.float32).to(self.device).unsqueeze(1)
-                # X_test = preprocess_images_fast(X_test)
+                    self.classifier.fit(X_train, y_train, X_test, y_test,
+                                        batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate)
+                elif self.cnn_dim == 1:
+                    # Convert labels to integers
+                    label_to_index = {label: idx for idx, label in enumerate(set(y_train))}
+                    integer_labels = [label_to_index[label] for label in y_train]
+                    if not self.multichannel: # if one channel at a time, repeat the labels to the number of m/z channels
+                        integer_labels = np.repeat(integer_labels, X_train.shape[1])
+                    y_train = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
 
-                self.classifier.fit(X_train, y_train, X_test, y_test,
-                                    batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate)
-            elif cnn == '1D':
-                # Convert labels to integers
-                label_to_index = {label: idx for idx, label in enumerate(set(y_train))}
-                integer_labels = [label_to_index[label] for label in y_train]
-                # integer_labels = np.repeat(integer_labels, X_train.shape[1])
-                y_train = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
+                    # Reshape
+                    if not self.multichannel:
+                        X_train = torch.tensor(X_train.reshape(len(y_train), X_train.shape[2]), dtype=torch.float32).to(self.device)
+                    else:
+                        X_train = torch.tensor(X_train, dtype=torch.float32).to(self.device)
+                        X_train, num_overlaps = utils.split_tensor_into_overlapping_windows(X_train, self.window_size, self.stride)
+                        y_train = torch.repeat_interleave(y_train, repeats=num_overlaps)
 
-                # Reshape
-                # X_train = torch.tensor(X_train.reshape(len(y_train), X_train.shape[2]), dtype=torch.float32).to(self.device)
-                X_train = torch.tensor(X_train, dtype=torch.float32).to(self.device)
+                    integer_labels = [label_to_index[label] for label in y_test]
+                    if not self.multichannel:
+                        integer_labels = np.repeat(integer_labels, X_test.shape[1])
+                    y_test = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
 
+                    if not self.multichannel:
+                        X_test = torch.tensor(X_test.reshape(len(y_test), X_test.shape[2]), dtype=torch.float32).to(self.device)
+                    else:
+                        X_test = torch.tensor(X_test, dtype=torch.float32).to(self.device)
+                        X_test, num_overlaps = utils.split_tensor_into_overlapping_windows(X_test, 5000, 2500)
+                        y_test = torch.repeat_interleave(y_test, repeats=num_overlaps)
 
-                integer_labels = [label_to_index[label] for label in y_test]
-                # integer_labels = np.repeat(integer_labels, X_test.shape[1])
-                y_test = torch.tensor(integer_labels, dtype=torch.long).to(self.device)
-
-                # X_test = torch.tensor(X_test.reshape(len(y_test), X_test.shape[2]), dtype=torch.float32).to(self.device)
-                X_test = torch.tensor(X_test, dtype=torch.float32).to(self.device)
-
-                self.classifier.fit(X_train, y_train, X_test, y_test,
-                                    batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate)
+                    self.classifier.fit(X_train, y_train, X_test, y_test,
+                                        batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate)
 
             else:
                 # Train the classifier without sample_weight

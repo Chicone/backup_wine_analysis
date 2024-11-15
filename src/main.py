@@ -21,7 +21,7 @@ import argparse
 import os
 from data_loader import DataLoader
 # from dimensionality_reduction import DimensionalityReducer
-from wine_analysis import WineAnalysis, ChromatogramAnalysis
+from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
                             assign_north_south_to_beaune)
@@ -40,8 +40,11 @@ if __name__ == "__main__":
     chrom_cap = 25000
     vintage = False
     use_3d = False
-    cnn = '1D' # '1D', '2D', None
-    collapse_axis = "GCMS"  # TIC, TIS, TIC-TIS, GCMS
+    cnn_dim = 1 # 2, None
+    multichannel = True
+    data_type = "GCMS"  # TIC, TIS, TIC-TIS, GCMS
+    if data_type != "GCMS":
+        cnn_dim = None  # Disable CNN for non-GCMS data types
     sync_state = False  # True to use retention time alignment
     pca_state = [False]   # True for classification on PCA-reduced data
     n = 1  # decimation factor for the 3D data
@@ -75,6 +78,7 @@ if __name__ == "__main__":
     data_dict = utils.load_ms_data_from_directories(main_directory, column_indices, row_start, row_end)
     min_length = min(array.shape[0] for array in data_dict.values())
     data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
+    # gcms = GCMSDataProcessor(data_dict)
 
     # Function to align TIC chromatograms using MS data
     def align_tics():
@@ -90,129 +94,72 @@ if __name__ == "__main__":
         norm_tics = utils.normalize_dict(synced_tics, scaler='standard')
         return norm_tics
 
-    if cnn == '2D':  # uses all MS data in crops
-        def generate_crops(data_dict, crop_size, stride):
-            """
-            Generate crops from each sample in the data dictionary.
+    # GCMS-Specific Handling
+    if data_type == "GCMS":
+        if cnn_dim == 2:
+            def generate_crops(data_dict, crop_size, stride):
+                cropped_data_dict = {}
+                for sample, matrix in data_dict.items():
+                    crops = []
+                    num_rows, num_cols = matrix.shape
+                    crop_height = min(crop_size[0], num_rows)
+                    crop_width = min(crop_size[1], num_cols)
+                    stride_vertical, stride_horizontal = stride
 
-            Parameters:
-            -----------
-            data_dict : dict
-                A dictionary where keys are sample names and values are 2D numpy arrays (matrices).
-            crop_size : tuple
-                A tuple specifying the (height, width) of each crop.
-            stride : tuple
-                A tuple specifying the (vertical, horizontal) stride for the sliding window.
+                    for row_start in range(0, num_rows - crop_height + 1, stride_vertical):
+                        for col_start in range(0, num_cols - crop_width + 1, stride_horizontal):
+                            crop = matrix[row_start:row_start + crop_height, col_start:col_start + crop_width]
+                            crops.append(crop)
 
-            Returns:
-            --------
-            cropped_data_dict : dict
-                A dictionary where keys are sample names and values are lists of cropped matrices.
-            """
-            cropped_data_dict = {}
+                    cropped_data_dict[sample] = crops
+                return cropped_data_dict
 
-            for sample, matrix in data_dict.items():
-                crops = []
-                num_rows, num_cols = matrix.shape
-                crop_height = min(crop_size[0], num_rows)
-                crop_width = min(crop_size[1], num_cols)
-                stride_vertical, stride_horizontal = stride
+            def resample_gcms_pytorch(data_dict, original_size, new_size):
+                resampled_dict = {}
+                scale_factor = new_size / original_size
 
-                for row_start in range(0, num_rows - crop_height + 1, stride_vertical):
-                    for col_start in range(0, num_cols - crop_width + 1, stride_horizontal):
-                        crop = matrix[row_start:row_start + crop_height, col_start:col_start + crop_width]
-                        crops.append(crop)
+                for sample_name, data in data_dict.items():
+                    tensor_data = torch.tensor(data, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to("cuda")
+                    resampled_tensor = F.interpolate(tensor_data, scale_factor=(1, scale_factor), mode='bicubic',
+                                                     align_corners=False)
+                    resampled_dict[sample_name] = resampled_tensor.squeeze(0).squeeze(0).cpu().numpy()
 
-                cropped_data_dict[sample] = crops
+                return resampled_dict
 
-            return cropped_data_dict
-        def resample_gcms_pytorch(data_dict, original_size, new_size):
-            """
-            Resample the m/z dimension using PyTorch for GPU acceleration.
-
-            Parameters:
-            ----------
-            data_dict : dict
-                Dictionary where keys are sample names and values are 2D numpy arrays (25000, original_size).
-            original_size : int
-                Original size of the m/z dimension.
-            new_size : int
-                New size of the m/z dimension.
-
-            Returns:
-            -------
-            resampled_dict : dict
-                Dictionary with resampled 2D tensors (25000, new_size).
-            """
-            resampled_dict = {}
-            scale_factor = new_size / original_size
-
-            for sample_name, data in data_dict.items():
-                # print(sample_name)
-                # Convert data to PyTorch tensor and add batch and channel dimensions
-                tensor_data = torch.tensor(data, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(
-                    "cuda")  # Shape: (1, 1, 25000, 181)
-
-                # Resample using interpolate
-                resampled_tensor = F.interpolate(tensor_data, scale_factor=(1, scale_factor), mode='bicubic',
-                                                 align_corners=False)
-
-                # Remove batch and channel dimensions, convert back to numpy
-                resampled_dict[sample_name] = resampled_tensor.squeeze(0).squeeze(0).cpu().numpy()
-
-            return resampled_dict
-        data_dict = resample_gcms_pytorch(data_dict, original_size=181, new_size=500)
-        aggregated_dict = {}
-        for sample_name, image in data_dict.items():
-            aggregated_image = utils.aggregate_retention_times(image, n, method='max')
-            aggregated_dict[sample_name] = aggregated_image
-        data_dict = aggregated_dict
-        # Create a dictionary containing crops for each sample
-        cropped_data_dict = generate_crops(data_dict, crop_size, stride)
-        print(f'Num. Crops = {len(cropped_data_dict[list(cropped_data_dict)[0]])}')
-    else:  # use the collapsed accumulated data
-        if collapse_axis == "TIC":
-            if sync_state:
-                norm_tics = align_tics()
-            else:
-                # This is the MS sum of all ions for each retention time (TIC)
-                col_sum_dict = utils.sum_data_in_data_dict(data_dict, axis=1)
-                tics = col_sum_dict
-                norm_tics = utils.normalize_dict(tics, scaler='standard')
-            chromatograms = {key: utils.normalize_amplitude_zscore(signal) for key, signal in norm_tics.items()}
-        elif collapse_axis == "TIS":
-            # This is the m/z sum of all retention times
-            row_sum_dict = utils.sum_data_in_data_dict(data_dict, axis=0)
-            chromatograms = row_sum_dict
-        elif collapse_axis == "TIC-TIS":
-            norm_tics = align_tics()
-            # Amplitude normalize TIC
-            norm_ampl_tics = {key: utils.normalize_amplitude_zscore(signal) for key, signal in norm_tics.items()}
-            tics = {key: list(value) for key, value in norm_ampl_tics.items()}
-
-            # Compute normalized TIS
-            tiss = utils.sum_data_in_data_dict(data_dict, axis=0)
-            norm_ampl_tiss = {key: utils.normalize_amplitude_zscore(signal) for key, signal in tiss.items()}
-            tiss = {key: list(value) for key, value in norm_ampl_tiss.items()}
-
-            # Concatenate normalized TIC and TIS
-            chromatograms = utils.concatenate_dict_values(tics, tiss)
-        elif collapse_axis == "GCMS":
-            # data_dict = utils.smooth_mz_profiles(data_dict, sigma=10)
+            data_dict = resample_gcms_pytorch(data_dict, original_size=181, new_size=500)
+            aggregated_dict = {
+                sample_name: utils.aggregate_retention_times(image, n, method='max')
+                for sample_name, image in data_dict.items()
+            }
+            cropped_data_dict = generate_crops(aggregated_dict, crop_size, stride)
+            print(f'Num. Crops = {len(cropped_data_dict[list(cropped_data_dict)[0]])}')
+            data = cropped_data_dict.values()
+            labels = cropped_data_dict.keys()
+        else:
             data_dict = utils.normalize_mz_profiles_amplitude(data_dict, method='min-max')
             chromatograms = {sample_name: np.hsplit(matrix, matrix.shape[1]) for sample_name, matrix in data_dict.items()}
+            data = chromatograms.values()
+            labels = chromatograms.keys()
+
+    else:  # Handling Other Data Types
+        if data_type == "TIC":
+            norm_tics = align_tics() if sync_state else utils.normalize_dict(
+                utils.sum_data_in_data_dict(data_dict, axis=1), scaler='standard')
+            chromatograms = {key: utils.normalize_amplitude_zscore(signal) for key, signal in norm_tics.items()}
+        elif data_type == "TIS":
+            chromatograms = utils.sum_data_in_data_dict(data_dict, axis=0)
+        elif data_type == "TIC-TIS":
+            norm_tics = align_tics()
+            tics = {key: utils.normalize_amplitude_zscore(signal) for key, signal in norm_tics.items()}
+            tiss = utils.sum_data_in_data_dict(data_dict, axis=0)
+            chromatograms = utils.concatenate_dict_values(
+                {key: list(value) for key, value in tics.items()},
+                {key: list(value) for key, value in tiss.items()}
+            )
         else:
-            raise ValueError("Invalid 'collapse_axis' option. Options are 'TIC', 'TIS', and 'TIC-TIS'")
-
-    if cnn == '2D':
-        data = cropped_data_dict.values()
-        labels = cropped_data_dict.keys()
-    else:
-        # Choose the chromatograms to analyze
+            raise ValueError("Invalid 'data_type' option.")
         data = chromatograms.values()
-        # data = synced_chromatograms.values()
         labels = chromatograms.keys()
-
     if wine_kind == "bordeaux":
         region = 'bordeaux_chateaux'
         labels = process_labels(labels, vintage=vintage)
@@ -246,12 +193,16 @@ if __name__ == "__main__":
         #     continue
         # for cls_type in ['LDA', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
         # for cls_type in ['LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
-        for cls_type in ['CNN1D']:
+        for cls_type in ['CNN1D']:  # 'CNN', 'CNN1D'
             print("")
             print (f'sync {sync_state}')
             print (f'PCA {pca}')
             print(f"Estimating LOO accuracy on dataset {chem_name}...")
-            cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=wine_kind)
+            cls = Classifier(
+                np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=wine_kind,
+                cnn_dim=cnn_dim, multichannel=multichannel,
+                window_size=5000, stride=2500
+            )
             # cls.train_and_evaluate(
             #     n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca,
             #     vthresh=0.995, region=region
@@ -262,9 +213,9 @@ if __name__ == "__main__":
             #     vthresh=0.995, region=region, cnn=cnn
             # )
             cls.train_and_evaluate_balanced(
-                n_splits, vintage=vintage, test_size=None, normalize=not cnn, scaler_type='standard', use_pca=pca,
+                n_splits, vintage=vintage, test_size=None, normalize=not cnn_dim, scaler_type='standard', use_pca=pca,
                 vthresh=0.995, region=region,
-                cnn=cnn, batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate
+                batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate,
             )
 
 

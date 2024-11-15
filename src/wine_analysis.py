@@ -1932,144 +1932,122 @@ class SyncChromatograms:
 class GCMSDataProcessor:
     def __init__(self, data):
         """
-        Initialize the GCMSDataProcessor with GC-MS data.
+        Initialize the GCMSDataProcessor class.
 
         Parameters:
-        ----------
-        data : dict
-            A dictionary where keys are sample names and values are 2D arrays
-            with shape (retention_times, m/z channels).
+        - data (dict): A dictionary where keys are sample labels and values are 2D numpy arrays
+                       (rows: retention times, columns: m/z abundance data).
         """
         self.data = data
 
-    def aggregate(self, axis, method="mean"):
+    def compute_tic(self):
         """
-        Aggregate the data along a specific axis (retention time or m/z).
+        Compute the Total Ion Chromatogram (TIC) for each sample by summing all columns (m/z) for each retention time.
+
+        Returns:
+        - dict: A dictionary where keys are sample labels and values are 1D numpy arrays (TIC profiles).
+        """
+        return {label: np.sum(matrix, axis=1) for label, matrix in self.data.items()}
+
+    def compute_tis(self):
+        """
+        Compute the Total Ion Spectrum (TIS) for each sample by summing all rows (retention times) for each m/z channel.
+
+        Returns:
+        - dict: A dictionary where keys are sample labels and values are 1D numpy arrays (TIS profiles).
+        """
+        return {label: np.sum(matrix, axis=0) for label, matrix in self.data.items()}
+
+    def create_overlapping_windows(self, window_size, stride):
+        """
+        Divide each sample matrix into overlapping windows along the retention time direction.
 
         Parameters:
-        ----------
-        axis : int
-            The axis to aggregate along. 0 for retention times, 1 for m/z channels.
+        - window_size (int): The size of each window in the retention time direction.
+        - stride (int): The step size to move the window.
+
+        Returns:
+        - numpy.ndarray: An array containing all the smaller matrices in succession for all samples.
+        - numpy.ndarray: A labels array assigning to each matrix the label of the sample they come from.
+        """
+        all_matrices = []
+        all_labels = []
+
+        for label, matrix in self.data.items():
+            num_rows, num_cols = matrix.shape
+
+            # Create overlapping windows
+            for start_idx in range(0, num_rows - window_size + 1, stride):
+                window = matrix[start_idx:start_idx + window_size, :]
+                all_matrices.append(window)
+                all_labels.append(label)
+
+        # Convert lists to numpy arrays
+        all_matrices_array = np.array(all_matrices)
+        all_labels_array = np.array(all_labels)
+
+        return all_matrices_array, all_labels_array
+
+    def normalize_mz_profiles_amplitude(self, data_dict, method="z-score"):
+        """
+        Normalize the amplitude of each m/z profile (column-wise normalization
+        across retention times) using z-score or min-max normalization.
+
+        Parameters:
+        -----------
+        data_dict : dict
+            Dictionary where each key is a sample and each value is a 2D matrix
+            (rows: retention times, columns: m/z values).
         method : str
-            Aggregation method: "mean", "sum", or "max".
+            Normalization method, either "z-score" or "min-max".
 
         Returns:
-        -------
+        --------
         dict
-            A dictionary where each sample contains aggregated data.
+            Dictionary with normalized matrices.
         """
-        operations = {
-            "mean": np.mean,
-            "sum": np.sum,
-            "max": np.max
-        }
+        if method not in ["z-score", "min-max"]:
+            raise ValueError("Invalid method. Choose 'z-score' or 'min-max'.")
 
-        if method not in operations:
-            raise ValueError(f"Invalid method: {method}. Choose from {list(operations.keys())}.")
+        normalized_dict = {}
+        for key, matrix in data_dict.items():
+            # Convert matrix to NumPy array if not already
+            matrix = np.array(matrix)
 
-        return {key: operations[method](matrix, axis=axis) for key, matrix in self.data.items()}
+            if method == "z-score":
+                # Z-score normalization
+                col_mean = matrix.mean(axis=0, keepdims=True)  # Mean for each column (m/z profile)
+                col_std = matrix.std(axis=0, keepdims=True)  # Standard deviation for each column (m/z profile)
+                normalized_matrix = (matrix - col_mean) / col_std
 
-    def select_profile(self, mz_index):
+                # Handle columns with zero standard deviation (avoid NaN)
+                normalized_matrix[np.isnan(normalized_matrix)] = 0  # Replace NaN with 0
+
+            elif method == "min-max":
+                # Min-max normalization
+                col_min = matrix.min(axis=0, keepdims=True)  # Min for each column (m/z profile)
+                col_max = matrix.max(axis=0, keepdims=True)  # Max for each column (m/z profile)
+                normalized_matrix = (matrix - col_min) / (col_max - col_min)
+
+                # Handle columns with zero range (avoid division by zero)
+                normalized_matrix[np.isnan(normalized_matrix)] = 0  # Replace NaN with 0
+
+            # Store the normalized matrix in the dictionary
+            normalized_dict[key] = normalized_matrix
+
+        return normalized_dict
+
+    def to_dataframe(self):
         """
-        Extract individual m/z profiles from the data.
-
-        Parameters:
-        ----------
-        mz_index : int
-            The index of the m/z channel to extract.
+        Convert the GC-MS data to a Pandas DataFrame for easier analysis.
 
         Returns:
-        -------
-        dict
-            A dictionary with retention time profiles for the specified m/z index.
+        - pd.DataFrame: A DataFrame where each sample is a column, indexed by retention times.
         """
-        return {key: matrix[:, mz_index] for key, matrix in self.data.items()}
-
-    def normalize(self, axis, method="zscore"):
-        """
-        Normalize the data along a specific axis.
-
-        Parameters:
-        ----------
-        axis : int
-            The axis to normalize along. 0 for retention times, 1 for m/z channels.
-        method : str
-            Normalization method: "zscore" or "minmax".
-
-        Returns:
-        -------
-        dict
-            A dictionary with normalized data.
-        """
-        def zscore(matrix, axis):
-            mean = np.mean(matrix, axis=axis, keepdims=True)
-            std = np.std(matrix, axis=axis, keepdims=True)
-            return (matrix - mean) / (std + 1e-8)  # Add epsilon to avoid division by zero
-
-        def minmax(matrix, axis):
-            min_val = np.min(matrix, axis=axis, keepdims=True)
-            max_val = np.max(matrix, axis=axis, keepdims=True)
-            return (matrix - min_val) / (max_val - min_val + 1e-8)
-
-        operations = {
-            "zscore": zscore,
-            "minmax": minmax
-        }
-
-        if method not in operations:
-            raise ValueError(f"Invalid method: {method}. Choose from {list(operations.keys())}.")
-
-        return {key: operations[method](matrix, axis=axis) for key, matrix in self.data.items()}
-
-    def smooth(self, sigma=1):
-        """
-        Smooth the data using a Gaussian filter.
-
-        Parameters:
-        ----------
-        sigma : float
-            The standard deviation for Gaussian kernel.
-
-        Returns:
-        -------
-        dict
-            A dictionary with smoothed data.
-        """
-        return {key: scipy.ndimage.gaussian_filter(matrix, sigma=sigma) for key, matrix in self.data.items()}
-
-    def resample(self, new_length, axis=1):
-        """
-        Resample the data along a specific axis (e.g., m/z channels).
-
-        Parameters:
-        ----------
-        new_length : int
-            The new length for the resampled dimension.
-        axis : int
-            The axis to resample. 0 for retention times, 1 for m/z channels.
-
-        Returns:
-        -------
-        dict
-            A dictionary with resampled data.
-        """
-        def resample_matrix(matrix, new_length, axis):
-            original_length = matrix.shape[axis]
-            new_indices = np.linspace(0, original_length - 1, new_length)
-            return np.take(matrix, indices=new_indices.astype(int), axis=axis)
-
-        return {key: resample_matrix(matrix, new_length, axis) for key, matrix in self.data.items()}
-
-    def get_data(self):
-        """
-        Retrieve the processed data.
-
-        Returns:
-        -------
-        dict
-            The current state of the GC-MS data.
-        """
-        return self.data
+        return pd.concat(
+            {label: pd.DataFrame(matrix) for label, matrix in self.data.items()},
+            axis=1
+        )
 
 
 

@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import re
 import os
 import subprocess
@@ -680,7 +681,6 @@ def plot_image(image):
     image : torch.Tensor or numpy.ndarray
         A 1-channel or 3-channel image of shape (1, H, W), (3, H, W), (H, W), or (H, W, 3).
     """
-    import torch
     # Handle PyTorch tensor input
     if isinstance(image, torch.Tensor):
         # Ensure the image is on the CPU and not batched
@@ -762,3 +762,41 @@ def aggregate_retention_times(data, window_size, method="mean"):
         raise ValueError("Invalid method. Choose 'mean', 'max', or 'median'.")
 
     return aggregated_data
+
+
+def split_tensor_into_overlapping_windows(tensor, window_size, stride):
+    """
+    Split the last dimension of a tensor into overlapping windows.
+
+    Parameters:
+    ----------
+    tensor : torch.Tensor
+        The input tensor of shape (batch_size, channels, length, 1).
+    window_size : int
+        The size of each window along the last dimension.
+    stride : int
+        The stride (step size) for overlapping windows.
+
+    Returns:
+    -------
+    torch.Tensor
+        A tensor of shape (batch_size * num_overlaps, channels, window_size).
+    """
+    # Ensure the input tensor is 4D
+    if tensor.ndim != 4:
+        raise ValueError("Input tensor must be 4D (batch_size, channels, length, 1)")
+
+    # Calculate the number of overlaps
+    num_overlaps = (tensor.shape[2] - window_size) // stride + 1
+
+    # Apply unfolding to create windows
+    windows = torch.nn.functional.unfold(
+        tensor.permute(0, 3, 1, 2),  # Permute to (batch_size, 1, channels, length)
+        kernel_size=(tensor.shape[1], window_size),  # Window size for channels and length
+        stride=(1, stride)  # Stride for channels and length
+    )
+
+    # Reshape and permute back to the desired format
+    windows = windows.permute(0, 2, 1).reshape(-1, tensor.shape[1], window_size)
+
+    return windows, num_overlaps
