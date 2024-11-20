@@ -58,8 +58,8 @@ class CNN1D(nn.Module):
         self.nconv = nconv
 
         # Base number of filters and kernel size
-        base_filters = 16
-        kernel_size = 3
+        base_filters = 64
+        kernel_size = 5
 
         # Dynamically create convolutional and batch normalization layers
         self.conv_layers = nn.ModuleList()
@@ -74,7 +74,7 @@ class CNN1D(nn.Module):
 
         # Pooling and dropout
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.3)
 
         # Dynamically calculate the input size for the fully connected layer
         with torch.no_grad():
@@ -134,7 +134,7 @@ class CNN1D(nn.Module):
         learning_rate : float
             Learning rate for optimizer.
         """
-        weight_decay = 1e-3
+        weight_decay = 0.001
 
         print(f'Batch size =   {batch_size}')
         print(f'Epochs =       {num_epochs}')
@@ -160,7 +160,7 @@ class CNN1D(nn.Module):
         # Define loss and optimizer
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
 
         for epoch in range(num_epochs):
             self.to(self.device)
@@ -195,6 +195,7 @@ class CNN1D(nn.Module):
             val_accuracy = correct / total
             print(
                 f"Epoch {epoch + 1}/{num_epochs}, "
+                # f"Learning Rate = {scheduler.get_last_lr()}, "
                 f"Train Loss: {running_loss / len(train_loader):.5f}, "
                 f"Val Loss: {val_loss / len(val_loader):.5f}, "
                 f"Val Accuracy: {val_accuracy:.5f}"
@@ -222,31 +223,34 @@ class CNN1D(nn.Module):
             _, y_pred = outputs.max(1)
         return y_pred.cpu()
 
-
-    def score(self, data_loader):
+    def score(self, X_test, y_test):
         """
         Compute the accuracy of the model on test data.
 
         Parameters:
         ----------
-        data_loader : DataLoader
-            DataLoader for test data.
+        X_test : torch.Tensor
+            Test feature data of shape (num_samples, num_features).
+        y_test : torch.Tensor
+            True labels for the test data.
 
         Returns:
         -------
         float
             Accuracy of the model.
         """
-        self.model.eval()
+        self.eval()  # Switch to evaluation mode
         correct = 0
         total = 0
-        with torch.no_grad():
-            for images, labels in data_loader:
-                images, labels = images.to(self.device), labels.to(self.device)
-                outputs = self.model(images)
-                _, predicted = outputs.max(1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+
+        with torch.no_grad():  # Disable gradient computation
+            # Forward pass
+            outputs = self(X_test)
+            _, predicted = outputs.max(1)  # Get class with maximum score
+            total = y_test.size(0)
+            correct = (predicted == y_test).sum().item()
+
+        # Return accuracy
         return correct / total
 
 # class CNNClassifier(nn.Module):
@@ -651,7 +655,7 @@ class ImprovedGCMSCNN(nn.Module):
         self.fc1 = nn.Linear(512, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, num_classes)
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.3)
 
     def forward(self, x):
         x = self.pool(self.block1(x))
@@ -1271,10 +1275,11 @@ class Classifier:
         - 'GBC': Gradient Boosting Classifier
     """
     def __init__(self, data, labels, classifier_type='LDA', wine_kind='bordeaux', cnn_dim=1, multichannel=True,
-                 window_size=5000, stride=2500):
+                 window_size=5000, stride=2500, nconv=3):
         self.data = data
         self.labels = labels
         self.multichannel = multichannel
+        self.nconv = nconv
         self.window_size = window_size
         self.stride = stride
         self.classifier = self._get_classifier(classifier_type, multichannel=self.multichannel)
@@ -1341,7 +1346,7 @@ class Classifier:
         else:
             channels = self.data.shape[1]
         num_classes = len(set(self.labels))  # Number of unique labels
-        model = CNN1D(input_length, num_classes, num_channels=channels, nconv=1, multichannel=self.multichannel)
+        model = CNN1D(input_length, num_classes, num_channels=channels, nconv=self.nconv, multichannel=self.multichannel)
         return model
 
     def _initialize_cnn(self):
@@ -1619,6 +1624,9 @@ class Classifier:
                     self.classifier.fit(X_train, y_train, X_test, y_test,
                                         batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate)
                 elif self.cnn_dim == 1:
+
+                    self.classifier = self._initialize_cnn1d() # Reinitialize the classifier
+
                     # Convert labels to integers
                     label_to_index = {label: idx for idx, label in enumerate(set(y_train))}
                     integer_labels = [label_to_index[label] for label in y_train]
@@ -1633,6 +1641,7 @@ class Classifier:
                         X_train = torch.tensor(X_train, dtype=torch.float32).to(self.device)
                         X_train, num_overlaps = utils.split_tensor_into_overlapping_windows(X_train, self.window_size, self.stride)
                         y_train = torch.repeat_interleave(y_train, repeats=num_overlaps)
+                        print(f'Input samples = {len(y_train)}')
 
                     integer_labels = [label_to_index[label] for label in y_test]
                     if not self.multichannel:
@@ -1643,7 +1652,7 @@ class Classifier:
                         X_test = torch.tensor(X_test.reshape(len(y_test), X_test.shape[2]), dtype=torch.float32).to(self.device)
                     else:
                         X_test = torch.tensor(X_test, dtype=torch.float32).to(self.device)
-                        X_test, num_overlaps = utils.split_tensor_into_overlapping_windows(X_test, 5000, 2500)
+                        X_test, num_overlaps = utils.split_tensor_into_overlapping_windows(X_test, self.window_size, self.stride)
                         y_test = torch.repeat_interleave(y_test, repeats=num_overlaps)
 
                     self.classifier.fit(X_train, y_train, X_test, y_test,
@@ -1659,9 +1668,15 @@ class Classifier:
             # Predictions on test data
             y_pred = self.classifier.predict(X_test)
 
+
+
             # Calculate metrics
             accuracy_scores.append(self.classifier.score(X_test, y_test))
-            print(accuracy_scores)
+            # print(f'Mean accuracy = {np.mean(accuracy_scores)}')
+            if self.cnn_dim is not None:
+                y_test = y_test.cpu().numpy()
+                y_pred = y_pred.cpu().numpy()
+
             balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
 
             # Compute weighted accuracy, precision, recall, and F1-score with sample weights
@@ -1672,15 +1687,21 @@ class Classifier:
             recall_scores.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
             f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
 
+            if self.cnn_dim:
+                index_to_label = {index: label for label, index in label_to_index.items()}
+                # Convert back to labels
+                y_test = [index_to_label[i] for i in y_test]
+                y_pred = [index_to_label[i] for i in y_pred]
+
             # Confusion matrix for the current split
-            # cm = confusion_matrix(y_test, y_pred, labels=custom_order if custom_order else None)
-            # confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
+            cm = confusion_matrix(y_test, y_pred, labels=custom_order if custom_order else None)
+            confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
 
         # Print the current split number every 5 iterations to show progress
         print(i, end=' ', flush=True) if i % 5 == 0 else None
 
         # Calculate mean confusion matrix and print results
-        # mean_confusion_matrix = confusion_matrix_sum / n_splits
+        mean_confusion_matrix = confusion_matrix_sum / n_splits
         print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
         print(
             f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
@@ -1689,7 +1710,8 @@ class Classifier:
         print(f"Precision: {np.mean(precision_scores):.3f}")
         print(f"Recall: {np.mean(recall_scores):.3f}")
         print(f"F1 Score: {np.mean(f1_scores):.3f}")
-        # print("Mean Confusion Matrix:", mean_confusion_matrix)
+        np.set_printoptions(linewidth=np.inf)
+        print("Mean Confusion Matrix:", mean_confusion_matrix)
 
         # Return metrics
         return {
@@ -1699,7 +1721,7 @@ class Classifier:
             'mean_precision': np.mean(precision_scores),
             'mean_recall': np.mean(recall_scores),
             'mean_f1_score': np.mean(f1_scores),
-            # 'mean_confusion_matrix': mean_confusion_matrix
+            'mean_confusion_matrix': mean_confusion_matrix
         }
 
     def train_and_evaluate_separate_datasets(self, X_train, y_train, X_test, y_test, n_splits=50, vintage=False,

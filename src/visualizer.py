@@ -2,6 +2,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from data_provider import AccuracyDataProvider
 import pandas as pd
+from sklearn.manifold import MDS
+from matplotlib.cm import get_cmap
+
 
 class Visualizer:
     """
@@ -416,4 +419,69 @@ def plot_classification_accuracy():
     ax[1].legend(loc='upper right', bbox_to_anchor=(1, 1))
     ax[1].grid(axis='y')
     plt.tight_layout()
+    plt.show()
+
+
+def visualize_confusion_matrix_3d(conf_matrix, class_labels):
+    """
+    Visualizes a confusion matrix in 3D using MDS, forcing symmetry using the upper triangular part.
+
+    Parameters:
+    ----------
+    conf_matrix : np.ndarray
+        A 2D NumPy array representing the confusion matrix.
+    class_labels : list of str
+        A list of class labels corresponding to the confusion matrix rows/columns.
+
+    Example Input:
+    --------------
+    conf_matrix = np.array([
+        [50, 10, 5],
+        [8, 45, 7],
+        [6, 9, 40]
+    ])
+    class_labels = ['Class 1', 'Class 2', 'Class 3']
+    """
+    # Ensure the input is a NumPy array
+    conf_matrix = np.array(conf_matrix)
+
+    # Force symmetry using the upper triangle
+    symmetric_conf_matrix = np.triu(conf_matrix) + np.triu(conf_matrix, k=1).T
+
+    # Normalize using global normalization to preserve symmetry
+    dissimilarity_matrix = 1 - symmetric_conf_matrix / symmetric_conf_matrix.sum()
+
+    # Apply MDS for 3D embedding
+    mds = MDS(n_components=3, dissimilarity='precomputed', random_state=42)
+    embedding = mds.fit_transform(dissimilarity_matrix)
+
+    # 3D Visualization
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Generate a colormap for the classes
+    cmap = get_cmap("tab20")  # Use a colormap with many distinct colors
+    colors = [cmap(i / len(class_labels)) for i in range(len(class_labels))]
+
+    # Scatter plot with different colors for each class
+    for i, label in enumerate(class_labels):
+        ax.scatter(embedding[i, 0], embedding[i, 1], embedding[i, 2],
+                   color=colors[i], s=100, label=label)
+
+    # Connect points with a line to aid 3D visualization
+    for i in range(len(embedding) - 1):
+        ax.plot(
+            [embedding[i, 0], embedding[i + 1, 0]],
+            [embedding[i, 1], embedding[i + 1, 1]],
+            [embedding[i, 2], embedding[i + 1, 2]],
+            color="gray", linestyle="--", alpha=0.5
+        )
+
+    # Add legend and labels
+    ax.legend(loc="best", fontsize=10)
+    ax.set_title("3D Visualization of Confusion Matrix with MDS", fontsize=14)
+    ax.set_xlabel("Dimension 1")
+    ax.set_ylabel("Dimension 2")
+    ax.set_zlabel("Dimension 3")
+
     plt.show()

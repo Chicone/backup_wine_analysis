@@ -405,6 +405,7 @@ class ChromatogramAnalysis:
 
         lag_profiles = []
         synced_chromatograms = {}
+        synced_gcms = {}
         for i, key in enumerate(input_chromatograms.keys()):
             print(i, key)
             chrom = input_chromatograms[key]
@@ -417,9 +418,10 @@ class ChromatogramAnalysis:
             optimized_chrom = sync_chrom.adjust_chromatogram()
             lag_profiles.append(sync_chrom.lag_res[0:2])
             synced_chromatograms[key] = optimized_chrom
+            synced_gcms[key] = sync_chrom.target_ms
 
         # plot_average_profile_with_std(lag_profiles, title='Lag distribution 2018 dataset')
-        return synced_chromatograms
+        return synced_chromatograms, synced_gcms
 
     def stacked_2D_plots_3D(self, data_dict):
         """
@@ -909,7 +911,16 @@ class SyncChromatograms:
         and finds the best match within the target matrix for each peak based on Pearson's coefficient.
         """
 
-        # Ensure peaks in segments of the reference chromatogram
+        def is_larger_than_last(value, lst):
+            """
+            Check if the value is larger than the last element of the list.
+            If the list is empty, return True.
+            """
+            if not lst:  # Check if the list is empty
+                return True
+            return value > lst[-1]
+
+            # Ensure peaks in segments of the reference chromatogram
         reference_peaks, _ = find_peaks(reference_chromatogram)
         reference_peaks, valid = self.ensure_peaks_in_segments(
             reference_chromatogram, reference_peaks, num_segments=num_segments
@@ -945,7 +956,7 @@ class SyncChromatograms:
                 correlation, _ = pearsonr(reference_row, target_row)
 
                 # Update best match if the correlation is higher
-                if correlation > 0.98 and correlation > max_correlation:
+                if correlation > 0.98 and correlation > max_correlation and is_larger_than_last(target_index, locations):
                     max_correlation = correlation
                     best_match_index = target_index
 
@@ -1666,6 +1677,30 @@ class SyncChromatograms:
                 )
 
             return corrected_c2
+
+        def correct_with_spline_matrix(matrix, t, spline):
+            """
+            Correct each column of a matrix using a spline-based shift.
+
+            Parameters
+            ----------
+            matrix : np.ndarray
+                The MS matrix where each column corresponds to an m/z channel.
+            t : array-like
+                The time indices in the chromatogram (retention times).
+            spline : UnivariateSpline
+                The spline function representing the time shift to be applied.
+
+            Returns
+            -------
+            np.ndarray
+                The corrected MS matrix.
+            """
+            corrected_matrix = np.empty_like(matrix)
+            for j in range(matrix.shape[1]):  # Iterate over columns (m/z channels)
+                corrected_matrix[:, j] = apply_shift_spline(matrix[:, j], t, spline)  # Correct along retention times
+            return corrected_matrix
+
         ##### End of local functions #####
 
 
@@ -1696,12 +1731,19 @@ class SyncChromatograms:
             self.lag_res[1] = np.concatenate(([self.lag_res[1][0]], self.lag_res[1], [self.lag_res[1][-1]]))
         self.lag_res = tuple(self.lag_res)
 
+        spline = UnivariateSpline(self.lag_res[0], self.lag_res[1], s=0, k=1)
+        # Correct the MS matrix using the spline
+        t = np.arange(self.target_ms.shape[0])
+        self.target_ms = correct_with_spline_matrix(self.target_ms, t, spline)
+
 
         # self.lag_res = list(self.lag_res)
         # self.lag_res[1] = self.lag_res[1] + offset
         # self.lag_res[0] = self.lag_res[0] - offset
         # self.lag_res = tuple(self.lag_res)
         # corrected_c2 = correct_with_spline(corrected_c2, 0, 1, normalize=False, plot=False)
+
+        # Correct the TIC using the spline
         corrected_c2 = correct_with_spline(offset_corrected_c2, 0, 1, normalize=False, plot=False)
 
         # # for sl in [8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000, 8000, 4000]:
