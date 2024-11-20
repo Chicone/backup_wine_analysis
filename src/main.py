@@ -25,7 +25,7 @@ from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
                             assign_north_south_to_beaune)
-from visualizer import Visualizer, plot_all_acc_LDA, plot_stacked_chromatograms, plot_classification_accuracy
+from visualizer import visualize_confusion_matrix_3d
 from dimensionality_reduction import run_umap_and_evaluate, run_tsne_and_evaluate
 import matplotlib.pyplot as plt
 import utils
@@ -36,32 +36,35 @@ import torch.nn.functional as F
 
 if __name__ == "__main__":
     # plot_classification_accuracy()
-    n_splits = 20
+    n_splits = 100
     chrom_cap = 25000
     vintage = False
     use_3d = False
+    n = 5  # decimation factor for the 3D data
     cnn_dim = 1 # 2, None
+    nconv = 1
+    window = 1000
+    strd = 200
     multichannel = True
-    data_type = "GCMS"  # TIC, TIS, TIC-TIS, GCMS
+    data_type = "TIC"  # TIC, TIS, TIC-TIS, GCMS
     if data_type != "GCMS":
         cnn_dim = None  # Disable CNN for non-GCMS data types
     sync_state = False  # True to use retention time alignment
     pca_state = [False]   # True for classification on PCA-reduced data
-    n = 1  # decimation factor for the 3D data
 
     # For CNN
     crop_size = (500, 128)  # Example crop size  181
     stride = (150, 128)     # Example stride for overlapping crops
     batch_size = 64
-    num_epochs = 100
+    num_epochs = 10
     learning_rate = 0.0001
 
 
-    # main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/LLE_SCAN/"
-    # chem_name = 'PINOT_NOIR_LLE_SCAN'
-    main_directory = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/DLLME_SCAN/"
+    main_directory = "/home/luisgcamara/Documents/datasets/3D_data/PINOT_NOIR/LLE_SCAN/"
     chem_name = 'PINOT_NOIR_LLE_SCAN'
-    # main_directory = "/home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/"
+    # main_directory = "/home/luisgcamara/Documents/datasets/3D_data/PINOT_NOIR/DLLME_SCAN/"
+    # chem_name = 'PINOT_NOIR_LLE_SCAN'
+    # main_directory = "/home/luisgcamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/"
     # chem_name = 'BORDEAUX_OAK_PAPER_OAK_WOOD'
 
     cl = ChromatogramAnalysis()
@@ -78,6 +81,7 @@ if __name__ == "__main__":
     data_dict = utils.load_ms_data_from_directories(main_directory, column_indices, row_start, row_end)
     min_length = min(array.shape[0] for array in data_dict.values())
     data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
+    data_dict = {key: matrix[::n, :] for key, matrix in data_dict.items()}
     # gcms = GCMSDataProcessor(data_dict)
 
     # Function to align TIC chromatograms using MS data
@@ -86,13 +90,13 @@ if __name__ == "__main__":
         tics = col_sum_dict
         mean_c = cl.calculate_mean_chromatogram(tics)
         closest_to_mean = cl.closest_to_mean_chromatogram(tics, mean_c)
-        synced_tics = cl.sync_individual_chromatograms(
+        synced_tics, synced_gcms = cl.sync_individual_chromatograms(
             closest_to_mean[1], data_dict[closest_to_mean[0]], tics, data_dict,
             np.linspace(0.980, 1.020, 80), initial_lag=25
         )
         synced_tics = {key: value[:chrom_cap] for key, value in synced_tics.items()}
         norm_tics = utils.normalize_dict(synced_tics, scaler='standard')
-        return norm_tics
+        return norm_tics, synced_gcms
 
     # GCMS-Specific Handling
     if data_type == "GCMS":
@@ -135,7 +139,9 @@ if __name__ == "__main__":
             print(f'Num. Crops = {len(cropped_data_dict[list(cropped_data_dict)[0]])}')
             data = cropped_data_dict.values()
             labels = cropped_data_dict.keys()
-        else:
+        elif cnn_dim == 1:
+            if sync_state:
+                norm_tics, data_dict = align_tics()
             data_dict = utils.normalize_mz_profiles_amplitude(data_dict, method='min-max')
             chromatograms = {sample_name: np.hsplit(matrix, matrix.shape[1]) for sample_name, matrix in data_dict.items()}
             data = chromatograms.values()
@@ -143,13 +149,15 @@ if __name__ == "__main__":
 
     else:  # Handling Other Data Types
         if data_type == "TIC":
-            norm_tics = align_tics() if sync_state else utils.normalize_dict(
-                utils.sum_data_in_data_dict(data_dict, axis=1), scaler='standard')
+            if sync_state:
+                norm_tics, _ = align_tics()
+            else:
+                norm_tics = utils.normalize_dict(utils.sum_data_in_data_dict(data_dict, axis=1), scaler='standard')
             chromatograms = {key: utils.normalize_amplitude_zscore(signal) for key, signal in norm_tics.items()}
         elif data_type == "TIS":
             chromatograms = utils.sum_data_in_data_dict(data_dict, axis=0)
         elif data_type == "TIC-TIS":
-            norm_tics = align_tics()
+            norm_tics, _ = align_tics()
             tics = {key: utils.normalize_amplitude_zscore(signal) for key, signal in norm_tics.items()}
             tiss = utils.sum_data_in_data_dict(data_dict, axis=0)
             chromatograms = utils.concatenate_dict_values(
@@ -193,7 +201,9 @@ if __name__ == "__main__":
         #     continue
         # for cls_type in ['LDA', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
         # for cls_type in ['LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
-        for cls_type in ['CNN1D']:  # 'CNN', 'CNN1D'
+        for cls_type in ['RGC']:  # 'CNN', 'CNN1D'
+            if data_type == 'GCMS':
+                cls_type = 'CNN1D'
             print("")
             print (f'sync {sync_state}')
             print (f'PCA {pca}')
@@ -201,7 +211,7 @@ if __name__ == "__main__":
             cls = Classifier(
                 np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=wine_kind,
                 cnn_dim=cnn_dim, multichannel=multichannel,
-                window_size=5000, stride=2500
+                window_size=window, stride=strd, nconv=nconv
             )
             # cls.train_and_evaluate(
             #     n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca,
@@ -212,11 +222,19 @@ if __name__ == "__main__":
             #     n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca,
             #     vthresh=0.995, region=region, cnn=cnn
             # )
-            cls.train_and_evaluate_balanced(
+            classif_res = cls.train_and_evaluate_balanced(
                 n_splits, vintage=vintage, test_size=None, normalize=not cnn_dim, scaler_type='standard', use_pca=pca,
                 vthresh=0.995, region=region,
                 batch_size=batch_size, num_epochs=num_epochs, learning_rate=learning_rate,
             )
+
+            class_labels = [
+                'Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot',
+                'Les Petits Monts', 'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach',
+                'Brunner', 'Vin des Croisés', 'Villard et Fils', 'République',
+                'Maladaires', 'Marimar', 'Drouhin'
+            ]
+            visualize_confusion_matrix_3d(classif_res['mean_confusion_matrix'], class_labels=class_labels)
 
 
     # cl.stacked_2D_plots_3D(synced_chromatograms)
