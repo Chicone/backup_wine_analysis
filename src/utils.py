@@ -713,13 +713,60 @@ def sum_data_in_data_dict(data_dict, axis=1):
     return sum_dict
 
 
+# def string_to_latex_confusion_matrix(data_str, headers):
+#     # Convert string to numpy array
+#     data_str = re.sub(r'\s+', ' ', data_str.replace('\n', ' '))  # Clean up whitespace
+#     data = np.array([list(map(float, row.split())) for row in data_str[2:-2].split('] [')])
+#
+#     # Multiply by 100 and convert to integer
+#     data = np.round(data * 100).astype(int)
+#
+#     # Begin LaTeX table string
+#     latex_string = "\\begin{table}[h!]\n\\centering\n\\begin{tabular}{|c|" + "c|" * len(headers) + "}\n    \\hline\n"
+#
+#     # Add column headers with rotated labels
+#     latex_string += "    & " + " & ".join(f"\\rotatebox{{90}}{{{header}}}" for header in headers) + " \\\\\\hline\n"
+#
+#     # Populate rows with cell color and no display value
+#     for i, row in enumerate(data):
+#         row_name = headers[i]
+#         row_cells = " & ".join(f"\\cellcolorval{{{value}}}" for value in row)
+#         latex_string += f"    {row_name} & {row_cells} \\\\\\hline\n"
+#
+#     # Complete LaTeX table
+#     latex_string += "\\end{tabular}\n\\caption{Confusion Matrix in LaTeX}\n\\end{table}"
+#
+#     # Print without escape characters
+#     print(latex_string)
+
 def string_to_latex_confusion_matrix(data_str, headers):
+    """
+    Converts a confusion matrix string to a LaTeX table format with rows summing to 100%.
+
+    Parameters:
+    ----------
+    data_str : str
+        The confusion matrix as a string (rows separated by `] [`).
+    headers : list of str
+        List of column/row headers.
+
+    Returns:
+    -------
+    None
+        Prints the LaTeX string for the confusion matrix, ready for copy-pasting.
+    """
     # Convert string to numpy array
     data_str = re.sub(r'\s+', ' ', data_str.replace('\n', ' '))  # Clean up whitespace
     data = np.array([list(map(float, row.split())) for row in data_str[2:-2].split('] [')])
 
-    # Multiply by 100 and convert to integer
-    data = np.round(data * 100).astype(int)
+    # Normalize each row to sum to 100%
+    normalized_data = []
+    for row in data:
+        row = row / row.sum() * 100  # Normalize to percentages
+        rounded_row = np.floor(row).astype(int)  # Round down all values
+        rounded_row[-1] += 100 - rounded_row.sum()  # Adjust the last element
+        normalized_data.append(rounded_row)
+    normalized_data = np.array(normalized_data)
 
     # Begin LaTeX table string
     latex_string = "\\begin{table}[h!]\n\\centering\n\\begin{tabular}{|c|" + "c|" * len(headers) + "}\n    \\hline\n"
@@ -728,7 +775,7 @@ def string_to_latex_confusion_matrix(data_str, headers):
     latex_string += "    & " + " & ".join(f"\\rotatebox{{90}}{{{header}}}" for header in headers) + " \\\\\\hline\n"
 
     # Populate rows with cell color and no display value
-    for i, row in enumerate(data):
+    for i, row in enumerate(normalized_data):
         row_name = headers[i]
         row_cells = " & ".join(f"\\cellcolorval{{{value}}}" for value in row)
         latex_string += f"    {row_name} & {row_cells} \\\\\\hline\n"
@@ -736,8 +783,10 @@ def string_to_latex_confusion_matrix(data_str, headers):
     # Complete LaTeX table
     latex_string += "\\end{tabular}\n\\caption{Confusion Matrix in LaTeX}\n\\end{table}"
 
-    # Print without escape characters
+    # Print the LaTeX table
     print(latex_string)
+
+
 
 
 def plot_image(image):

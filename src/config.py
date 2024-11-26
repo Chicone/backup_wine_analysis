@@ -26,7 +26,7 @@ CONCATENATE_TICS = False
 CNN_DIM = None
 gcms_options = ["RT_DIRECTION", "MS_DIRECTION"]
 GCMS_DIRECTION = gcms_options[0]
-NUM_AGGR_CHANNELS = 3
+NUM_AGGR_CHANNELS = 1
 
 # PCA and Classification
 PCA_STATE = [False]  # Enable PCA for classification

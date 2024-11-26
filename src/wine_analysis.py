@@ -1056,8 +1056,8 @@ class SyncChromatograms:
         if apply_global_alignment:
             # Apply global alignment by finding the best scale (currently turned off) and lag
             best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
-                gaussian_filter(reference_chromatogram[:10000], 50),
-                gaussian_filter(target_chromatogram[:10000], 50),
+                gaussian_filter(reference_chromatogram[:(len(reference_chromatogram) // 3)], 50),
+                gaussian_filter(target_chromatogram[:(len(target_chromatogram) // 3)], 50),
                 np.linspace(1.0, 1.0, 1),
                 max_lag=1000
             )

@@ -106,7 +106,7 @@ if __name__ == "__main__":
             if GCMS_DIRECTION == "RT_DIRECTION":
                 print("Analyzing GCMS data in retention time direction")
                 if SYNC_STATE:
-                    norm_tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
+                    tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
 
                 gcms.data = utils.reduce_columns_in_dict(gcms.data, NUM_AGGR_CHANNELS)
 
@@ -117,8 +117,8 @@ if __name__ == "__main__":
                 labels = np.repeat(labels, data.shape[2])
                 data = data.transpose(2, 0, 1).reshape(-1, data.shape[1])
                 if SYNC_STATE and CONCATENATE_TICS:
-                    data = np.concatenate((data, np.asarray(list(norm_tics.values()))), axis=0)
-                    labels = np.concatenate((labels, np.asarray(list(norm_tics.keys()))), axis=0)
+                    data = np.concatenate((data, np.asarray(list(tics.values()))), axis=0)
+                    labels = np.concatenate((labels, np.asarray(list(tics.keys()))), axis=0)
             # elif GCMS_DIRECTION == "MS_DIRECTION":
             #     print("Analyzing GCMS data in m/z direction")
             #     chrom_length = len(list(data_dict.values())[0])
@@ -153,7 +153,7 @@ if __name__ == "__main__":
         region = 'bordeaux_chateaux'
         labels = process_labels(labels, vintage=VINTAGE)
     elif WINE_KIND == "pinot_noir":
-        region = 'winery'
+        region = REGION
         # region = 'origin'
         if region == 'continent':
             labels = assign_continent_to_pinot_noir(labels)

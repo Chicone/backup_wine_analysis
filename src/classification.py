@@ -1315,7 +1315,7 @@ class Classifier:
         elif classifier_type == 'PER':
             return Perceptron()
         elif classifier_type == 'RGC':
-            return RidgeClassifier()
+            return RidgeClassifier(alpha=500)
         elif classifier_type == 'SGD':
             return SGDClassifier()
         elif classifier_type == 'SVM':
