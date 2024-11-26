@@ -44,6 +44,7 @@ from dcor import distance_correlation
 from docutils.nodes import target
 import scipy.ndimage
 import utils
+from config import N_DECIMATION
 from data_loader import DataLoader
 from sklearn.preprocessing import StandardScaler
 from classification import Classifier, assign_north_south_to_beaune
@@ -164,6 +165,36 @@ class ChromatogramAnalysis:
     def __init__(self, file_path1=None, file_path2=None):
         self.file_path1 = file_path1
         self.file_path2 = file_path2
+
+    def align_tics(self, data_dict, gcms, chrom_cap=25000):
+        """
+        Align TIC chromatograms using MS data. It also returns the aligned MS data
+
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary of chromatographic data.
+        chrom_cap : int, optional
+            Maximum size of chromatograms to process, by default 25000.
+
+        Returns
+        -------
+        norm_tics : dict
+            Normalized TIC chromatograms.
+        synced_gcms : dict
+            Synchronized GC-MS data.
+        """
+        tics = gcms.compute_tics()
+        mean_tic = self.calculate_mean_chromatogram(tics)
+        closest_to_mean = self.closest_to_mean_chromatogram(tics, mean_tic)
+        synced_tics, synced_gcms = self.sync_individual_chromatograms(
+            closest_to_mean[1], data_dict[closest_to_mean[0]], tics, data_dict,
+            np.linspace(0.980, 1.020, 80), initial_lag=25
+        )
+        synced_tics = {key: value[:chrom_cap] for key, value in synced_tics.items()}
+        # norm_tics = utils.normalize_dict(synced_tics, scaler='standard')
+
+        return synced_tics, synced_gcms
 
     def load_chromatogram(self, file_path):
         return np.load(file_path, allow_pickle=True).item()
@@ -330,7 +361,7 @@ class ChromatogramAnalysis:
 #
 
     def sync_individual_chromatograms(
-            self, reference_chromatogram, referenmce_ms, input_chromatograms, all_ms, scales, initial_lag=300):
+            self, reference_chromatogram, reference_ms, input_chromatograms, all_ms, scales, initial_lag=300):
         """
         Synchronize individual chromatograms with a reference chromatogram.
 
@@ -412,8 +443,8 @@ class ChromatogramAnalysis:
             target
             target_ms =  all_ms[key]
             sync_chrom = SyncChromatograms(
-                reference_chromatogram, chrom, input_chromatograms, referenmce_ms, target_ms, 1, scales, 1E6, threshold=0.00, max_sep_threshold=50,
-                peak_prominence=0.00
+                reference_chromatogram, chrom, input_chromatograms, reference_ms, target_ms, 1, scales,
+                1E6, threshold=0.00, max_sep_threshold=50, peak_prominence=0.00, ndec=N_DECIMATION
             )
             optimized_chrom = sync_chrom.adjust_chromatogram()
             lag_profiles.append(sync_chrom.lag_res[0:2])
@@ -540,7 +571,8 @@ class SyncChromatograms:
         This class is ideal for researchers who need to compare chromatographic data across multiple wine samples, ensuring that peaks and retention times are aligned for accurate analysis.
         """
 
-    def __init__(self, c1, c2, c2s, ref_ms, target_ms, n_segments, scales, min_peaks=5, max_iterations=100, threshold=0.5, max_sep_threshold=50, peak_prominence=0.1):
+    def __init__(self, c1, c2, c2s, ref_ms, target_ms, n_segments, scales, min_peaks=5, max_iterations=100,
+                 threshold=0.5, max_sep_threshold=50, peak_prominence=0.1, ndec=1):
         self.c1 = c1
         self.c2 = c2
         self.c2s = c2s
@@ -554,6 +586,7 @@ class SyncChromatograms:
         self.max_sep_threshold = max_sep_threshold
         self.peak_prominence = peak_prominence
         self.lag_res = None
+        self.ndec = ndec
 
     def scale_chromatogram(self, chrom, scale):
         x = np.arange(len(chrom))
@@ -1722,7 +1755,7 @@ class SyncChromatograms:
 
         self.lag_res = self.lag_profile_from_ms_data(
             gaussian_filter(self.c1,5), gaussian_filter(offset_corrected_c2, 5), self.ref_ms, self.target_ms,
-            200, 100, show_corrections=False
+            200 // self.ndec, 100 // self.ndec, show_corrections=False
         )
         # Ensure the first and last lags are consistent
         self.lag_res = list(self.lag_res)
@@ -1982,7 +2015,7 @@ class GCMSDataProcessor:
         """
         self.data = data
 
-    def compute_tic(self):
+    def compute_tics(self):
         """
         Compute the Total Ion Chromatogram (TIC) for each sample by summing all columns (m/z) for each retention time.
 
@@ -1991,7 +2024,7 @@ class GCMSDataProcessor:
         """
         return {label: np.sum(matrix, axis=1) for label, matrix in self.data.items()}
 
-    def compute_tis(self):
+    def compute_tiss(self):
         """
         Compute the Total Ion Spectrum (TIS) for each sample by summing all rows (retention times) for each m/z channel.
 
@@ -2078,6 +2111,65 @@ class GCMSDataProcessor:
             normalized_dict[key] = normalized_matrix
 
         return normalized_dict
+
+    def generate_crops(self, crop_size, stride):
+        """
+        Generate crops from GC-MS data with specified size and stride.
+
+        Parameters
+        ----------
+        crop_size : tuple
+            The size of each crop (height, width).
+        stride : tuple
+            The stride for overlapping crops (vertical, horizontal).
+
+        Returns
+        -------
+        dict
+            Dictionary of cropped data for each sample.
+        """
+        cropped_data_dict = {}
+        for sample, matrix in self.data_dict.items():
+            crops = []
+            num_rows, num_cols = matrix.shape
+            crop_height = min(crop_size[0], num_rows)
+            crop_width = min(crop_size[1], num_cols)
+            stride_vertical, stride_horizontal = stride
+
+            for row_start in range(0, num_rows - crop_height + 1, stride_vertical):
+                for col_start in range(0, num_cols - crop_width + 1, stride_horizontal):
+                    crop = matrix[row_start:row_start + crop_height, col_start:col_start + crop_width]
+                    crops.append(crop)
+
+            cropped_data_dict[sample] = crops
+        return cropped_data_dict
+
+    def resample_gcms_pytorch(self, original_size, new_size):
+        """
+        Resample GC-MS data using PyTorch interpolation.
+
+        Parameters
+        ----------
+        original_size : int
+            Original size of the data (e.g., retention times).
+        new_size : int
+            Target size for resampling.
+
+        Returns
+        -------
+        dict
+            Resampled data dictionary.
+        """
+        resampled_dict = {}
+        scale_factor = new_size / original_size
+
+        for sample_name, data in self.data_dict.items():
+            tensor_data = torch.tensor(data, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to("cuda")
+            resampled_tensor = F.interpolate(tensor_data, scale_factor=(1, scale_factor), mode='bicubic',
+                                             align_corners=False)
+            resampled_dict[sample_name] = resampled_tensor.squeeze(0).squeeze(0).cpu().numpy()
+
+        return resampled_dict
 
     def to_dataframe(self):
         """

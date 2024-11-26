@@ -381,6 +381,74 @@ def normalize_dict(data, scaler='standard'):
     norm_data = {key: values_scaled[idx, :].tolist() for idx, key in enumerate(keys)}
     return norm_data
 
+
+import numpy as np
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+
+def normalize_dict_multichannel(data, scaler='standard'):
+    """
+    Normalize the values in a dictionary across samples for each channel separately.
+    The output for each sample will be a matrix where columns represent channels and rows represent values.
+
+    Parameters
+    ----------
+    data : dict
+        The input dictionary to be normalized. The values should be lists of numpy arrays,
+        where each inner array represents a channel.
+    scaler : str, optional
+        The type of scaler to use for normalization. Options are 'standard' (Z-score normalization),
+        'minmax' (Min-Max scaling), and 'robust' (RobustScaler). Default is 'standard'.
+
+    Returns
+    -------
+    dict
+        A dictionary with the same keys and normalized values, where each sample is a NumPy matrix.
+        Columns represent channels, and rows represent normalized values.
+    """
+    keys = list(data.keys())
+
+    # Get the number of channels from the second dimension of any sample
+    first_sample = next(iter(data.values()))  # Retrieve the first sample
+    if not isinstance(first_sample, np.ndarray):
+        raise ValueError("Each sample in the dictionary should be a NumPy array.")
+    num_channels = first_sample.shape[1]  # Number of columns (channels)
+
+    norm_data = {}
+
+    # Normalize each channel independently
+    for channel_idx in range(num_channels):
+        # Extract data for the current channel across all samples
+        channel_data = np.array([sample[:, channel_idx] for sample in data.values()])
+
+        # Choose and apply the scaler
+        if scaler == 'standard':
+            scaler_instance = StandardScaler()
+        elif scaler == 'minmax':
+            scaler_instance = MinMaxScaler()
+        elif scaler == 'robust':
+            scaler_instance = RobustScaler()
+        else:
+            raise ValueError("Unsupported scaler type. Choose 'standard', 'minmax', or 'robust'.")
+
+        # Normalize the current channel with all samples
+        channel_data_scaled = scaler_instance.fit_transform(channel_data)
+
+        # Store normalized data back into the dictionary, grouped by sample
+        for idx, key in enumerate(keys):
+            if key not in norm_data:
+                norm_data[key] = []
+            # Append the normalized channel for the corresponding sample. Also normalize the amplitude
+            # norm_data[key].append(utils.normalize_amplitude_zscore(channel_data_scaled[idx, :]))  # Ensure correct slicing
+            norm_data[key].append(channel_data_scaled[idx, :])  # Ensure correct slicing
+
+    # Convert lists of channels into matrices (columns are channels, rows are values)
+    for key in norm_data:
+        norm_data[key] = np.column_stack(norm_data[key])  # Stack as columns for all cases
+
+    return norm_data
+
+
+
 def filter_dict_by_keys(original_dict, keys_to_keep):
     return {key: original_dict[key] for key in keys_to_keep if key in original_dict}
 
@@ -800,3 +868,39 @@ def split_tensor_into_overlapping_windows(tensor, window_size, stride):
     windows = windows.permute(0, 2, 1).reshape(-1, tensor.shape[1], window_size)
 
     return windows, num_overlaps
+
+def reduce_columns_in_dict(matrices_dict, n):
+    """
+    Reduces the column dimension of matrices in a dictionary by summing n contiguous columns.
+    Excess columns are added to the last column of the reduced matrix if the total is not divisible by n.
+
+    Parameters:
+        matrices_dict (dict): Dictionary of matrices (key: name, value: numpy.ndarray).
+                              Each matrix should have the same number of columns.
+        n (int): Number of contiguous columns to sum.
+
+    Returns:
+        dict: A new dictionary with reduced-dimension matrices.
+    """
+    reduced_dict = {}
+    for key, matrix in matrices_dict.items():
+        rows, cols = matrix.shape
+        full_groups = cols // n
+
+        # Handle the main contiguous columns
+        reshaped_data = matrix[:, :full_groups * n].reshape(rows, full_groups, n)
+        reduced_matrix = reshaped_data.sum(axis=2)
+
+        # Handle excess columns
+        if cols % n != 0:
+            excess_columns = matrix[:, full_groups * n:].sum(axis=1, keepdims=True)
+            # Add excess to the last column of the reduced matrix
+            reduced_matrix[:, -1] += excess_columns.flatten()
+
+        reduced_matrix = np.apply_along_axis(utils.normalize_amplitude_zscore, axis=0, arr=reduced_matrix)
+
+        # Store in the result dictionary
+        reduced_dict[key] = reduced_matrix
+
+    return reduced_dict
+

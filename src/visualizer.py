@@ -422,7 +422,7 @@ def plot_classification_accuracy():
     plt.show()
 
 
-def visualize_confusion_matrix_3d(conf_matrix, class_labels):
+def visualize_confusion_matrix_3d(conf_matrix, class_labels, title="3D visualization with MDS"):
     """
     Visualizes a confusion matrix in 3D using MDS, forcing symmetry using the upper triangular part.
 
@@ -479,9 +479,35 @@ def visualize_confusion_matrix_3d(conf_matrix, class_labels):
 
     # Add legend and labels
     ax.legend(loc="best", fontsize=10)
-    ax.set_title("3D Visualization of Confusion Matrix with MDS", fontsize=14)
+    ax.set_title(title, fontsize=14)
     ax.set_xlabel("Dimension 1")
     ax.set_ylabel("Dimension 2")
     ax.set_zlabel("Dimension 3")
 
+    plt.show()
+
+
+def plot_accuracy_vs_channels():
+    """
+    Plots a graph where the x-axis represents the number of contiguous aggregated channels,
+    and the y-axis represents the accuracy. Data is hardcoded.
+    """
+    # Hardcoded data
+    aggr_channels = [1    , 2    , 3    , 6    , 15   , 22   , 30   , 45   , 60   , 90   , 181    ]  # Number of aggregated channels
+    accuracy =      [0.824, 0.770, 0.683, 0.720, 0.407, 0.393, 0.335, 0.340, 0.289, 0.320, 0.543]  # Accuracy values
+
+    # Create the plot
+    plt.figure(figsize=(8, 6))
+    plt.plot(aggr_channels, accuracy, marker='o', linestyle='-', color='blue', label='Accuracy')
+
+    # Customize the plot
+    plt.title("Accuracy vs. Number of Aggregated Channels")
+    plt.xlabel("Number of Aggregated Channels")
+    plt.ylabel("Accuracy")
+    plt.xticks(aggr_channels)  # Set x-ticks to match the data points
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.legend()
+
+    # Show the plot
+    plt.tight_layout()
     plt.show()
