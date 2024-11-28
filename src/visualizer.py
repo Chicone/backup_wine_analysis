@@ -494,7 +494,7 @@ def plot_accuracy_vs_channels():
     """
     # Hardcoded data
     aggr_channels = [1    , 2    , 3    , 6    , 10    , 15   , 22   , 30   , 45   , 60   , 90   , 181    ]  # Number of aggregated channels
-    accuracy =      [0.850, 0.895, 0.880, 0.891, 0.802, 0.609, 0.607, 0.526, 0.456, 0.424, 0.358, 0.580]  # Accuracy values
+    accuracy =      [0.846, 0.890, 0.886, 0.883, 0.802, 0.619, 0.600, 0.526, 0.456, 0.424, 0.358, 0.580]  # Accuracy values
 
     # Create the plot
     plt.figure(figsize=(8, 6))

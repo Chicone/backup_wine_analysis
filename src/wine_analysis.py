@@ -1065,7 +1065,9 @@ class SyncChromatograms:
                 self.correct_segment(target_chromatogram, best_scale, best_lag), 5
             )
             if only_shift:
-                return np.linspace(0, 30000, num=num_segments + 2), np.full(num_segments + 2, best_lag), target_chromatogram_aligned
+                # return np.linspace(0, 30000, num=num_segments + 2), np.full(num_segments + 2, best_lag), target_chromatogram_aligned
+                return np.linspace(0, len(target_chromatogram_aligned), num=num_segments + 2), np.full(num_segments + 2,
+                                                                                                   best_lag)
 
             accum_lag = best_lag
         else:

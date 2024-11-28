@@ -63,6 +63,8 @@ import torch.nn.functional as F
 if __name__ == "__main__":
     # plot_classification_accuracy()
     # plot_accuracy_vs_channels()
+    # input_dir = "/home/luiscamara/Documents/datasets/3D_data/220322_Pinot_Noir_Tom_CDF"
+    # utils.convert_cdf_directory_to_csv(input_dir, mz_min=40, mz_max=220)
 
     cl = ChromatogramAnalysis()
 

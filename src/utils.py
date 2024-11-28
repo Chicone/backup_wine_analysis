@@ -953,3 +953,116 @@ def reduce_columns_in_dict(matrices_dict, n):
 
     return reduced_dict
 
+
+
+import netCDF4
+import csv
+
+def convert_cdf_to_csv(cdf_file, csv_file, mz_min=40, mz_max=220):
+    """
+    Converts a CDF file to a CSV file with retention time and m/z intensity channels.
+
+    Parameters:
+    cdf_file (str): Path to the input CDF file.
+    csv_file (str): Path to the output CSV file.
+    mz_min (int): Minimum m/z value for the channels.
+    mz_max (int): Maximum m/z value for the channels.
+    """
+    try:
+        # Open the NetCDF file
+        dataset = netCDF4.Dataset(cdf_file, mode='r')
+
+        # Retrieve necessary variables
+        retention_times = dataset.variables['scan_acquisition_time'][:] * 1000  # Convert to milliseconds
+        mass_values = dataset.variables['mass_values'][:]
+        intensity_values = dataset.variables['intensity_values'][:]
+        point_counts = dataset.variables['point_count'][:]
+
+        # Define m/z range (integer values between mz_min and mz_max)
+        mz_range = np.arange(mz_min, mz_max + 1)  # Include mz_max
+
+        # Prepare the output matrix
+        # Rows: Retention times, Columns: Retention time + m/z channels
+        output_matrix = np.zeros((len(retention_times), len(mz_range) + 1), dtype=float)
+        output_matrix[:, 0] = retention_times  # First column is retention time
+
+        # Precompute all rounded m/z values and corresponding intensity values
+        mz_rounded_all = np.round(mass_values).astype(int)
+
+        # Precompute valid m/z indices (those in range [mz_min, mz_max])
+        valid_mask = (mz_rounded_all >= mz_min) & (mz_rounded_all <= mz_max)
+        mz_indices = mz_rounded_all[valid_mask] - mz_min  # Map valid m/z to column indices
+        valid_intensities = intensity_values[valid_mask]
+
+        # Create a pointer for the current position in point_counts
+        current_index = 0
+
+        # Iterate over scans and aggregate intensities
+        for i, point_count in enumerate(point_counts):
+            # Get the range for this scan
+            scan_range = slice(current_index, current_index + point_count)
+
+            # Apply the valid mask for this scan
+            scan_mz_values = mz_rounded_all[scan_range]
+            scan_intensities = intensity_values[scan_range]
+
+            # Apply filter to get valid m/z and intensities
+            valid_scan_mask = (scan_mz_values >= mz_min) & (scan_mz_values <= mz_max)
+            mz_indices_scan = scan_mz_values[valid_scan_mask] - mz_min
+            intensities_scan = scan_intensities[valid_scan_mask]
+
+            # Use NumPy's add.at for fast accumulation
+            np.add.at(output_matrix[i, 1:], mz_indices_scan, intensities_scan)
+
+            # Move to the next scan range
+            current_index += point_count
+
+        # Write the output matrix to a CSV file
+        with open(csv_file, mode='w', newline='') as csv_output:
+            writer = csv.writer(csv_output)
+
+            # Write the header
+            header = ['Retention Time (ms)'] + [f"{mz}" for mz in mz_range]
+            writer.writerow(header)
+
+            # Write the rows of data
+            writer.writerows(output_matrix)
+
+        print(f"Successfully converted {cdf_file} to {csv_file}")
+
+    except KeyError as ke:
+        print(f"Key Error: {ke}")
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        # Close the dataset
+        dataset.close()
+
+
+
+def convert_cdf_directory_to_csv(input_dir, mz_min=40, mz_max=220):
+    """
+    Converts all CDF files in *.D directories to CSV files in the same directories.
+
+    Parameters:
+    input_dir (str): Path to the root directory containing *.D subdirectories with CDF files.
+    mz_min (int): Minimum m/z value for the channels.
+    mz_max (int): Maximum m/z value for the channels.
+    """
+    # Walk through all subdirectories in the input directory
+    for subdir in os.listdir(input_dir):
+        subdir_path = os.path.join(input_dir, subdir)
+
+        # Check if the subdirectory is a *.D directory
+        if os.path.isdir(subdir_path) and subdir.endswith('.D'):
+            cdf_file = os.path.join(subdir_path, 'data.cdf')  # Path to the data.cdf file
+            if os.path.isfile(cdf_file):
+                # Generate the output CSV file name
+                csv_file = os.path.join(subdir_path, f"{os.path.splitext(subdir)[0]}.csv")
+
+                # Convert the CDF file to CSV
+                try:
+                    print(f"Converting {cdf_file} to {csv_file}...")
+                    convert_cdf_to_csv(cdf_file, csv_file, mz_min=mz_min, mz_max=mz_max)
+                except Exception as e:
+                    print(f"Failed to convert {cdf_file}: {e}")
