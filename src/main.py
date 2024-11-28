@@ -15,6 +15,8 @@ Key Features:
 - **Visualization**: Generates visualizations of chromatograms, synchronization results, and dimensionality reduction outputs.
 
 """
+import time
+
 from traitlets.config import get_config
 
 from config import (
@@ -30,6 +32,7 @@ from config import (
     CNN_DIM,
     GCMS_DIRECTION,
     NUM_AGGR_CHANNELS,
+    DELAY,
     CONCATENATE_TICS,
     PCA_STATE,
     WINDOW,
@@ -61,6 +64,7 @@ import torch
 import torch.nn.functional as F
 
 if __name__ == "__main__":
+    time.sleep(DELAY)
     # plot_classification_accuracy()
     # plot_accuracy_vs_channels()
     # input_dir = "/home/luiscamara/Documents/datasets/3D_data/220322_Pinot_Noir_Tom_CDF"
@@ -198,16 +202,7 @@ if __name__ == "__main__":
                 cnn_dim=CNN_DIM, multichannel=MULTICHANNEL,
                 window_size=WINDOW, stride=STRIDE, nconv=NCONV
             )
-            # cls.train_and_evaluate(
-            #     n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca,
-            #     vthresh=0.995, region=region
-            # )
-            # TODO add parameter to pass second set of features
-            # cls.train_and_evaluate_balanced(
-            #     n_splits, vintage=vintage, test_size=None, normalize=True, scaler_type='standard', use_pca=pca,
-            #     vthresh=0.995, region=region, cnn=cnn
-            # )
-            classif_res = cls.train_and_evaluate_balanced(
+            classif_res = cls.train_and_evaluate_balanced_with_alpha(
                 N_SPLITS, vintage=VINTAGE, test_size=None, normalize=not CNN_DIM, scaler_type='standard', use_pca=pca,
                 vthresh=0.995, region=region,
                 batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE,

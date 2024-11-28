@@ -12,6 +12,8 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, balanced_accuracy_score
 from sklearn.utils.class_weight import compute_sample_weight
+from sklearn.linear_model import RidgeClassifierCV
+from sklearn.model_selection import GridSearchCV
 
 
 from utils import find_first_and_last_position, normalize_dict, normalize_data
@@ -1723,6 +1725,103 @@ class Classifier:
             'mean_f1_score': np.mean(f1_scores),
             'mean_confusion_matrix': mean_confusion_matrix
         }
+
+    def train_and_evaluate_balanced_with_alpha(self, n_splits=50, vintage=False, random_seed=42, test_size=None,
+                                               normalize=False,
+                                               scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
+                                               batch_size=32, num_epochs=10, learning_rate=0.001,
+                                               alpha_range=None):
+        """
+        Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
+        Learn the optimal alpha parameter for Ridge Classifier during training.
+
+        Parameters
+        ----------
+        alpha_range : list or None
+            Range of alpha values to test during cross-validation. If None, defaults to [0.1, 1.0, 10.0, 100.0].
+
+        Returns
+        -------
+        dict
+            A dictionary containing mean accuracy, balanced accuracy, weighted accuracy, precision, F1-score,
+            mean confusion matrix, and the mean optimal alpha value.
+        """
+        # Set default alpha range if not provided
+        if alpha_range is None:
+            alpha_range = [100.0, 1000.0, 2000.0, 3000.0, 4000.0, 5000.0]
+
+        # Initialize accumulators for metrics and alpha
+        accuracy_scores = []
+        balanced_accuracy_scores = []
+        precision_scores = []
+        f1_scores = []
+        best_alpha_values = []
+        confusion_matrix_sum = None
+
+        # Cross-validation loop
+        for i in range(n_splits):
+            # Split data into train and test sets
+            train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(vintage=vintage,
+                                                                                            test_size=test_size)
+
+            # Normalize data if enabled
+            if normalize:
+                X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+                X_test = scaler.transform(X_test)
+
+            # Apply PCA if enabled
+            if use_pca:
+                reducer = DimensionalityReducer(self.data)
+                _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
+                n_components = min(n_components, len(set(y_train)))  # Adjust PCA components based on class count
+                pca = PCA(n_components=n_components, svd_solver='randomized')
+                X_train = pca.fit_transform(X_train)
+                X_test = pca.transform(X_test)
+
+            # Learn optimal alpha using RidgeClassifierCV
+            ridge_classifier = RidgeClassifierCV(alphas=alpha_range, scoring='balanced_accuracy', store_cv_values=True)
+            ridge_classifier.fit(X_train, y_train)
+            best_alpha = ridge_classifier.alpha_
+            best_alpha_values.append(best_alpha)
+
+            # Predictions and metrics
+            y_pred = ridge_classifier.predict(X_test)
+            accuracy_scores.append(ridge_classifier.score(X_test, y_test))
+            balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
+
+            # Compute precision and F1 score
+            precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
+            f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
+
+            # Compute confusion matrix
+            cm = confusion_matrix(y_test, y_pred, labels=sorted(set(y_test)))
+            confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
+
+            print(f"Split {i + 1}/{n_splits} completed. Best alpha: {best_alpha}")
+
+        # Calculate mean metrics
+        mean_confusion_matrix = confusion_matrix_sum / n_splits
+        mean_alpha = np.mean(best_alpha_values)
+
+        # Print summary
+        print(f"Mean Alpha: {mean_alpha:.3f}")
+        print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
+        print(
+            f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
+        print(f"Precision: {np.mean(precision_scores):.3f}")
+        print(f"F1 Score: {np.mean(f1_scores):.3f}")
+        print("Mean Confusion Matrix:\n", mean_confusion_matrix)
+
+        # Return metrics
+        return {
+            'mean_accuracy': np.mean(accuracy_scores),
+            'mean_balanced_accuracy': np.mean(balanced_accuracy_scores),
+            'mean_precision': np.mean(precision_scores),
+            'mean_f1_score': np.mean(f1_scores),
+            'mean_confusion_matrix': mean_confusion_matrix,
+            'mean_alpha': mean_alpha
+        }
+
 
     def train_and_evaluate_separate_datasets(self, X_train, y_train, X_test, y_test, n_splits=50, vintage=False,
                                              random_seed=42, normalize=True, scaler_type='standard'):

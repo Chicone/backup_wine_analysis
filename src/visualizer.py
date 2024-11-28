@@ -493,12 +493,14 @@ def plot_accuracy_vs_channels():
     and the y-axis represents the accuracy. Data is hardcoded.
     """
     # Hardcoded data
-    aggr_channels = [1    , 2    , 3    , 6    , 10    , 15   , 22   , 30   , 45   , 60   , 90   , 181    ]  # Number of aggregated channels
-    accuracy =      [0.846, 0.890, 0.886, 0.883, 0.802, 0.619, 0.600, 0.526, 0.456, 0.424, 0.358, 0.580]  # Accuracy values
+    aggr_channels =      [1    , 2    , 3    , 6    , 10   , 15   , 22   , 30   , 45   , 60   , 90   , 181  ]  # Number of aggregated channels
+    accuracy_isvv =      [0.846, 0.890, 0.886, 0.883, 0.802, 0.619, 0.600, 0.526, 0.456, 0.424, 0.358, 0.580]  # Accuracy values
+    accuracy_changins =  [0.786, 0.874, 0.906, 0.852, 0.814, 0.657, 0.612, 0.600, 0.553, 0.505, 0.510, 0.744]  # Accuracy values
 
     # Create the plot
-    plt.figure(figsize=(8, 6))
-    plt.plot(aggr_channels, accuracy, marker='o', linestyle='-', color='blue', label='Accuracy')
+    plt.figure(figsize=(10, 6))
+    plt.plot(aggr_channels, accuracy_isvv, marker='o', linestyle='-', color='blue', label='ISVV dataset')
+    plt.plot(aggr_channels, accuracy_changins, marker='s', linestyle='--', color='red', label='Changins dataset')
 
     # Customize the plot
     plt.title("Accuracy vs. Number of Aggregated Channels")

@@ -13,7 +13,7 @@ CHEMICAL_NAME = 'PINOT_NOIR_CHANGINS_TOM'
 # Dataset Settings
 ROW_START = 1
 N_SPLITS = 50
-CHROM_CAP = 25000  # Limit for chromatogram size
+CHROM_CAP = 29000  # Limit for chromatogram size
 N_DECIMATION = 5  # Decimation factor for 3D data
 VINTAGE = False  # Include vintage data in analysis
 WINDOW = 1000
@@ -26,7 +26,8 @@ CONCATENATE_TICS = False
 CNN_DIM = None  # 1, 2, None
 gcms_options = ["RT_DIRECTION", "MS_DIRECTION"]
 GCMS_DIRECTION = gcms_options[0]
-NUM_AGGR_CHANNELS = 6
+NUM_AGGR_CHANNELS = 3
+DELAY = 0
 
 # PCA and Classification
 PCA_STATE = [False]  # Enable PCA for classification
