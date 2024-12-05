@@ -447,6 +447,101 @@ def normalize_dict_multichannel(data, scaler='standard'):
 
     return norm_data
 
+def normalize_multichannel(data, scaler='standard'):
+    """
+    Normalize the values across samples for each channel separately.
+    The output for each sample will be a matrix where columns represent channels and rows represent values.
+
+    Parameters
+    ----------
+    data : dict or np.ndarray
+        If a dictionary, the values should be NumPy arrays where rows are timepoints and columns are channels.
+        If an array, it should have shape (samples, timepoints, channels).
+    scaler : str, optional
+        The type of scaler to use for normalization. Options are 'standard' (Z-score normalization),
+        'minmax' (Min-Max scaling), and 'robust' (RobustScaler). Default is 'standard'.
+
+    Returns
+    -------
+    dict or np.ndarray
+        If input is a dictionary, returns a dictionary with the same keys and normalized values.
+        If input is an array, returns an array of the same shape with normalized values.
+        Columns represent channels, and rows represent normalized values.
+    """
+    # Determine if input is a dictionary or array
+    if isinstance(data, dict):
+        keys = list(data.keys())
+
+        # Ensure the first sample is a NumPy array
+        first_sample = next(iter(data.values()))
+        if not isinstance(first_sample, np.ndarray):
+            raise ValueError("Each sample in the dictionary should be a NumPy array.")
+
+        num_channels = first_sample.shape[1]  # Number of channels
+        norm_data = {}
+
+        # Normalize each channel independently
+        for channel_idx in range(num_channels):
+            # Extract data for the current channel across all samples
+            channel_data = np.array([sample[:, channel_idx] for sample in data.values()])
+
+            # Choose and apply the scaler
+            if scaler == 'standard':
+                scaler_instance = StandardScaler()
+            elif scaler == 'minmax':
+                scaler_instance = MinMaxScaler()
+            elif scaler == 'robust':
+                scaler_instance = RobustScaler()
+            else:
+                raise ValueError("Unsupported scaler type. Choose 'standard', 'minmax', or 'robust'.")
+
+            # Normalize the current channel with all samples
+            channel_data_scaled = scaler_instance.fit_transform(channel_data)
+
+            # Store normalized data back into the dictionary, grouped by sample
+            for idx, key in enumerate(keys):
+                if key not in norm_data:
+                    norm_data[key] = []
+                norm_data[key].append(channel_data_scaled[idx, :])  # Ensure correct slicing
+
+        # Convert lists of channels into matrices (columns are channels, rows are values)
+        for key in norm_data:
+            norm_data[key] = np.column_stack(norm_data[key])  # Stack as columns for all cases
+
+        return norm_data
+
+    elif isinstance(data, np.ndarray):
+        if data.ndim != 3:
+            raise ValueError("Input array must have shape (samples, timepoints, channels).")
+
+        samples, timepoints, channels = data.shape
+        norm_data = np.zeros_like(data)
+
+        # Normalize each channel independently
+        for channel_idx in range(channels):
+            # Extract data for the current channel across all samples
+            channel_data = data[:, :, channel_idx]
+
+            # Choose and apply the scaler
+            if scaler == 'standard':
+                scaler_instance = StandardScaler()
+            elif scaler == 'minmax':
+                scaler_instance = MinMaxScaler()
+            elif scaler == 'robust':
+                scaler_instance = RobustScaler()
+            else:
+                raise ValueError("Unsupported scaler type. Choose 'standard', 'minmax', or 'robust'.")
+
+            # Normalize the current channel
+            channel_data_scaled = scaler_instance.fit_transform(channel_data.T).T  # Transpose for sample-wise normalization
+            norm_data[:, :, channel_idx] = channel_data_scaled
+
+        return norm_data
+
+    else:
+        raise TypeError("Input must be a dictionary or a 3D NumPy array.")
+
+
 
 
 def filter_dict_by_keys(original_dict, keys_to_keep):

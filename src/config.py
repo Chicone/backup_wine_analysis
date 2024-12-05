@@ -12,7 +12,7 @@ CHEMICAL_NAME = 'PINOT_NOIR_CHANGINS_TOM'
 
 # Dataset Settings
 ROW_START = 1
-N_SPLITS = 50
+N_SPLITS = 500
 CHROM_CAP = 29000  # Limit for chromatogram size
 N_DECIMATION = 5  # Decimation factor for 3D data
 VINTAGE = False  # Include vintage data in analysis
@@ -21,12 +21,12 @@ STRIDE = 200
 
 # Analysis parameters
 DATA_TYPE = "GCMS"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
-SYNC_STATE = True  # Use retention time alignment
+SYNC_STATE = False  # Use retention time alignment
 CONCATENATE_TICS = False
 CNN_DIM = None  # 1, 2, None
 gcms_options = ["RT_DIRECTION", "MS_DIRECTION"]
 GCMS_DIRECTION = gcms_options[0]
-NUM_AGGR_CHANNELS = 3
+NUM_AGGR_CHANNELS = 1
 DELAY = 0
 
 # PCA and Classification

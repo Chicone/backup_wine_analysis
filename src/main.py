@@ -53,7 +53,7 @@ import argparse
 from data_loader import DataLoader
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
-                            assign_north_south_to_beaune)
+                            assign_north_south_to_beaune, CoordinateDescentOptimizer, BayesianParamOptimizer)
 from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
 from classification import Classifier, assign_winery_to_pinot_noir
 from visualizer import visualize_confusion_matrix_3d, plot_accuracy_vs_channels
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     min_length = min(array.shape[0] for array in data_dict.values())
     data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
     data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
-
+    CHROM_CAP = CHROM_CAP // N_DECIMATION
     gcms = GCMSDataProcessor(data_dict)
 
     # GCMS-Specific Handling
@@ -109,28 +109,38 @@ if __name__ == "__main__":
                 data = cropped_data_dict.values()
                 labels = cropped_data_dict.keys()
         else:
+            # if GCMS_DIRECTION == "RT_DIRECTION":
+            #     print("Analyzing GCMS data in retention time direction")
+            #     if SYNC_STATE:
+            #         tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
+            #
+            #     gcms.data = utils.reduce_columns_in_dict(gcms.data, NUM_AGGR_CHANNELS)
+            #
+            #     # gcms.data = utils.normalize_dict_multichannel(gcms.data, scaler='standard')
+            #
+            #     chrom_length = len(list(data_dict.values())[0])
+            #     data, labels = gcms.create_overlapping_windows(chrom_length, chrom_length)  # with chrom_length is one window only
+            #     labels = np.repeat(labels, data.shape[2])
+            #     data = data.transpose(2, 0, 1).reshape(-1, data.shape[1])
+            #     if SYNC_STATE and CONCATENATE_TICS:
+            #         data = np.concatenate((data, np.asarray(list(tics.values()))), axis=0)
+            #         labels = np.concatenate((labels, np.asarray(list(tics.keys()))), axis=0)
             if GCMS_DIRECTION == "RT_DIRECTION":
                 print("Analyzing GCMS data in retention time direction")
                 if SYNC_STATE:
                     tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
 
-                gcms.data = utils.reduce_columns_in_dict(gcms.data, NUM_AGGR_CHANNELS)
+                gcms.data = utils.reduce_columns_in_dict(data_dict, NUM_AGGR_CHANNELS)
 
                 # gcms.data = utils.normalize_dict_multichannel(gcms.data, scaler='standard')
 
                 chrom_length = len(list(data_dict.values())[0])
                 data, labels = gcms.create_overlapping_windows(chrom_length, chrom_length)  # with chrom_length is one window only
-                labels = np.repeat(labels, data.shape[2])
-                data = data.transpose(2, 0, 1).reshape(-1, data.shape[1])
+#                labels = np.repeat(labels, data.shape[2])
+#                data = data.transpose(2, 0, 1).reshape(-1, data.shape[1])
                 if SYNC_STATE and CONCATENATE_TICS:
                     data = np.concatenate((data, np.asarray(list(tics.values()))), axis=0)
                     labels = np.concatenate((labels, np.asarray(list(tics.keys()))), axis=0)
-            # elif GCMS_DIRECTION == "MS_DIRECTION":
-            #     print("Analyzing GCMS data in m/z direction")
-            #     chrom_length = len(list(data_dict.values())[0])
-            #     data, labels = gcms.create_overlapping_windows(chrom_length, chrom_length)
-            #     labels = np.repeat(labels, data.shape[1])
-            #     data = data.reshape(-1, data.shape[2])
 
     else:  # Handling Other Data Types
         if DATA_TYPE == "TIC":
@@ -202,11 +212,66 @@ if __name__ == "__main__":
                 cnn_dim=CNN_DIM, multichannel=MULTICHANNEL,
                 window_size=WINDOW, stride=STRIDE, nconv=NCONV
             )
-            classif_res = cls.train_and_evaluate_balanced_with_alpha(
-                N_SPLITS, vintage=VINTAGE, test_size=None, normalize=not CNN_DIM, scaler_type='standard', use_pca=pca,
-                vthresh=0.995, region=region,
-                batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE,
-            )
+
+            # classif_res = cls.train_and_evaluate_balanced(
+            #     n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
+            #     scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
+            #     batch_size=32, num_epochs=10, learning_rate=0.001
+            # )
+
+            # classif_res = cls.train_and_evaluate_balanced_with_minimize(
+            #     n_splits=N_SPLITS, vintage=False, random_seed=42, test_size=None,
+            #     normalize=False, scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
+            #     alpha_range=None, num_test=next(iter(gcms.data.values())).shape[1]
+            # )
+
+            # optimizer = CoordinateDescentOptimizer(data, labels, max_iter=10)
+            # optimized_weights = optimizer.optimize()
+            # print("Optimized Weights:", optimized_weights)
+
+
+            n_channels = data.shape[2]
+            # alpha_range = [0.1, 1.0, 10.0, 100.0, 500.0]
+            optimizer = BayesianParamOptimizer(data, labels, n_channels)
+            result = optimizer.optimize(n_calls=50, random_state=42)
+
+            print(f"Optimal number of channels: {result.x[0]}")
+            print(f"Optimal alpha: {result.x[1]}")
+            print(f"Best score: {-result.fun}")
+
+            # # Optimized Weights
+            # optimized_weights = result.x
+            # print("Optimized Weights:", optimized_weights)
+            #
+            # # Best Objective Value (Negative Balanced Accuracy)
+            # print("Best Negative Accuracy:", result.fun)
+            #
+            # # Full Optimization Details
+            # print(result)
+
+            # classif_res = cls.train_and_evaluate_balanced_with_passed_weights(
+            #     N_SPLITS, vintage=VINTAGE, test_size=None, normalize=not CNN_DIM, scaler_type='standard', use_pca=pca,
+            #     vthresh=0.995, region=region,
+            #     batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE,
+            #     num_test=next(iter(gcms.data.values())).shape[1], channel_weights=optimized_weights
+            # )
+
+            # classif_res = cls.train_and_evaluate_all_mz_per_sample(
+            #     N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False, scaler_type='standard', use_pca=pca,
+            #     vthresh=0.995, region=region,
+            #     batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE
+            # )
+
+            # classif_res = cls.train_and_evaluate_balanced_with_weights_and_alpha(
+            #     n_splits=20, vintage=False, random_seed=42,
+            #     test_size=None, normalize=False, scaler_type='standard',
+            #     use_pca=False, vthresh=0.97, region=None, batch_size=32,
+            #     num_epochs=10, learning_rate=0.001, alpha_range=None, num_test=16
+            # )
+
+
+
+
             if region == 'winery':
                 class_labels = [
                     'Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot',

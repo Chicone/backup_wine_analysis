@@ -493,14 +493,29 @@ def plot_accuracy_vs_channels():
     and the y-axis represents the accuracy. Data is hardcoded.
     """
     # Hardcoded data
-    aggr_channels =      [1    , 2    , 3    , 6    , 10   , 15   , 22   , 30   , 45   , 60   , 90   , 181  ]  # Number of aggregated channels
-    accuracy_isvv =      [0.846, 0.890, 0.886, 0.883, 0.802, 0.619, 0.600, 0.526, 0.456, 0.424, 0.358, 0.580]  # Accuracy values
-    accuracy_changins =  [0.786, 0.874, 0.906, 0.852, 0.814, 0.657, 0.612, 0.600, 0.553, 0.505, 0.510, 0.744]  # Accuracy values
+    aggr_channels =            [1    , 2    , 3    , 6    , 10   , 15   , 22   , 30   , 45   , 60   , 90   , 181  ]  # Number of aggregated channels
+    accuracy_isvv =            [0.846, 0.890, 0.886, 0.883, 0.802, 0.619, 0.600, 0.526, 0.456, 0.424, 0.358, 0.580]  # Accuracy values
+    accuracy_changins =        [0.786, 0.874, 0.906, 0.852, 0.814, 0.657, 0.612, 0.600, 0.553, 0.505, 0.510, 0.744]  # Accuracy values
+
+    # New values with dynamically learned alpha
+    accuracy_isvv_alpha =      [0.830, 0.889, 0.861, 0.884, 0.790, 0.613, 0.590, 0.537, 0.475, 0.424, 0.381, 0.551]  # Accuracy values
+    accuracy_changins_alpha =  [0.811, 0.889, 0.924, 0.856, 0.810, 0.649, 0.657, 0.595, 0.536, 0.550, 0.571, 0.794]  # Accuracy values
+
+    # Values with concatenated m/z profiles
+    accuracy_isvv_conc =      [0.646, 0.616, 0.613, 0.595, 0.584, 0.527, 0.520, 0.500, 0.434, 0.486, 0.515, 0.447]  # Accuracy values
+    accuracy_changins_conc =  [0.771, 0.773, 0.786, 0.760, 0.728, 0.746, 0.712, 0.747, 0.701, 0.702, 0.710, 0.707]  # Accuracy values
 
     # Create the plot
     plt.figure(figsize=(10, 6))
-    plt.plot(aggr_channels, accuracy_isvv, marker='o', linestyle='-', color='blue', label='ISVV dataset')
-    plt.plot(aggr_channels, accuracy_changins, marker='s', linestyle='--', color='red', label='Changins dataset')
+    plt.plot(aggr_channels, accuracy_changins, marker='o', linestyle='-', color='red', label=r'Changins $\alpha=500$')
+    plt.plot(aggr_channels, accuracy_changins_alpha, marker='s', linestyle='--', color='red', markerfacecolor='none', label=r'Changins adapt. $\alpha$')
+    plt.plot(aggr_channels, accuracy_changins_conc, marker='^', linestyle=':', color='red', markerfacecolor='none', label=r'Changins concat. m/z profiles')
+    plt.plot(aggr_channels, accuracy_isvv, marker='o', linestyle='-', color='blue', label=r'ISVV $\alpha=500$')
+    plt.plot(aggr_channels, accuracy_isvv_alpha, marker='s', linestyle='--', color='blue', markerfacecolor='none', label=r'ISVV adapt. $\alpha$')
+    plt.plot(aggr_channels, accuracy_isvv_conc, marker='^', linestyle=':', color='blue', markerfacecolor='none', label=r'ISVV  concat. m/z profiles')
+
+
+
 
     # Customize the plot
     plt.title("Accuracy vs. Number of Aggregated Channels")
