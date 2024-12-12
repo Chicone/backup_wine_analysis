@@ -45,7 +45,8 @@ from config import (
     NCONV,
     MULTICHANNEL,
     WINE_KIND,
-    REGION
+    REGION,
+    NUM_SPLITS_BAYES
 )
 import os
 import numpy as np
@@ -233,11 +234,20 @@ if __name__ == "__main__":
             n_channels = data.shape[2]
             # alpha_range = [0.1, 1.0, 10.0, 100.0, 500.0]
             optimizer = BayesianParamOptimizer(data, labels, n_channels)
-            result = optimizer.optimize(n_calls=50, random_state=42)
+            result = optimizer.optimize(n_calls=20, random_state=42, num_splits=NUM_SPLITS_BAYES)
+            # Calculate the number of aggregated channels
+            num_total_channels = n_channels // result.x[0]
 
-            print(f"Optimal number of channels: {result.x[0]}")
+            print(f"Optimal channel aggregation number: {result.x[0]}")
+            print(f"Optimal number of channels: {num_total_channels}")
             print(f"Optimal alpha: {result.x[1]}")
             print(f"Best score: {-result.fun}")
+
+            cls.data = utils.reduce_columns_in_array(cls.data, result.x[0])
+            classif_res = cls.train_and_evaluate_balanced_with_best_alpha(
+                n_splits=N_SPLITS, vintage=False, test_size=None, normalize=False, scaler_type='standard', use_pca=False,
+                vthresh=0.97, best_alpha=result.x[1]
+            )
 
             # # Optimized Weights
             # optimized_weights = result.x
@@ -268,7 +278,6 @@ if __name__ == "__main__":
             #     use_pca=False, vthresh=0.97, region=None, batch_size=32,
             #     num_epochs=10, learning_rate=0.001, alpha_range=None, num_test=16
             # )
-
 
 
 

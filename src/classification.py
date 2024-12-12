@@ -34,7 +34,7 @@ import torch.nn.functional as F
 
 from tqdm import tqdm  # For the progress bar
 from skopt import gp_minimize
-from skopt.space import Real, Integer
+from skopt.space import Real, Integer, Categorical
 from skopt.utils import use_named_args
 
 class CustomDataParallel(torch.nn.DataParallel):
@@ -1567,8 +1567,8 @@ class Classifier:
         # Cross-validation loop
         for i in range(n_splits):
             # Split data into train and test sets
-            train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(vintage=vintage,
-                                                                                            test_size=test_size)
+            train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
+                self.labels, self.data, vintage=vintage, test_size=test_size)
 
             # Normalize data if enabled
             if normalize:
@@ -1938,6 +1938,101 @@ class Classifier:
             'mean_f1_score': np.mean(f1_scores),
             'mean_confusion_matrix': mean_confusion_matrix,
         }
+
+
+    def train_and_evaluate_balanced_with_best_alpha(
+            self, n_splits=50, vintage=False, test_size=None, normalize=False, scaler_type='standard', use_pca=False,
+            vthresh=0.97, best_alpha=1):
+        """
+        Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
+        Learn the optimal alpha parameter for Ridge Classifier during training.
+
+        Parameters
+        ----------
+
+
+        Returns
+        -------
+        dict
+            A dictionary containing mean accuracy, balanced accuracy, weighted accuracy, precision, F1-score,
+            mean confusion matrix, and the mean optimal alpha value.
+        """
+
+
+        # Separate all the m/z profiles and give them the label of the sample
+        self.labels = np.repeat(self.labels, self.data.shape[2])
+        self.data = self.data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
+
+        # Initialize accumulators for metrics and alpha
+        accuracy_scores = []
+        balanced_accuracy_scores = []
+        precision_scores = []
+        f1_scores = []
+        confusion_matrix_sum = None
+
+        ridge_classifier = RidgeClassifier(alpha=best_alpha)
+
+        # Cross-validation loop
+        for i in range(n_splits):
+            # Split data into train and test sets
+            # train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(self.labels, self.data,
+            #     vintage=vintage,test_size=test_size, num_test=num_test)
+
+            X_train, X_test, y_train, y_test = train_test_split(
+                self.data, self.labels, test_size=0.2, stratify=self.labels
+            )
+
+            # Normalize data if enabled
+            if normalize:
+                X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+                X_test = scaler.transform(X_test)
+
+            # Apply PCA if enabled
+            if use_pca:
+                reducer = DimensionalityReducer(self.data)
+                _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
+                n_components = min(n_components, len(set(y_train)))  # Adjust PCA components based on class count
+                pca = PCA(n_components=n_components, svd_solver='randomized')
+                X_train = pca.fit_transform(X_train)
+                X_test = pca.transform(X_test)
+
+            ridge_classifier.fit(X_train, y_train)
+
+            # Predictions and metrics
+            y_pred = ridge_classifier.predict(X_test)
+            accuracy_scores.append(ridge_classifier.score(X_test, y_test))
+            balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
+
+            # Compute precision and F1 score
+            precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
+            f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
+
+            # Compute confusion matrix
+            cm = confusion_matrix(y_test, y_pred, labels=sorted(set(y_test)))
+            confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
+
+            print(f"Split {i + 1}/{n_splits} completed.")
+
+        # Calculate mean metrics
+        mean_confusion_matrix = confusion_matrix_sum / n_splits
+
+        # Print summary
+        print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
+        print(
+            f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
+        print(f"Precision: {np.mean(precision_scores):.3f}")
+        print(f"F1 Score: {np.mean(f1_scores):.3f}")
+        print("Mean Confusion Matrix:\n", mean_confusion_matrix)
+
+        # Return metrics
+        return {
+            'mean_accuracy': np.mean(accuracy_scores),
+            'mean_balanced_accuracy': np.mean(balanced_accuracy_scores),
+            'mean_precision': np.mean(precision_scores),
+            'mean_f1_score': np.mean(f1_scores),
+            'mean_confusion_matrix': mean_confusion_matrix,
+        }
+
 
 
 
@@ -2614,53 +2709,29 @@ class BayesianParamOptimizer:
         self.n_channels = n_channels
         self.n_splits = n_splits
 
-    def evaluate_n(self, n):
-        """
-        Evaluate the balanced accuracy for a given number of aggregated channels.
+        # Determine the base number with many multiples
+        self.base_channels = self._determine_base_channels()
 
-        Parameters
-        ----------
-        n : int
-            Number of aggregated channels.
+    def _determine_base_channels(self):
+        """
+        Determine a base number close to n_channels that has many multiples.
 
         Returns
         -------
-        float
-            Negative mean balanced accuracy (to minimize).
+        int
+            A base number with many divisors.
         """
-        group_size = self.n_channels // n
-        aggregated_data = np.zeros((self.data.shape[0], self.data.shape[1], n))
-
-        for i in range(n):
-            start_idx = i * group_size
-            end_idx = (i + 1) * group_size if i != n - 1 else self.n_channels
-            aggregated_data[:, :, i] = np.mean(self.data[:, :, start_idx:end_idx], axis=-1)
-
-        reshaped_data = aggregated_data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
-        labels_expanded = np.repeat(self.labels, n)
-
-        accuracy_scores = []
-        ridge_classifier = RidgeClassifierCV(alphas=self.alpha_range, scoring='balanced_accuracy')
-
-        for _ in range(self.n_splits):
-            X_train, X_test, y_train, y_test = train_test_split(
-                reshaped_data, labels_expanded, random_state=None
-            )
-            ridge_classifier.fit(X_train, y_train)
-            y_pred = ridge_classifier.predict(X_test)
-            balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
-            accuracy_scores.append(balanced_accuracy)
-
-        return -np.mean(accuracy_scores)
+        candidates = [i for i in range(self.n_channels, 1, -1) if 180 % i == 0]
+        return candidates[0] if candidates else self.n_channels
 
     def evaluate_n_and_alpha(self, n, alpha, num_splits=5):
         """
-        Evaluate the balanced accuracy for a given number of aggregated channels and alpha.
+        Evaluate the balanced accuracy for a given number of grouped channels and alpha.
 
         Parameters
         ----------
         n : int
-            Number of aggregated channels.
+            Number of channels grouped together.
         alpha : float
             Regularization strength for RidgeClassifier.
 
@@ -2669,51 +2740,38 @@ class BayesianParamOptimizer:
         float
             Negative mean balanced accuracy (to minimize).
         """
-        group_size = self.n_channels // n
-        remainder = self.n_channels % n  # Channels left after even grouping
-        aggregated_data = np.zeros((self.data.shape[0], self.data.shape[1], n))
+        num_groups = self.n_channels // n
+        # aggregated_data = np.zeros((self.data.shape[0], num_groups))
+        aggregated_data = np.zeros((self.data.shape[0], self.data.shape[1], num_groups))
 
-        for i in range(n):
-            start_idx = i * group_size
-            if i < remainder:
-                # Distribute one extra channel to the first 'remainder' groups
-                end_idx = start_idx + group_size + 1
-            else:
-                # Remaining groups take only 'group_size' channels
-                end_idx = start_idx + group_size
-
-            aggregated_data[:, :, i] = np.sum(self.data[:, :, start_idx:end_idx], axis=-1)
+        # Aggregate channels into groups
+        for i in range(num_groups):
+            start_idx = i * n
+            end_idx = min((i + 1) * n, self.n_channels)
+            aggregated_data[:, :, i] = np.mean(self.data[:, :, start_idx:end_idx], axis=-1)
+            # aggregated_data[:, i] = np.mean(self.data[:, :, start_idx:end_idx], axis=-1).mean(axis=-1)
 
         reshaped_data = aggregated_data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
-        labels_expanded = np.repeat(self.labels, n)
+        labels_expanded = np.repeat(self.labels, num_groups)
 
+        # Evaluate performance using multiple train-test splits
         balanced_accuracies = []
 
         for _ in range(num_splits):
-            # Stratified train-test split
             X_train, X_test, y_train, y_test = train_test_split(
-                reshaped_data,
-                labels_expanded,
-                test_size=0.2,
-                stratify=labels_expanded,
-                random_state=None
+                reshaped_data, labels_expanded, test_size=0.2, stratify=labels_expanded
             )
-
-            # Train RidgeClassifier with the given alpha
-            ridge_classifier = RidgeClassifier(alpha=alpha)
-            ridge_classifier.fit(X_train, y_train)
-            y_pred = ridge_classifier.predict(X_test)
-
-            # Compute the balanced accuracy for this split
+            model = RidgeClassifier(alpha=alpha)
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
             balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
             balanced_accuracies.append(balanced_accuracy)
 
-        # Return the negative mean balanced accuracy (to minimize)
-        return -np.mean(balanced_accuracies)
+        return -np.mean(balanced_accuracies)  # Negative score for minimization
 
-    def optimize(self, n_calls=50, random_state=42):
+    def optimize(self, n_calls=50, random_state=42, num_splits=5):
         """
-        Optimize the number of channels and alpha using Bayesian Optimization.
+        Optimize the number of channels grouped together and alpha using Bayesian Optimization.
 
         Parameters
         ----------
@@ -2727,16 +2785,20 @@ class BayesianParamOptimizer:
         dict
             Results of the optimization process.
         """
+        # Generate multiples of base_channels that are valid for grouping
+        n_values = [i for i in range(1, self.base_channels + 1) if self.base_channels % i == 0]
+
+        # Define the search space
         space = [
-            Integer(1, self.n_channels, name="n"),
-            Real(0.1, 10000.0, name="alpha")
+            Categorical(n_values, name="n"),  # Multiples of the base number
+            Real(0.1, 20000.0, name="alpha", prior="log-uniform")  # Alpha range for RidgeClassifier
         ]
 
         @use_named_args(space)
         def objective(**params):
             n = params["n"]
             alpha = params["alpha"]
-            return self.evaluate_n_and_alpha(n, alpha)
+            return self.evaluate_n_and_alpha(n, alpha, num_splits=num_splits)
 
         # Initialize progress bar
         with tqdm(total=n_calls, desc="Optimizing Channels and Alpha") as pbar:
@@ -2749,69 +2811,231 @@ class BayesianParamOptimizer:
                                  callback=[progress_callback])
 
         return result
-    # def evaluate_weights(self, weights):
-    #     """
-    #     Evaluate the balanced accuracy for given weights.
-    #
-    #     Parameters
-    #     ----------
-    #     weights : list
-    #         Weights for each channel.
-    #
-    #     Returns
-    #     -------
-    #     float
-    #         Negative mean balanced accuracy (to minimize).
-    #     """
-    #     weights = np.array(weights).reshape(1, 1, -1)
-    #     weighted_data = self.data * weights
-    #     reshaped_data = weighted_data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
-    #     labels_expanded = np.repeat(self.labels, self.n_channels)
-    #
-    #     accuracy_scores = []
-    #     ridge_classifier = RidgeClassifierCV(alphas=self.alpha_range, scoring='balanced_accuracy')
-    #
-    #     for _ in range(self.n_splits):
-    #         X_train, X_test, y_train, y_test = train_test_split(
-    #             reshaped_data, labels_expanded, random_state=None
-    #         )
-    #         ridge_classifier.fit(X_train, y_train)
-    #         y_pred = ridge_classifier.predict(X_test)
-    #         balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
-    #         accuracy_scores.append(balanced_accuracy)
-    #
-    #     # Return negative accuracy (to minimize)
-    #     return -np.mean(accuracy_scores)
 
-    # def optimize(self, n_calls=50, random_state=42):
-    #     """
-    #     Optimize weights using Bayesian Optimization.
-    #
-    #     Parameters
-    #     ----------
-    #     n_calls : int
-    #         Number of evaluations of the objective function.
-    #     random_state : int
-    #         Random seed for reproducibility.
-    #
-    #     Returns
-    #     -------
-    #     dict
-    #         Results of the optimization process.
-    #     """
-    #     # Define the search space for weights (0 to 2 for each channel)
-    #     space = [Real(0, 2, name=f"w{i}") for i in range(self.n_channels)]
-    #
-    #     # Decorate the objective function with the search space
-    #     @use_named_args(space)
-    #     def objective(**weights):
-    #         weight_array = np.array([weights[f"w{i}"] for i in range(self.n_channels)])
-    #         return self.evaluate_weights(weight_array)
-    #
-    #     # Perform Bayesian Optimization
-    #     result = gp_minimize(objective, space, n_calls=n_calls, random_state=random_state)
-    #
-    #     return result
+
+
+# class BayesianParamOptimizer:
+#     def __init__(self, data, labels, n_channels, n_splits=5):
+#         """
+#         Initialize the Bayesian Weight Optimizer.
+#
+#         Parameters
+#         ----------
+#         data : np.ndarray
+#             The input data with shape (samples, features, channels).
+#         labels : np.ndarray
+#             The labels for each sample.
+#         n_channels : int
+#             Number of m/z channels.
+#         n_splits : int
+#             Number of splits for cross-validation.
+#         """
+#         self.data = data
+#         self.labels = labels
+#         self.n_channels = n_channels
+#         self.n_splits = n_splits
+#
+#     def evaluate_n(self, n):
+#         """
+#         Evaluate the balanced accuracy for a given number of aggregated channels.
+#
+#         Parameters
+#         ----------
+#         n : int
+#             Number of aggregated channels.
+#
+#         Returns
+#         -------
+#         float
+#             Negative mean balanced accuracy (to minimize).
+#         """
+#         group_size = self.n_channels // n
+#         aggregated_data = np.zeros((self.data.shape[0], self.data.shape[1], n))
+#
+#         for i in range(n):
+#             start_idx = i * group_size
+#             end_idx = (i + 1) * group_size if i != n - 1 else self.n_channels
+#             aggregated_data[:, :, i] = np.mean(self.data[:, :, start_idx:end_idx], axis=-1)
+#
+#         reshaped_data = aggregated_data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
+#         labels_expanded = np.repeat(self.labels, n)
+#
+#         accuracy_scores = []
+#         ridge_classifier = RidgeClassifierCV(alphas=self.alpha_range, scoring='balanced_accuracy')
+#
+#         for _ in range(self.n_splits):
+#             X_train, X_test, y_train, y_test = train_test_split(
+#                 reshaped_data, labels_expanded, random_state=None
+#             )
+#             ridge_classifier.fit(X_train, y_train)
+#             y_pred = ridge_classifier.predict(X_test)
+#             balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
+#             accuracy_scores.append(balanced_accuracy)
+#
+#         return -np.mean(accuracy_scores)
+#
+#     def evaluate_n_and_alpha(self, n, alpha, num_splits=20):
+#         """
+#         Evaluate the balanced accuracy for a given number of aggregated channels and alpha.
+#
+#         Parameters
+#         ----------
+#         n : int
+#             Number of aggregated channels.
+#         alpha : float
+#             Regularization strength for RidgeClassifier.
+#
+#         Returns
+#         -------
+#         float
+#             Negative mean balanced accuracy (to minimize).
+#         """
+#         group_size = self.n_channels // n
+#         remainder = self.n_channels % n  # Channels left after even grouping
+#         aggregated_data = np.zeros((self.data.shape[0], self.data.shape[1], n))
+#
+#         for i in range(n):
+#             start_idx = i * group_size
+#             if i < remainder:
+#                 # Distribute one extra channel to the first 'remainder' groups
+#                 end_idx = start_idx + group_size + 1
+#             else:
+#                 # Remaining groups take only 'group_size' channels
+#                 end_idx = start_idx + group_size
+#
+#             aggregated_data[:, :, i] = np.sum(self.data[:, :, start_idx:end_idx], axis=-1)
+#
+#         reshaped_data = aggregated_data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
+#         labels_expanded = np.repeat(self.labels, n)
+#
+#         balanced_accuracies = []
+#
+#         for _ in range(num_splits):
+#             # Stratified train-test split
+#             X_train, X_test, y_train, y_test = train_test_split(
+#                 reshaped_data,
+#                 labels_expanded,
+#                 test_size=0.2,
+#                 stratify=labels_expanded,
+#                 random_state=None
+#             )
+#
+#             # Train RidgeClassifier with the given alpha
+#             ridge_classifier = RidgeClassifier(alpha=alpha)
+#             ridge_classifier.fit(X_train, y_train)
+#             y_pred = ridge_classifier.predict(X_test)
+#
+#             # Compute the balanced accuracy for this split
+#             balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
+#             balanced_accuracies.append(balanced_accuracy)
+#
+#         # Return the negative mean balanced accuracy (to minimize)
+#         return -np.mean(balanced_accuracies)
+#
+#     def optimize(self, n_calls=50, random_state=42, num_splits=5):
+#         """
+#         Optimize the number of channels and alpha using Bayesian Optimization.
+#
+#         Parameters
+#         ----------
+#         n_calls : int
+#             Number of evaluations of the objective function.
+#         random_state : int
+#             Random seed for reproducibility.
+#
+#         Returns
+#         -------
+#         dict
+#             Results of the optimization process.
+#         """
+#         space = [
+#             Integer(1, self.n_channels, name="n"),
+#             Real(0.1, 20000.0, name="alpha")
+#         ]
+#
+#         @use_named_args(space)
+#         def objective(**params):
+#             n = params["n"]
+#             alpha = params["alpha"]
+#             return self.evaluate_n_and_alpha(n, alpha, num_splits=num_splits)
+#
+#         # Initialize progress bar
+#         with tqdm(total=n_calls, desc="Optimizing Channels and Alpha") as pbar:
+#             def progress_callback(res):
+#                 """Update the progress bar after each iteration."""
+#                 pbar.update(1)
+#
+#             # Perform Bayesian Optimization with a callback for progress
+#             result = gp_minimize(objective, space, n_calls=n_calls, random_state=random_state,
+#                                  callback=[progress_callback])
+#
+#         return result
+#
+#
+#     # def evaluate_weights(self, weights):
+#     #     """
+#     #     Evaluate the balanced accuracy for given weights.
+#     #
+#     #     Parameters
+#     #     ----------
+#     #     weights : list
+#     #         Weights for each channel.
+#     #
+#     #     Returns
+#     #     -------
+#     #     float
+#     #         Negative mean balanced accuracy (to minimize).
+#     #     """
+#     #     weights = np.array(weights).reshape(1, 1, -1)
+#     #     weighted_data = self.data * weights
+#     #     reshaped_data = weighted_data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
+#     #     labels_expanded = np.repeat(self.labels, self.n_channels)
+#     #
+#     #     accuracy_scores = []
+#     #     ridge_classifier = RidgeClassifierCV(alphas=self.alpha_range, scoring='balanced_accuracy')
+#     #
+#     #     for _ in range(self.n_splits):
+#     #         X_train, X_test, y_train, y_test = train_test_split(
+#     #             reshaped_data, labels_expanded, random_state=None
+#     #         )
+#     #         ridge_classifier.fit(X_train, y_train)
+#     #         y_pred = ridge_classifier.predict(X_test)
+#     #         balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
+#     #         accuracy_scores.append(balanced_accuracy)
+#     #
+#     #     # Return negative accuracy (to minimize)
+#     #     return -np.mean(accuracy_scores)
+#
+#     # def optimize(self, n_calls=50, random_state=42):
+#     #     """
+#     #     Optimize weights using Bayesian Optimization.
+#     #
+#     #     Parameters
+#     #     ----------
+#     #     n_calls : int
+#     #         Number of evaluations of the objective function.
+#     #     random_state : int
+#     #         Random seed for reproducibility.
+#     #
+#     #     Returns
+#     #     -------
+#     #     dict
+#     #         Results of the optimization process.
+#     #     """
+#     #     # Define the search space for weights (0 to 2 for each channel)
+#     #     space = [Real(0, 2, name=f"w{i}") for i in range(self.n_channels)]
+#     #
+#     #     # Decorate the objective function with the search space
+#     #     @use_named_args(space)
+#     #     def objective(**weights):
+#     #         weight_array = np.array([weights[f"w{i}"] for i in range(self.n_channels)])
+#     #         return self.evaluate_weights(weight_array)
+#     #
+#     #     # Perform Bayesian Optimization
+#     #     result = gp_minimize(objective, space, n_calls=n_calls, random_state=random_state)
+#     #
+#     #     return result
+
 
 
 class CoordinateDescentOptimizer:

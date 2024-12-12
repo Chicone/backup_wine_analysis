@@ -1013,6 +1013,42 @@ def split_tensor_into_overlapping_windows(tensor, window_size, stride):
 
     return windows, num_overlaps
 
+# def reduce_columns_in_dict(matrices_dict, n):
+#     """
+#     Reduces the column dimension of matrices in a dictionary by summing n contiguous columns.
+#     Excess columns are added to the last column of the reduced matrix if the total is not divisible by n.
+#
+#     Parameters:
+#         matrices_dict (dict): Dictionary of matrices (key: name, value: numpy.ndarray).
+#                               Each matrix should have the same number of columns.
+#         n (int): Number of contiguous columns to sum.
+#
+#     Returns:
+#         dict: A new dictionary with reduced-dimension matrices.
+#     """
+#     reduced_dict = {}
+#     for key, matrix in matrices_dict.items():
+#         rows, cols = matrix.shape
+#         full_groups = cols // n
+#
+#         # Handle the main contiguous columns
+#         reshaped_data = matrix[:, :full_groups * n].reshape(rows, full_groups, n)
+#         reduced_matrix = reshaped_data.sum(axis=2)
+#
+#         # Handle excess columns
+#         if cols % n != 0:
+#             excess_columns = matrix[:, full_groups * n:].sum(axis=1, keepdims=True)
+#             # Add excess to the last column of the reduced matrix
+#             reduced_matrix[:, -1] += excess_columns.flatten()
+#
+#         reduced_matrix = np.apply_along_axis(utils.normalize_amplitude_zscore, axis=0, arr=reduced_matrix)
+#
+#         # Store in the result dictionary
+#         reduced_dict[key] = reduced_matrix
+#
+#     return reduced_dict
+
+
 def reduce_columns_in_dict(matrices_dict, n):
     """
     Reduces the column dimension of matrices in a dictionary by summing n contiguous columns.
@@ -1047,6 +1083,35 @@ def reduce_columns_in_dict(matrices_dict, n):
         reduced_dict[key] = reduced_matrix
 
     return reduced_dict
+
+def reduce_columns_in_array(matrix, n):
+    """
+    Reduces the column dimension of a 3D array by averaging n contiguous elements across the last dimension.
+    Excess elements are averaged into the last group if the total is not divisible by n.
+
+    Parameters:
+        matrix (numpy.ndarray): A 3D array to process (shape: samples x features x channels).
+        n (int): Number of contiguous elements to average.
+
+    Returns:
+        numpy.ndarray: A reduced-dimension 3D array.
+    """
+    *dims, last_dim = matrix.shape
+    full_groups = last_dim // n
+
+    # Handle the main contiguous elements
+    reshaped_data = matrix[..., :full_groups * n].reshape(*dims, full_groups, n)
+    reduced_matrix = reshaped_data.mean(axis=-1)
+
+    # Handle excess elements
+    if last_dim % n != 0:
+        excess_elements = matrix[..., full_groups * n:].mean(axis=-1, keepdims=True)
+        # Append excess to the last group
+        reduced_matrix = np.concatenate([reduced_matrix, excess_elements], axis=-1)
+
+    return reduced_matrix
+
+
 
 
 
