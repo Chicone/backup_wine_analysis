@@ -528,3 +528,66 @@ def plot_accuracy_vs_channels():
     # Show the plot
     plt.tight_layout()
     plt.show()
+
+
+def plot_accuracy_vs_channels_split_by_sample():
+    """
+    Plots a graph where the x-axis represents the number of contiguous aggregated channels,
+    and the y-axis represents the accuracy. Train-test splitting is by sample, not channels.
+     Data is hardcoded.
+    """
+    # Hardcoded data
+    final_channels =            [1    , 2    , 3    , 6    , 10   , 15   , 22   , 30   , 45   , 60   , 90   , 181  ]  # Number of aggregated channels
+    accuracy_isvv =            [0.470, 0.484, 0.458, 0.440, 0.418, 0.383, 0.360, 0.315, 0.276, 0.245, 0.213, 0.178]  # Accuracy values
+    accuracy_changins =        [0.736, 0.704, 0.686, 0.630, 0.569, 0.529, 0.466, 0.392, 0.328, 0.286, 0.247, 0.220]  # Accuracy values
+
+
+    # Create the plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(final_channels, accuracy_changins, marker='o', linestyle='-', color='red', label=r'Changins' )
+    plt.plot(final_channels, accuracy_isvv, marker='o', linestyle='-', color='blue', label=r'ISVV')
+
+
+
+    # Customize the plot
+    plt.title("Accuracy vs. Total Number of Channels after aggregation (train-test split by sample)")
+    plt.xlabel("Number of channels", size=14)
+    plt.ylabel("Accuracy", size=14)
+    plt.xticks(final_channels)  # Set x-ticks to match the data points
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.legend()
+
+    # Show the plot
+    plt.tight_layout()
+    plt.show()
+
+def plot_accuracy_vs_channels_concatenated():
+    """
+    Plots a graph where the x-axis represents the number of contiguous aggregated channels,
+    and the y-axis represents the accuracy. Train-test splitting is by sample, not channels.
+     Data is hardcoded.
+    """
+    # Hardcoded data
+    final_channels =           [1    , 2    , 3    , 6    , 10   , 15   , 20   , 30   , 45   , 60   , 90   , 181  ]  # Number of aggregated channels
+    accuracy_isvv =            [0.458, 0.472, 0.491, 0.502, 0.512, 0.515, 0.527, 0.526, 0.532, 0.540, 0.538, 0.567]  # Accuracy values
+    accuracy_changins =        [0.751, 0.762, 0.773, 0.778, 0.788, 0.783, 0.796, 0.778, 0.776, 0.773, 0.760, 0.763]  # Accuracy values
+
+
+    # Create the plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(final_channels, accuracy_changins, marker='o', linestyle='-', color='red', label=r'Changins' )
+    plt.plot(final_channels, accuracy_isvv, marker='o', linestyle='-', color='blue', label=r'ISVV')
+
+
+
+    # Customize the plot
+    plt.title("Accuracy vs. Total Number of Channels after aggregation (concatenated channels)")
+    plt.xlabel("Number of channels", size=14)
+    plt.ylabel("Accuracy", size=14)
+    plt.xticks(final_channels)  # Set x-ticks to match the data points
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.legend()
+
+    # Show the plot
+    plt.tight_layout()
+    plt.show()

@@ -25,6 +25,7 @@ from config import (
     ROW_START,
     N_SPLITS,
     SYNC_STATE,
+    CH_TREAT,
     CHROM_CAP,
     N_DECIMATION,
     VINTAGE,
@@ -63,13 +64,12 @@ import utils
 from scipy.ndimage import gaussian_filter
 import torch
 import torch.nn.functional as F
+from sklearn.model_selection import train_test_split
 
 if __name__ == "__main__":
     time.sleep(DELAY)
     # plot_classification_accuracy()
     # plot_accuracy_vs_channels()
-    # input_dir = "/home/luiscamara/Documents/datasets/3D_data/220322_Pinot_Noir_Tom_CDF"
-    # utils.convert_cdf_directory_to_csv(input_dir, mz_min=40, mz_max=220)
 
     cl = ChromatogramAnalysis()
 
@@ -77,7 +77,6 @@ if __name__ == "__main__":
     row_start = 1
     row_end, fc_idx, lc_idx = utils.find_data_margins_in_csv(DATA_DIRECTORY)
     column_indices = list(range(fc_idx, lc_idx + 1))
-    # column_indices = list(range(3, 10))
 
     data_dict = utils.load_ms_data_from_directories(DATA_DIRECTORY, column_indices, row_start, row_end)
     min_length = min(array.shape[0] for array in data_dict.values())
@@ -110,22 +109,6 @@ if __name__ == "__main__":
                 data = cropped_data_dict.values()
                 labels = cropped_data_dict.keys()
         else:
-            # if GCMS_DIRECTION == "RT_DIRECTION":
-            #     print("Analyzing GCMS data in retention time direction")
-            #     if SYNC_STATE:
-            #         tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
-            #
-            #     gcms.data = utils.reduce_columns_in_dict(gcms.data, NUM_AGGR_CHANNELS)
-            #
-            #     # gcms.data = utils.normalize_dict_multichannel(gcms.data, scaler='standard')
-            #
-            #     chrom_length = len(list(data_dict.values())[0])
-            #     data, labels = gcms.create_overlapping_windows(chrom_length, chrom_length)  # with chrom_length is one window only
-            #     labels = np.repeat(labels, data.shape[2])
-            #     data = data.transpose(2, 0, 1).reshape(-1, data.shape[1])
-            #     if SYNC_STATE and CONCATENATE_TICS:
-            #         data = np.concatenate((data, np.asarray(list(tics.values()))), axis=0)
-            #         labels = np.concatenate((labels, np.asarray(list(tics.keys()))), axis=0)
             if GCMS_DIRECTION == "RT_DIRECTION":
                 print("Analyzing GCMS data in retention time direction")
                 if SYNC_STATE:
@@ -142,6 +125,8 @@ if __name__ == "__main__":
                 if SYNC_STATE and CONCATENATE_TICS:
                     data = np.concatenate((data, np.asarray(list(tics.values()))), axis=0)
                     labels = np.concatenate((labels, np.asarray(list(tics.keys()))), axis=0)
+
+
 
     else:  # Handling Other Data Types
         if DATA_TYPE == "TIC":
@@ -195,30 +180,104 @@ if __name__ == "__main__":
     #     random_states=range(0, 1, 4), wk=wine_kind, region=region
     # )
 
-    for pca in PCA_STATE:
-        # if not sync_chroms and not pca:
-        #     continue
-        # for cls_type in ['LDA', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
-        # for cls_type in ['LDA', 'LR', 'RFC', 'PAC', 'PER', 'RGC', 'SGD', 'SVM', 'KNN', 'DTC', 'GNB']:
-        for cls_type in ['RGC']:  # 'CNN', 'CNN1D'
-        # for cls_type in ['LDA', 'RFC', 'PAC', 'PER', 'RGC', 'SGD']:
-            # if DATA_TYPE == 'GCMS':
-            #     cls_type = 'CNN1D'
-            print("")
-            print (f'sync {SYNC_STATE}')
-            print (f'PCA {pca}')
-            print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
-            cls = Classifier(
-                np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=WINE_KIND,
-                cnn_dim=CNN_DIM, multichannel=MULTICHANNEL,
-                window_size=WINDOW, stride=STRIDE, nconv=NCONV
+    if DATA_TYPE == "GCMS":
+        data_train, data_val, labels_train, labels_val = train_test_split(
+            np.array(list(data)), np.array(list(labels)), test_size=0.5, random_state=42, stratify=np.array(list(labels))
+        )
+        data_train = data
+        labels_train = labels
+        data_val = data
+        labels_val = labels
+
+        # # Generate shuffled indices for the first dimension (samples)
+        # shuffled_indices = np.random.permutation(np.array(list(data)).shape[0])
+        #
+        # data_train = np.array(list(data))[shuffled_indices]
+        # labels_train = np.array(labels)[shuffled_indices]
+        # data_val = np.array(list(data))[shuffled_indices]
+        # labels_val = np.array(labels)[shuffled_indices]
+
+        n_channels = data_train.shape[2]
+        optimizer = BayesianParamOptimizer(data_train, list(labels_train), n_channels=n_channels)
+        result = optimizer.optimize_gcms(
+            n_calls=50, random_state=42, num_splits=NUM_SPLITS_BAYES, ch_treat=CH_TREAT
+        )
+        num_total_channels = n_channels // result.x[0]
+
+        print(f"Optimal channel aggregation number: {result.x[0]}")
+        print(f"Optimal number of channels: {num_total_channels}")
+        print(f"Optimal alpha: {result.x[1]}")
+        print(f"Best score: {-result.fun}")
+        print("")
+        print(f'sync {SYNC_STATE}')
+        print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
+
+
+        cls = Classifier(
+            np.array(list(data_val)), np.array(list(labels_val)), classifier_type='RGC', wine_kind=WINE_KIND,
+            cnn_dim=CNN_DIM, multichannel=MULTICHANNEL,
+            window_size=WINDOW, stride=STRIDE, nconv=NCONV
+        )
+
+        data_copy = cls.data.copy()
+        cls.data = utils.reduce_columns_to_final_channels(cls.data, num_total_channels)
+
+        if CH_TREAT == 'individual':
+            classif_res = cls.train_and_evaluate_balanced_with_best_alpha2(
+                n_splits=N_SPLITS, test_size=0.2, normalize=False, scaler_type='standard', use_pca=False,
+                region=REGION, vthresh=0.97,
+                best_alpha=result.x[1],
+                # best_alpha=0.9384115043597786,
+            )
+        elif CH_TREAT == 'concatenated':
+            classif_res = cls.train_and_evaluate_all_mz_per_sample(
+                N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False, scaler_type='standard', use_pca=False,
+                vthresh=0.995, region=region,
+                best_alpha=result.x[1]
             )
 
-            # classif_res = cls.train_and_evaluate_balanced(
-            #     n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
-            #     scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
-            #     batch_size=32, num_epochs=10, learning_rate=0.001
-            # )
+
+    if DATA_TYPE == "TIC":
+        cls_type = 'RGC'
+        data_train, data_val, labels_train, labels_val = train_test_split(
+            np.array(list(data)), np.array(list(labels)), test_size=0.5, random_state=42, stratify=np.array(list(labels))
+        )
+
+        # # Generate shuffled indices for the first dimension (samples)
+        # shuffled_indices = np.random.permutation(np.array(list(data)).shape[0])
+        #
+        # data_train = np.array(list(data))[shuffled_indices]
+        # labels_train = np.array(labels)[shuffled_indices]
+        # data_val = np.array(list(data))[shuffled_indices]
+        # labels_val = np.array(labels)[shuffled_indices]
+
+
+
+
+        optimizer = BayesianParamOptimizer(data_train, list(labels_train), n_channels=None)
+        result = optimizer.optimize_tic(n_calls=100, random_state=42, num_splits=NUM_SPLITS_BAYES)
+
+        optimal_alpha = result.x[0]
+        optimal_score = -result.fun
+        print(f"Optimal alpha: {optimal_alpha}")
+        print(f"Best score: {optimal_score}")
+
+        print("")
+        print (f'sync {SYNC_STATE}')
+        print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
+        cls = Classifier(
+            np.array(list(data_val)), np.array(list(labels_val)), classifier_type=cls_type, wine_kind=WINE_KIND,
+            cnn_dim=CNN_DIM, multichannel=MULTICHANNEL,
+            window_size=WINDOW, stride=STRIDE, nconv=NCONV,
+            alpha=optimal_alpha,
+            # alpha=1
+        )
+
+        classif_res = cls.train_and_evaluate_balanced(
+            n_splits=N_SPLITS, vintage=False, random_seed=42, test_size=None, normalize=True,
+            scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
+            batch_size=32, num_epochs=10, learning_rate=0.001
+        )
 
             # classif_res = cls.train_and_evaluate_balanced_with_minimize(
             #     n_splits=N_SPLITS, vintage=False, random_seed=42, test_size=None,
@@ -231,67 +290,49 @@ if __name__ == "__main__":
             # print("Optimized Weights:", optimized_weights)
 
 
-            n_channels = data.shape[2]
-            # alpha_range = [0.1, 1.0, 10.0, 100.0, 500.0]
-            optimizer = BayesianParamOptimizer(data, labels, n_channels)
-            result = optimizer.optimize(n_calls=20, random_state=42, num_splits=NUM_SPLITS_BAYES)
-            # Calculate the number of aggregated channels
-            num_total_channels = n_channels // result.x[0]
+        # # Optimized Weights
+        # optimized_weights = result.x
+        # print("Optimized Weights:", optimized_weights)
+        #
+        # # Best Objective Value (Negative Balanced Accuracy)
+        # print("Best Negative Accuracy:", result.fun)
+        #
+        # # Full Optimization Details
+        # print(result)
 
-            print(f"Optimal channel aggregation number: {result.x[0]}")
-            print(f"Optimal number of channels: {num_total_channels}")
-            print(f"Optimal alpha: {result.x[1]}")
-            print(f"Best score: {-result.fun}")
+        # classif_res = cls.train_and_evaluate_balanced_with_passed_weights(
+        #     N_SPLITS, vintage=VINTAGE, test_size=None, normalize=not CNN_DIM, scaler_type='standard', use_pca=pca,
+        #     vthresh=0.995, region=region,
+        #     batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE,
+        #     num_test=next(iter(gcms.data.values())).shape[1], channel_weights=optimized_weights
+        # )
 
-            cls.data = utils.reduce_columns_in_array(cls.data, result.x[0])
-            classif_res = cls.train_and_evaluate_balanced_with_best_alpha(
-                n_splits=N_SPLITS, vintage=False, test_size=None, normalize=False, scaler_type='standard', use_pca=False,
-                vthresh=0.97, best_alpha=result.x[1]
-            )
+        # classif_res = cls.train_and_evaluate_all_mz_per_sample(
+        #     N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False, scaler_type='standard', use_pca=pca,
+        #     vthresh=0.995, region=region,
+        #     batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE
+        # )
 
-            # # Optimized Weights
-            # optimized_weights = result.x
-            # print("Optimized Weights:", optimized_weights)
-            #
-            # # Best Objective Value (Negative Balanced Accuracy)
-            # print("Best Negative Accuracy:", result.fun)
-            #
-            # # Full Optimization Details
-            # print(result)
-
-            # classif_res = cls.train_and_evaluate_balanced_with_passed_weights(
-            #     N_SPLITS, vintage=VINTAGE, test_size=None, normalize=not CNN_DIM, scaler_type='standard', use_pca=pca,
-            #     vthresh=0.995, region=region,
-            #     batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE,
-            #     num_test=next(iter(gcms.data.values())).shape[1], channel_weights=optimized_weights
-            # )
-
-            # classif_res = cls.train_and_evaluate_all_mz_per_sample(
-            #     N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False, scaler_type='standard', use_pca=pca,
-            #     vthresh=0.995, region=region,
-            #     batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE
-            # )
-
-            # classif_res = cls.train_and_evaluate_balanced_with_weights_and_alpha(
-            #     n_splits=20, vintage=False, random_seed=42,
-            #     test_size=None, normalize=False, scaler_type='standard',
-            #     use_pca=False, vthresh=0.97, region=None, batch_size=32,
-            #     num_epochs=10, learning_rate=0.001, alpha_range=None, num_test=16
-            # )
+        # classif_res = cls.train_and_evaluate_balanced_with_weights_and_alpha(
+        #     n_splits=20, vintage=False, random_seed=42,
+        #     test_size=None, normalize=False, scaler_type='standard',
+        #     use_pca=False, vthresh=0.97, region=None, batch_size=32,
+        #     num_epochs=10, learning_rate=0.001, alpha_range=None, num_test=16
+        # )
 
 
 
-            if region == 'winery':
-                class_labels = [
-                    'Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot',
-                    'Les Petits Monts', 'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach',
-                    'Brunner', 'Vin des Croisés', 'Villard et Fils', 'République',
-                    'Maladaires', 'Marimar', 'Drouhin'
-                ]
-            elif region == 'origin':
-                class_labels = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
-            # visualize_confusion_matrix_3d(classif_res['mean_confusion_matrix'], class_labels=class_labels,
-            #                               title="MDS on wineries for ISVV LLE")
+        if region == 'winery':
+            class_labels = [
+                'Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot',
+                'Les Petits Monts', 'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach',
+                'Brunner', 'Vin des Croisés', 'Villard et Fils', 'République',
+                'Maladaires', 'Marimar', 'Drouhin'
+            ]
+        elif region == 'origin':
+            class_labels = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+        # visualize_confusion_matrix_3d(classif_res['mean_confusion_matrix'], class_labels=class_labels,
+        #                               title="MDS on wineries for ISVV LLE")
 
 
     # cl.stacked_2D_plots_3D(synced_chromatograms)

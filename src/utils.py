@@ -1084,33 +1084,37 @@ def reduce_columns_in_dict(matrices_dict, n):
 
     return reduced_dict
 
-def reduce_columns_in_array(matrix, n):
+def reduce_columns_to_final_channels(matrix, final_channels):
     """
-    Reduces the column dimension of a 3D array by averaging n contiguous elements across the last dimension.
-    Excess elements are averaged into the last group if the total is not divisible by n.
+    Reduces the column dimension of a 3D array to a specified number of final channels by averaging
+    contiguous elements across the last dimension. Excess elements are added to the last group's average.
 
     Parameters:
         matrix (numpy.ndarray): A 3D array to process (shape: samples x features x channels).
-        n (int): Number of contiguous elements to average.
+        final_channels (int): The desired number of channels after reduction.
 
     Returns:
         numpy.ndarray: A reduced-dimension 3D array.
     """
-    *dims, last_dim = matrix.shape
-    full_groups = last_dim // n
+    samples, features, channels = matrix.shape
 
-    # Handle the main contiguous elements
-    reshaped_data = matrix[..., :full_groups * n].reshape(*dims, full_groups, n)
-    reduced_matrix = reshaped_data.mean(axis=-1)
+    # Calculate the number of channels to group (n) and handle any remaining channels
+    n = channels // final_channels  # Number of contiguous channels to average per group
+    remaining = channels % final_channels  # Remaining channels to add to the last group
 
-    # Handle excess elements
-    if last_dim % n != 0:
-        excess_elements = matrix[..., full_groups * n:].mean(axis=-1, keepdims=True)
-        # Append excess to the last group
-        reduced_matrix = np.concatenate([reduced_matrix, excess_elements], axis=-1)
+    # Initialize the reduced matrix
+    reduced_matrix = np.zeros((samples, features, final_channels))
+
+    # Aggregate channels into groups
+    for i in range(final_channels):
+        start_idx = i * n
+        if i == final_channels - 1:  # Include the remaining channels in the last group
+            end_idx = channels
+        else:
+            end_idx = (i + 1) * n
+        reduced_matrix[:, :, i] = np.mean(matrix[:, :, start_idx:end_idx], axis=-1)
 
     return reduced_matrix
-
 
 
 
@@ -1226,3 +1230,89 @@ def convert_cdf_directory_to_csv(input_dir, mz_min=40, mz_max=220):
                     convert_cdf_to_csv(cdf_file, csv_file, mz_min=mz_min, mz_max=mz_max)
                 except Exception as e:
                     print(f"Failed to convert {cdf_file}: {e}")
+
+
+
+def plot_aggregated_weights(weights, bin_size=10000, class_index=None):
+    """
+    Aggregates feature weights into bins and plots the average weight per bin.
+
+    Parameters
+    ----------
+    weights : np.ndarray
+        Array of feature weights (1D array for binary classification or row for a specific class in multi-class classification).
+    bin_size : int
+        Number of features per bin for aggregation.
+    class_index : int or None
+        Index of the class for labeling (used only for multi-class classification).
+    """
+    # Ensure weights is a 1D array
+    weights = np.asarray(weights)
+
+    # Calculate number of bins
+    num_bins = len(weights) // bin_size
+    remainder = len(weights) % bin_size
+
+    # Aggregate weights by bins
+    binned_weights = np.mean(weights[:num_bins * bin_size].reshape(num_bins, bin_size), axis=1)
+
+    # Handle remainder features if they exist
+    if remainder > 0:
+        remainder_avg = np.mean(weights[num_bins * bin_size:])
+        binned_weights = np.append(binned_weights, remainder_avg)
+
+    # Plot aggregated weights
+    plt.figure(figsize=(12, 6))
+    plt.bar(range(len(binned_weights)), binned_weights, width=0.8)
+    plt.xlabel("Feature Bins")
+    plt.ylabel("Average Weight Value")
+    title = "Aggregated Feature Weights by Bin"
+    if class_index is not None:
+        title += f" (Class {class_index})"
+    plt.title(title)
+    plt.show()
+
+
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+def compute_channel_correlation_single_sample(data, sample_index, figsize=(8, 6), cmap="coolwarm"):
+    """
+    Computes and visualizes the correlation matrix for m/z channels within a single sample.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Input 3D array with shape (samples, features, channels).
+    sample_index : int
+        Index of the sample to analyze.
+    figsize : tuple
+        Size of the heatmap figure (default: (8, 6)).
+    cmap : str
+        Colormap for the heatmap (default: "coolwarm").
+
+    Returns
+    -------
+    np.ndarray
+        Correlation matrix of shape (channels, channels) for the selected sample.
+    """
+    # Step 1: Extract the data for the specific sample
+    sample_data = data[sample_index]  # Shape: (features, channels)
+    print(f"Shape of sample_data: {sample_data.shape}")  # Should be (features, channels)
+
+    # Step 2: Compute the correlation matrix for the channels within this sample
+    try:
+        correlation_matrix = np.corrcoef(sample_data, rowvar=False)  # Shape: (channels, channels)
+    except Exception as e:
+        raise ValueError(f"Error computing correlation matrix: {e}")
+
+    # Step 3: Plot the correlation matrix
+    plt.figure(figsize=figsize)
+    sns.heatmap(correlation_matrix, cmap=cmap, center=0, square=True, annot=False, fmt=".2f")
+    plt.title(f"Correlation Between m/z Channels (Sample {sample_index})")
+    plt.xlabel("Channels")
+    plt.ylabel("Channels")
+    plt.show()
+
+    return correlation_matrix

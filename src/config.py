@@ -3,8 +3,8 @@
 # Data Handling Parameters
 # DATA_DIRECTORY = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/LLE_SCAN/"
 # CHEMICAL_NAME = "PINOT_NOIR_LLE_SCAN"
-# DATA_DIRECTORY= "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/LLE_SCAN/"
-# CHEMICAL_NAME = 'PINOT_NOIR_LLE_SCAN'
+# DATA_DIRECTORY= "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/DLLME_SCAN/"
+# CHEMICAL_NAME = 'PINOT_NOIR_DLLME_SCAN'
 DATA_DIRECTORY = "/home/luiscamara/Documents/datasets/3D_data/220322_Pinot_Noir_Tom_CDF/"
 CHEMICAL_NAME = 'PINOT_NOIR_CHANGINS_TOM'
 # DATA_DIRECTORY = "/home/luisgcamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/"
@@ -12,7 +12,7 @@ CHEMICAL_NAME = 'PINOT_NOIR_CHANGINS_TOM'
 
 # Dataset Settings
 ROW_START = 1
-N_SPLITS = 100
+N_SPLITS = 500
 CHROM_CAP = 29000  # Limit for chromatogram size
 N_DECIMATION = 5  # Decimation factor for 3D data
 VINTAGE = False  # Include vintage data in analysis
@@ -22,6 +22,7 @@ STRIDE = 200
 # Analysis parameters
 DATA_TYPE = "GCMS"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
 SYNC_STATE = False  # Use retention time alignment
+CH_TREAT = 'concatenated'
 CONCATENATE_TICS = False
 CNN_DIM = None  # 1, 2, None
 gcms_options = ["RT_DIRECTION", "MS_DIRECTION"]

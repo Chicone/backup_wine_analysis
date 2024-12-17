@@ -13,7 +13,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, balanced_accuracy_score
 from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.linear_model import RidgeClassifierCV
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GroupShuffleSplit, GridSearchCV
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from scipy.optimize import minimize
 from sklearn.model_selection import train_test_split, StratifiedKFold
@@ -1284,17 +1284,19 @@ class Classifier:
         - 'GBC': Gradient Boosting Classifier
     """
     def __init__(self, data, labels, classifier_type='LDA', wine_kind='bordeaux', cnn_dim=1, multichannel=True,
-                 window_size=5000, stride=2500, nconv=3):
+                 window_size=5000, stride=2500, nconv=3, alpha=1):
         self.data = data
         self.labels = labels
         self.multichannel = multichannel
         self.nconv = nconv
         self.window_size = window_size
         self.stride = stride
-        self.classifier = self._get_classifier(classifier_type, multichannel=self.multichannel)
         self.wine_kind = wine_kind
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.cnn_dim = cnn_dim
+        self.alpha=alpha
+        self.classifier = self._get_classifier(classifier_type, multichannel=self.multichannel)
+
 
 
     def _get_classifier(self, classifier_type, multichannel=None):
@@ -1324,7 +1326,7 @@ class Classifier:
         elif classifier_type == 'PER':
             return Perceptron()
         elif classifier_type == 'RGC':
-            return RidgeClassifier(alpha=500)
+            return RidgeClassifier(alpha=self.alpha)
         elif classifier_type == 'SGD':
             return SGDClassifier()
         elif classifier_type == 'SVM':
@@ -1522,7 +1524,7 @@ class Classifier:
 
     def train_and_evaluate_balanced(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
                                     scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
-                                    batch_size=32, num_epochs=10, learning_rate=0.001,
+                                    batch_size=32, num_epochs=10, learning_rate=0.001
                                    ):
         """
         Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
@@ -1567,8 +1569,11 @@ class Classifier:
         # Cross-validation loop
         for i in range(n_splits):
             # Split data into train and test sets
-            train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
-                self.labels, self.data, vintage=vintage, test_size=test_size)
+            # train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
+            #     self.labels, self.data, vintage=vintage, test_size=test_size)
+            X_train, X_test, y_train, y_test = train_test_split(
+                self.data, self.labels, test_size=0.3, stratify=self.labels
+            )
 
             # Normalize data if enabled
             if normalize:
@@ -1753,6 +1758,7 @@ class Classifier:
             A dictionary containing mean accuracy, balanced accuracy, weighted accuracy, precision, F1-score,
             mean confusion matrix, and the mean optimal alpha value.
         """
+
 
         if channel_weights is not None:
             self.data = self.data * channel_weights.detach().numpy()
@@ -1942,7 +1948,7 @@ class Classifier:
 
     def train_and_evaluate_balanced_with_best_alpha(
             self, n_splits=50, vintage=False, test_size=None, normalize=False, scaler_type='standard', use_pca=False,
-            vthresh=0.97, best_alpha=1):
+            vthresh=0.97, best_alpha=1, region=None):
         """
         Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
         Learn the optimal alpha parameter for Ridge Classifier during training.
@@ -1958,10 +1964,17 @@ class Classifier:
             mean confusion matrix, and the mean optimal alpha value.
         """
 
+        if region == 'winery':
+            custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+        elif region  == 'origin':
+            custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+        else:
+           custom_order = None
 
         # Separate all the m/z profiles and give them the label of the sample
         self.labels = np.repeat(self.labels, self.data.shape[2])
-        self.data = self.data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
+        # self.data = self.data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
+        self.data = self.data.transpose(0, 2, 1).reshape(-1, self.data.shape[1])
 
         # Initialize accumulators for metrics and alpha
         accuracy_scores = []
@@ -1979,7 +1992,7 @@ class Classifier:
             #     vintage=vintage,test_size=test_size, num_test=num_test)
 
             X_train, X_test, y_train, y_test = train_test_split(
-                self.data, self.labels, test_size=0.2, stratify=self.labels
+                self.data, self.labels, test_size=0.1, stratify=self.labels
             )
 
             # Normalize data if enabled
@@ -2009,6 +2022,7 @@ class Classifier:
 
             # Compute confusion matrix
             cm = confusion_matrix(y_test, y_pred, labels=sorted(set(y_test)))
+            # cm = confusion_matrix(y_test, y_pred, labels=custom_order)
             confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
 
             print(f"Split {i + 1}/{n_splits} completed.")
@@ -2034,6 +2048,122 @@ class Classifier:
         }
 
 
+    def train_and_evaluate_balanced_with_best_alpha2(
+            self, n_splits=50, test_size=0.2, normalize=False, scaler_type='standard',
+            use_pca=False, vthresh=0.97, best_alpha=1, region=None
+    ):
+        """
+        Train and evaluate the classifier using cross-validation, with stratified train-test splits at the sample level.
+
+        Parameters
+        ----------
+        n_splits : int
+            Number of cross-validation splits.
+        test_size : float
+            Proportion of the data to include in the test split.
+        normalize : bool
+            Whether to normalize the data.
+        scaler_type : str
+            Type of scaler to use for normalization.
+        use_pca : bool
+            Whether to apply PCA for dimensionality reduction.
+        vthresh : float
+            Variance threshold for PCA.
+        best_alpha : float
+            Regularization parameter for RidgeClassifier.
+        region : str
+            Custom label ordering for visualization.
+
+        Returns
+        -------
+        dict
+            A dictionary containing evaluation metrics and the confusion matrix.
+        """
+
+        # Custom label ordering for specific regions (if needed)
+        custom_order = {
+            'winery': ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X'],
+            'origin': ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+        }.get(region, None)
+
+        # Labels and data at the sample level
+        sample_labels = self.labels
+        sample_data = self.data  # Shape: (num_samples, features, channels)
+
+        # Initialize accumulators for metrics
+        accuracy_scores = []
+        balanced_accuracy_scores = []
+        precision_scores = []
+        f1_scores = []
+        confusion_matrix_sum = None
+
+        ridge_classifier = RidgeClassifier(alpha=best_alpha)
+
+        # Cross-validation loop
+        for i in range(n_splits):
+            # Perform stratified split at the sample level
+            train_idx, test_idx = train_test_split(
+                np.arange(len(sample_labels)),
+                test_size=test_size,
+                stratify=sample_labels,
+                random_state=i
+            )
+
+            # Prepare train and test data while keeping channels grouped by sample
+            X_train = sample_data[train_idx].transpose(0, 2, 1).reshape(-1, sample_data.shape[1])  # Flatten channels
+            X_test = sample_data[test_idx].transpose(0, 2, 1).reshape(-1, sample_data.shape[1])
+            y_train = np.repeat(sample_labels[train_idx], sample_data.shape[2])  # Repeat labels for all channels
+            y_test = np.repeat(sample_labels[test_idx], sample_data.shape[2])
+
+            # Normalize data if required
+            if normalize:
+                X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+                X_test = scaler.transform(X_test)
+
+            # Apply PCA if required
+            if use_pca:
+                reducer = DimensionalityReducer(self.data)
+                _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
+                n_components = min(n_components, len(set(y_train)))  # Adjust PCA components based on class count
+                pca = PCA(n_components=n_components, svd_solver='randomized')
+                X_train = pca.fit_transform(X_train)
+                X_test = pca.transform(X_test)
+
+            # Train and predict
+            ridge_classifier.fit(X_train, y_train)
+            y_pred = ridge_classifier.predict(X_test)
+
+            # Compute metrics
+            accuracy_scores.append(ridge_classifier.score(X_test, y_test))
+            balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
+            precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
+            f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
+
+            # Compute confusion matrix
+            cm = confusion_matrix(y_test, y_pred, labels=sorted(set(y_train)))
+            confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
+
+            print(f"Split {i + 1}/{n_splits} completed.")
+
+        # Calculate mean metrics
+        mean_confusion_matrix = confusion_matrix_sum / n_splits
+
+        # Print summary
+        print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
+        print(
+            f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
+        print(f"Precision: {np.mean(precision_scores):.3f}")
+        print(f"F1 Score: {np.mean(f1_scores):.3f}")
+        print("Mean Confusion Matrix:\n", mean_confusion_matrix)
+
+        # Return metrics
+        return {
+            'mean_accuracy': np.mean(accuracy_scores),
+            'mean_balanced_accuracy': np.mean(balanced_accuracy_scores),
+            'mean_precision': np.mean(precision_scores),
+            'mean_f1_score': np.mean(f1_scores),
+            'mean_confusion_matrix': mean_confusion_matrix,
+        }
 
 
     def train_and_evaluate_balanced_with_minimize(
@@ -2367,57 +2497,164 @@ class Classifier:
         }
 
 
-
-
+    # def train_and_evaluate_all_mz_per_sample(self, n_splits=50, vintage=False, random_seed=42, test_size=None,
+    #                                            normalize=False,
+    #                                            scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
+    #                                            batch_size=32, num_epochs=10, learning_rate=0.001,
+    #                                            alpha_range=None, num_test=1):
+    #     """
+    #     Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
+    #     Learn the optimal alpha parameter for Ridge Classifier during training.
+    #
+    #     Parameters
+    #     ----------
+    #     alpha_range : list or None
+    #         Range of alpha values to test during cross-validation. If None, defaults to [0.1, 1.0, 10.0, 100.0].
+    #
+    #     Returns
+    #     -------
+    #     dict
+    #         A dictionary containing mean accuracy, balanced accuracy, weighted accuracy, precision, F1-score,
+    #         mean confusion matrix, and the mean optimal alpha value.
+    #     """
+    #
+    #     # Set default alpha range if not provided
+    #     if alpha_range is None:
+    #         alpha_range = [0.001, 0.01, 0.1, 1.0, 10.0, 50.0, 100.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0]
+    #
+    #     # Initialize accumulators for metrics and alpha
+    #     accuracy_scores = []
+    #     balanced_accuracy_scores = []
+    #     precision_scores = []
+    #     f1_scores = []
+    #     best_alpha_values = []
+    #     confusion_matrix_sum = None
+    #     scaler = StandardScaler()
+    #
+    #     # Cross-validation loop
+    #     for i in range(n_splits):
+    #         # Split data into train and test sets
+    #         train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
+    #             self.labels, self.data, vintage=vintage, test_size=test_size, num_test=1)
+    #
+    #         # # # Z-score normalize the amplitude of each column
+    #         # X_train = np.array([scaler.fit_transform(matrix) for matrix in X_train])
+    #         # X_test = np.array([scaler.fit_transform(matrix) for matrix in X_test])
+    #
+    #         # Concatenate the m/z profiles for each sample
+    #         X_train = X_train.transpose(0, 2, 1).reshape(X_train.shape[0], X_train.shape[1] * X_train.shape[2])
+    #         X_test = X_test.transpose(0, 2, 1).reshape(X_test.shape[0], X_test.shape[1] * X_test.shape[2])
+    #                   # Normalize data if enabled
+    #         if normalize:
+    #             X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+    #             X_test = scaler.transform(X_test)
+    #
+    #         # Apply PCA if enabled
+    #         if use_pca:
+    #             reducer = DimensionalityReducer(self.data)
+    #             _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
+    #             n_components = min(n_components, len(set(y_train)))  # Adjust PCA components based on class count
+    #             pca = PCA(n_components=n_components, svd_solver='randomized')
+    #             X_train = pca.fit_transform(X_train)
+    #             X_test = pca.transform(X_test)
+    #
+    #         # Learn optimal alpha using RidgeClassifierCV
+    #         ridge_classifier = RidgeClassifierCV(alphas=alpha_range, scoring='balanced_accuracy', store_cv_values=True)
+    #         ridge_classifier.fit(X_train, y_train)
+    #         best_alpha = ridge_classifier.alpha_
+    #         best_alpha_values.append(best_alpha)
+    #
+    #         # Predictions and metrics
+    #         y_pred = ridge_classifier.predict(X_test)
+    #         accuracy_scores.append(ridge_classifier.score(X_test, y_test))
+    #         balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
+    #
+    #         # Compute precision and F1 score
+    #         precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
+    #         f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
+    #
+    #         # Compute confusion matrix
+    #         cm = confusion_matrix(y_test, y_pred, labels=sorted(set(y_test)))
+    #         confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
+    #
+    #         print(f"Split {i + 1}/{n_splits} completed. Best alpha: {best_alpha}")
+    #
+    #     # Calculate mean metrics
+    #     mean_confusion_matrix = confusion_matrix_sum / n_splits
+    #     mean_alpha = np.mean(best_alpha_values)
+    #
+    #     # Print summary
+    #     print(f"Mean Alpha: {mean_alpha:.3f}")
+    #     print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
+    #     print(
+    #         f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
+    #     print(f"Precision: {np.mean(precision_scores):.3f}")
+    #     print(f"F1 Score: {np.mean(f1_scores):.3f}")
+    #     print("Mean Confusion Matrix:\n", mean_confusion_matrix)
+    #
+    #     # Return metrics
+    #     return {
+    #         'mean_accuracy': np.mean(accuracy_scores),
+    #         'mean_balanced_accuracy': np.mean(balanced_accuracy_scores),
+    #         'mean_precision': np.mean(precision_scores),
+    #         'mean_f1_score': np.mean(f1_scores),
+    #         'mean_confusion_matrix': mean_confusion_matrix,
+    #         'mean_alpha': mean_alpha
+    #     }
 
     def train_and_evaluate_all_mz_per_sample(self, n_splits=50, vintage=False, random_seed=42, test_size=None,
-                                               normalize=False,
-                                               scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
-                                               batch_size=32, num_epochs=10, learning_rate=0.001,
-                                               alpha_range=None, num_test=1):
+                                             normalize=False, scaler_type='standard', use_pca=False, vthresh=0.97,
+                                             region=None, best_alpha=1.0):
         """
         Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
-        Learn the optimal alpha parameter for Ridge Classifier during training.
 
         Parameters
         ----------
-        alpha_range : list or None
-            Range of alpha values to test during cross-validation. If None, defaults to [0.1, 1.0, 10.0, 100.0].
+        alpha : float
+            Regularization strength for RidgeClassifier.
+        n_splits : int
+            Number of cross-validation splits.
+        vintage : bool
+            Whether to use vintage data for splitting.
+        random_seed : int
+            Seed for reproducibility.
+        test_size : float or None
+            Proportion of the data to include in the test split.
+        normalize : bool
+            Whether to normalize the data.
+        scaler_type : str
+            Type of scaler to use for normalization ('standard' or 'minmax').
+        use_pca : bool
+            Whether to apply PCA for dimensionality reduction.
+        vthresh : float
+            Variance threshold for PCA.
+        region : str or None
+            Region-specific configurations for label ordering.
 
         Returns
         -------
         dict
-            A dictionary containing mean accuracy, balanced accuracy, weighted accuracy, precision, F1-score,
-            mean confusion matrix, and the mean optimal alpha value.
+            A dictionary containing mean accuracy, balanced accuracy, precision, F1-score,
+            mean confusion matrix, and the fixed alpha value.
         """
-
-        # Set default alpha range if not provided
-        if alpha_range is None:
-            alpha_range = [0.001, 0.01, 0.1, 1.0, 10.0, 50.0, 100.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0]
-
-        # Initialize accumulators for metrics and alpha
+        # Initialize accumulators for metrics
         accuracy_scores = []
         balanced_accuracy_scores = []
         precision_scores = []
         f1_scores = []
-        best_alpha_values = []
         confusion_matrix_sum = None
-        scaler = StandardScaler()
 
         # Cross-validation loop
         for i in range(n_splits):
             # Split data into train and test sets
             train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
-                vintage=vintage, test_size=test_size, num_test=1)
-
-            # # # Z-score normalize the amplitude of each column
-            # X_train = np.array([scaler.fit_transform(matrix) for matrix in X_train])
-            # X_test = np.array([scaler.fit_transform(matrix) for matrix in X_test])
+                self.labels, self.data, vintage=vintage, test_size=test_size, num_test=1)
 
             # Concatenate the m/z profiles for each sample
             X_train = X_train.transpose(0, 2, 1).reshape(X_train.shape[0], X_train.shape[1] * X_train.shape[2])
             X_test = X_test.transpose(0, 2, 1).reshape(X_test.shape[0], X_test.shape[1] * X_test.shape[2])
-                      # Normalize data if enabled
+
+            # Normalize data if enabled
             if normalize:
                 X_train, scaler = normalize_data(X_train, scaler=scaler_type)
                 X_test = scaler.transform(X_test)
@@ -2431,13 +2668,11 @@ class Classifier:
                 X_train = pca.fit_transform(X_train)
                 X_test = pca.transform(X_test)
 
-            # Learn optimal alpha using RidgeClassifierCV
-            ridge_classifier = RidgeClassifierCV(
-                alphas=alpha_range, scoring='balanced_accuracy', store_cv_values=True, cv=5
-            )
+            # Train RidgeClassifier with the given alpha
+            ridge_classifier = RidgeClassifier(alpha=best_alpha)
             ridge_classifier.fit(X_train, y_train)
-            best_alpha = ridge_classifier.alpha_
-            best_alpha_values.append(best_alpha)
+            # utils.plot_aggregated_weights(ridge_classifier.coef_[0], bin_size=10)
+            # utils.compute_channel_correlation_single_sample(self.data, 0, figsize=(8, 6), cmap="coolwarm")
 
             # Predictions and metrics
             y_pred = ridge_classifier.predict(X_test)
@@ -2452,14 +2687,13 @@ class Classifier:
             cm = confusion_matrix(y_test, y_pred, labels=sorted(set(y_test)))
             confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
 
-            print(f"Split {i + 1}/{n_splits} completed. Best alpha: {best_alpha}")
+            print(f"Split {i + 1}/{n_splits} completed.")
 
         # Calculate mean metrics
         mean_confusion_matrix = confusion_matrix_sum / n_splits
-        mean_alpha = np.mean(best_alpha_values)
 
         # Print summary
-        print(f"Mean Alpha: {mean_alpha:.3f}")
+        print(f"Alpha: {best_alpha:.3f}")
         print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
         print(
             f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
@@ -2474,9 +2708,8 @@ class Classifier:
             'mean_precision': np.mean(precision_scores),
             'mean_f1_score': np.mean(f1_scores),
             'mean_confusion_matrix': mean_confusion_matrix,
-            'mean_alpha': mean_alpha
+            'alpha': best_alpha
         }
-
 
     def train_and_evaluate_separate_datasets(self, X_train, y_train, X_test, y_test, n_splits=50, vintage=False,
                                              random_seed=42, normalize=True, scaler_type='standard'):
@@ -2689,7 +2922,7 @@ class Classifier:
 
 
 class BayesianParamOptimizer:
-    def __init__(self, data, labels, n_channels, n_splits=5):
+    def __init__(self, data, labels, n_channels=None, n_splits=5):
         """
         Initialize the Bayesian Weight Optimizer.
 
@@ -2710,7 +2943,9 @@ class BayesianParamOptimizer:
         self.n_splits = n_splits
 
         # Determine the base number with many multiples
-        self.base_channels = self._determine_base_channels()
+
+        if self.n_channels is not None:
+            self.base_channels = self._determine_base_channels()
 
     def _determine_base_channels(self):
         """
@@ -2724,7 +2959,7 @@ class BayesianParamOptimizer:
         candidates = [i for i in range(self.n_channels, 1, -1) if 180 % i == 0]
         return candidates[0] if candidates else self.n_channels
 
-    def evaluate_n_and_alpha(self, n, alpha, num_splits=5):
+    def evaluate_n_and_alpha(self, n, alpha, ch_treat, num_splits=5):
         """
         Evaluate the balanced accuracy for a given number of grouped channels and alpha.
 
@@ -2734,6 +2969,8 @@ class BayesianParamOptimizer:
             Number of channels grouped together.
         alpha : float
             Regularization strength for RidgeClassifier.
+        ch_treat : string
+            How to use the channels, independently or concatenated
 
         Returns
         -------
@@ -2741,7 +2978,6 @@ class BayesianParamOptimizer:
             Negative mean balanced accuracy (to minimize).
         """
         num_groups = self.n_channels // n
-        # aggregated_data = np.zeros((self.data.shape[0], num_groups))
         aggregated_data = np.zeros((self.data.shape[0], self.data.shape[1], num_groups))
 
         # Aggregate channels into groups
@@ -2749,19 +2985,88 @@ class BayesianParamOptimizer:
             start_idx = i * n
             end_idx = min((i + 1) * n, self.n_channels)
             aggregated_data[:, :, i] = np.mean(self.data[:, :, start_idx:end_idx], axis=-1)
-            # aggregated_data[:, i] = np.mean(self.data[:, :, start_idx:end_idx], axis=-1).mean(axis=-1)
 
-        reshaped_data = aggregated_data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
-        labels_expanded = np.repeat(self.labels, num_groups)
+        # # reshaped_data = aggregated_data.transpose(2, 0, 1).reshape(-1, self.data.shape[1])
+        # reshaped_data = aggregated_data.transpose(0, 2, 1).reshape(-1, self.data.shape[1])
+        # labels_expanded = np.repeat(self.labels, num_groups)
 
         # Evaluate performance using multiple train-test splits
         balanced_accuracies = []
 
+        model = RidgeClassifier(alpha=alpha)
+        for split in range(num_splits):
+            # X_train, X_test, y_train, y_test = train_test_split(
+            #     reshaped_data, labels_expanded, test_size=0.4, stratify=labels_expanded
+            # )
+            if ch_treat == 'individual':
+                # Stratified split at the sample level
+                train_idx, test_idx = train_test_split(
+                    np.arange(len(self.labels)),
+                    test_size=0.4,
+                    stratify=self.labels,
+                    random_state=split
+                )
+
+                # Prepare train and test data while keeping channels grouped
+                X_train = aggregated_data[train_idx].transpose(0, 2, 1).reshape(-1, self.data.shape[1])
+                X_test = aggregated_data[test_idx].transpose(0, 2, 1).reshape(-1, self.data.shape[1])
+                y_train = np.repeat(np.array(self.labels)[train_idx], num_groups)
+                y_test = np.repeat(np.array(self.labels)[test_idx], num_groups)
+
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+                balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
+                balanced_accuracies.append(balanced_accuracy)
+
+            elif ch_treat == 'concatenated':
+                # Concatenate grouped channels for each sample
+                concatenated_data = aggregated_data.transpose(0, 2, 1).reshape(self.data.shape[0], -1)
+
+                # Stratified split at the sample level
+                train_idx, test_idx = train_test_split(
+                    np.arange(len(self.labels)),
+                    test_size=0.4,
+                    stratify=self.labels,
+                    random_state=split
+                )
+
+                # Prepare train and test data with concatenated channels
+                X_train, X_test = concatenated_data[train_idx], concatenated_data[test_idx]
+                y_train, y_test = np.array(self.labels)[train_idx], np.array(self.labels)[test_idx]
+
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+                balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
+                balanced_accuracies.append(balanced_accuracy)
+
+            else:
+                raise ValueError("Invalid value for ch_treat. Use 'individual' or 'concatenated'.")
+
+        return -np.mean(balanced_accuracies)  # Negative score for minimization
+
+
+
+    def evaluate_alpha(self, alpha, num_splits=5):
+        """
+        Evaluate the balanced accuracy for a given alpha.
+
+        Parameters
+        ----------
+        alpha : float
+            Regularization strength for RidgeClassifier.
+
+        Returns
+        -------
+        float
+            Negative mean balanced accuracy (to minimize).
+        """
+        balanced_accuracies = []
+
+        model = RidgeClassifier(alpha=alpha)
         for _ in range(num_splits):
             X_train, X_test, y_train, y_test = train_test_split(
-                reshaped_data, labels_expanded, test_size=0.2, stratify=labels_expanded
+                self.data, self.labels, test_size=0.4, stratify=self.labels, random_state=_
             )
-            model = RidgeClassifier(alpha=alpha)
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
             balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
@@ -2769,7 +3074,8 @@ class BayesianParamOptimizer:
 
         return -np.mean(balanced_accuracies)  # Negative score for minimization
 
-    def optimize(self, n_calls=50, random_state=42, num_splits=5):
+
+    def optimize_gcms(self, n_calls=50, random_state=42, num_splits=5, ch_treat='concatenated'):
         """
         Optimize the number of channels grouped together and alpha using Bayesian Optimization.
 
@@ -2787,6 +3093,7 @@ class BayesianParamOptimizer:
         """
         # Generate multiples of base_channels that are valid for grouping
         n_values = [i for i in range(1, self.base_channels + 1) if self.base_channels % i == 0]
+        n_values = [180]
 
         # Define the search space
         space = [
@@ -2798,10 +3105,46 @@ class BayesianParamOptimizer:
         def objective(**params):
             n = params["n"]
             alpha = params["alpha"]
-            return self.evaluate_n_and_alpha(n, alpha, num_splits=num_splits)
+            return self.evaluate_n_and_alpha(n, alpha, ch_treat, num_splits=num_splits)
 
         # Initialize progress bar
         with tqdm(total=n_calls, desc="Optimizing Channels and Alpha") as pbar:
+            def progress_callback(res):
+                """Update the progress bar after each iteration."""
+                pbar.update(1)
+
+            # Perform Bayesian Optimization with a callback for progress
+            result = gp_minimize(objective, space, n_calls=n_calls, random_state=random_state,
+                                 callback=[progress_callback])
+
+        return result
+
+    def optimize_tic(self, n_calls=50, random_state=42, num_splits=5):
+        """
+        Optimize the alpha parameter using Bayesian Optimization.
+
+        Parameters
+        ----------
+        n_calls : int
+            Number of evaluations of the objective function.
+        random_state : int
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        dict
+            Results of the optimization process.
+        """
+        # Define the search space
+        space = [Real(0.1, 20000.0, name="alpha", prior="log-uniform")]
+
+        @use_named_args(space)
+        def objective(**params):
+            alpha = params["alpha"]
+            return self.evaluate_alpha(alpha, num_splits=num_splits)
+
+        # Initialize progress bar
+        with tqdm(total=n_calls, desc="Optimizing Alpha") as pbar:
             def progress_callback(res):
                 """Update the progress bar after each iteration."""
                 pbar.update(1)
