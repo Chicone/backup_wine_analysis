@@ -12,7 +12,7 @@ CHEMICAL_NAME = 'PINOT_NOIR_CHANGINS_TOM'
 
 # Dataset Settings
 ROW_START = 1
-N_SPLITS = 500
+N_SPLITS = 100
 CHROM_CAP = 29000  # Limit for chromatogram size
 N_DECIMATION = 5  # Decimation factor for 3D data
 VINTAGE = False  # Include vintage data in analysis
@@ -48,4 +48,6 @@ WINE_KIND = "pinot_noir" if "pinot_noir" in CHEMICAL_NAME.lower() else "bordeaux
 REGION = "winery"
 
 # Bayesian Optimization
+BAYES_OPTIMIZE = False
 NUM_SPLITS_BAYES = 10
+BAYES_CALLS = 50

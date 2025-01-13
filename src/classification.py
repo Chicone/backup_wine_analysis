@@ -37,6 +37,9 @@ from skopt import gp_minimize
 from skopt.space import Real, Integer, Categorical
 from skopt.utils import use_named_args
 
+from joblib import Parallel, delayed
+import random
+
 class CustomDataParallel(torch.nn.DataParallel):
     def __getattr__(self, name):
         try:
@@ -3093,7 +3096,7 @@ class BayesianParamOptimizer:
         """
         # Generate multiples of base_channels that are valid for grouping
         n_values = [i for i in range(1, self.base_channels + 1) if self.base_channels % i == 0]
-        n_values = [180]
+        # n_values = [180]
 
         # Define the search space
         space = [
@@ -3862,3 +3865,426 @@ def assign_year_to_pinot_noir(labels):
     return first_letters
 
 
+# def greedy_channel_selection(data, labels, alpha=1.0, test_size=0.2, max_channels=None, num_splits=5):
+#     """
+#     Greedy Forward Selection with multiple train-test splits to find the best m/z channels for classification.
+#
+#     Parameters
+#     ----------
+#     data : np.ndarray
+#         Input 3D array with shape (samples, features, channels).
+#     labels : np.ndarray
+#         Array of labels for the samples.
+#     alpha : float
+#         Regularization strength for RidgeClassifier.
+#     test_size : float
+#         Proportion of data to be used for testing.
+#     max_channels : int or None
+#         Maximum number of channels to include. If None, selects all channels.
+#     num_splits : int
+#         Number of train-test splits to average the performance.
+#
+#     Returns
+#     -------
+#     list
+#         Ordered list of selected channels.
+#     list
+#         List of accuracies at each step.
+#     """
+#     num_channels = data.shape[2]
+#     max_channels = max_channels or num_channels
+#
+#     selected_channels = []  # List to store selected channel indices
+#     remaining_channels = list(range(num_channels))  # Channels not yet selected
+#     accuracies = []  # Track performance as channels are added
+#
+#     print("Starting Greedy Channel Selection with Averaged Splits...")
+#
+#     model = RidgeClassifier(alpha=alpha)
+#     best_accuracy_overall = 0.0  # Track the best accuracy so far
+#
+#     for step in range(min(max_channels, num_channels)):
+#         best_channel = None
+#         best_step_accuracy = 0.0
+#
+#         # Test each remaining channel to see which improves performance the most
+#         for ch in remaining_channels:
+#             # print(f'ch {ch} of {len(remaining_channels)}')
+#             candidate_channels = selected_channels + [ch]
+#
+#             # Concatenate selected channels into a single feature vector
+#             concatenated_data = data[:, :, candidate_channels].reshape(data.shape[0], -1)
+#             split_accuracies = []
+#
+#             # Average performance over multiple splits
+#             for split in range(num_splits):
+#                 # Train-test split
+#                 X_train, X_test, y_train, y_test = train_test_split(
+#                     concatenated_data, labels, test_size=test_size, stratify=labels, random_state=split
+#                 )
+#
+#                 # Train Ridge Classifier
+#                 model.fit(X_train, y_train)
+#                 y_pred = model.predict(X_test)
+#
+#                 # Evaluate performance
+#                 accuracy = balanced_accuracy_score(y_test, y_pred)
+#                 split_accuracies.append(accuracy)
+#
+#             # Average accuracy across splits
+#             avg_accuracy = np.mean(split_accuracies)
+#
+#             # Keep track of the best channel
+#             if avg_accuracy > best_step_accuracy:
+#                 best_step_accuracy = avg_accuracy
+#                 best_channel = ch
+#
+#         # Stop if no improvement is observed
+#         if best_channel is None or best_step_accuracy <= best_accuracy_overall:
+#             print("No further improvement. Stopping selection.")
+#             break
+#
+#         # Update the best overall accuracy and add the best channel
+#         best_accuracy_overall = best_step_accuracy
+#         selected_channels.append(best_channel)
+#         remaining_channels.remove(best_channel)
+#         accuracies.append(best_step_accuracy)
+#
+#         print(f"Step {step + 1}: Added Channel {best_channel} - Average Accuracy: {best_step_accuracy:.4f}")
+#
+#     print("Greedy Channel Selection Completed.")
+#     return selected_channels, accuracies
+
+def greedy_channel_selection(
+        data, labels, alpha=1.0, test_size=0.2, max_channels=None, num_splits=5, tolerated_no_improvement_steps=2):
+    """
+    Greedy Forward Selection with multiple train-test splits to find the best m/z channels for classification.
+    Always adds the best channel but stops after a configurable number of consecutive non-improving steps.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Input 3D array with shape (samples, features, channels).
+    labels : np.ndarray
+        Array of labels for the samples.
+    alpha : float
+        Regularization strength for RidgeClassifier.
+    test_size : float
+        Proportion of data to be used for testing.
+    max_channels : int or None
+        Maximum number of channels to include. If None, selects all channels.
+    num_splits : int
+        Number of train-test splits to average the performance.
+    tolerated_no_improvement_steps : int
+        Number of consecutive steps without accuracy improvement before stopping.
+
+    Returns
+    -------
+    list
+        Ordered list of selected channels.
+    list
+        List of accuracies at each step.
+    """
+    num_channels = data.shape[2]
+    max_channels = max_channels or num_channels
+
+    selected_channels = []  # List to store selected channel indices
+    remaining_channels = list(range(num_channels))  # Channels not yet selected
+    accuracies = []  # Track performance as channels are added
+
+    print("Starting Greedy Channel Selection with Averaged Splits...")
+
+    model = RidgeClassifier(alpha=alpha)
+    best_accuracy_overall = 0.0  # Track the best accuracy so far
+    non_improving_steps = 0  # Counter for consecutive non-improving steps
+
+    for step in range(min(max_channels, num_channels)):
+        best_channel = None
+        best_step_accuracy = 0.0
+
+        # Test each remaining channel to see which improves performance the most
+        for ch in remaining_channels:
+            candidate_channels = selected_channels + [ch]
+
+            # Concatenate selected channels into a single feature vector
+            concatenated_data = data[:, :, candidate_channels].reshape(data.shape[0], -1)
+            split_accuracies = []
+
+            # Average performance over multiple splits
+            for split in range(num_splits):
+                # Train-test split
+                X_train, X_test, y_train, y_test = train_test_split(
+                    concatenated_data, labels, test_size=test_size, stratify=labels, random_state=split
+                )
+
+                # Train Ridge Classifier
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+
+                # Evaluate performance
+                accuracy = balanced_accuracy_score(y_test, y_pred)
+                split_accuracies.append(accuracy)
+
+            # Average accuracy across splits
+            avg_accuracy = np.mean(split_accuracies)
+
+            # Keep track of the best channel
+            if avg_accuracy > best_step_accuracy:
+                best_step_accuracy = avg_accuracy
+                best_channel = ch
+
+        # Add the best channel even if it does not improve accuracy
+        if best_channel is not None:
+            selected_channels.append(best_channel)
+            remaining_channels.remove(best_channel)
+            accuracies.append(best_step_accuracy)
+
+            print(f"Step {step + 1}: Added Channel {best_channel} - Average Accuracy: {best_step_accuracy:.4f}")
+
+            # Check if accuracy improved
+            if best_step_accuracy > best_accuracy_overall:
+                best_accuracy_overall = best_step_accuracy
+                non_improving_steps = 0  # Reset counter
+            else:
+                non_improving_steps += 1
+
+        # Stop if the tolerated number of non-improving steps is reached
+        if non_improving_steps >= tolerated_no_improvement_steps:
+            print(f"No improvement in the last {tolerated_no_improvement_steps} steps. Stopping selection.")
+            break
+
+    print("Greedy Channel Selection Completed.")
+    return selected_channels, accuracies
+
+
+def greedy_channel_selection_parallel(
+        data, labels, alpha=1.0, test_size=0.2, max_channels=None, num_splits=5,
+        tolerated_no_improvement_steps=2, random_subset_size=None):
+    """
+    Greedy Forward Selection with parallelized evaluation and random subset sampling of channels.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Input 3D array with shape (samples, features, channels).
+    labels : np.ndarray
+        Array of labels for the samples.
+    alpha : float
+        Regularization strength for RidgeClassifier.
+    test_size : float
+        Proportion of data to be used for testing.
+    max_channels : int or None
+        Maximum number of channels to include. If None, selects all channels.
+    num_splits : int
+        Number of train-test splits to average the performance.
+    tolerated_no_improvement_steps : int
+        Number of consecutive steps without accuracy improvement before stopping.
+    random_subset_size : int or None
+        Number of channels to evaluate randomly at each step. If None, evaluates all remaining channels.
+
+    Returns
+    -------
+    list
+        Ordered list of selected channels.
+    list
+        List of accuracies at each step.
+    """
+    num_channels = data.shape[2]
+    max_channels = max_channels or num_channels
+
+    selected_channels = []  # List to store selected channel indices
+    remaining_channels = list(range(num_channels))  # Channels not yet selected
+    accuracies = []  # Track performance as channels are added
+
+    print("Starting Greedy Channel Selection with Parallel Evaluation...")
+
+    model = RidgeClassifier(alpha=alpha)
+    best_accuracy_overall = 0.0  # Track the best accuracy so far
+    non_improving_steps = 0  # Counter for consecutive non-improving steps
+
+    for step in range(min(max_channels, num_channels)):
+        best_channel = None
+        best_step_accuracy = 0.0
+
+        # Select a random subset of channels if specified
+        if random_subset_size and random_subset_size < len(remaining_channels):
+            subset_channels = random.sample(remaining_channels, random_subset_size)
+        else:
+            subset_channels = remaining_channels
+
+        # Evaluate all candidate channels in parallel
+        def evaluate_channel(ch):
+            candidate_channels = selected_channels + [ch]
+            concatenated_data = data[:, :, candidate_channels].reshape(data.shape[0], -1)
+            split_accuracies = []
+
+            for split in range(num_splits):
+                X_train, X_test, y_train, y_test = train_test_split(
+                    concatenated_data, labels, test_size=test_size, stratify=labels, random_state=split
+                )
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+                split_accuracies.append(balanced_accuracy_score(y_test, y_pred))
+            return ch, np.mean(split_accuracies)
+
+        results = Parallel(n_jobs=-1)(
+            delayed(evaluate_channel)(ch) for ch in subset_channels
+        )
+
+        # Find the best channel from the results
+        for ch, avg_accuracy in results:
+            if avg_accuracy > best_step_accuracy:
+                best_step_accuracy = avg_accuracy
+                best_channel = ch
+
+        # Add the best channel even if it does not improve accuracy
+        if best_channel is not None:
+            selected_channels.append(best_channel)
+            remaining_channels.remove(best_channel)
+            accuracies.append(best_step_accuracy)
+
+            print(f"Step {step + 1}: Added Channel {best_channel} - Average Accuracy: {best_step_accuracy:.4f}")
+
+            # Check if accuracy improved
+            if best_step_accuracy > best_accuracy_overall:
+                best_accuracy_overall = best_step_accuracy
+                non_improving_steps = 0  # Reset counter
+            else:
+                non_improving_steps += 1
+
+        # Stop if the tolerated number of non-improving steps is reached
+        if non_improving_steps >= tolerated_no_improvement_steps:
+            print(f"No improvement in the last {tolerated_no_improvement_steps} steps. Stopping selection.")
+            break
+
+    print("Greedy Channel Selection Completed.")
+    return selected_channels, accuracies
+
+def classify_all_channels(data, labels, alpha=1.0, test_size=0.2, num_splits=5, use_pca=False, n_components=None):
+    """
+    Perform classification on all concatenated m/z channels with optional PCA for dimensionality reduction.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Input 3D array with shape (samples, features, channels).
+    labels : np.ndarray
+        Array of labels for the samples.
+    alpha : float
+        Regularization strength for RidgeClassifier.
+    test_size : float
+        Proportion of data to use for testing.
+    num_splits : int
+        Number of train-test splits for averaging accuracy.
+    use_pca : bool
+        Whether to apply PCA for dimensionality reduction.
+    n_components : int or None
+        Number of PCA components to retain. If None, PCA will not be applied.
+
+    Returns
+    -------
+    dict
+        A dictionary containing mean accuracy, balanced accuracy, and explained variance (if PCA is used).
+    """
+    # Flatten channels into a single feature vector per sample
+    flattened_data = data.transpose(0, 2, 1).reshape(data.shape[0], -1)
+
+    # Initialize metrics
+    accuracies = []
+    balanced_accuracies = []
+    explained_variance_ratios = [] if use_pca else None
+
+    print("Starting classification with all concatenated channels...")
+    model = RidgeClassifier(alpha=alpha)
+
+    # Cross-validation loop
+    for split in range(num_splits):
+        # Train-test split
+        X_train, X_test, y_train, y_test = train_test_split(
+            flattened_data, labels, test_size=test_size, stratify=labels, random_state=split
+        )
+
+        # Apply PCA if enabled
+        if use_pca:
+            pca = PCA(n_components=n_components)
+            X_train = pca.fit_transform(X_train)
+            X_test = pca.transform(X_test)
+
+            # Track explained variance
+            explained_variance_ratios.append(np.sum(pca.explained_variance_ratio_))
+
+        # Train and evaluate the Ridge Classifier
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+
+        # Compute metrics
+        accuracies.append(model.score(X_test, y_test))
+        balanced_accuracies.append(balanced_accuracy_score(y_test, y_pred))
+
+        print(f"Split {split + 1}/{num_splits} completed.")
+
+    # Calculate mean metrics
+    mean_accuracy = np.mean(accuracies)
+    mean_balanced_accuracy = np.mean(balanced_accuracies)
+    mean_explained_variance = np.mean(explained_variance_ratios) if use_pca else None
+
+    # Print summary
+    print(f"Mean Accuracy: {mean_accuracy:.4f}")
+    print(f"Mean Balanced Accuracy: {mean_balanced_accuracy:.4f}")
+    if use_pca:
+        print(f"Mean Explained Variance (PCA): {mean_explained_variance:.4f}")
+
+    # Return metrics
+    results = {
+        "mean_accuracy": mean_accuracy,
+        "mean_balanced_accuracy": mean_balanced_accuracy,
+    }
+    if use_pca:
+        results["mean_explained_variance"] = mean_explained_variance
+
+    return results
+
+
+def remove_highly_correlated_channels(data, correlation_threshold=0.9):
+    """
+    Removes highly correlated channels from the data based on the correlation of their full feature profiles.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Input 3D array with shape (samples, features, channels).
+    correlation_threshold : float
+        Threshold for considering two channels as highly correlated.
+
+    Returns
+    -------
+    np.ndarray
+        Reduced data with highly correlated channels removed.
+    list
+        Indices of retained channels.
+    """
+    # Reshape data to merge samples and features into one dimension for correlation
+    reshaped_data = data.transpose(2, 0, 1).reshape(data.shape[2], -1)  # Shape: (channels, samples * features)
+
+    # Compute the correlation matrix across channels
+    correlation_matrix = np.corrcoef(reshaped_data)
+
+    # Keep track of selected channels
+    num_channels = correlation_matrix.shape[0]
+    selected_channels = []
+
+    # Track channels to exclude
+    excluded_channels = set()
+
+    for i in range(num_channels):
+        if i not in excluded_channels:
+            selected_channels.append(i)
+            # Mark all highly correlated channels for exclusion
+            for j in range(i + 1, num_channels):
+                if abs(correlation_matrix[i, j]) > correlation_threshold:
+                    excluded_channels.add(j)
+
+    # Select only the retained channels
+    reduced_data = data[:, :, selected_channels]
+
+    return reduced_data, selected_channels
