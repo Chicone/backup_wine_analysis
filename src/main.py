@@ -47,7 +47,9 @@ from config import (
     MULTICHANNEL,
     WINE_KIND,
     REGION,
-    NUM_SPLITS_BAYES
+    BAYES_OPTIMIZE,
+    NUM_SPLITS_BAYES,
+    BAYES_CALLS,
 )
 import os
 import numpy as np
@@ -55,9 +57,11 @@ import argparse
 from data_loader import DataLoader
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
-                            assign_north_south_to_beaune, CoordinateDescentOptimizer, BayesianParamOptimizer)
+                            assign_north_south_to_beaune, CoordinateDescentOptimizer, BayesianParamOptimizer,
+                            greedy_channel_selection_parallel)
 from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
-from classification import Classifier, assign_winery_to_pinot_noir
+from classification import (Classifier, assign_winery_to_pinot_noir, greedy_channel_selection, classify_all_channels,
+                            remove_highly_correlated_channels)
 from visualizer import visualize_confusion_matrix_3d, plot_accuracy_vs_channels
 from dimensionality_reduction import run_umap_and_evaluate, run_tsne_and_evaluate
 import utils
@@ -65,6 +69,8 @@ from scipy.ndimage import gaussian_filter
 import torch
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+
 
 if __name__ == "__main__":
     time.sleep(DELAY)
@@ -87,47 +93,17 @@ if __name__ == "__main__":
 
     # GCMS-Specific Handling
     if DATA_TYPE == "GCMS":
-        if CNN_DIM:
-            if CNN_DIM == 1:
-                print("Analizing GCMS using 1d CNNs")
-                if SYNC_STATE:
-                    norm_tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
-                data_dict = utils.normalize_mz_profiles_amplitude(data_dict, method='min-max')
-                chromatograms = {sample_name: np.hsplit(matrix, matrix.shape[1]) for sample_name, matrix in data_dict.items()}
-                data = chromatograms.values()
-                labels = chromatograms.keys()
-            elif CNN_DIM == 2:
-                print("Analizing GCMS using 2d CNNs")
-                data_dict = gcms.resample_gcms_pytorch(original_size=181, new_size=500)
-                aggregated_dict = {
-                    sample_name: utils.aggregate_retention_times(image, N_DECIMATION, method='max')
-                    for sample_name, image in data_dict.items()
-                }
-                gcms.data = aggregated_dict
-                cropped_data_dict = gcms.generate_crops(crop_size=CROP_SIZE, stride=CROP_STRIDE)
-                print(f'Num. Crops = {len(cropped_data_dict[list(cropped_data_dict)[0]])}')
-                data = cropped_data_dict.values()
-                labels = cropped_data_dict.keys()
-        else:
-            if GCMS_DIRECTION == "RT_DIRECTION":
-                print("Analyzing GCMS data in retention time direction")
-                if SYNC_STATE:
-                    tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
+        if GCMS_DIRECTION == "RT_DIRECTION":
+            print("Analyzing GCMS data in retention time direction")
+            if SYNC_STATE:
+                tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
 
-                gcms.data = utils.reduce_columns_in_dict(data_dict, NUM_AGGR_CHANNELS)
-
-                # gcms.data = utils.normalize_dict_multichannel(gcms.data, scaler='standard')
-
-                chrom_length = len(list(data_dict.values())[0])
-                data, labels = gcms.create_overlapping_windows(chrom_length, chrom_length)  # with chrom_length is one window only
-#                labels = np.repeat(labels, data.shape[2])
-#                data = data.transpose(2, 0, 1).reshape(-1, data.shape[1])
-                if SYNC_STATE and CONCATENATE_TICS:
-                    data = np.concatenate((data, np.asarray(list(tics.values()))), axis=0)
-                    labels = np.concatenate((labels, np.asarray(list(tics.keys()))), axis=0)
-
-
-
+            gcms.data = utils.reduce_columns_in_dict(data_dict, NUM_AGGR_CHANNELS)
+            chrom_length = len(list(data_dict.values())[0])
+            data, labels = gcms.create_overlapping_windows(chrom_length, chrom_length)  # with chrom_length is one window only
+            if SYNC_STATE and CONCATENATE_TICS:
+                data = np.concatenate((data, np.asarray(list(tics.values()))), axis=0)
+                labels = np.concatenate((labels, np.asarray(list(tics.keys()))), axis=0)
     else:  # Handling Other Data Types
         if DATA_TYPE == "TIC":
             if SYNC_STATE:
@@ -196,48 +172,206 @@ if __name__ == "__main__":
         # labels_train = np.array(labels)[shuffled_indices]
         # data_val = np.array(list(data))[shuffled_indices]
         # labels_val = np.array(labels)[shuffled_indices]
-
-        n_channels = data_train.shape[2]
-        optimizer = BayesianParamOptimizer(data_train, list(labels_train), n_channels=n_channels)
-        result = optimizer.optimize_gcms(
-            n_calls=50, random_state=42, num_splits=NUM_SPLITS_BAYES, ch_treat=CH_TREAT
-        )
-        num_total_channels = n_channels // result.x[0]
-
-        print(f"Optimal channel aggregation number: {result.x[0]}")
-        print(f"Optimal number of channels: {num_total_channels}")
-        print(f"Optimal alpha: {result.x[1]}")
-        print(f"Best score: {-result.fun}")
-        print("")
-        print(f'sync {SYNC_STATE}')
-        print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
-
-
         cls = Classifier(
             np.array(list(data_val)), np.array(list(labels_val)), classifier_type='RGC', wine_kind=WINE_KIND,
             cnn_dim=CNN_DIM, multichannel=MULTICHANNEL,
             window_size=WINDOW, stride=STRIDE, nconv=NCONV
         )
+        alpha = 1
 
-        data_copy = cls.data.copy()
-        cls.data = utils.reduce_columns_to_final_channels(cls.data, num_total_channels)
+        if BAYES_OPTIMIZE:
+            n_channels = data_train.shape[2]
+            optimizer = BayesianParamOptimizer(data_train, list(labels_train), n_channels=n_channels)
+            result = optimizer.optimize_gcms(
+                n_calls=BAYES_CALLS, random_state=42, num_splits=NUM_SPLITS_BAYES, ch_treat=CH_TREAT
+            )
+            num_total_channels = n_channels // result.x[0]
+            alpha = result.x[1]
 
-        if CH_TREAT == 'individual':
+            print(f"Optimal channel aggregation number: {result.x[0]}")
+            print(f"Optimal number of channels: {num_total_channels}")
+            print(f"Optimal alpha: {result.x[1]}")
+            print(f"Best score: {-result.fun}")
+            print("")
+            print(f'sync {SYNC_STATE}')
+            print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
+
+            # data_copy = cls.data.copy()
+            cls.data = utils.reduce_columns_to_final_channels(cls.data, num_total_channels)
+
+        if CH_TREAT == 'concatenated':
+            method = 'greedy' # greedy, all_channels
+
+            if method == 'all_channels':
+                results = classify_all_channels(
+                    data=data,
+                    labels=labels,
+                    alpha=1.0,
+                    test_size=0.2,
+                    num_splits=5,
+                    use_pca=False,  # Enable PCA
+                    n_components=50  # Retain n PCA components
+                )
+                # Print the results in a formatted way
+                print("\n--- Classification Results ---")
+                print(f"Mean Accuracy: {results['mean_accuracy']:.4f}")
+                print(f"Mean Balanced Accuracy: {results['mean_balanced_accuracy']:.4f}")
+                if "mean_explained_variance" in results:
+                    print(f"Mean Explained Variance (PCA): {results['mean_explained_variance']:.4f}")
+
+            elif method == 'greedy':
+                correlation_threshold = 0.5
+                correlation_thresholds = np.linspace(0.3, 1.0, num=8)  # Adjust the number of steps if needed
+                accuracy_progressions = {}  # Store accuracies for each threshold
+                for correlation_threshold in correlation_thresholds:
+                    print(f"Processing correlation_threshold = {correlation_threshold:.2f}")
+
+                    reduced_data, retained_channels = remove_highly_correlated_channels(
+                        data, correlation_threshold=correlation_threshold
+                    )
+                    print(f'# Retained Channels for threshold {correlation_threshold:.2f}: {len(retained_channels)}')
+
+                    # Run Greedy Channel Selection
+                    selected_channels, accuracies = greedy_channel_selection_parallel(
+                        # data,
+                        reduced_data,
+                        labels,
+                        alpha=alpha,
+                        test_size=0.2,
+                        num_splits=100,
+                        tolerated_no_improvement_steps=3,
+                        random_subset_size=None
+                    )
+
+                    # Store the accuracies for this threshold
+                    accuracy_progressions[correlation_threshold] = accuracies
+
+                # # Print results
+                # print("Selected Channels (in order):", selected_channels)
+                # print("Accuracies at each step:", accuracies)
+
+                # Plot the incremental performance
+                import matplotlib.pyplot as plt
+                # Plot the accuracy progression for each correlation threshold
+                plt.figure(figsize=(12, 8))
+                for correlation_threshold, accuracies in accuracy_progressions.items():
+                    plt.plot(range(1, len(accuracies) + 1), accuracies, marker='o', linestyle='-', label=f'Threshold {correlation_threshold:.2f}')
+
+                plt.xlabel("Number of Selected Channels")
+                plt.ylabel("Balanced Accuracy (Average)")
+                plt.title("Incremental Channel Selection Performance Across Correlation Thresholds")
+                plt.legend(title="Correlation Threshold", loc="lower right")
+                plt.grid()
+                plt.tight_layout()
+                plt.show()
+
+
+
+                # plt.figure(figsize=(10, 6))
+                # plt.plot(range(1, len(accuracies) + 1), accuracies, marker='o', linestyle='-', color='b')
+                # # Annotate each point with the selected channels so far
+                # for i, (accuracy, channels) in enumerate(zip(accuracies, selected_channels), start=1):
+                #     plt.annotate(
+                #         f"{channels}",  # Text to display (list of channels so far)
+                #         (i, accuracy),  # Position on the plot
+                #         textcoords="offset points",  # Offset from the point
+                #         xytext=(5, 5),  # Offset values (x, y)
+                #         fontsize=8,  # Font size
+                #         color='darkgreen'
+                #     )
+                # plt.xlabel("Number of Selected Channels")
+                # plt.ylabel("Balanced Accuracy (Average)")
+                # plt.title("Incremental Channel Selection Performance (Averaged Splits)")
+                # plt.grid()
+                # plt.show()
+
+            else:
+                mean_accuracies = []
+                cls_data = cls.data.copy()
+                num_channels = cls_data.shape[2]
+
+                # Step 1: Compute mean accuracies for individual channels
+                for ch_idx in range(num_channels):
+                    print(f"Processing channel {ch_idx + 1}/{num_channels}...")
+
+                    # Extract only the current channel
+                    single_channel_data = cls_data[:, :, ch_idx].reshape(cls_data.shape[0], cls_data.shape[1], 1)
+
+                    # Update cls.data temporarily with the single channel
+                    cls.data = single_channel_data
+
+                    # Run the training and evaluation function
+                    results = cls.train_and_evaluate_all_mz_per_sample(
+                        N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False,
+                        scaler_type='standard', use_pca=False, vthresh=0.995, region=region, best_alpha=alpha
+                    )
+
+                    # Store mean accuracy
+                    mean_accuracies.append(results['mean_accuracy'])
+
+                # Plot the mean accuracy for each channel (following your logic)
+                plt.figure(figsize=(12, 6))
+                plt.bar(range(1, num_channels + 1), mean_accuracies, color='skyblue', edgecolor='black')
+                plt.xlabel("Channel Index")
+                plt.ylabel("Mean Accuracy")
+                plt.title("Mean Accuracy for Each Individual Channel")
+                plt.xticks(range(0, num_channels + 1, 5), rotation=45, size=8)
+                plt.tight_layout()
+                plt.grid(axis='y', linestyle='--', alpha=0.7)
+                plt.show()
+
+                # Step 2: Sort channels by mean accuracy (descending order)
+                sorted_indices = np.argsort(mean_accuracies)[::-1]  # Indices of channels sorted by accuracy
+
+                # Step 3: Incrementally concatenate top n channels and evaluate
+                incremental_accuracies = []
+
+                # for n in range(1, len(sorted_indices) + 1):
+                for n in range(1, 51):
+                    print(f"Concatenating top {n} channels...")
+
+                    # Concatenate the top n channels
+                    top_n_indices = sorted_indices[:n]
+                    concatenated_data = np.concatenate([cls_data[:, :, idx].reshape(cls_data.shape[0], -1) for idx in top_n_indices], axis=1)
+
+                    # Update cls.data temporarily with concatenated channels
+                    cls.data = np.expand_dims(concatenated_data, axis=2)
+
+                    # Evaluate
+                    results = cls.train_and_evaluate_all_mz_per_sample(
+                        N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False,
+                        scaler_type='standard', use_pca=False, vthresh=0.995, region=region, best_alpha=alpha
+                    )
+
+                    # Store mean balanced accuracy
+                    incremental_accuracies.append(results['mean_balanced_accuracy'])
+
+                # Plot incremental accuracies using your provided style
+                plt.figure(figsize=(12, 6))
+                plt.bar(range(1, len(incremental_accuracies) + 1), incremental_accuracies, color='lightcoral',
+                        edgecolor='black')
+                plt.xlabel("Number of Best Concatenated Channels (n)")
+                plt.ylabel("Mean Balanced Accuracy")
+                plt.title("Performance with Incrementally Concatenated Channels")
+                plt.xticks(range(0, len(incremental_accuracies) + 1, 5), rotation=45, size=8)
+                plt.tight_layout()
+                plt.grid(axis='y', linestyle='--', alpha=0.7)
+                plt.show()
+
+        # if CH_TREAT == 'concatenated':
+        #     classif_res = cls.train_and_evaluate_all_mz_per_sample(
+        #         N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False, scaler_type='standard', use_pca=False,
+        #         vthresh=0.995, region=region,
+        #         best_alpha=alpha
+        #     )
+        elif CH_TREAT == 'individual':
             classif_res = cls.train_and_evaluate_balanced_with_best_alpha2(
                 n_splits=N_SPLITS, test_size=0.2, normalize=False, scaler_type='standard', use_pca=False,
                 region=REGION, vthresh=0.97,
-                best_alpha=result.x[1],
-                # best_alpha=0.9384115043597786,
-            )
-        elif CH_TREAT == 'concatenated':
-            classif_res = cls.train_and_evaluate_all_mz_per_sample(
-                N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False, scaler_type='standard', use_pca=False,
-                vthresh=0.995, region=region,
-                best_alpha=result.x[1]
+                best_alpha=alpha,
             )
 
-
-    if DATA_TYPE == "TIC":
+    elif DATA_TYPE == "TIC":
         cls_type = 'RGC'
         data_train, data_val, labels_train, labels_val = train_test_split(
             np.array(list(data)), np.array(list(labels)), test_size=0.5, random_state=42, stratify=np.array(list(labels))
@@ -251,26 +385,26 @@ if __name__ == "__main__":
         # data_val = np.array(list(data))[shuffled_indices]
         # labels_val = np.array(labels)[shuffled_indices]
 
+        alpha = 1
 
+        if BAYES_OPTIMIZE:
+            optimizer = BayesianParamOptimizer(data_train, list(labels_train), n_channels=None)
+            result = optimizer.optimize_tic(n_calls=BAYES_CALLS, random_state=42, num_splits=NUM_SPLITS_BAYES)
 
+            alpha = result.x[0]
+            score = -result.fun
+            print(f"Optimal alpha: {alpha}")
+            print(f"Best score: {score}")
 
-        optimizer = BayesianParamOptimizer(data_train, list(labels_train), n_channels=None)
-        result = optimizer.optimize_tic(n_calls=100, random_state=42, num_splits=NUM_SPLITS_BAYES)
+            print("")
+            print (f'sync {SYNC_STATE}')
+            print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
 
-        optimal_alpha = result.x[0]
-        optimal_score = -result.fun
-        print(f"Optimal alpha: {optimal_alpha}")
-        print(f"Best score: {optimal_score}")
-
-        print("")
-        print (f'sync {SYNC_STATE}')
-        print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
         cls = Classifier(
             np.array(list(data_val)), np.array(list(labels_val)), classifier_type=cls_type, wine_kind=WINE_KIND,
             cnn_dim=CNN_DIM, multichannel=MULTICHANNEL,
             window_size=WINDOW, stride=STRIDE, nconv=NCONV,
-            alpha=optimal_alpha,
-            # alpha=1
+            alpha=alpha,
         )
 
         classif_res = cls.train_and_evaluate_balanced(
@@ -278,49 +412,6 @@ if __name__ == "__main__":
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
             batch_size=32, num_epochs=10, learning_rate=0.001
         )
-
-            # classif_res = cls.train_and_evaluate_balanced_with_minimize(
-            #     n_splits=N_SPLITS, vintage=False, random_seed=42, test_size=None,
-            #     normalize=False, scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
-            #     alpha_range=None, num_test=next(iter(gcms.data.values())).shape[1]
-            # )
-
-            # optimizer = CoordinateDescentOptimizer(data, labels, max_iter=10)
-            # optimized_weights = optimizer.optimize()
-            # print("Optimized Weights:", optimized_weights)
-
-
-        # # Optimized Weights
-        # optimized_weights = result.x
-        # print("Optimized Weights:", optimized_weights)
-        #
-        # # Best Objective Value (Negative Balanced Accuracy)
-        # print("Best Negative Accuracy:", result.fun)
-        #
-        # # Full Optimization Details
-        # print(result)
-
-        # classif_res = cls.train_and_evaluate_balanced_with_passed_weights(
-        #     N_SPLITS, vintage=VINTAGE, test_size=None, normalize=not CNN_DIM, scaler_type='standard', use_pca=pca,
-        #     vthresh=0.995, region=region,
-        #     batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE,
-        #     num_test=next(iter(gcms.data.values())).shape[1], channel_weights=optimized_weights
-        # )
-
-        # classif_res = cls.train_and_evaluate_all_mz_per_sample(
-        #     N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False, scaler_type='standard', use_pca=pca,
-        #     vthresh=0.995, region=region,
-        #     batch_size=BATCH_SIZE, num_epochs=NUM_EPOCHS, learning_rate=LEARNING_RATE
-        # )
-
-        # classif_res = cls.train_and_evaluate_balanced_with_weights_and_alpha(
-        #     n_splits=20, vintage=False, random_seed=42,
-        #     test_size=None, normalize=False, scaler_type='standard',
-        #     use_pca=False, vthresh=0.97, region=None, batch_size=32,
-        #     num_epochs=10, learning_rate=0.001, alpha_range=None, num_test=16
-        # )
-
-
 
         if region == 'winery':
             class_labels = [
