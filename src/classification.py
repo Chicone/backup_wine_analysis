@@ -2,6 +2,7 @@ from pynndescent.optimal_transport import total_cost
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, Perceptron, RidgeClassifier, PassiveAggressiveClassifier, SGDClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, HistGradientBoostingClassifier
+from sklearn.model_selection import StratifiedKFold
 
 import utils
 from dimensionality_reduction import DimensionalityReducer
@@ -3955,6 +3956,106 @@ def assign_year_to_pinot_noir(labels):
 #     print("Greedy Channel Selection Completed.")
 #     return selected_channels, accuracies
 
+# def greedy_channel_selection(
+#         data, labels, alpha=1.0, test_size=0.2, max_channels=None, num_splits=5, tolerated_no_improvement_steps=2):
+#     """
+#     Greedy Forward Selection with multiple train-test splits to find the best m/z channels for classification.
+#     Always adds the best channel but stops after a configurable number of consecutive non-improving steps.
+#
+#     Parameters
+#     ----------
+#     data : np.ndarray
+#         Input 3D array with shape (samples, features, channels).
+#     labels : np.ndarray
+#         Array of labels for the samples.
+#     alpha : float
+#         Regularization strength for RidgeClassifier.
+#     test_size : float
+#         Proportion of data to be used for testing.
+#     max_channels : int or None
+#         Maximum number of channels to include. If None, selects all channels.
+#     num_splits : int
+#         Number of train-test splits to average the performance.
+#     tolerated_no_improvement_steps : int
+#         Number of consecutive steps without accuracy improvement before stopping.
+#
+#     Returns
+#     -------
+#     list
+#         Ordered list of selected channels.
+#     list
+#         List of accuracies at each step.
+#     """
+#     num_channels = data.shape[2]
+#     max_channels = max_channels or num_channels
+#
+#     selected_channels = []  # List to store selected channel indices
+#     remaining_channels = list(range(num_channels))  # Channels not yet selected
+#     accuracies = []  # Track performance as channels are added
+#
+#     print("Starting Greedy Channel Selection with Averaged Splits...")
+#
+#     model = RidgeClassifier(alpha=alpha)
+#     best_accuracy_overall = 0.0  # Track the best accuracy so far
+#     non_improving_steps = 0  # Counter for consecutive non-improving steps
+#
+#     for step in range(min(max_channels, num_channels)):
+#         best_channel = None
+#         best_step_accuracy = 0.0
+#
+#         # Test each remaining channel to see which improves performance the most
+#         for ch in remaining_channels:
+#             candidate_channels = selected_channels + [ch]
+#
+#             # Concatenate selected channels into a single feature vector
+#             concatenated_data = data[:, :, candidate_channels].reshape(data.shape[0], -1)
+#             split_accuracies = []
+#
+#             # Average performance over multiple splits
+#             for split in range(num_splits):
+#                 # Train-test split
+#                 X_train, X_test, y_train, y_test = train_test_split(
+#                     concatenated_data, labels, test_size=test_size, stratify=labels, random_state=split
+#                 )
+#
+#                 # Train Ridge Classifier
+#                 model.fit(X_train, y_train)
+#                 y_pred = model.predict(X_test)
+#
+#                 # Evaluate performance
+#                 accuracy = balanced_accuracy_score(y_test, y_pred)
+#                 split_accuracies.append(accuracy)
+#
+#             # Average accuracy across splits
+#             avg_accuracy = np.mean(split_accuracies)
+#
+#             # Keep track of the best channel
+#             if avg_accuracy > best_step_accuracy:
+#                 best_step_accuracy = avg_accuracy
+#                 best_channel = ch
+#
+#         # Add the best channel even if it does not improve accuracy
+#         if best_channel is not None:
+#             selected_channels.append(best_channel)
+#             remaining_channels.remove(best_channel)
+#             accuracies.append(best_step_accuracy)
+#
+#             print(f"Step {step + 1}: Added Channel {best_channel} - Average Accuracy: {best_step_accuracy:.4f}")
+#
+#             # Check if accuracy improved
+#             if best_step_accuracy > best_accuracy_overall:
+#                 best_accuracy_overall = best_step_accuracy
+#                 non_improving_steps = 0  # Reset counter
+#             else:
+#                 non_improving_steps += 1
+#
+#         # Stop if the tolerated number of non-improving steps is reached
+#         if non_improving_steps >= tolerated_no_improvement_steps:
+#             print(f"No improvement in the last {tolerated_no_improvement_steps} steps. Stopping selection.")
+#             break
+#
+#     print("Greedy Channel Selection Completed.")
+#     return selected_channels, accuracies
 def greedy_channel_selection(
         data, labels, alpha=1.0, test_size=0.2, max_channels=None, num_splits=5, tolerated_no_improvement_steps=2):
     """
@@ -3998,6 +4099,9 @@ def greedy_channel_selection(
     best_accuracy_overall = 0.0  # Track the best accuracy so far
     non_improving_steps = 0  # Counter for consecutive non-improving steps
 
+    # Split the data before starting channel selection
+    skf = StratifiedKFold(n_splits=num_splits, shuffle=True, random_state=42)
+
     for step in range(min(max_channels, num_channels)):
         best_channel = None
         best_step_accuracy = 0.0
@@ -4010,12 +4114,10 @@ def greedy_channel_selection(
             concatenated_data = data[:, :, candidate_channels].reshape(data.shape[0], -1)
             split_accuracies = []
 
-            # Average performance over multiple splits
-            for split in range(num_splits):
-                # Train-test split
-                X_train, X_test, y_train, y_test = train_test_split(
-                    concatenated_data, labels, test_size=test_size, stratify=labels, random_state=split
-                )
+            # Average performance over multiple splits (use pre-split indices)
+            for train_index, test_index in skf.split(concatenated_data, labels):
+                X_train, X_test = concatenated_data[train_index], concatenated_data[test_index]
+                y_train, y_test = labels[train_index], labels[test_index]
 
                 # Train Ridge Classifier
                 model.fit(X_train, y_train)

@@ -16,6 +16,9 @@ Key Features:
 
 """
 import time
+from sklearn.linear_model import RidgeClassifier
+from sklearn.metrics import balanced_accuracy_score
+
 
 from traitlets.config import get_config
 
@@ -58,7 +61,8 @@ from data_loader import DataLoader
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
                             assign_north_south_to_beaune, CoordinateDescentOptimizer, BayesianParamOptimizer,
-                            greedy_channel_selection_parallel)
+                            greedy_channel_selection_parallel, greedy_channel_selection
+                            )
 from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
 from classification import (Classifier, assign_winery_to_pinot_noir, greedy_channel_selection, classify_all_channels,
                             remove_highly_correlated_channels)
@@ -158,12 +162,12 @@ if __name__ == "__main__":
 
     if DATA_TYPE == "GCMS":
         data_train, data_val, labels_train, labels_val = train_test_split(
-            np.array(list(data)), np.array(list(labels)), test_size=0.5, random_state=42, stratify=np.array(list(labels))
+            np.array(list(data)), np.array(list(labels)), test_size=0.3, random_state=None, stratify=np.array(list(labels))
         )
-        data_train = data
-        labels_train = labels
-        data_val = data
-        labels_val = labels
+        # data_train = data
+        # labels_train = labels
+        # data_val = data
+        # labels_val = labels
 
         # # Generate shuffled indices for the first dimension (samples)
         # shuffled_indices = np.random.permutation(np.array(list(data)).shape[0])
@@ -220,28 +224,60 @@ if __name__ == "__main__":
                     print(f"Mean Explained Variance (PCA): {results['mean_explained_variance']:.4f}")
 
             elif method == 'greedy':
-                correlation_threshold = 0.5
-                correlation_thresholds = np.linspace(0.3, 1.0, num=8)  # Adjust the number of steps if needed
+
+                # correlation_threshold = 0.5
+                correlation_thresholds = np.linspace(1.0, 1.0, num=1)  # Adjust the number of steps if needed
                 accuracy_progressions = {}  # Store accuracies for each threshold
                 for correlation_threshold in correlation_thresholds:
                     print(f"Processing correlation_threshold = {correlation_threshold:.2f}")
 
-                    reduced_data, retained_channels = remove_highly_correlated_channels(
-                        data, correlation_threshold=correlation_threshold
-                    )
-                    print(f'# Retained Channels for threshold {correlation_threshold:.2f}: {len(retained_channels)}')
+                    # reduced_data, retained_channels = remove_highly_correlated_channels(
+                    #     data_train, correlation_threshold=correlation_threshold
+                    # )
+                    # print(f'# Retained Channels for threshold {correlation_threshold:.2f}: {len(retained_channels)}')
 
                     # Run Greedy Channel Selection
-                    selected_channels, accuracies = greedy_channel_selection_parallel(
-                        # data,
-                        reduced_data,
-                        labels,
+                    selected_channels, accuracies = greedy_channel_selection(
+                        data_train,
+                        # reduced_data,
+                        np.array(labels_train),
                         alpha=alpha,
                         test_size=0.2,
-                        num_splits=100,
+                        num_splits=3,
                         tolerated_no_improvement_steps=3,
-                        random_subset_size=None
                     )
+
+                    # Once selection is complete, select only the channels that gave the best accuracy
+                    max_accuracy_index = np.argmax(accuracies)
+                    selected_channels_at_max_accuracy = selected_channels[:max_accuracy_index + 1]
+
+                    # After channel selection, concatenate and train the model on the selected channels
+                    # X_train_selected = reduced_data[:, :, selected_channels_at_max_accuracy].reshape(reduced_data.shape[0], -1)
+                    X_train_selected = data_train[:, :, selected_channels_at_max_accuracy].reshape(data_train.shape[0], -1)
+                    X_test_selected = data_val[:, :, selected_channels_at_max_accuracy].reshape(data_val.shape[0], -1)
+
+                    # Train the model
+                    model = RidgeClassifier(alpha=1.0)
+                    model.fit(X_train_selected, np.array(labels_train))
+
+                    # Evaluate the model on the test data
+                    y_pred = model.predict(X_test_selected)
+                    best_test_accuracy = balanced_accuracy_score(labels_val, y_pred)
+                    print(f"Best Test Accuracy for threshold {correlation_threshold:.2f}: {best_test_accuracy:.4f}")
+                    print(f"Selected Channels at Max Accuracy: {selected_channels_at_max_accuracy}")
+
+
+
+                    # selected_channels, accuracies = greedy_channel_selection_parallel(
+                    #     # data,
+                    #     reduced_data,
+                    #     labels,
+                    #     alpha=alpha,
+                    #     test_size=0.2,
+                    #     num_splits=100,
+                    #     tolerated_no_improvement_steps=3,
+                    #     random_subset_size=None
+                    # )
 
                     # Store the accuracies for this threshold
                     accuracy_progressions[correlation_threshold] = accuracies
