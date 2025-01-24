@@ -4013,17 +4013,35 @@ def greedy_channel_selection(
         avg_accuracy_on_test = np.mean(split_accuracies_on_test)
         return ch, avg_accuracy_on_val, avg_accuracy_on_test
 
+    # def remove_correlated_channels(new_channel):
+    #     new_channel_data = data[:, :, new_channel].flatten()
+    #     to_remove = []
+    #     for ch in remaining_channels:
+    #         if ch == new_channel:
+    #             continue
+    #         ch_data = data[:, :, ch].flatten()
+    #         corr = np.corrcoef(new_channel_data, ch_data)[0, 1]
+    #         if abs(corr) > corr_threshold:
+    #             to_remove.append(ch)
+    #     return to_remove
+
     def remove_correlated_channels(new_channel):
-        new_channel_data = data[:, :, new_channel].flatten()
-        to_remove = []
-        for ch in remaining_channels:
-            if ch == new_channel:
-                continue
-            ch_data = data[:, :, ch].flatten()
-            corr = np.corrcoef(new_channel_data, ch_data)[0, 1]
-            if abs(corr) > corr_threshold:
-                to_remove.append(ch)
-        return to_remove
+        """
+        Optimized function to remove highly correlated channels using NumPy.
+        Computes the correlation matrix once for all channels.
+        """
+        # Reshape data for correlation computation
+        reshaped_data = data.reshape(data.shape[0] * data.shape[1], data.shape[2])
+        correlation_matrix = np.corrcoef(reshaped_data, rowvar=False)
+
+        # Find highly correlated channels to the newly added one
+        correlated_indices = np.where(np.abs(correlation_matrix[new_channel]) > corr_threshold)[0]
+
+        # Remove the selected channel itself from the correlated list
+        correlated_indices = correlated_indices[correlated_indices != new_channel]
+
+        return list(correlated_indices)
+
 
     for step in range(min(max_channels, num_channels)):
         if parallel:
@@ -4047,13 +4065,20 @@ def greedy_channel_selection(
             else:
                 non_improving_steps += 1
 
-            if corr_threshold >= 1:
-                correlated_channels = []
-            else:
+            # if corr_threshold >= 1:
+            #     correlated_channels = []
+            # else:
+            #     correlated_channels = remove_correlated_channels(best_channel)
+            # for ch in correlated_channels:
+            #     remaining_channels.remove(ch)
+            #     print(f"Removed correlated channel {ch} (correlation > {corr_threshold})")
+
+            if corr_threshold < 1:
                 correlated_channels = remove_correlated_channels(best_channel)
-            for ch in correlated_channels:
-                remaining_channels.remove(ch)
-                print(f"Removed correlated channel {ch} (correlation > {corr_threshold})")
+                for ch in correlated_channels:
+                    if ch in remaining_channels:
+                        remaining_channels.remove(ch)
+                        print(f"Removed correlated channel {ch} (correlation > {corr_threshold})")
 
         if non_improving_steps >= tolerated_no_improvement_steps:
             print(f"No improvement in the last {tolerated_no_improvement_steps} steps. Stopping selection.")
