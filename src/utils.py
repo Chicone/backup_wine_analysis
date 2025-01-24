@@ -11,6 +11,7 @@ from scipy.signal import correlate, find_peaks
 from scipy.ndimage import gaussian_filter
 from collections import Counter
 from scipy.ndimage import gaussian_filter1d
+from sklearn.model_selection import train_test_split
 
 
 def collapse_lists(d):
@@ -1316,3 +1317,49 @@ def compute_channel_correlation_single_sample(data, sample_index, figsize=(8, 6)
     plt.show()
 
     return correlation_matrix
+
+
+def split_train_val_test(data, labels, test_size=0.2, validation_size=0.2, random_seed=42):
+    """
+    Splits the dataset into train, validation, and test sets.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Feature matrix.
+    labels : np.ndarray
+        Corresponding labels.
+    test_size : float
+        Proportion of data to reserve for the test set.
+    validation_size : float
+        Proportion of the training data to reserve for the validation set.
+    random_seed : int
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    X_train : np.ndarray
+        Training features.
+    X_val : np.ndarray
+        Validation features.
+    X_test : np.ndarray
+        Test features.
+    y_train : np.ndarray
+        Training labels.
+    y_val : np.ndarray
+        Validation labels.
+    y_test : np.ndarray
+        Test labels.
+    """
+    # First, split off the test set
+    X_train_val, X_test, y_train_val, y_test = train_test_split(
+        data, labels, test_size=test_size, stratify=labels, random_state=random_seed
+    )
+
+    # Then, split the remaining data into train and validation sets
+    val_size_adjusted = validation_size / (1 - test_size)  # Adjust validation size proportion
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_train_val, y_train_val, test_size=val_size_adjusted, stratify=y_train_val, random_state=random_seed
+    )
+
+    return X_train, X_val, X_test, y_train, y_val, y_test

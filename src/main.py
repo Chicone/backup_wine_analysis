@@ -16,9 +16,6 @@ Key Features:
 
 """
 import time
-from sklearn.linear_model import RidgeClassifier
-from sklearn.metrics import balanced_accuracy_score
-
 
 from traitlets.config import get_config
 
@@ -26,7 +23,7 @@ from config import (
     DATA_DIRECTORY,
     CHEMICAL_NAME,
     ROW_START,
-    N_SPLITS,
+    NUM_SPLITS,
     SYNC_STATE,
     CH_TREAT,
     CHROM_CAP,
@@ -37,6 +34,7 @@ from config import (
     GCMS_DIRECTION,
     NUM_AGGR_CHANNELS,
     DELAY,
+    CHANNEL_METHOD,
     CONCATENATE_TICS,
     PCA_STATE,
     WINDOW,
@@ -60,12 +58,10 @@ import argparse
 from data_loader import DataLoader
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
-                            assign_north_south_to_beaune, CoordinateDescentOptimizer, BayesianParamOptimizer,
-                            greedy_channel_selection_parallel, greedy_channel_selection
+                            assign_north_south_to_beaune, BayesianParamOptimizer,greedy_channel_selection, classify_all_channels,
+                            remove_highly_correlated_channels
                             )
 from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
-from classification import (Classifier, assign_winery_to_pinot_noir, greedy_channel_selection, classify_all_channels,
-                            remove_highly_correlated_channels)
 from visualizer import visualize_confusion_matrix_3d, plot_accuracy_vs_channels
 from dimensionality_reduction import run_umap_and_evaluate, run_tsne_and_evaluate
 import utils
@@ -75,11 +71,14 @@ import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
+from plots import plot_channel_selection_performance_changins
+
 
 if __name__ == "__main__":
     time.sleep(DELAY)
     # plot_classification_accuracy()
     # plot_accuracy_vs_channels()
+    # plot_channel_selection_performance_changins()
 
     cl = ChromatogramAnalysis()
 
@@ -161,13 +160,15 @@ if __name__ == "__main__":
     # )
 
     if DATA_TYPE == "GCMS":
-        data_train, data_val, labels_train, labels_val = train_test_split(
-            np.array(list(data)), np.array(list(labels)), test_size=0.3, random_state=None, stratify=np.array(list(labels))
-        )
-        # data_train = data
-        # labels_train = labels
-        # data_val = data
-        # labels_val = labels
+        # data_train, data_val, labels_train, labels_val = train_test_split(
+        #     np.array(list(data)), np.array(list(labels)), test_size=0.5, random_state=42, stratify=np.array(list(labels))
+        # )
+
+        # Use all data without pre-splitting
+        data_train = data
+        labels_train = labels
+        data_val = data
+        labels_val = labels
 
         # # Generate shuffled indices for the first dimension (samples)
         # shuffled_indices = np.random.permutation(np.array(list(data)).shape[0])
@@ -178,7 +179,7 @@ if __name__ == "__main__":
         # labels_val = np.array(labels)[shuffled_indices]
         cls = Classifier(
             np.array(list(data_val)), np.array(list(labels_val)), classifier_type='RGC', wine_kind=WINE_KIND,
-            cnn_dim=CNN_DIM, multichannel=MULTICHANNEL,
+            multichannel=MULTICHANNEL,
             window_size=WINDOW, stride=STRIDE, nconv=NCONV
         )
         alpha = 1
@@ -204,14 +205,13 @@ if __name__ == "__main__":
             cls.data = utils.reduce_columns_to_final_channels(cls.data, num_total_channels)
 
         if CH_TREAT == 'concatenated':
-            method = 'greedy' # greedy, all_channels
 
-            if method == 'all_channels':
+            if CHANNEL_METHOD == 'all_channels':
                 results = classify_all_channels(
                     data=data,
                     labels=labels,
                     alpha=1.0,
-                    test_size=0.2,
+                    test_size=0.25,
                     num_splits=5,
                     use_pca=False,  # Enable PCA
                     n_components=50  # Retain n PCA components
@@ -223,61 +223,37 @@ if __name__ == "__main__":
                 if "mean_explained_variance" in results:
                     print(f"Mean Explained Variance (PCA): {results['mean_explained_variance']:.4f}")
 
-            elif method == 'greedy':
-
+            elif CHANNEL_METHOD == 'greedy':
                 # correlation_threshold = 0.5
-                correlation_thresholds = np.linspace(1.0, 1.0, num=1)  # Adjust the number of steps if needed
+                correlation_thresholds = np.linspace(0.5, 0.9, num=5)  # Adjust the number of steps if needed
                 accuracy_progressions = {}  # Store accuracies for each threshold
                 for correlation_threshold in correlation_thresholds:
                     print(f"Processing correlation_threshold = {correlation_threshold:.2f}")
 
-                    # reduced_data, retained_channels = remove_highly_correlated_channels(
-                    #     data_train, correlation_threshold=correlation_threshold
-                    # )
+                    # if correlation_threshold >= 1: # all channels so avoid the correlation calculation
+                    #     reduced_data, retained_channels = data, list(range(data.shape[-1]))
+                    # else:
+                    #     reduced_data, retained_channels = remove_highly_correlated_channels(
+                    #         data, correlation_threshold=correlation_threshold
+                    #     )
                     # print(f'# Retained Channels for threshold {correlation_threshold:.2f}: {len(retained_channels)}')
 
                     # Run Greedy Channel Selection
                     selected_channels, accuracies = greedy_channel_selection(
-                        data_train,
-                        # reduced_data,
-                        np.array(labels_train),
+                        # data,
+                        data,
+                        np.array(labels),
                         alpha=alpha,
                         test_size=0.2,
-                        num_splits=3,
-                        tolerated_no_improvement_steps=3,
+                        num_splits=NUM_SPLITS,
+                        tolerated_no_improvement_steps=10,
+                        normalize=True,
+                        scaler_type='standard',
+                        random_seed=42, # 42
+                        parallel=True,
+                        n_jobs=15,
+                        corr_threshold=correlation_threshold
                     )
-
-                    # Once selection is complete, select only the channels that gave the best accuracy
-                    max_accuracy_index = np.argmax(accuracies)
-                    selected_channels_at_max_accuracy = selected_channels[:max_accuracy_index + 1]
-
-                    # After channel selection, concatenate and train the model on the selected channels
-                    # X_train_selected = reduced_data[:, :, selected_channels_at_max_accuracy].reshape(reduced_data.shape[0], -1)
-                    X_train_selected = data_train[:, :, selected_channels_at_max_accuracy].reshape(data_train.shape[0], -1)
-                    X_test_selected = data_val[:, :, selected_channels_at_max_accuracy].reshape(data_val.shape[0], -1)
-
-                    # Train the model
-                    model = RidgeClassifier(alpha=1.0)
-                    model.fit(X_train_selected, np.array(labels_train))
-
-                    # Evaluate the model on the test data
-                    y_pred = model.predict(X_test_selected)
-                    best_test_accuracy = balanced_accuracy_score(labels_val, y_pred)
-                    print(f"Best Test Accuracy for threshold {correlation_threshold:.2f}: {best_test_accuracy:.4f}")
-                    print(f"Selected Channels at Max Accuracy: {selected_channels_at_max_accuracy}")
-
-
-
-                    # selected_channels, accuracies = greedy_channel_selection_parallel(
-                    #     # data,
-                    #     reduced_data,
-                    #     labels,
-                    #     alpha=alpha,
-                    #     test_size=0.2,
-                    #     num_splits=100,
-                    #     tolerated_no_improvement_steps=3,
-                    #     random_subset_size=None
-                    # )
 
                     # Store the accuracies for this threshold
                     accuracy_progressions[correlation_threshold] = accuracies
@@ -321,7 +297,7 @@ if __name__ == "__main__":
                 # plt.grid()
                 # plt.show()
 
-            else:
+            elif CHANNEL_METHOD == "individual":
                 mean_accuracies = []
                 cls_data = cls.data.copy()
                 num_channels = cls_data.shape[2]
@@ -338,7 +314,7 @@ if __name__ == "__main__":
 
                     # Run the training and evaluation function
                     results = cls.train_and_evaluate_all_mz_per_sample(
-                        N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False,
+                        NUM_SPLITS, vintage=VINTAGE, test_size=0.2, normalize=False,
                         scaler_type='standard', use_pca=False, vthresh=0.995, region=region, best_alpha=alpha
                     )
 
@@ -375,7 +351,7 @@ if __name__ == "__main__":
 
                     # Evaluate
                     results = cls.train_and_evaluate_all_mz_per_sample(
-                        N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False,
+                        NUM_SPLITS, vintage=VINTAGE, test_size=0.2, normalize=False,
                         scaler_type='standard', use_pca=False, vthresh=0.995, region=region, best_alpha=alpha
                     )
 
@@ -396,22 +372,25 @@ if __name__ == "__main__":
 
         # if CH_TREAT == 'concatenated':
         #     classif_res = cls.train_and_evaluate_all_mz_per_sample(
-        #         N_SPLITS, vintage=VINTAGE, test_size=None, normalize=False, scaler_type='standard', use_pca=False,
+        #         NUM_SPLITS, vintage=VINTAGE, test_size=None, normalize=False, scaler_type='standard', use_pca=False,
         #         vthresh=0.995, region=region,
         #         best_alpha=alpha
         #     )
-        elif CH_TREAT == 'individual':
+        elif CH_TREAT == 'independent':
             classif_res = cls.train_and_evaluate_balanced_with_best_alpha2(
-                n_splits=N_SPLITS, test_size=0.2, normalize=False, scaler_type='standard', use_pca=False,
+                n_splits=NUM_SPLITS, test_size=0.25, normalize=False, scaler_type='standard', use_pca=False,
                 region=REGION, vthresh=0.97,
                 best_alpha=alpha,
             )
 
     elif DATA_TYPE == "TIC":
         cls_type = 'RGC'
-        data_train, data_val, labels_train, labels_val = train_test_split(
-            np.array(list(data)), np.array(list(labels)), test_size=0.5, random_state=42, stratify=np.array(list(labels))
-        )
+        # data_train, data_val, labels_train, labels_val = train_test_split(
+        #     np.array(list(data)), np.array(list(labels)), test_size=0.3, random_state=42, stratify=np.array(list(labels))
+        # )
+        data_train, data_val, data_test, labels_train, labels_val, labels_test = utils.split_train_val_test(
+            np.array(list(data)), np.array(list(labels)), test_size=0.2, validation_size=0.2)
+
 
         # # Generate shuffled indices for the first dimension (samples)
         # shuffled_indices = np.random.permutation(np.array(list(data)).shape[0])
@@ -436,15 +415,21 @@ if __name__ == "__main__":
             print (f'sync {SYNC_STATE}')
             print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
 
+        # cls = Classifier(
+        #     np.array(list(data_val)), np.array(list(labels_val)), classifier_type=cls_type, wine_kind=WINE_KIND,
+        #     cnn_dim=CNN_DIM, multichannel=MULTICHANNEL,
+        #     window_size=WINDOW, stride=STRIDE, nconv=NCONV,
+        #     alpha=alpha,
+        # )
         cls = Classifier(
-            np.array(list(data_val)), np.array(list(labels_val)), classifier_type=cls_type, wine_kind=WINE_KIND,
-            cnn_dim=CNN_DIM, multichannel=MULTICHANNEL,
+            np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=WINE_KIND,
+            multichannel=MULTICHANNEL,
             window_size=WINDOW, stride=STRIDE, nconv=NCONV,
             alpha=alpha,
         )
 
         classif_res = cls.train_and_evaluate_balanced(
-            n_splits=N_SPLITS, vintage=False, random_seed=42, test_size=None, normalize=True,
+            n_splits=NUM_SPLITS, vintage=False, random_seed=42, test_size=0.25, normalize=True,
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
             batch_size=32, num_epochs=10, learning_rate=0.001
         )
