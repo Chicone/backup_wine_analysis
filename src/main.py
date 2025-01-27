@@ -71,14 +71,16 @@ import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
-from plots import plot_channel_selection_performance_changins
-
+from plots import (plot_channel_selection_performance_changins, plot_channel_selection_performance_isvv,
+                   plot_channel_selection_thresholds)
 
 if __name__ == "__main__":
     time.sleep(DELAY)
     # plot_classification_accuracy()
     # plot_accuracy_vs_channels()
     # plot_channel_selection_performance_changins()
+    # plot_channel_selection_performance_isvv()
+    # plot_channel_selection_thresholds("""""")
 
     cl = ChromatogramAnalysis()
 
@@ -224,8 +226,8 @@ if __name__ == "__main__":
                     print(f"Mean Explained Variance (PCA): {results['mean_explained_variance']:.4f}")
 
             elif CHANNEL_METHOD == 'greedy':
-                # correlation_threshold = 0.5
-                correlation_thresholds = np.linspace(0.5, 0.9, num=5)  # Adjust the number of steps if needed
+                correlation_thresholds = [1.0]
+                # correlation_thresholds = np.linspace(0.5, 0.9, num=5)  # Adjust the number of steps if needed
                 accuracy_progressions = {}  # Store accuracies for each threshold
                 for correlation_threshold in correlation_thresholds:
                     print(f"Processing correlation_threshold = {correlation_threshold:.2f}")
@@ -250,8 +252,8 @@ if __name__ == "__main__":
                         normalize=True,
                         scaler_type='standard',
                         random_seed=42, # 42
-                        parallel=True,
-                        n_jobs=15,
+                        parallel=False,
+                        n_jobs=22,
                         corr_threshold=correlation_threshold
                     )
 
@@ -270,7 +272,7 @@ if __name__ == "__main__":
                     plt.plot(range(1, len(accuracies) + 1), accuracies, marker='o', linestyle='-', label=f'Threshold {correlation_threshold:.2f}')
 
                 plt.xlabel("Number of Selected Channels")
-                plt.ylabel("Balanced Accuracy (Average)")
+                plt.ylabel("Balanced Test Accuracy")
                 plt.title("Incremental Channel Selection Performance Across Correlation Thresholds")
                 plt.legend(title="Correlation Threshold", loc="lower right")
                 plt.grid()

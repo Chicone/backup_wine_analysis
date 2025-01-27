@@ -1,9 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import re
 
 def plot_channel_selection_performance_changins():
-    # Number of selected channels (x-axis)
-    num_channels = list(range(1, 52))  # From step 1 to step 51
 
     # Test accuracy data (y-axis)
     test_accuracy = [
@@ -35,6 +34,9 @@ def plot_channel_selection_performance_changins():
         36
     ]
 
+    # Number of selected channels (x-axis)
+    num_channels = list(range(1, len(channels_added) + 1))  # From step 1 to step 51
+
     # Plotting the data
     plt.figure(figsize=(12, 8))
 
@@ -50,7 +52,95 @@ def plot_channel_selection_performance_changins():
 
     plt.xlabel('Number of Selected Channels')
     plt.ylabel('Accuracy')
-    plt.title('Incremental Channel Selection Performance (Changins dataset)')
-    plt.legend(title='Metrics')
+    plt.title('Greedy Forward Selection Accuracy for Pinot noir (Changins dataset)')
+    plt.legend()
     plt.grid(True)
     plt.show()
+
+def plot_channel_selection_performance_isvv():
+
+    # Test accuracy data (y-axis)
+    test_accuracy = [
+        0.5125, 0.5437, 0.5578, 0.5620, 0.5729, 0.5927, 0.5844, 0.5979, 0.6010, 0.6099,
+        0.6167, 0.6083, 0.6208, 0.6161, 0.6151, 0.6177, 0.6245, 0.6203, 0.6208, 0.6104,
+        0.6052, 0.6052, 0.6036, 0.6073, 0.6047, 0.6094, 0.6109
+    ]
+
+    # Validation accuracy data
+    validation_accuracy = [
+        0.5161, 0.5286, 0.5474, 0.5667, 0.5870, 0.5917, 0.6005, 0.6042, 0.6167, 0.6208,
+        0.6286, 0.6307, 0.6354, 0.6370, 0.6359, 0.6339, 0.6370, 0.6401, 0.6411, 0.6417,
+        0.6427, 0.6422, 0.6422, 0.6401, 0.6417, 0.6391, 0.6401
+    ]
+
+    # Channels added at each step
+    channels_added = [
+        13, 127, 3, 44, 53, 158, 45, 27, 80, 46,
+        72, 64, 160, 168, 142, 19, 109, 48, 95, 71,
+        26, 125, 99, 173, 47, 42, 110
+    ]
+
+    # Number of selected channels (x-axis)
+    num_channels = list(range(1, len(channels_added) + 1))  # From step 1 to step 51
+
+    # Plotting the data
+    plt.figure(figsize=(12, 8))
+
+    # Plot test accuracy with markers
+    plt.plot(num_channels, test_accuracy, marker='o', label='Test Accuracy', color='b')
+
+    # Plot validation accuracy with markers and dashed line
+    plt.plot(num_channels, validation_accuracy, marker='x', linestyle='--', label='Validation Accuracy', color='r')
+
+    # Annotate test accuracy points with corresponding channel numbers
+    for i, (x, y, ch) in enumerate(zip(num_channels, test_accuracy, channels_added)):
+        plt.annotate(str(ch), (x, y), textcoords="offset points", xytext=(5,5), ha='right', fontsize=6, color='blue')
+
+    plt.xlabel('Number of Selected Channels')
+    plt.ylabel('Accuracy')
+    plt.title('Greedy Forward Selection Accuracy for Pinot noir (ISVV dataset)')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+def plot_channel_selection_thresholds(data):
+    """
+    Parses the given log data to extract test accuracy progression and plots the results.
+
+    Parameters:
+        data (str): The multi-line string containing step-by-step results of the channel selection process.
+    """
+    # Regex pattern to extract correlation threshold and test accuracies
+    threshold_pattern = re.compile(r'Processing correlation_threshold = ([\d\.]+)')
+    step_pattern = re.compile(r'Step \d+: Added Channel \d+ - Validation Accuracy: ([\d\.]+), Test Accuracy: ([\d\.]+)')
+
+    accuracy_progressions = {}
+    current_threshold = None
+
+    for line in data.splitlines():
+        threshold_match = threshold_pattern.search(line)
+        step_match = step_pattern.search(line)
+
+        if threshold_match:
+            current_threshold = float(threshold_match.group(1))
+            accuracy_progressions[current_threshold] = []
+
+        if step_match and current_threshold is not None:
+            test_accuracy = float(step_match.group(2))  # Extracting test accuracy
+            accuracy_progressions[current_threshold].append(test_accuracy)
+
+    # Plot the results
+    plt.figure(figsize=(12, 8))
+    for correlation_threshold, accuracies in accuracy_progressions.items():
+        plt.plot(range(1, len(accuracies) + 1), accuracies, marker='o', linestyle='-',
+                 label=f'Threshold {correlation_threshold:.2f}')
+
+    plt.xlabel("Number of Selected Channels")
+    plt.ylabel("Balanced Test Accuracy")
+    plt.title("Incremental Channel Selection Performance Across Correlation Thresholds (ISVV)")
+    plt.legend(title="Correlation Threshold", loc="lower right")
+    plt.grid()
+    plt.tight_layout()
+    plt.show()
+
+    return accuracy_progressions

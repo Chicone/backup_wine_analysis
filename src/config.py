@@ -20,7 +20,7 @@ WINDOW = 1000
 STRIDE = 200
 
 # Analysis parameters
-DATA_TYPE = "GCMS"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
+DATA_TYPE = "TIC"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
 SYNC_STATE = True  # Use retention time alignment
 CH_TREAT = 'concatenated'  # independent
 CONCATENATE_TICS = False

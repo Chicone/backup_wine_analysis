@@ -4044,10 +4044,19 @@ def greedy_channel_selection(
 
 
     for step in range(min(max_channels, num_channels)):
+        if not remaining_channels:
+            print("No channels left to evaluate.")
+            break
         if parallel:
             results = Parallel(n_jobs=n_jobs)(delayed(evaluate_channel)(ch) for ch in remaining_channels)
         else:
             results = [evaluate_channel(ch) for ch in remaining_channels]
+
+        if results:
+            best_channel, best_step_accuracy_val, best_step_accuracy_test = max(results, key=lambda x: x[1])
+        else:
+            print("No valid channels found for evaluation. Stopping early.")
+            break
 
         best_channel, best_step_accuracy_val, best_step_accuracy_test = max(results, key=lambda x: x[1])
 
@@ -4086,12 +4095,12 @@ def greedy_channel_selection(
 
     print("Greedy Channel Selection Completed.")
 
-    plt.plot(range(1, len(accuracies_on_test) + 1), accuracies_on_test, marker='o')
-    plt.xlabel('Number of Channels')
-    plt.ylabel('Test Accuracy')
-    plt.title('Test Accuracy During Channel Selection')
-    plt.grid(True)
-    plt.show()
+    # plt.plot(range(1, len(accuracies_on_test) + 1), accuracies_on_test, marker='o')
+    # plt.xlabel('Number of Channels')
+    # plt.ylabel('Test Accuracy')
+    # plt.title('Test Accuracy During Channel Selection')
+    # plt.grid(True)
+    # plt.show()
 
     return selected_channels, accuracies_on_test
 
