@@ -59,7 +59,8 @@ from data_loader import DataLoader
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
                             assign_north_south_to_beaune, BayesianParamOptimizer,greedy_channel_selection, classify_all_channels,
-                            remove_highly_correlated_channels
+                            remove_highly_correlated_channels, split_by_split_greedy_channel_selection,
+                            split_by_split_nested_cv_channel_selection
                             )
 from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
 from visualizer import visualize_confusion_matrix_3d, plot_accuracy_vs_channels
@@ -72,7 +73,7 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
 from plots import (plot_channel_selection_performance_changins, plot_channel_selection_performance_isvv,
-                   plot_channel_selection_thresholds)
+                   plot_channel_selection_thresholds, plot_accuracy_all_methods)
 
 if __name__ == "__main__":
     time.sleep(DELAY)
@@ -81,6 +82,7 @@ if __name__ == "__main__":
     # plot_channel_selection_performance_changins()
     # plot_channel_selection_performance_isvv()
     # plot_channel_selection_thresholds("""""")
+    # plot_accuracy_all_methods()
 
     cl = ChromatogramAnalysis()
 
@@ -120,8 +122,13 @@ if __name__ == "__main__":
         elif DATA_TYPE == "TIS":
             chromatograms = gcms.compute_tiss()
         elif DATA_TYPE == "TIC-TIS":
-            norm_tics, _ = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
-            tics = {key: utils.normalize_amplitude_zscore(signal) for key, signal in norm_tics.items()}
+            if SYNC_STATE:
+                tics, _ = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
+            else:
+                # norm_tics = utils.normalize_dict(gcms.compute_tics(), scaler='standard')
+                tics = gcms.compute_tics()
+            # norm_tics, _ = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
+            # tics = {key: utils.normalize_amplitude_zscore(signal) for key, signal in norm_tics.items()}
             tiss = gcms.compute_tiss()
             chromatograms = utils.concatenate_dict_values(
                 {key: list(value) for key, value in tics.items()},
@@ -240,25 +247,28 @@ if __name__ == "__main__":
                     #     )
                     # print(f'# Retained Channels for threshold {correlation_threshold:.2f}: {len(retained_channels)}')
 
-                    # Run Greedy Channel Selection
-                    selected_channels, accuracies = greedy_channel_selection(
-                        # data,
+
+                    selected_channels, val_accuracies, test_accuracies = split_by_split_nested_cv_channel_selection(
+                        # data[:, :, [10, 13, 27]],
                         data,
                         np.array(labels),
                         alpha=alpha,
-                        test_size=0.2,
-                        num_splits=NUM_SPLITS,
-                        tolerated_no_improvement_steps=10,
-                        normalize=True,
+                        # test_size=0.2,
+                        # num_splits=NUM_SPLITS,
+                        # tolerated_no_improvement_steps=10,
+                        max_channels=20,
+                        num_outer_repeats=50,
+                        num_outer_splits=1,
+                        inner_cv_folds=50,
+                        normalize=False,
                         scaler_type='standard',
-                        random_seed=42, # 42
-                        parallel=False,
-                        n_jobs=22,
-                        corr_threshold=correlation_threshold
+                        random_seed=42,  # 42
+                        parallel=True,
+                        n_jobs=5,
                     )
 
                     # Store the accuracies for this threshold
-                    accuracy_progressions[correlation_threshold] = accuracies
+                    accuracy_progressions[correlation_threshold] = test_accuracies
 
                 # # Print results
                 # print("Selected Channels (in order):", selected_channels)
@@ -268,8 +278,8 @@ if __name__ == "__main__":
                 import matplotlib.pyplot as plt
                 # Plot the accuracy progression for each correlation threshold
                 plt.figure(figsize=(12, 8))
-                for correlation_threshold, accuracies in accuracy_progressions.items():
-                    plt.plot(range(1, len(accuracies) + 1), accuracies, marker='o', linestyle='-', label=f'Threshold {correlation_threshold:.2f}')
+                for correlation_threshold, test_accuracies in accuracy_progressions.items():
+                    plt.plot(range(1, len(test_accuracies) + 1), test_accuracies, marker='o', linestyle='-', label=f'Threshold {correlation_threshold:.2f}')
 
                 plt.xlabel("Number of Selected Channels")
                 plt.ylabel("Balanced Test Accuracy")
@@ -278,26 +288,6 @@ if __name__ == "__main__":
                 plt.grid()
                 plt.tight_layout()
                 plt.show()
-
-
-
-                # plt.figure(figsize=(10, 6))
-                # plt.plot(range(1, len(accuracies) + 1), accuracies, marker='o', linestyle='-', color='b')
-                # # Annotate each point with the selected channels so far
-                # for i, (accuracy, channels) in enumerate(zip(accuracies, selected_channels), start=1):
-                #     plt.annotate(
-                #         f"{channels}",  # Text to display (list of channels so far)
-                #         (i, accuracy),  # Position on the plot
-                #         textcoords="offset points",  # Offset from the point
-                #         xytext=(5, 5),  # Offset values (x, y)
-                #         fontsize=8,  # Font size
-                #         color='darkgreen'
-                #     )
-                # plt.xlabel("Number of Selected Channels")
-                # plt.ylabel("Balanced Accuracy (Average)")
-                # plt.title("Incremental Channel Selection Performance (Averaged Splits)")
-                # plt.grid()
-                # plt.show()
 
             elif CHANNEL_METHOD == "individual":
                 mean_accuracies = []
@@ -385,7 +375,8 @@ if __name__ == "__main__":
                 best_alpha=alpha,
             )
 
-    elif DATA_TYPE == "TIC":
+    # elif DATA_TYPE == "TIC":
+    elif DATA_TYPE in ["TIC", "TIS", "TIC-TIS"]:
         cls_type = 'RGC'
         # data_train, data_val, labels_train, labels_val = train_test_split(
         #     np.array(list(data)), np.array(list(labels)), test_size=0.3, random_state=42, stratify=np.array(list(labels))
@@ -431,7 +422,7 @@ if __name__ == "__main__":
         )
 
         classif_res = cls.train_and_evaluate_balanced(
-            n_splits=NUM_SPLITS, vintage=False, random_seed=42, test_size=0.25, normalize=True,
+            n_splits=NUM_SPLITS, vintage=False, random_seed=42, test_size=0.2, normalize=True,
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
             batch_size=32, num_epochs=10, learning_rate=0.001
         )

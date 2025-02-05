@@ -2,7 +2,7 @@ from pynndescent.optimal_transport import total_cost
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, Perceptron, RidgeClassifier, PassiveAggressiveClassifier, SGDClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, HistGradientBoostingClassifier
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, BaseCrossValidator
 from sklearn.utils import resample
 from concurrent.futures import ProcessPoolExecutor
 
@@ -18,9 +18,9 @@ from sklearn.metrics import precision_score, recall_score, f1_score, confusion_m
 from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.linear_model import RidgeClassifierCV
 from sklearn.model_selection import GroupShuffleSplit, GridSearchCV
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
 from scipy.optimize import minimize
-from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.model_selection import train_test_split, StratifiedKFold, LeaveOneOut, LeavePOut
 
 from utils import find_first_and_last_position, normalize_dict, normalize_data
 import numpy as np
@@ -44,6 +44,9 @@ from skopt.utils import use_named_args
 from joblib import Parallel, delayed
 import random
 import matplotlib.pyplot as plt
+
+from collections import Counter, defaultdict
+
 
 class CustomDataParallel(torch.nn.DataParallel):
     def __getattr__(self, name):
@@ -1529,10 +1532,124 @@ class Classifier:
             'mean_confusion_matrix': mean_confusion_matrix
         }
 
+    # def train_and_evaluate_balanced(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
+    #                                 scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
+    #                                 batch_size=32, num_epochs=10, learning_rate=0.001
+    #                                ):
+    #     """
+    #     Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
+    #
+    #     Parameters
+    #     ----------
+    #     (same as original)
+    #
+    #     Returns
+    #     -------
+    #     dict
+    #         A dictionary containing mean accuracy, balanced accuracy, weighted accuracy, precision, recall, F1-score, and
+    #         the mean confusion matrix.
+    #     """
+    #     # Initialize accumulators for metrics
+    #     accuracy_scores = []
+    #     balanced_accuracy_scores = []
+    #     weighted_accuracy_scores = []
+    #     precision_scores = []
+    #     recall_scores = []
+    #     f1_scores = []
+    #     confusion_matrix_sum = None
+    #
+    #     if region == 'winery':
+    #         custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+    #     elif region  == 'origin':
+    #         custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+    #     else:
+    #        custom_order = None
+    #
+    #     if use_pca:
+    #         # Apply PCA if enabled, estimating number of components to capture specified variance
+    #         reducer = DimensionalityReducer(self.data)
+    #         _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
+    #         # Find number of classes in training splits and correct n_components if larger
+    #         check_classes = self.split_data(vintage=vintage, test_size=test_size)
+    #         n_components = min(n_components, len(check_classes[0]))
+    #         print(f'PCA = {n_components}')
+    #         pca = PCA(n_components=n_components, svd_solver='randomized')
+    #
+    #     print('Split', end=' ', flush=True)
+    #     # Cross-validation loop
+    #     for i in range(n_splits):
+    #         # Split data into train and test sets
+    #         # train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
+    #         #     self.labels, self.data, vintage=vintage, test_size=test_size)
+    #         X_train, X_test, y_train, y_test = train_test_split(
+    #             self.data, self.labels, test_size=test_size, stratify=self.labels
+    #         )
+    #
+    #         # Normalize data if enabled
+    #         if normalize:
+    #             X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+    #             X_test = scaler.transform(X_test)
+    #
+    #         # Apply PCA if enabled
+    #         if use_pca:
+    #             X_train = pca.fit_transform(X_train)
+    #             X_test = pca.transform(X_test)
+    #
+    #         # Train the classifier without sample_weight
+    #         self.classifier.fit(X_train, y_train)
+    #
+    #         # Print the current split number every 5 iterations to show progress
+    #         print(i, end=' ', flush=True) if i % 5 == 0 else None
+    #
+    #         # Predictions on test data
+    #         y_pred = self.classifier.predict(X_test)
+    #
+    #         # Calculate metrics
+    #         accuracy_scores.append(self.classifier.score(X_test, y_test))
+    #         balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
+    #
+    #         # Compute weighted accuracy, precision, recall, and F1-score with sample weights
+    #         sample_weights = compute_sample_weight(class_weight='balanced', y=y_test)
+    #         weighted_accuracy = np.average(y_pred == y_test, weights=sample_weights)
+    #         weighted_accuracy_scores.append(weighted_accuracy)
+    #         precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
+    #         recall_scores.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
+    #         f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
+    #
+    #         # Confusion matrix for the current split
+    #         cm = confusion_matrix(y_test, y_pred, labels=custom_order if custom_order else None)
+    #         confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
+    #
+    #     # Print the current split number every 5 iterations to show progress
+    #     print(i, end=' ', flush=True) if i % 5 == 0 else None
+    #
+    #     # Calculate mean confusion matrix and print results
+    #     mean_confusion_matrix = confusion_matrix_sum / n_splits
+    #     print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
+    #     print(
+    #         f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
+    #     print(
+    #         f"Weighted Accuracy: {np.mean(weighted_accuracy_scores):.3f} (+/- {np.std(weighted_accuracy_scores) * 2:.3f})")
+    #     print(f"Precision: {np.mean(precision_scores):.3f}")
+    #     print(f"Recall: {np.mean(recall_scores):.3f}")
+    #     print(f"F1 Score: {np.mean(f1_scores):.3f}")
+    #     np.set_printoptions(linewidth=np.inf)
+    #     print("Mean Confusion Matrix:", mean_confusion_matrix)
+    #
+    #     # Return metrics
+    #     return {
+    #         'mean_accuracy': np.mean(accuracy_scores),
+    #         'mean_balanced_accuracy': np.mean(balanced_accuracy_scores),
+    #         'mean_weighted_accuracy': np.mean(weighted_accuracy_scores),
+    #         'mean_precision': np.mean(precision_scores),
+    #         'mean_recall': np.mean(recall_scores),
+    #         'mean_f1_score': np.mean(f1_scores),
+    #         'mean_confusion_matrix': mean_confusion_matrix
+    #     }
+
     def train_and_evaluate_balanced(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
                                     scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
-                                    batch_size=32, num_epochs=10, learning_rate=0.001
-                                   ):
+                                    batch_size=32, num_epochs=10, learning_rate=0.001):
         """
         Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
 
@@ -1557,30 +1674,41 @@ class Classifier:
 
         if region == 'winery':
             custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
-        elif region  == 'origin':
+        elif region == 'origin':
             custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
         else:
-           custom_order = None
+            custom_order = None
 
+        # Use the same random seed logic
+        if random_seed is None:
+            random_seed = np.random.randint(0, 1e6)
+        rng = np.random.default_rng(random_seed)
+
+        # Predefine splits for consistency
+        predefined_splits = []
+        for _ in range(n_splits):
+            train_idx, temp_idx = train_test_split(
+                np.arange(len(self.labels)), test_size=test_size + test_size, stratify=self.labels,
+                random_state=rng.integers(0, 1e6)
+            )
+            val_idx, test_idx = train_test_split(
+                temp_idx, test_size=0.5, stratify=self.labels[temp_idx], random_state=rng.integers(0, 1e6)
+            )
+            predefined_splits.append((train_idx, val_idx, test_idx))
+
+        # Apply PCA if enabled
         if use_pca:
-            # Apply PCA if enabled, estimating number of components to capture specified variance
             reducer = DimensionalityReducer(self.data)
             _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
-            # Find number of classes in training splits and correct n_components if larger
-            check_classes = self.split_data(vintage=vintage, test_size=test_size)
-            n_components = min(n_components, len(check_classes[0]))
-            print(f'PCA = {n_components}')
+            n_components = min(n_components, len(set(self.labels)))  # Adjust PCA components based on class count
             pca = PCA(n_components=n_components, svd_solver='randomized')
 
         print('Split', end=' ', flush=True)
         # Cross-validation loop
-        for i in range(n_splits):
-            # Split data into train and test sets
-            # train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
-            #     self.labels, self.data, vintage=vintage, test_size=test_size)
-            X_train, X_test, y_train, y_test = train_test_split(
-                self.data, self.labels, test_size=test_size, stratify=self.labels
-            )
+        for i, (train_idx, val_idx, test_idx) in enumerate(predefined_splits):
+            X_train = self.data[train_idx]
+            X_test = self.data[test_idx]
+            y_train, y_test = self.labels[train_idx], self.labels[test_idx]
 
             # Normalize data if enabled
             if normalize:
@@ -1592,10 +1720,10 @@ class Classifier:
                 X_train = pca.fit_transform(X_train)
                 X_test = pca.transform(X_test)
 
-            # Train the classifier without sample_weight
+            # Train the classifier
             self.classifier.fit(X_train, y_train)
 
-            # Print the current split number every 5 iterations to show progress
+            # Print progress every 5 iterations
             print(i, end=' ', flush=True) if i % 5 == 0 else None
 
             # Predictions on test data
@@ -1617,7 +1745,6 @@ class Classifier:
             cm = confusion_matrix(y_test, y_pred, labels=custom_order if custom_order else None)
             confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
 
-        # Print the current split number every 5 iterations to show progress
         print(i, end=' ', flush=True) if i % 5 == 0 else None
 
         # Calculate mean confusion matrix and print results
@@ -1643,6 +1770,7 @@ class Classifier:
             'mean_f1_score': np.mean(f1_scores),
             'mean_confusion_matrix': mean_confusion_matrix
         }
+
 
     def train_and_evaluate_balanced_with_alpha(self, n_splits=50, vintage=False, random_seed=42, test_size=None,
                                                normalize=False,
@@ -3678,277 +3806,6 @@ def assign_year_to_pinot_noir(labels):
     return first_letters
 
 
-# def train_and_evaluate_all_mz_per_sample(self, n_splits=50, vintage=False, random_seed=42, test_size=None,
-#                                          normalize=False, scaler_type='standard', use_pca=False, vthresh=0.97,
-#                                          region=None, best_alpha=1.0):
-#     """
-#     Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
-#
-#     Parameters
-#     ----------
-#     alpha : float
-#         Regularization strength for RidgeClassifier.
-#     n_splits : int
-#         Number of cross-validation splits.
-#     vintage : bool
-#         Whether to use vintage data for splitting.
-#     random_seed : int
-#         Seed for reproducibility.
-#     test_size : float or None
-#         Proportion of the data to include in the test split.
-#     normalize : bool
-#         Whether to normalize the data.
-#     scaler_type : str
-#         Type of scaler to use for normalization ('standard' or 'minmax').
-#     use_pca : bool
-#         Whether to apply PCA for dimensionality reduction.
-#     vthresh : float
-#         Variance threshold for PCA.
-#     region : str or None
-#         Region-specific configurations for label ordering.
-#
-#     Returns
-#     -------
-#     dict
-#         A dictionary containing mean accuracy, balanced accuracy, precision, F1-score,
-#         mean confusion matrix, and the fixed alpha value.
-#     """
-#     # Initialize accumulators for metrics
-#     accuracy_scores = []
-#     balanced_accuracy_scores = []
-#     precision_scores = []
-#     f1_scores = []
-#     confusion_matrix_sum = None
-#
-#     # Cross-validation loop
-#     for i in range(n_splits):
-#         # Split data into train and test sets
-#         # train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
-#         #     self.labels, self.data, vintage=vintage, test_size=test_size, num_test=1)
-#
-#         # X_train, X_test, y_train, y_test = train_test_split(
-#         #     self.data, self.labels, test_size=test_size, stratify=self.labels
-#         # )
-#         X_train, X_val, X_test, y_train, y_val, y_test = utils.split_train_val_test(
-#             self.data, self.labels, test_size=test_size, validation_size=test_size)
-#
-#
-#         # Concatenate the m/z profiles for each sample
-#         X_train = X_train.transpose(0, 2, 1).reshape(X_train.shape[0], X_train.shape[1] * X_train.shape[2])
-#         X_test = X_test.transpose(0, 2, 1).reshape(X_test.shape[0], X_test.shape[1] * X_test.shape[2])
-#
-#         # Normalize data if enabled
-#         if normalize:
-#             X_train, scaler = normalize_data(X_train, scaler=scaler_type)
-#             X_test = scaler.transform(X_test)
-#
-#         # Apply PCA if enabled
-#         if use_pca:
-#             reducer = DimensionalityReducer(self.data)
-#             _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
-#             n_components = min(n_components, len(set(y_train)))  # Adjust PCA components based on class count
-#             pca = PCA(n_components=n_components, svd_solver='randomized')
-#             X_train = pca.fit_transform(X_train)
-#             X_test = pca.transform(X_test)
-#
-#         # Train RidgeClassifier with the given alpha
-#         ridge_classifier = RidgeClassifier(alpha=best_alpha)
-#         ridge_classifier.fit(X_train, y_train)
-#         # utils.plot_aggregated_weights(ridge_classifier.coef_[0], bin_size=10)
-#         # utils.compute_channel_correlation_single_sample(self.data, 0, figsize=(8, 6), cmap="coolwarm")
-#
-#         # Predictions and metrics
-#         y_pred = ridge_classifier.predict(X_test)
-#         accuracy_scores.append(ridge_classifier.score(X_test, y_test))
-#         balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
-#
-#         # Compute precision and F1 score
-#         precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
-#         f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
-#
-#         # Compute confusion matrix
-#         cm = confusion_matrix(y_test, y_pred, labels=sorted(set(y_test)))
-#         confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
-#
-#         print(f"Split {i + 1}/{n_splits} completed.")
-#
-#     # Calculate mean metrics
-#     mean_confusion_matrix = confusion_matrix_sum / n_splits
-#
-#     # Print summary
-#     print(f"Alpha: {best_alpha:.3f}")
-#     print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
-#     print(
-#         f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
-#     print(f"Precision: {np.mean(precision_scores):.3f}")
-#     print(f"F1 Score: {np.mean(f1_scores):.3f}")
-#     print("Mean Confusion Matrix:\n", mean_confusion_matrix)
-#
-#     # Return metrics
-#     return {
-#         'mean_accuracy': np.mean(accuracy_scores),
-#         'mean_balanced_accuracy': np.mean(balanced_accuracy_scores),
-#         'mean_precision': np.mean(precision_scores),
-#         'mean_f1_score': np.mean(f1_scores),
-#         'mean_confusion_matrix': mean_confusion_matrix,
-#         'alpha': best_alpha
-#     }
-
-
-
-
-
-
-# def greedy_channel_selection(
-#         data, labels, alpha=1.0, test_size=0.2, max_channels=None, num_splits=5, tolerated_no_improvement_steps=2,
-#         normalize=True, scaler_type='standard', random_seed=None, parallel=True, n_jobs=-1):
-#     """
-#     Greedy Forward Selection with multiple train-validation-test splits to find the best m/z channels for classification.
-#     Allows toggling between parallel and non-parallel execution. Always adds the best channel but stops after a configurable
-#     number of consecutive non-improving steps.
-#
-#     Parameters
-#     ----------
-#     data : np.ndarray
-#         Input 3D array with shape (samples, features, channels).
-#     labels : np.ndarray
-#         Array of labels for the samples.
-#     alpha : float
-#         Regularization strength for RidgeClassifier.
-#     test_size : float
-#         Proportion of data to be used for testing.
-#     max_channels : int or None
-#         Maximum number of channels to include. If None, selects all channels.
-#     num_splits : int
-#         Number of train-validation-test splits to average the performance.
-#     tolerated_no_improvement_steps : int
-#         Number of consecutive steps without accuracy improvement before stopping.
-#     random_seed : int
-#         Random seed for reproducibility.
-#     parallel : bool
-#         If True, runs the channel evaluation in parallel. If False, runs sequentially.
-#     n_jobs : int
-#         Number of CPU cores to use in parallel mode. Use -1 to utilize all available cores.
-#
-#     Returns
-#     -------
-#     list
-#         Ordered list of selected channels.
-#     list
-#         List of accuracies at each step on the test data.
-#     """
-#     num_channels = data.shape[2]
-#     max_channels = max_channels or num_channels
-#
-#     selected_channels = []  # List to store selected channel indices
-#     remaining_channels = list(range(num_channels))  # Channels not yet selected
-#     accuracies_on_test = []  # Track performance on test data after each step
-#
-#     print("Starting Greedy Channel Selection with Averaged Splits...")
-#
-#     model = RidgeClassifier(alpha=alpha)
-#     best_accuracy_overall = 0.0  # Track the best accuracy so far
-#     non_improving_steps = 0  # Counter for consecutive non-improving steps
-#
-#     # Use a dynamic seed if none is provided
-#     if random_seed is None:
-#         random_seed = np.random.randint(0, 1e6)
-#
-#     rng = np.random.default_rng(random_seed)
-#
-#     # Predefine splits for consistency
-#     predefined_splits = []
-#     for _ in range(num_splits):
-#         train_idx, temp_idx = train_test_split(
-#             np.arange(len(labels)), test_size=test_size + test_size, stratify=labels, random_state=rng.integers(0, 1e6)
-#         )
-#         val_idx, test_idx = train_test_split(
-#             temp_idx, test_size=0.5, stratify=labels[temp_idx], random_state=rng.integers(0, 1e6)
-#         )
-#         predefined_splits.append((train_idx, val_idx, test_idx))
-#
-#     def evaluate_channel(ch):
-#         candidate_channels = selected_channels + [ch]
-#
-#         split_accuracies_on_val = []
-#         split_accuracies_on_test = []
-#
-#         for train_idx, val_idx, test_idx in predefined_splits:
-#             # Extract data subsets using the indices
-#             X_train = data[train_idx][:, :, candidate_channels].reshape(len(train_idx), -1)
-#             X_val = data[val_idx][:, :, candidate_channels].reshape(len(val_idx), -1)
-#             X_test = data[test_idx][:, :, candidate_channels].reshape(len(test_idx), -1)
-#             y_train, y_val, y_test = labels[train_idx], labels[val_idx], labels[test_idx]
-#
-#             # Normalize data if enabled
-#             if normalize:
-#                 X_train, scaler = normalize_data(X_train, scaler=scaler_type)
-#                 X_test = scaler.transform(X_test)
-#
-#             # Train model on the current set of selected channels
-#             model.fit(X_train, y_train)
-#
-#             # Evaluate performance on the validation data
-#             y_pred_val = model.predict(X_val)
-#             accuracy_val = balanced_accuracy_score(y_val, y_pred_val)
-#             split_accuracies_on_val.append(accuracy_val)
-#
-#             # Evaluate performance on the test data
-#             y_pred_test = model.predict(X_test)
-#             accuracy_test = balanced_accuracy_score(y_test, y_pred_test)
-#             split_accuracies_on_test.append(accuracy_test)
-#
-#         # Average accuracy across splits
-#         avg_accuracy_on_val = np.mean(split_accuracies_on_val)
-#         avg_accuracy_on_test = np.mean(split_accuracies_on_test)
-#
-#         return ch, avg_accuracy_on_val, avg_accuracy_on_test
-#
-#     for step in range(min(max_channels, num_channels)):
-#         if parallel:
-#             # Parallelized evaluation
-#             results = Parallel(n_jobs=n_jobs)(
-#                 delayed(evaluate_channel)(ch) for ch in remaining_channels
-#             )
-#         else:
-#             # Sequential evaluation
-#             results = [evaluate_channel(ch) for ch in remaining_channels]
-#
-#         # Find the best channel based on validation accuracy
-#         best_channel, best_step_accuracy_val, best_step_accuracy_test = max(results, key=lambda x: x[1])
-#
-#         # Add the best channel (even if it does not improve test accuracy)
-#         if best_channel is not None:
-#             selected_channels.append(best_channel)
-#             remaining_channels.remove(best_channel)
-#             accuracies_on_test.append(best_step_accuracy_test)
-#
-#             print(f"Step {step + 1}: Added Channel {best_channel} - Validation Accuracy: {best_step_accuracy_val:.4f}, Test Accuracy: {best_step_accuracy_test:.4f}")
-#
-#             # Check if accuracy improved on the validation data
-#             if best_step_accuracy_test > best_accuracy_overall:
-#                 best_accuracy_overall = best_step_accuracy_test
-#                 non_improving_steps = 0  # Reset counter
-#             else:
-#                 non_improving_steps += 1
-#
-#         # Stop if the tolerated number of non-improving steps is reached
-#         if non_improving_steps >= tolerated_no_improvement_steps:
-#             print(f"No improvement in the last {tolerated_no_improvement_steps} steps. Stopping selection.")
-#             break
-#
-#     print("Greedy Channel Selection Completed.")
-#
-#     # Plot the accuracy on the test data after each channel is added
-#     plt.plot(range(1, len(accuracies_on_test) + 1), accuracies_on_test, marker='o')
-#     plt.xlabel('Number of Channels')
-#     plt.ylabel('Test Accuracy')
-#     plt.title('Test Accuracy During Channel Selection')
-#     plt.grid(True)
-#     plt.show()
-#
-#     return selected_channels, accuracies_on_test
-
 
 def greedy_channel_selection(
         data, labels, alpha=1.0, test_size=0.2, max_channels=None, num_splits=5, tolerated_no_improvement_steps=2,
@@ -4104,6 +3961,436 @@ def greedy_channel_selection(
 
     return selected_channels, accuracies_on_test
 
+
+def split_by_split_greedy_channel_selection(
+    data, labels, alpha=1.0, num_splits=5, test_size=0.2, corr_threshold=0.85,
+    max_channels=40, normalize=True, scaler_type='standard', random_seed=None,
+    parallel=True, n_jobs=-1):
+    """
+    Perform split-by-split greedy channel selection, then evaluate a fixed ordered channel set across all splits.
+    """
+
+    if random_seed is None:
+        random_seed = np.random.randint(0, 1e6)
+    rng = np.random.default_rng(random_seed)
+
+    split_selected_channels = []
+    predefined_splits = []
+    channel_selection_orders = defaultdict(list)
+    validation_accuracy_per_step = []
+
+    def evaluate_channel(ch, selected_channels, X_train, y_train, X_val, y_val):
+        """ Train RidgeClassifier with the given channel and evaluate accuracy. """
+        candidate_channels = selected_channels + [ch]
+        X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
+        X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+
+        model = RidgeClassifier(alpha=alpha)
+        model.fit(X_train_subset, y_train)
+        y_pred_val = model.predict(X_val_subset)
+        return ch, balanced_accuracy_score(y_val, y_pred_val)
+
+    def compute_accuracy(X_train, y_train, X_test, y_test, selected_channels):
+        """ Train RidgeClassifier on fixed channels and evaluate on test data. """
+        X_train_subset = X_train[:, :, selected_channels].reshape(len(X_train), -1)
+        X_test_subset = X_test[:, :, selected_channels].reshape(len(X_test), -1)
+
+        model = RidgeClassifier(alpha=alpha)
+        model.fit(X_train_subset, y_train)
+        y_pred = model.predict(X_test_subset)
+        return balanced_accuracy_score(y_test, y_pred)
+
+    # ---- STEP 1: CREATE TRAIN-VALIDATION-TEST SPLITS ---- #
+    for split in range(num_splits):
+        train_idx, temp_idx = train_test_split(
+            np.arange(len(labels)), test_size=test_size + test_size, stratify=labels, random_state=rng.integers(0, 1e6)
+        )
+        val_idx, test_idx = train_test_split(
+            temp_idx, test_size=0.5, stratify=labels[temp_idx], random_state=rng.integers(0, 1e6)
+        )
+        predefined_splits.append((train_idx, val_idx, test_idx))
+
+    # ---- STEP 2: GREEDY CHANNEL SELECTION FOR EACH SPLIT ---- #
+    for split, (train_idx, val_idx, test_idx) in enumerate(predefined_splits):
+        print(f'Split: {split + 1}')
+        X_train, X_val, X_test = data[train_idx], data[val_idx], data[test_idx]
+        y_train, y_val, y_test = labels[train_idx], labels[val_idx], labels[test_idx]
+
+        if normalize:
+            X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+            X_val = scaler.transform(X_val)
+            X_test = scaler.transform(X_test)
+
+        remaining_channels = list(range(data.shape[2]))
+        selected_channels = []
+        validation_accuracies = []
+
+        for step in range(max_channels):
+            if not remaining_channels:
+                break
+
+            if parallel:
+                results = Parallel(n_jobs=n_jobs, backend='threading')(
+                    delayed(evaluate_channel)(ch, selected_channels, X_train, y_train, X_val, y_val)
+                    for ch in remaining_channels
+                )
+            else:
+                results = [
+                    evaluate_channel(ch, selected_channels, X_train, y_train, X_val, y_val)
+                    for ch in remaining_channels
+                ]
+
+            best_channel, best_accuracy = max(results, key=lambda x: x[1])
+
+            selected_channels.append(best_channel)
+            remaining_channels.remove(best_channel)
+
+            # Record selection order of each channel
+            channel_selection_orders[best_channel].append(step + 1)
+
+            validation_accuracies.append(best_accuracy)
+
+        validation_accuracy_per_step.append(validation_accuracies)
+        split_selected_channels.append(selected_channels)
+
+    # ---- STEP 3: DETERMINE FIXED SET OF CHANNELS ---- #
+    channel_counter = Counter()
+    for split in split_selected_channels:
+        for ch in split:
+            channel_counter[ch] += 1
+
+    most_common_channels = [ch for ch, _ in channel_counter.most_common(max_channels)]
+
+    # ---- STEP 4: ORDER CHANNELS BASED ON MEDIAN SELECTION ORDER ---- #
+    ordered_channels = sorted(
+        most_common_channels,
+        key=lambda ch: np.median(channel_selection_orders[ch])
+    )
+
+    print(f"Fixed ordered set of channels: {ordered_channels}")
+
+    # ---- STEP 5: RE-EVALUATE FIXED ORDERED SET ACROSS SPLITS ---- #
+    test_accuracies_per_step = []
+
+    for split, (train_idx, val_idx, test_idx) in enumerate(predefined_splits):
+        X_train, X_test = data[train_idx], data[test_idx]
+        y_train, y_test = labels[train_idx], labels[test_idx]
+
+        if normalize:
+            X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+            X_test = scaler.transform(X_test)
+
+        test_accuracies = []
+        for i in range(1, len(ordered_channels) + 1):
+            test_accuracy = compute_accuracy(X_train, y_train, X_test, y_test, ordered_channels[:i])
+            test_accuracies.append(test_accuracy)
+
+        test_accuracies_per_step.append(test_accuracies)
+
+    avg_validation_accuracies = np.nanmean(np.array([np.pad(acc, (0, max_channels - len(acc)), 'constant', constant_values=np.nan) for acc in validation_accuracy_per_step]), axis=0)
+    avg_test_accuracies = np.nanmean(np.array([np.pad(acc, (0, max_channels - len(acc)), 'constant', constant_values=np.nan) for acc in test_accuracies_per_step]), axis=0)
+
+    # ---- STEP 6: PLOT ACCURACIES AS NUMBER OF CHANNELS INCREASES ---- #
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(1, max_channels + 1), avg_validation_accuracies, marker='o', linestyle='-', label="Validation Accuracy")
+    plt.plot(range(1, max_channels + 1), avg_test_accuracies, marker='s', linestyle='--', label="Test Accuracy")
+    plt.xlabel("Number of Selected Channels")
+    plt.ylabel("Balanced Accuracy")
+    plt.title("Validation and Test Accuracy as Number of Channels Increases")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+    return ordered_channels, avg_validation_accuracies, avg_test_accuracies
+
+
+def split_by_split_nested_cv_channel_selection(
+        data, labels, alpha=1.0, num_outer_splits=5, num_outer_repeats=3, inner_cv_folds=3,
+        max_channels=40, normalize=True, scaler_type='standard', random_seed=None, parallel=True, n_jobs=-1):
+    """
+    Perform nested cross-validation (CV) for greedy channel selection.
+    Tracks validation and test accuracy for each added channel.
+
+    Returns:
+        - selected_channels (list): Ordered list of selected channels
+        - avg_validation_accuracies (array): Mean validation accuracy per step
+        - avg_test_accuracies (array): Mean test accuracy per step
+    """
+    import numpy as np
+    from collections import Counter
+    from sklearn.linear_model import RidgeClassifier
+    from sklearn.metrics import balanced_accuracy_score
+    from sklearn.model_selection import StratifiedKFold, BaseCrossValidator, StratifiedShuffleSplit
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    from joblib import Parallel, delayed
+    import matplotlib.pyplot as plt
+    import matplotlib
+    # matplotlib.use("TkAgg")
+
+    if random_seed is None:
+        random_seed = np.random.randint(0, int(1e6))
+    rng = np.random.default_rng(random_seed)
+
+    all_selected_channels = []
+    all_test_accuracy_per_step = []
+    all_validation_accuracy_per_step = []
+
+    class LeaveOneFromEachClassCV(BaseCrossValidator):
+        """
+        Custom cross-validator that, in each fold, leaves one sample per class as the test set.
+        The number of folds is determined by the minimum number of samples among all classes.
+        """
+        def __init__(self, shuffle=True, random_state=None):
+            self.shuffle = shuffle
+            self.random_state = random_state
+
+        def get_n_splits(self, X, y, groups=None):
+            _, counts = np.unique(y, return_counts=True)
+            return int(np.min(counts))
+
+        def split(self, X, y, groups=None):
+            indices_by_class = {}
+            for idx, label in enumerate(y):
+                indices_by_class.setdefault(label, []).append(idx)
+            rng_local = np.random.default_rng(self.random_state)
+            for label in indices_by_class:
+                if self.shuffle:
+                    rng_local.shuffle(indices_by_class[label])
+            n_splits = self.get_n_splits(X, y)
+            for split in range(n_splits):
+                test_indices = []
+                for label, indices in indices_by_class.items():
+                    test_indices.append(indices[split])
+                test_indices = np.array(test_indices)
+                train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+                yield train_indices, test_indices
+
+    class RepeatedLeaveOneFromEachClassCV(BaseCrossValidator):
+        """
+        Custom cross-validator that randomly selects one sample per class as the test set,
+        and repeats the process a specified number of times.
+        """
+
+        def __init__(self, n_repeats=50, shuffle=True, random_state=None):
+            self.n_repeats = n_repeats
+            self.shuffle = shuffle
+            self.random_state = random_state
+
+        def get_n_splits(self, X, y, groups=None):
+            return self.n_repeats
+
+        def split(self, X, y, groups=None):
+            indices_by_class = {}
+            for idx, label in enumerate(y):
+                indices_by_class.setdefault(label, []).append(idx)
+
+            rng = np.random.default_rng(self.random_state)
+            for _ in range(self.n_repeats):
+                test_indices = []
+                for label, indices in indices_by_class.items():
+                    if self.shuffle:
+                        chosen = rng.choice(indices, size=1, replace=False)
+                    else:
+                        chosen = [indices[0]]
+                    test_indices.extend(chosen)
+                test_indices = np.array(test_indices)
+                train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+                yield train_indices, test_indices
+
+    def evaluate_channel(ch, selected_channels, X_train, y_train, X_val, y_val):
+        candidate_channels = selected_channels + [ch]
+        X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
+        X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+
+        model = RidgeClassifier(alpha=alpha)
+        model.fit(X_train_subset, y_train)
+        y_pred_val = model.predict(X_val_subset)
+        return ch, balanced_accuracy_score(y_val, y_pred_val)
+
+    def scale_data(X_train, X_test, scaler_type='standard'):
+        if scaler_type == 'standard':
+            scaler = StandardScaler()
+        elif scaler_type == 'minmax':
+            scaler = MinMaxScaler()
+        else:
+            raise ValueError("Unsupported scaler type. Choose 'standard' or 'minmax'.")
+        X_train = scaler.fit_transform(X_train.reshape(X_train.shape[0], -1)).reshape(X_train.shape)
+        X_test = scaler.transform(X_test.reshape(X_test.shape[0], -1)).reshape(X_test.shape)
+        return X_train, X_test
+
+    model = RidgeClassifier(alpha=alpha)
+    # model = LogisticRegression(solver='liblinear', random_state=42)
+
+    # Loop over outer repetitions
+    for repeat in range(num_outer_repeats):
+        print(f"\n🔁 Outer CV Repetition {repeat + 1}/{num_outer_repeats}")
+        # outer_cv = StratifiedKFold(n_splits=num_outer_splits, shuffle=True, random_state=rng.integers(0, int(1e6)))
+        outer_cv = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=rng.integers(0, int(1e6)))
+
+        # Temporary lists to hold metrics for this repetition
+        rep_selected_channels = []
+        rep_validation_accuracy_per_step = []
+        rep_test_accuracy_per_step = []
+
+        for split, (train_val_idx, test_idx) in enumerate(outer_cv.split(data, labels)):
+            print(f"▶️ Split {split + 1}/{num_outer_splits}")
+            X_train_val, X_test = data[train_val_idx], data[test_idx]
+            if normalize:
+                X_train_val, X_test = scale_data(X_train_val, X_test, scaler_type)
+            y_train_val, y_test = labels[train_val_idx], labels[test_idx]
+
+            # Use the custom inner CV (for example, LeaveOneFromEachClassCV)
+            # inner_cv = LeaveOneFromEachClassCV(shuffle=True, random_state=rng.integers(0, int(1e6)))
+            inner_cv = RepeatedLeaveOneFromEachClassCV(n_repeats=inner_cv_folds, shuffle=True, random_state=rng.integers(0, int(1e6)))
+
+            step_selected_channels = []
+            split_validation_accuracies = []
+            split_test_accuracies = []
+
+            for step in range(max_channels):
+                if (step + 1) % 1 == 0 or (step + 1) == max_channels:
+                    print(f"\u23E9 m/z channel {step + 1}/{max_channels}")
+                remaining_channels = [ch for ch in range(data.shape[2]) if ch not in step_selected_channels]
+                if not remaining_channels:
+                    break
+
+                best_channel_per_fold = []
+                val_accuracies_per_fold = []
+
+                for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val):
+                    X_inner_train, X_inner_val = X_train_val[inner_train_idx], X_train_val[inner_val_idx]
+                    y_inner_train, y_inner_val = y_train_val[inner_train_idx], y_train_val[inner_val_idx]
+
+                    if parallel:
+                        results = Parallel(n_jobs=n_jobs, backend='loky')(
+                            delayed(evaluate_channel)(ch, step_selected_channels, X_inner_train, y_inner_train,
+                                                      X_inner_val, y_inner_val)
+                            for ch in remaining_channels
+                        )
+                    else:
+                        results = [
+                            evaluate_channel(ch, step_selected_channels, X_inner_train, y_inner_train, X_inner_val,
+                                             y_inner_val)
+                            for ch in remaining_channels
+                        ]
+
+                    best_channel, best_accuracy = max(results, key=lambda x: x[1])
+                    best_channel_per_fold.append(best_channel)
+                    val_accuracies_per_fold.append(best_accuracy)
+
+                channel_counts = Counter(best_channel_per_fold)
+                channel_frequencies = channel_counts.keys()
+
+                channel_avg_accuracy = {
+                    ch: np.mean([acc for ch_fold, acc in zip(best_channel_per_fold, val_accuracies_per_fold)
+                                if ch_fold == ch])
+                    for ch in channel_frequencies
+                }
+
+                best_channel = max(channel_frequencies, key=lambda ch: (channel_counts[ch], channel_avg_accuracy[ch]))
+                step_selected_channels.append(best_channel)
+
+                accuracies_for_best_channel = [acc for ch, acc in zip(best_channel_per_fold, val_accuracies_per_fold) if
+                                               ch == best_channel]
+                # split_validation_accuracies.append(np.mean(val_accuracies_per_fold))
+                split_validation_accuracies.append(np.mean(accuracies_for_best_channel))
+
+                X_train_subset = X_train_val[:, :, step_selected_channels].reshape(len(X_train_val), -1)
+                X_test_subset = X_test[:, :, step_selected_channels].reshape(len(X_test), -1)
+
+                model.fit(X_train_subset, y_train_val)
+                y_pred = model.predict(X_test_subset)
+                split_test_accuracies.append(balanced_accuracy_score(y_test, y_pred))
+
+        rep_selected_channels.append(step_selected_channels)
+        rep_validation_accuracy_per_step.append(split_validation_accuracies)
+        rep_test_accuracy_per_step.append(split_test_accuracies)
+
+        # Compute averages for this repetition over all splits
+        rep_avg_validation_accuracies = np.mean(rep_validation_accuracy_per_step, axis=0)
+        rep_std_validation_accuracies = np.std(rep_validation_accuracy_per_step, axis=0)
+        rep_avg_test_accuracies = np.mean(rep_test_accuracy_per_step, axis=0)
+        rep_std_test_accuracies = np.std(rep_test_accuracy_per_step, axis=0)
+
+        # Append repetition-level results to the global lists
+        all_selected_channels.extend(rep_selected_channels)
+        all_validation_accuracy_per_step.extend(rep_validation_accuracy_per_step)
+        all_test_accuracy_per_step.extend(rep_test_accuracy_per_step)
+
+        # Plot for this repetition (non-blocking or save to file)
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(range(1, len(rep_avg_validation_accuracies) + 1), rep_avg_validation_accuracies,
+                marker='s', linestyle='-', label='Validation Accuracy')
+        ax.fill_between(range(1, len(rep_avg_validation_accuracies) + 1),
+                        rep_avg_validation_accuracies - rep_std_validation_accuracies,
+                        rep_avg_validation_accuracies + rep_std_validation_accuracies,
+                        alpha=0.2)
+        ax.plot(range(1, len(rep_avg_test_accuracies) + 1), rep_avg_test_accuracies,
+                marker='o', linestyle='--', label='Test Accuracy')
+        ax.fill_between(range(1, len(rep_avg_test_accuracies) + 1),
+                        rep_avg_test_accuracies - rep_std_test_accuracies,
+                        rep_avg_test_accuracies + rep_std_test_accuracies,
+                        alpha=0.2)
+        # Annotate each test accuracy point with its corresponding channel
+        for i, txt in enumerate(step_selected_channels):
+            ax.annotate(str(txt), (i + 1, split_test_accuracies[i]), textcoords="offset points", xytext=(0, 5), ha='center')
+
+
+
+        ax.set_xlabel("Number of Selected Channels")
+        ax.set_ylabel("Balanced Accuracy")
+        ax.set_title(f"Validation and Test Accuracy Progression (Repetition {repeat + 1})")
+        ax.legend()
+        ax.grid()
+        # Option 1: Non-blocking display
+        plt.show(block=False)
+        plt.pause(0.5)
+        # Option 2: Save to file and close the figure
+        # plt.savefig(f"rep_{repeat + 1}_plot.png")
+        # plt.close(fig)
+
+    # After all repetitions, compute global averages if needed
+    avg_test_accuracies = np.mean(all_test_accuracy_per_step, axis=0)
+    avg_validation_accuracies = np.mean(all_validation_accuracy_per_step, axis=0)
+
+    # Global plot if desired
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(range(1, len(avg_validation_accuracies) + 1), avg_validation_accuracies, marker='s', linestyle='-',
+            label='Validation Accuracy')
+    ax.fill_between(range(1, len(avg_validation_accuracies) + 1),
+                    np.array(avg_validation_accuracies) - np.array(np.std(all_validation_accuracy_per_step, axis=0)),
+                    np.array(avg_validation_accuracies) + np.array(np.std(all_validation_accuracy_per_step, axis=0)),
+                    alpha=0.2)
+    ax.plot(range(1, len(avg_test_accuracies) + 1), avg_test_accuracies, marker='o', linestyle='--', label='Test Accuracy')
+    ax.fill_between(range(1, len(avg_test_accuracies) + 1),
+                    np.array(avg_test_accuracies) - np.array(np.std(all_test_accuracy_per_step, axis=0)),
+                    np.array(avg_test_accuracies) + np.array(np.std(all_test_accuracy_per_step, axis=0)),
+                    alpha=0.2)
+
+    # Final selection of channels (same as before)
+    final_selected_channels = sorted(
+        Counter([ch for sublist in all_selected_channels for ch in sublist]).keys(),
+        key=lambda ch: (
+            -Counter([ch for sublist in all_selected_channels for ch in sublist])[ch],
+            -np.mean([acc for step_channels, accs in zip(all_selected_channels, all_test_accuracy_per_step)
+                      if ch in step_channels for acc in accs]),
+            np.std([acc for step_channels, accs in zip(all_selected_channels, all_test_accuracy_per_step)
+                    if ch in step_channels for acc in accs])
+        )
+    )[:max_channels]
+
+    # Annotate each test accuracy point with its corresponding channel
+    for i, txt in enumerate(final_selected_channels):
+        ax.annotate(txt, (i + 1, avg_test_accuracies[i]), textcoords="offset points", xytext=(0, 5), ha='center')
+    ax.set_xlabel("Number of Selected Channels")
+    ax.set_ylabel("Balanced Accuracy")
+    ax.set_title("Global Validation and Test Accuracy Progression")
+    ax.legend()
+    ax.grid()
+    plt.show()
+
+
+    return final_selected_channels, avg_test_accuracies, avg_validation_accuracies
 
 def classify_all_channels(data, labels, alpha=1.0, test_size=0.2, num_splits=5, use_pca=False, n_components=None):
     """

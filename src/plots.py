@@ -33,6 +33,11 @@ def plot_channel_selection_performance_changins():
         7, 79, 80, 117, 61, 127, 28, 33, 137, 126,
         36
     ]
+    channels_added = [
+        13, 127, 3, 44, 53, 158, 45, 27, 80, 46,
+        72, 64, 160, 168, 142, 19, 109, 48, 95, 71,
+        26, 125, 99, 173, 47, 42, 110
+    ]
 
     # Number of selected channels (x-axis)
     num_channels = list(range(1, len(channels_added) + 1))  # From step 1 to step 51
@@ -144,3 +149,58 @@ def plot_channel_selection_thresholds(data):
     plt.show()
 
     return accuracy_progressions
+
+
+def plot_accuracy_all_methods():
+    """
+    Plots accuracy results from the given LaTeX table using a bar chart.
+    """
+
+    # Methods and their corresponding accuracies for ISVV and Changins datasets
+    methods = [
+        "TIC",
+        "TIS",
+        "TIC ∘ TIS",
+        "Channel Averaging",
+        "Single Channels",
+        "Greedy Ranking-based",
+        "Greedy Forward",
+        "Correlation Filtering"
+    ]
+
+    # Accuracy values from the LaTeX table
+    isvv_accuracies = [0.534, 0.484, 0.529, 0.000, 0.535, 0.566, 0.625, 0.628]
+    changins_accuracies = [0.695, 0.715, 0.666, 0.000, 0.718, 0.756, 0.817, 0.000]
+
+    x = np.arange(len(methods))  # the label locations
+    width = 0.35  # the width of the bars
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Bar plots for ISVV and Changins datasets
+    bars1 = ax.bar(x - width / 2, isvv_accuracies, width, label='ISVV', color='skyblue')
+    bars2 = ax.bar(x + width / 2, changins_accuracies, width, label='Changins', color='lightcoral')
+
+    # Adding accuracy values on top of bars
+    for bar in bars1:
+        height = bar.get_height()
+        ax.annotate(f'{height:.3f}', xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3), textcoords="offset points", ha='center', va='bottom')
+
+    for bar in bars2:
+        height = bar.get_height()
+        ax.annotate(f'{height:.3f}', xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3), textcoords="offset points", ha='center', va='bottom')
+
+    # Formatting the plot
+    ax.set_xlabel('Methods')
+    ax.set_ylabel('Accuracy')
+    ax.set_title('Comparison of Accuracy Across Methods and Datasets')
+    ax.set_xticks(x)
+    ax.set_xticklabels(methods, rotation=30, ha="right")
+    ax.legend(title="Dataset")
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+
+    plt.tight_layout()
+    plt.show()
+
