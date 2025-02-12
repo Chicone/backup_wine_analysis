@@ -1659,7 +1659,8 @@ class Classifier:
     def train_and_evaluate_balanced(self, num_outer_repeats=3, n_inner_repeats=50, random_seed=42,
                                     test_size=0.2, normalize=False, scaler_type='standard',
                                     use_pca=False, vthresh=0.97, region=None,
-                                    batch_size=32, num_epochs=10, learning_rate=0.001):
+                                    batch_size=32, num_epochs=10, learning_rate=0.001,
+                                    print_results=True):
         """
         Train and evaluate the classifier using repeated outer stratified splits. For each outer repetition,
         the training set is further split using RepeatedLeaveOneFromEachClassCV and validation metrics are computed.
@@ -1824,13 +1825,14 @@ class Classifier:
             avg_f1 = np.mean(inner_f1)
             avg_cm = inner_cm_sum / n_inner_repeats
 
-            print(f"Outer repetition {repeat + 1} metrics:")
-            print(f"  Accuracy: {avg_acc:.3f}")
-            print(f"  Balanced Accuracy: {avg_bal_acc:.3f}")
-            print(f"  Weighted Accuracy: {avg_w_acc:.3f}")
-            print(f"  Precision: {avg_prec:.3f}")
-            print(f"  Recall: {avg_rec:.3f}")
-            print(f"  F1 Score: {avg_f1:.3f}")
+            if print_results:
+                print(f"Outer repetition {repeat + 1} metrics:")
+                print(f"  Accuracy: {avg_acc:.3f}")
+                print(f"  Balanced Accuracy: {avg_bal_acc:.3f}")
+                print(f"  Weighted Accuracy: {avg_w_acc:.3f}")
+                print(f"  Precision: {avg_prec:.3f}")
+                print(f"  Recall: {avg_rec:.3f}")
+                print(f"  F1 Score: {avg_f1:.3f}")
 
             # Accumulate outer metrics.
             outer_accuracy.append(avg_acc)
@@ -1850,17 +1852,18 @@ class Classifier:
         overall_f1 = np.mean(outer_f1)
         overall_cm = np.mean(outer_cm, axis=0)
 
-        print("\nFinal Averaged Inner CV Metrics Across Outer Repetitions:")
-        print(f"Overall Accuracy: {overall_accuracy:.3f} (+/- {np.std(outer_accuracy) * 2:.3f})")
-        print(
-            f"Overall Balanced Accuracy: {overall_balanced_accuracy:.3f} (+/- {np.std(outer_balanced_accuracy) * 2:.3f})")
-        print(
-            f"Overall Weighted Accuracy: {overall_weighted_accuracy:.3f} (+/- {np.std(outer_weighted_accuracy) * 2:.3f})")
-        print(f"Overall Precision: {overall_precision:.3f}")
-        print(f"Overall Recall: {overall_recall:.3f}")
-        print(f"Overall F1 Score: {overall_f1:.3f}")
-        print("Overall Mean Confusion Matrix:")
-        print(overall_cm)
+        if print_results:
+            print("\nFinal Averaged Inner CV Metrics Across Outer Repetitions:")
+            print(f"Overall Accuracy: {overall_accuracy:.3f} (+/- {np.std(outer_accuracy) * 2:.3f})")
+            print(
+                f"Overall Balanced Accuracy: {overall_balanced_accuracy:.3f} (+/- {np.std(outer_balanced_accuracy) * 2:.3f})")
+            print(
+                f"Overall Weighted Accuracy: {overall_weighted_accuracy:.3f} (+/- {np.std(outer_weighted_accuracy) * 2:.3f})")
+            print(f"Overall Precision: {overall_precision:.3f}")
+            print(f"Overall Recall: {overall_recall:.3f}")
+            print(f"Overall F1 Score: {overall_f1:.3f}")
+            print("Overall Mean Confusion Matrix:")
+            print(overall_cm)
 
         return {
             'overall_accuracy': overall_accuracy,
