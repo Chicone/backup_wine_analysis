@@ -58,9 +58,11 @@ import argparse
 from data_loader import DataLoader
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
-                            assign_north_south_to_beaune, BayesianParamOptimizer,greedy_channel_selection, classify_all_channels,
+                            assign_north_south_to_beaune, BayesianParamOptimizer, greedy_channel_selection,
+                            classify_all_channels,
                             remove_highly_correlated_channels, split_by_split_greedy_channel_selection,
-                            split_by_split_nested_cv_channel_selection
+                            greedy_nested_cv_channel_selection, greedy_nested_cv_channel_elimination,
+                            greedy_nested_cv_channel_selection_snr
                             )
 from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
 from visualizer import visualize_confusion_matrix_3d, plot_accuracy_vs_channels
@@ -107,7 +109,8 @@ if __name__ == "__main__":
 
             gcms.data = utils.reduce_columns_in_dict(data_dict, NUM_AGGR_CHANNELS)
             chrom_length = len(list(data_dict.values())[0])
-            data, labels = gcms.create_overlapping_windows(chrom_length, chrom_length)  # with chrom_length is one window only
+            # data, labels = gcms.create_overlapping_windows(chrom_length, chrom_length)  # with chrom_length is one window only
+            data, labels = np.array(list(gcms.data.values())),  np.array(list(gcms.data.keys())) # with chrom_length is one window only
             if SYNC_STATE and CONCATENATE_TICS:
                 data = np.concatenate((data, np.asarray(list(tics.values()))), axis=0)
                 labels = np.concatenate((labels, np.asarray(list(tics.keys()))), axis=0)
@@ -239,16 +242,8 @@ if __name__ == "__main__":
                 for correlation_threshold in correlation_thresholds:
                     print(f"Processing correlation_threshold = {correlation_threshold:.2f}")
 
-                    # if correlation_threshold >= 1: # all channels so avoid the correlation calculation
-                    #     reduced_data, retained_channels = data, list(range(data.shape[-1]))
-                    # else:
-                    #     reduced_data, retained_channels = remove_highly_correlated_channels(
-                    #         data, correlation_threshold=correlation_threshold
-                    #     )
-                    # print(f'# Retained Channels for threshold {correlation_threshold:.2f}: {len(retained_channels)}')
-
-
-                    selected_channels, val_accuracies, test_accuracies = split_by_split_nested_cv_channel_selection(
+                    # selected_channels, val_accuracies, test_accuracies = greedy_nested_cv_channel_selection(
+                    selected_channels, val_accuracies, test_accuracies = greedy_nested_cv_channel_selection_snr(
                         # data[:, :, [10, 13, 27]],
                         data,
                         np.array(labels),
@@ -256,16 +251,19 @@ if __name__ == "__main__":
                         # test_size=0.2,
                         # num_splits=NUM_SPLITS,
                         # tolerated_no_improvement_steps=10,
-                        max_channels=20,
-                        num_outer_repeats=50,
-                        num_outer_splits=1,
-                        inner_cv_folds=50,
+                        max_channels=181,
+                        num_outer_repeats=100,
+                        # num_outer_splits=1,
+                        inner_cv_folds=15,
                         normalize=False,
                         scaler_type='standard',
                         random_seed=42,  # 42
                         parallel=True,
-                        n_jobs=5,
-                    )
+                        n_jobs=15,
+                        method='average', # average, concatenation
+                        # selection_mode='add',
+                        # min_frequency=3
+                        )
 
                     # Store the accuracies for this threshold
                     accuracy_progressions[correlation_threshold] = test_accuracies
@@ -288,6 +286,29 @@ if __name__ == "__main__":
                 plt.grid()
                 plt.tight_layout()
                 plt.show()
+
+            elif CHANNEL_METHOD == "greedy_remove":
+                selected_channels, val_accuracies, test_accuracies = greedy_nested_cv_channel_elimination(
+                        # data[:, :, [10, 13, 27]],
+                        data,
+                        np.array(labels),
+                        alpha=alpha,
+                        # test_size=0.2,
+                        # num_splits=NUM_SPLITS,
+                        # tolerated_no_improvement_steps=10,
+                        max_channels=10,
+                        num_outer_repeats=10,
+                        # num_outer_splits=1,
+                        inner_cv_folds=10,
+                        normalize=False,
+                        scaler_type='standard',
+                        random_seed=42,  # 42
+                        parallel=True,
+                        n_jobs=10,
+                        method='average', # average, concatenation
+                    )
+
+
 
             elif CHANNEL_METHOD == "individual":
                 mean_accuracies = []
@@ -421,10 +442,22 @@ if __name__ == "__main__":
             alpha=alpha,
         )
 
+        # classif_res = cls.train_and_evaluate_balanced(
+        #     n_splits=NUM_SPLITS, vintage=False, random_seed=42, test_size=0.2, normalize=True,
+        #     scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
+        #     batch_size=32, num_epochs=10, learning_rate=0.001
+        # )
+
         classif_res = cls.train_and_evaluate_balanced(
-            n_splits=NUM_SPLITS, vintage=False, random_seed=42, test_size=0.2, normalize=True,
-            scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
-            batch_size=32, num_epochs=10, learning_rate=0.001
+            num_outer_repeats=10,  # Repeat the outer stratified split 5 times.
+            n_inner_repeats=50,  # Use 20 inner CV repeats per outer repetition.
+            random_seed=42,
+            test_size=0.2,
+            normalize=True,  # Enable normalization.
+            scaler_type='standard',
+            use_pca=False,  # Apply PCA.
+            vthresh=0.95,  # Variance threshold for PCA.
+            region='winery'  # Set region to 'winery' for a custom confusion matrix order.
         )
 
         if region == 'winery':

@@ -1534,8 +1534,7 @@ class Classifier:
 
     # def train_and_evaluate_balanced(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
     #                                 scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
-    #                                 batch_size=32, num_epochs=10, learning_rate=0.001
-    #                                ):
+    #                                 batch_size=32, num_epochs=10, learning_rate=0.001):
     #     """
     #     Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
     #
@@ -1560,30 +1559,41 @@ class Classifier:
     #
     #     if region == 'winery':
     #         custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
-    #     elif region  == 'origin':
+    #     elif region == 'origin':
     #         custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
     #     else:
-    #        custom_order = None
+    #         custom_order = None
     #
+    #     # Use the same random seed logic
+    #     if random_seed is None:
+    #         random_seed = np.random.randint(0, 1e6)
+    #     rng = np.random.default_rng(random_seed)
+    #
+    #     # Predefine splits for consistency
+    #     predefined_splits = []
+    #     for _ in range(n_splits):
+    #         train_idx, temp_idx = train_test_split(
+    #             np.arange(len(self.labels)), test_size=test_size + test_size, stratify=self.labels,
+    #             random_state=rng.integers(0, 1e6)
+    #         )
+    #         val_idx, test_idx = train_test_split(
+    #             temp_idx, test_size=0.5, stratify=self.labels[temp_idx], random_state=rng.integers(0, 1e6)
+    #         )
+    #         predefined_splits.append((train_idx, val_idx, test_idx))
+    #
+    #     # Apply PCA if enabled
     #     if use_pca:
-    #         # Apply PCA if enabled, estimating number of components to capture specified variance
     #         reducer = DimensionalityReducer(self.data)
     #         _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
-    #         # Find number of classes in training splits and correct n_components if larger
-    #         check_classes = self.split_data(vintage=vintage, test_size=test_size)
-    #         n_components = min(n_components, len(check_classes[0]))
-    #         print(f'PCA = {n_components}')
+    #         n_components = min(n_components, len(set(self.labels)))  # Adjust PCA components based on class count
     #         pca = PCA(n_components=n_components, svd_solver='randomized')
     #
     #     print('Split', end=' ', flush=True)
     #     # Cross-validation loop
-    #     for i in range(n_splits):
-    #         # Split data into train and test sets
-    #         # train_indices, test_indices, X_train, X_test, y_train, y_test = self.split_data(
-    #         #     self.labels, self.data, vintage=vintage, test_size=test_size)
-    #         X_train, X_test, y_train, y_test = train_test_split(
-    #             self.data, self.labels, test_size=test_size, stratify=self.labels
-    #         )
+    #     for i, (train_idx, val_idx, test_idx) in enumerate(predefined_splits):
+    #         X_train = self.data[train_idx]
+    #         X_test = self.data[test_idx]
+    #         y_train, y_test = self.labels[train_idx], self.labels[test_idx]
     #
     #         # Normalize data if enabled
     #         if normalize:
@@ -1595,10 +1605,10 @@ class Classifier:
     #             X_train = pca.fit_transform(X_train)
     #             X_test = pca.transform(X_test)
     #
-    #         # Train the classifier without sample_weight
+    #         # Train the classifier
     #         self.classifier.fit(X_train, y_train)
     #
-    #         # Print the current split number every 5 iterations to show progress
+    #         # Print progress every 5 iterations
     #         print(i, end=' ', flush=True) if i % 5 == 0 else None
     #
     #         # Predictions on test data
@@ -1620,7 +1630,6 @@ class Classifier:
     #         cm = confusion_matrix(y_test, y_pred, labels=custom_order if custom_order else None)
     #         confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
     #
-    #     # Print the current split number every 5 iterations to show progress
     #     print(i, end=' ', flush=True) if i % 5 == 0 else None
     #
     #     # Calculate mean confusion matrix and print results
@@ -1647,31 +1656,81 @@ class Classifier:
     #         'mean_confusion_matrix': mean_confusion_matrix
     #     }
 
-    def train_and_evaluate_balanced(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
-                                    scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
+    def train_and_evaluate_balanced(self, num_outer_repeats=3, n_inner_repeats=50, random_seed=42,
+                                    test_size=0.2, normalize=False, scaler_type='standard',
+                                    use_pca=False, vthresh=0.97, region=None,
                                     batch_size=32, num_epochs=10, learning_rate=0.001):
         """
-        Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
+        Train and evaluate the classifier using repeated outer stratified splits. For each outer repetition,
+        the training set is further split using RepeatedLeaveOneFromEachClassCV and validation metrics are computed.
+        The outer test set is ignored; only the training set is used for inner CV.
 
         Parameters
         ----------
-        (same as original)
+        num_outer_repeats : int
+            Number of times to repeat the outer stratified splitting.
+        n_inner_repeats : int
+            Number of inner CV repeats (passed to RepeatedLeaveOneFromEachClassCV).
+        random_seed : int, optional
+            Seed for reproducibility.
+        test_size : float, optional
+            Fraction of data to hold out (unused in metric computations).
+        normalize : bool, optional
+            Whether to normalize the data.
+        scaler_type : str, optional
+            Which scaler to use ('standard' or 'minmax').
+        use_pca : bool, optional
+            Whether to apply PCA.
+        vthresh : float, optional
+            Variance threshold for PCA.
+        region : str, optional
+            Determines custom ordering for confusion matrix.
+        batch_size, num_epochs, learning_rate : not used in this snippet.
 
         Returns
         -------
         dict
-            A dictionary containing mean accuracy, balanced accuracy, weighted accuracy, precision, recall, F1-score, and
-            the mean confusion matrix.
+            A dictionary with the average inner validation metrics across all outer repeats.
         """
-        # Initialize accumulators for metrics
-        accuracy_scores = []
-        balanced_accuracy_scores = []
-        weighted_accuracy_scores = []
-        precision_scores = []
-        recall_scores = []
-        f1_scores = []
-        confusion_matrix_sum = None
+        import numpy as np
+        from sklearn.model_selection import StratifiedShuffleSplit
+        from sklearn.metrics import balanced_accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+        from sklearn.decomposition import PCA
+        from sklearn.utils.class_weight import compute_sample_weight
 
+        class RepeatedLeaveOneFromEachClassCV(BaseCrossValidator):
+            """
+            Custom cross-validator that randomly selects one sample per class as the test set,
+            and repeats the process a specified number of times.
+            """
+
+            def __init__(self, n_repeats=50, shuffle=True, random_state=None):
+                self.n_repeats = n_repeats
+                self.shuffle = shuffle
+                self.random_state = random_state
+
+            def get_n_splits(self, X, y, groups=None):
+                return self.n_repeats
+
+            def split(self, X, y, groups=None):
+                indices_by_class = {}
+                for idx, label in enumerate(y):
+                    indices_by_class.setdefault(label, []).append(idx)
+
+                rng = np.random.default_rng(self.random_state)
+                for _ in range(self.n_repeats):
+                    test_indices = []
+                    for label, indices in indices_by_class.items():
+                        if self.shuffle:
+                            chosen = rng.choice(indices, size=1, replace=False)
+                        else:
+                            chosen = [indices[0]]
+                        test_indices.extend(chosen)
+                    test_indices = np.array(test_indices)
+                    train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+                    yield train_indices, test_indices
+
+        # Set up a custom order for the confusion matrix if a region is specified.
         if region == 'winery':
             custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
         elif region == 'origin':
@@ -1679,96 +1738,138 @@ class Classifier:
         else:
             custom_order = None
 
-        # Use the same random seed logic
+        # Initialize accumulators for outer-repetition averaged metrics.
+        outer_accuracy = []
+        outer_balanced_accuracy = []
+        outer_weighted_accuracy = []
+        outer_precision = []
+        outer_recall = []
+        outer_f1 = []
+        outer_cm = []
+
+        # Use a reproducible RNG.
         if random_seed is None:
-            random_seed = np.random.randint(0, 1e6)
+            random_seed = np.random.randint(0, int(1e6))
         rng = np.random.default_rng(random_seed)
 
-        # Predefine splits for consistency
-        predefined_splits = []
-        for _ in range(n_splits):
-            train_idx, temp_idx = train_test_split(
-                np.arange(len(self.labels)), test_size=test_size + test_size, stratify=self.labels,
-                random_state=rng.integers(0, 1e6)
-            )
-            val_idx, test_idx = train_test_split(
-                temp_idx, test_size=0.5, stratify=self.labels[temp_idx], random_state=rng.integers(0, 1e6)
-            )
-            predefined_splits.append((train_idx, val_idx, test_idx))
+        # Outer loop: Repeat the stratified splitting several times.
+        for repeat in range(num_outer_repeats):
+            print(f"\n🔁 Outer CV Repetition {repeat + 1}/{num_outer_repeats}")
 
-        # Apply PCA if enabled
-        if use_pca:
-            reducer = DimensionalityReducer(self.data)
-            _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
-            n_components = min(n_components, len(set(self.labels)))  # Adjust PCA components based on class count
-            pca = PCA(n_components=n_components, svd_solver='randomized')
+            # Outer split: use StratifiedShuffleSplit to split the data.
+            sss = StratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=rng.integers(0, int(1e6)))
+            train_idx, _ = next(sss.split(self.data, self.labels))
+            X_train_full = self.data[train_idx]
+            y_train_full = self.labels[train_idx]
 
-        print('Split', end=' ', flush=True)
-        # Cross-validation loop
-        for i, (train_idx, val_idx, test_idx) in enumerate(predefined_splits):
-            X_train = self.data[train_idx]
-            X_test = self.data[test_idx]
-            y_train, y_test = self.labels[train_idx], self.labels[test_idx]
+            # Accumulators for inner CV metrics in this outer repetition.
+            inner_acc = []
+            inner_bal_acc = []
+            inner_w_acc = []
+            inner_prec = []
+            inner_rec = []
+            inner_f1 = []
+            inner_cm_sum = None
 
-            # Normalize data if enabled
-            if normalize:
-                X_train, scaler = normalize_data(X_train, scaler=scaler_type)
-                X_test = scaler.transform(X_test)
+            # Instantiate the custom inner CV (using n_inner_repeats).
+            cv = RepeatedLeaveOneFromEachClassCV(n_repeats=n_inner_repeats, shuffle=True, random_state=random_seed)
+            for i, (inner_train_idx, inner_val_idx) in enumerate(cv.split(X_train_full, y_train_full)):
+                # Create inner training and validation sets.
+                X_train = X_train_full[inner_train_idx]
+                y_train = y_train_full[inner_train_idx]
+                X_val = X_train_full[inner_val_idx]
+                y_val = y_train_full[inner_val_idx]
 
-            # Apply PCA if enabled
-            if use_pca:
-                X_train = pca.fit_transform(X_train)
-                X_test = pca.transform(X_test)
+                # Apply normalization if enabled.
+                if normalize:
+                    X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+                    X_val = scaler.transform(X_val)
 
-            # Train the classifier
-            self.classifier.fit(X_train, y_train)
+                # Apply PCA if enabled.
+                if use_pca:
+                    pca = PCA(n_components=None, svd_solver='randomized')
+                    pca.fit(X_train)
+                    cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+                    n_components = np.searchsorted(cumulative_variance, vthresh) + 1
+                    n_components = min(n_components, len(np.unique(y_train)))
+                    pca = PCA(n_components=n_components, svd_solver='randomized')
+                    X_train = pca.fit_transform(X_train)
+                    X_val = pca.transform(X_val)
 
-            # Print progress every 5 iterations
-            print(i, end=' ', flush=True) if i % 5 == 0 else None
+                # Train the classifier on inner training set.
+                self.classifier.fit(X_train, y_train)
+                y_pred = self.classifier.predict(X_val)
 
-            # Predictions on test data
-            y_pred = self.classifier.predict(X_test)
+                # Compute and accumulate metrics for this inner fold.
+                inner_acc.append(self.classifier.score(X_val, y_val))
+                inner_bal_acc.append(balanced_accuracy_score(y_val, y_pred))
+                sw = compute_sample_weight(class_weight='balanced', y=y_val)
+                inner_w_acc.append(np.average(y_pred == y_val, weights=sw))
+                inner_prec.append(precision_score(y_val, y_pred, average='weighted', zero_division=0))
+                inner_rec.append(recall_score(y_val, y_pred, average='weighted', zero_division=0))
+                inner_f1.append(f1_score(y_val, y_pred, average='weighted', zero_division=0))
 
-            # Calculate metrics
-            accuracy_scores.append(self.classifier.score(X_test, y_test))
-            balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
+                cm = confusion_matrix(y_val, y_pred, labels=custom_order if custom_order else None)
+                if inner_cm_sum is None:
+                    inner_cm_sum = cm
+                else:
+                    inner_cm_sum += cm
 
-            # Compute weighted accuracy, precision, recall, and F1-score with sample weights
-            sample_weights = compute_sample_weight(class_weight='balanced', y=y_test)
-            weighted_accuracy = np.average(y_pred == y_test, weights=sample_weights)
-            weighted_accuracy_scores.append(weighted_accuracy)
-            precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
-            recall_scores.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
-            f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
+            # Compute averages for this outer repetition.
+            avg_acc = np.mean(inner_acc)
+            avg_bal_acc = np.mean(inner_bal_acc)
+            avg_w_acc = np.mean(inner_w_acc)
+            avg_prec = np.mean(inner_prec)
+            avg_rec = np.mean(inner_rec)
+            avg_f1 = np.mean(inner_f1)
+            avg_cm = inner_cm_sum / n_inner_repeats
 
-            # Confusion matrix for the current split
-            cm = confusion_matrix(y_test, y_pred, labels=custom_order if custom_order else None)
-            confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
+            print(f"Outer repetition {repeat + 1} metrics:")
+            print(f"  Accuracy: {avg_acc:.3f}")
+            print(f"  Balanced Accuracy: {avg_bal_acc:.3f}")
+            print(f"  Weighted Accuracy: {avg_w_acc:.3f}")
+            print(f"  Precision: {avg_prec:.3f}")
+            print(f"  Recall: {avg_rec:.3f}")
+            print(f"  F1 Score: {avg_f1:.3f}")
 
-        print(i, end=' ', flush=True) if i % 5 == 0 else None
+            # Accumulate outer metrics.
+            outer_accuracy.append(avg_acc)
+            outer_balanced_accuracy.append(avg_bal_acc)
+            outer_weighted_accuracy.append(avg_w_acc)
+            outer_precision.append(avg_prec)
+            outer_recall.append(avg_rec)
+            outer_f1.append(avg_f1)
+            outer_cm.append(avg_cm)
 
-        # Calculate mean confusion matrix and print results
-        mean_confusion_matrix = confusion_matrix_sum / n_splits
-        print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
+        # After all outer repetitions, compute overall averages.
+        overall_accuracy = np.mean(outer_accuracy)
+        overall_balanced_accuracy = np.mean(outer_balanced_accuracy)
+        overall_weighted_accuracy = np.mean(outer_weighted_accuracy)
+        overall_precision = np.mean(outer_precision)
+        overall_recall = np.mean(outer_recall)
+        overall_f1 = np.mean(outer_f1)
+        overall_cm = np.mean(outer_cm, axis=0)
+
+        print("\nFinal Averaged Inner CV Metrics Across Outer Repetitions:")
+        print(f"Overall Accuracy: {overall_accuracy:.3f} (+/- {np.std(outer_accuracy) * 2:.3f})")
         print(
-            f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
+            f"Overall Balanced Accuracy: {overall_balanced_accuracy:.3f} (+/- {np.std(outer_balanced_accuracy) * 2:.3f})")
         print(
-            f"Weighted Accuracy: {np.mean(weighted_accuracy_scores):.3f} (+/- {np.std(weighted_accuracy_scores) * 2:.3f})")
-        print(f"Precision: {np.mean(precision_scores):.3f}")
-        print(f"Recall: {np.mean(recall_scores):.3f}")
-        print(f"F1 Score: {np.mean(f1_scores):.3f}")
-        np.set_printoptions(linewidth=np.inf)
-        print("Mean Confusion Matrix:", mean_confusion_matrix)
+            f"Overall Weighted Accuracy: {overall_weighted_accuracy:.3f} (+/- {np.std(outer_weighted_accuracy) * 2:.3f})")
+        print(f"Overall Precision: {overall_precision:.3f}")
+        print(f"Overall Recall: {overall_recall:.3f}")
+        print(f"Overall F1 Score: {overall_f1:.3f}")
+        print("Overall Mean Confusion Matrix:")
+        print(overall_cm)
 
-        # Return metrics
         return {
-            'mean_accuracy': np.mean(accuracy_scores),
-            'mean_balanced_accuracy': np.mean(balanced_accuracy_scores),
-            'mean_weighted_accuracy': np.mean(weighted_accuracy_scores),
-            'mean_precision': np.mean(precision_scores),
-            'mean_recall': np.mean(recall_scores),
-            'mean_f1_score': np.mean(f1_scores),
-            'mean_confusion_matrix': mean_confusion_matrix
+            'overall_accuracy': overall_accuracy,
+            'overall_balanced_accuracy': overall_balanced_accuracy,
+            'overall_weighted_accuracy': overall_weighted_accuracy,
+            'overall_precision': overall_precision,
+            'overall_recall': overall_recall,
+            'overall_f1_score': overall_f1,
+            'overall_confusion_matrix': overall_cm
         }
 
 
@@ -3961,7 +4062,6 @@ def greedy_channel_selection(
 
     return selected_channels, accuracies_on_test
 
-
 def split_by_split_greedy_channel_selection(
     data, labels, alpha=1.0, num_splits=5, test_size=0.2, corr_threshold=0.85,
     max_channels=40, normalize=True, scaler_type='standard', random_seed=None,
@@ -4104,9 +4204,9 @@ def split_by_split_greedy_channel_selection(
     return ordered_channels, avg_validation_accuracies, avg_test_accuracies
 
 
-def split_by_split_nested_cv_channel_selection(
+def greedy_nested_cv_channel_selection(
         data, labels, alpha=1.0, num_outer_splits=5, num_outer_repeats=3, inner_cv_folds=3,
-        max_channels=40, normalize=True, scaler_type='standard', random_seed=None, parallel=True, n_jobs=-1):
+        max_channels=40, normalize=True, scaler_type='standard', random_seed=None, parallel=True, n_jobs=-1, method='concatenation'):
     """
     Perform nested cross-validation (CV) for greedy channel selection.
     Tracks validation and test accuracy for each added channel.
@@ -4197,15 +4297,31 @@ def split_by_split_nested_cv_channel_selection(
                 train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
                 yield train_indices, test_indices
 
-    def evaluate_channel(ch, selected_channels, X_train, y_train, X_val, y_val):
+    # def evaluate_channel(ch, selected_channels, X_train, y_train, X_val, y_val):
+    #     candidate_channels = selected_channels + [ch]
+    #     X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
+    #     X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+    #
+    #     model = RidgeClassifier(alpha=alpha)
+    #     model.fit(X_train_subset, y_train)
+    #     y_pred_val = model.predict(X_val_subset)
+    #     return ch, balanced_accuracy_score(y_val, y_pred_val)
+
+    def evaluate_channel(ch, selected_channels, X_train, y_train, X_val, y_val, method='concatenation'):
         candidate_channels = selected_channels + [ch]
-        X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
-        X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+        if method == "concatenation":
+            X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
+            X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+        elif method == "average":
+            #  Average into a single TIC per sample
+            X_train_subset = np.mean(X_train[:, :, candidate_channels], axis=2)
+            X_val_subset = np.mean(X_val[:, :, candidate_channels], axis=2)
 
         model = RidgeClassifier(alpha=alpha)
         model.fit(X_train_subset, y_train)
         y_pred_val = model.predict(X_val_subset)
         return ch, balanced_accuracy_score(y_val, y_pred_val)
+
 
     def scale_data(X_train, X_test, scaler_type='standard'):
         if scaler_type == 'standard':
@@ -4317,37 +4433,35 @@ def split_by_split_nested_cv_channel_selection(
         all_validation_accuracy_per_step.extend(rep_validation_accuracy_per_step)
         all_test_accuracy_per_step.extend(rep_test_accuracy_per_step)
 
-        # Plot for this repetition (non-blocking or save to file)
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.plot(range(1, len(rep_avg_validation_accuracies) + 1), rep_avg_validation_accuracies,
-                marker='s', linestyle='-', label='Validation Accuracy')
-        ax.fill_between(range(1, len(rep_avg_validation_accuracies) + 1),
-                        rep_avg_validation_accuracies - rep_std_validation_accuracies,
-                        rep_avg_validation_accuracies + rep_std_validation_accuracies,
-                        alpha=0.2)
-        ax.plot(range(1, len(rep_avg_test_accuracies) + 1), rep_avg_test_accuracies,
-                marker='o', linestyle='--', label='Test Accuracy')
-        ax.fill_between(range(1, len(rep_avg_test_accuracies) + 1),
-                        rep_avg_test_accuracies - rep_std_test_accuracies,
-                        rep_avg_test_accuracies + rep_std_test_accuracies,
-                        alpha=0.2)
-        # Annotate each test accuracy point with its corresponding channel
-        for i, txt in enumerate(step_selected_channels):
-            ax.annotate(str(txt), (i + 1, split_test_accuracies[i]), textcoords="offset points", xytext=(0, 5), ha='center')
-
-
-
-        ax.set_xlabel("Number of Selected Channels")
-        ax.set_ylabel("Balanced Accuracy")
-        ax.set_title(f"Validation and Test Accuracy Progression (Repetition {repeat + 1})")
-        ax.legend()
-        ax.grid()
-        # Option 1: Non-blocking display
-        plt.show(block=False)
-        plt.pause(0.5)
-        # Option 2: Save to file and close the figure
-        # plt.savefig(f"rep_{repeat + 1}_plot.png")
-        # plt.close(fig)
+        # # Plot for this repetition (non-blocking or save to file)
+        # fig, ax = plt.subplots(figsize=(10, 6))
+        # ax.plot(range(1, len(rep_avg_validation_accuracies) + 1), rep_avg_validation_accuracies,
+        #         marker='s', linestyle='-', label='Validation Accuracy')
+        # ax.fill_between(range(1, len(rep_avg_validation_accuracies) + 1),
+        #                 rep_avg_validation_accuracies - rep_std_validation_accuracies,
+        #                 rep_avg_validation_accuracies + rep_std_validation_accuracies,
+        #                 alpha=0.2)
+        # ax.plot(range(1, len(rep_avg_test_accuracies) + 1), rep_avg_test_accuracies,
+        #         marker='o', linestyle='--', label='Test Accuracy')
+        # ax.fill_between(range(1, len(rep_avg_test_accuracies) + 1),
+        #                 rep_avg_test_accuracies - rep_std_test_accuracies,
+        #                 rep_avg_test_accuracies + rep_std_test_accuracies,
+        #                 alpha=0.2)
+        # # Annotate each test accuracy point with its corresponding channel
+        # for i, txt in enumerate(step_selected_channels):
+        #     ax.annotate(str(txt), (i + 1, split_test_accuracies[i]), textcoords="offset points", xytext=(0, 5), ha='center')
+        #
+        # ax.set_xlabel("Number of Selected Channels")
+        # ax.set_ylabel("Balanced Accuracy")
+        # ax.set_title(f"Validation and Test Accuracy Progression (Repetition {repeat + 1})")
+        # ax.legend()
+        # ax.grid()
+        # # Option 1: Non-blocking display
+        # plt.show(block=False)
+        # plt.pause(0.5)
+        # # Option 2: Save to file and close the figure
+        # # plt.savefig(f"rep_{repeat + 1}_plot.png")
+        # # plt.close(fig)
 
     # After all repetitions, compute global averages if needed
     avg_test_accuracies = np.mean(all_test_accuracy_per_step, axis=0)
@@ -4389,8 +4503,2402 @@ def split_by_split_nested_cv_channel_selection(
     ax.grid()
     plt.show()
 
-
     return final_selected_channels, avg_test_accuracies, avg_validation_accuracies
+
+
+# def greedy_nested_cv_channel_selection_snr(
+# #         data, labels, alpha=1.0, num_outer_repeats=3, inner_cv_folds=3,
+# #         max_channels=40, normalize=True, scaler_type='standard', random_seed=None,
+# #         parallel=True, n_jobs=-1, method='concatenation'):
+# #     """
+# #     Perform nested CV for greedy channel selection using SNR-based candidate selection.
+# #     Uses a single outer split per repetition.
+# #
+# #     After each outer repetition is completed, the global average performance (over all repetitions so far)
+# #     is recalculated and the plot is updated showing the performance for all greedy elimination steps.
+# #     In the global aggregation, for each greedy step, candidate channels that appear in fewer than min_freq
+# #     repetitions are discarded. Among the remaining, the candidate with the highest average SNR (average
+# #     validation accuracy divided by standard deviation) is chosen, and only the accuracies from repetitions
+# #     selecting that channel are aggregated.
+# #
+# #     Returns:
+# #         - all_selected_channels (list): List of removal sequences (one per outer repetition)
+# #         - all_test_accuracy_per_step (list): List of test accuracy lists (one per outer repetition)
+# #         - all_validation_accuracy_per_step (list): List of validation accuracy lists (one per outer repetition)
+# #     """
+# #     import numpy as np
+# #     from sklearn.linear_model import RidgeClassifier
+# #     from sklearn.metrics import balanced_accuracy_score
+# #     from sklearn.model_selection import StratifiedShuffleSplit, BaseCrossValidator
+# #     from sklearn.preprocessing import StandardScaler, MinMaxScaler
+# #     from joblib import Parallel, delayed
+# #     import matplotlib.pyplot as plt
+# #
+# #     # Set random seed if not provided.
+# #     if random_seed is None:
+# #         random_seed = np.random.randint(0, int(1e6))
+# #     rng = np.random.default_rng(random_seed)
+# #
+# #     # Global accumulators across outer repetitions.
+# #     all_selected_channels = []  # Each element is a list (greedy elimination sequence) from one outer repetition.
+# #     all_test_accuracy_per_step = []  # Each element is a list of test accuracies (per step) from one rep.
+# #     all_validation_accuracy_per_step = []  # Each element is a list of validation accuracies (per step) from one rep.
+# #
+# #     # ----------------------------------
+# #     # Custom CV classes.
+# #     # ----------------------------------
+# #     class LeaveOneFromEachClassCV(BaseCrossValidator):
+# #         def __init__(self, shuffle=True, random_state=None):
+# #             self.shuffle = shuffle
+# #             self.random_state = random_state
+# #
+# #         def get_n_splits(self, X, y, groups=None):
+# #             _, counts = np.unique(y, return_counts=True)
+# #             return int(np.min(counts))
+# #
+# #         def split(self, X, y, groups=None):
+# #             indices_by_class = {}
+# #             for idx, label in enumerate(y):
+# #                 indices_by_class.setdefault(label, []).append(idx)
+# #             rng_local = np.random.default_rng(self.random_state)
+# #             for label in indices_by_class:
+# #                 if self.shuffle:
+# #                     rng_local.shuffle(indices_by_class[label])
+# #             n_splits = self.get_n_splits(X, y)
+# #             for split in range(n_splits):
+# #                 test_indices = []
+# #                 for label, indices in indices_by_class.items():
+# #                     test_indices.append(indices[split])
+# #                 test_indices = np.array(test_indices)
+# #                 train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+# #                 yield train_indices, test_indices
+# #
+# #     class RepeatedLeaveOneFromEachClassCV(BaseCrossValidator):
+# #         def __init__(self, n_repeats=50, shuffle=True, random_state=None):
+# #             self.n_repeats = n_repeats
+# #             self.shuffle = shuffle
+# #             self.random_state = random_state
+# #
+# #         def get_n_splits(self, X, y, groups=None):
+# #             return self.n_repeats
+# #
+# #         def split(self, X, y, groups=None):
+# #             indices_by_class = {}
+# #             for idx, label in enumerate(y):
+# #                 indices_by_class.setdefault(label, []).append(idx)
+# #             rng_local = np.random.default_rng(self.random_state)
+# #             for _ in range(self.n_repeats):
+# #                 test_indices = []
+# #                 for label, indices in indices_by_class.items():
+# #                     if self.shuffle:
+# #                         chosen = rng_local.choice(indices, size=1, replace=False)
+# #                     else:
+# #                         chosen = [indices[0]]
+# #                     test_indices.extend(chosen)
+# #                 test_indices = np.array(test_indices)
+# #                 train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+# #                 yield train_indices, test_indices
+# #
+# #     # ----------------------------------
+# #     # Helper functions.
+# #     # ----------------------------------
+# #
+# #     def evaluate_channel(ch, selected_channels, X_train, y_train, X_val, y_val, method=method):
+# #         candidate_channels = selected_channels + [ch]
+# #         if method == "concatenation":
+# #             X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
+# #             X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+# #         elif method == "average":
+# #             X_train_subset = np.mean(X_train[:, :, candidate_channels], axis=2)
+# #             X_val_subset = np.mean(X_val[:, :, candidate_channels], axis=2)
+# #         model = RidgeClassifier(alpha=alpha)
+# #         model.fit(X_train_subset, y_train)
+# #         y_pred_val = model.predict(X_val_subset)
+# #         return ch, balanced_accuracy_score(y_val, y_pred_val)
+# #
+# #     def evaluate_candidate_incremental(ch, cum_sum_train, cum_sum_val, count,
+# #                                        X_train, y_train, X_val, y_val, alpha):
+# #         """
+# #         Evaluate candidate channel 'ch' using precomputed cumulative sums.
+# #
+# #         Instead of re‑summing the selected channels every time, we use the cached
+# #         cumulative sums (cum_sum_train and cum_sum_val) and simply add the candidate's data.
+# #
+# #         Parameters:
+# #           - ch: Candidate channel index.
+# #           - cum_sum_train (np.ndarray): Precomputed sum over selected channels for training data.
+# #           - cum_sum_val (np.ndarray): Precomputed sum over selected channels for validation data.
+# #           - count (int): Number of channels in the cumulative sum.
+# #           - X_train, X_val: Data arrays of shape (n_samples, n_time, n_channels).
+# #           - y_train, y_val: Corresponding labels.
+# #           - alpha: Regularization parameter for the RidgeClassifier.
+# #
+# #         Returns:
+# #           - (ch, balanced_validation_accuracy)
+# #         """
+# #         # Compute the average for training data by adding the candidate channel
+# #         # and dividing by count+1 (i.e. the new total number of channels)
+# #         X_train_candidate = (cum_sum_train + X_train[:, :, ch]) / (count + 1)
+# #         X_val_candidate = (cum_sum_val + X_val[:, :, ch]) / (count + 1)
+# #
+# #         # Train and evaluate the classifier
+# #         model = RidgeClassifier(alpha=alpha)
+# #         model.fit(X_train_candidate, y_train)
+# #         y_pred_val = model.predict(X_val_candidate)
+# #         return ch, balanced_accuracy_score(y_val, y_pred_val)
+# #
+# #     def evaluate_candidate_average_single(i, candidate_channels, avg_train, avg_val, y_train, y_val, alpha):
+# #         """
+# #         Evaluate a single candidate channel (used in batch evaluation for the average method)
+# #         and intended to be called in parallel.
+# #         """
+# #         # Extract candidate's averaged features.
+# #         X_train_candidate = avg_train[:, :, i]
+# #         X_val_candidate = avg_val[:, :, i]
+# #         model = RidgeClassifier(alpha=alpha)
+# #         model.fit(X_train_candidate, y_train)
+# #         y_pred_val = model.predict(X_val_candidate)
+# #         score = balanced_accuracy_score(y_val, y_pred_val)
+# #         return candidate_channels[i], score
+# #
+# #     def evaluate_candidates_average_batch(cum_sum_train, cum_sum_val, count,
+# #                                           candidate_channels, X_train, y_train, X_val, y_val, alpha, parallel_flag=True, n_jobs_flag=-1):
+# #         """
+# #         Batch-evaluate multiple candidate channels for the "average" method.
+# #         Uses broadcasting to compute the averaged features for all candidates,
+# #         then evaluates each candidate in parallel.
+# #         """
+# #         n_train = X_train.shape[0]
+# #         n_val = X_val.shape[0]
+# #         # Extract candidate channel data.
+# #         candidate_train = X_train[:, :, candidate_channels]  # shape: (n_train, n_time, n_candidates)
+# #         candidate_val = X_val[:, :, candidate_channels]        # shape: (n_val, n_time, n_candidates)
+# #         # Compute averaged features with broadcasting.
+# #         avg_train = (cum_sum_train[..., None] + candidate_train) / (count + 1)
+# #         avg_val = (cum_sum_val[..., None] + candidate_val) / (count + 1)
+# #         n_candidates = avg_train.shape[2]
+# #         # Evaluate each candidate in parallel.
+# #         if parallel_flag:
+# #             results = Parallel(n_jobs=n_jobs_flag, backend='loky')(
+# #                 delayed(evaluate_candidate_average_single)(i, candidate_channels, avg_train, avg_val, y_train, y_val, alpha)
+# #                 for i in range(n_candidates)
+# #             )
+# #         else:
+# #             results = [evaluate_candidate_average_single(i, candidate_channels, avg_train, avg_val, y_train, y_val, alpha)
+# #                        for i in range(n_candidates)]
+# #         return results
+# #
+# #
+# #     def scale_data(X_train, X_test, scaler_type='standard'):
+# #         if scaler_type == 'standard':
+# #             scaler = StandardScaler()
+# #         elif scaler_type == 'minmax':
+# #             scaler = MinMaxScaler()
+# #         else:
+# #             raise ValueError("Unsupported scaler type. Choose 'standard' or 'minmax'.")
+# #         X_train = scaler.fit_transform(X_train.reshape(X_train.shape[0], -1)).reshape(X_train.shape)
+# #         X_test = scaler.transform(X_test.reshape(X_test.shape[0], -1)).reshape(X_test.shape)
+# #         return X_train, X_test
+# #
+# #     model = RidgeClassifier(alpha=alpha)
+# #
+# #     # ----------------------------------
+# #     # Set up interactive plotting (update after every outer repetition).
+# #     # ----------------------------------
+# #     plt.ion()
+# #     fig, ax = plt.subplots(figsize=(10, 6))
+# #
+# #     # ----------------------------------
+# #     # Outer repetition loop.
+# #     # ----------------------------------
+# #     for repeat in range(num_outer_repeats):
+# #         print(f"\n🔁 Outer CV Repetition {repeat + 1}/{num_outer_repeats}")
+# #         # Use a single outer split per repetition.
+# #         outer_cv = StratifiedShuffleSplit(n_splits=1, test_size=0.2,
+# #                                           random_state=rng.integers(0, int(1e6)))
+# #         train_val_idx, test_idx = next(outer_cv.split(data, labels))
+# #         X_train_val, X_test = data[train_val_idx], data[test_idx]
+# #         if normalize:
+# #             X_train_val, X_test = scale_data(X_train_val, X_test, scaler_type)
+# #         y_train_val, y_test = labels[train_val_idx], labels[test_idx]
+# #
+# #         # Set up inner CV.
+# #         inner_cv = RepeatedLeaveOneFromEachClassCV(n_repeats=inner_cv_folds, shuffle=True,
+# #                                                    random_state=rng.integers(0, int(1e6)))
+# #
+# #         step_selected_channels = []  # Greedy channel sequence for this repetition.
+# #         rep_validation_accuracies = []  # Validation accuracy per greedy step.
+# #         rep_test_accuracies = []  # Test accuracy per greedy step.
+# #
+# #         # Greedy selection loop.
+# #         for step in range(max_channels):
+# #             print(f"Selecting channel {step + 1}/{max_channels}")
+# #             remaining_channels = [ch for ch in range(data.shape[2]) if ch not in step_selected_channels]
+# #             if not remaining_channels:
+# #                 break
+# #
+# #             best_channel_per_fold = []
+# #             val_accuracies_per_fold = []
+# #
+# #             # For each inner CV fold, evaluate all remaining candidates.
+# #             for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val):
+# #                 X_inner_train, X_inner_val = X_train_val[inner_train_idx], X_train_val[inner_val_idx]
+# #                 y_inner_train, y_inner_val = y_train_val[inner_train_idx], y_train_val[inner_val_idx]
+# #                 if method == "concatenation":
+# #                     # Existing branch for "concatenation" remains unchanged:
+# #                     if parallel:
+# #                         results = Parallel(n_jobs=n_jobs, backend='loky')(
+# #                             delayed(evaluate_channel)(
+# #                                 ch, step_selected_channels,
+# #                                 X_inner_train, y_inner_train,
+# #                                 X_inner_val, y_inner_val,
+# #                                 method=method
+# #                             ) for ch in remaining_channels
+# #                         )
+# #                     else:
+# #                         results = [evaluate_channel(
+# #                             ch, step_selected_channels,
+# #                             X_inner_train, y_inner_train,
+# #                             X_inner_val, y_inner_val,
+# #                             method=method
+# #                         ) for ch in remaining_channels]
+# #
+# #                 elif method == "average":
+# #                     # Precompute the cumulative sum for the already selected channels once:
+# #                     if step_selected_channels:
+# #                         cum_sum_train = np.sum(X_inner_train[:, :, step_selected_channels], axis=2)
+# #                         cum_sum_val = np.sum(X_inner_val[:, :, step_selected_channels], axis=2)
+# #                         count = len(step_selected_channels)
+# #                     else:
+# #                         # No channels selected yet: use zeros so that adding a candidate gives its own values.
+# #                         cum_sum_train = np.zeros_like(X_inner_train[:, :, 0])
+# #                         cum_sum_val = np.zeros_like(X_inner_val[:, :, 0])
+# #                         count = 0
+# #
+# #                     # Now, for each candidate channel, we only need one vector addition and one division.
+# #                     results = evaluate_candidates_average_batch(
+# #                         cum_sum_train, cum_sum_val, count,
+# #                         remaining_channels,
+# #                         X_inner_train, y_inner_train,
+# #                         X_inner_val, y_inner_val,
+# #                         alpha,
+# #                         parallel_flag=parallel,
+# #                         n_jobs_flag=n_jobs
+# #                     )
+# #                     # if parallel:
+# #                     #     results = Parallel(n_jobs=n_jobs, backend='loky')(
+# #                     #         delayed(evaluate_candidate_incremental)(
+# #                     #             ch, cum_sum_train, cum_sum_val, count,
+# #                     #             X_inner_train, y_inner_train,
+# #                     #             X_inner_val, y_inner_val, alpha
+# #                     #         ) for ch in remaining_channels
+# #                     #     )
+# #                     # else:
+# #                     #     results = [evaluate_candidate_incremental(
+# #                     #         ch, cum_sum_train, cum_sum_val, count,
+# #                     #         X_inner_train, y_inner_train,
+# #                     #         X_inner_val, y_inner_val, alpha
+# #                     #     ) for ch in remaining_channels]
+# #
+# #                 # Select the best candidate from this fold.
+# #                 best_channel, best_accuracy = max(results, key=lambda x: x[1])
+# #                 best_channel_per_fold.append(best_channel)
+# #                 val_accuracies_per_fold.append(best_accuracy)
+# #
+# #             # Compute SNR for candidate channels across inner folds.
+# #             epsilon = 1e-8
+# #             candidate_channels = list(set(best_channel_per_fold))
+# #             channel_avg_accuracy = {
+# #                 ch: np.mean([acc for ch_fold, acc in zip(best_channel_per_fold, val_accuracies_per_fold)
+# #                              if ch_fold == ch])
+# #                 for ch in candidate_channels
+# #             }
+# #             channel_std_accuracy = {
+# #                 ch: np.std([acc for ch_fold, acc in zip(best_channel_per_fold, val_accuracies_per_fold)
+# #                             if ch_fold == ch])
+# #                 for ch in candidate_channels
+# #             }
+# #             channel_snr = {
+# #                 ch: channel_avg_accuracy[ch] / (channel_std_accuracy[ch] + epsilon)
+# #                 for ch in candidate_channels
+# #             }
+# #             best_channel = max(candidate_channels, key=lambda ch: channel_snr[ch])
+# #             step_selected_channels.append(best_channel)
+# #             best_channel_snr = channel_snr[best_channel]
+# #             # Record the SNR along with the validation accuracy.
+# #             accuracies_for_best_channel = [acc for ch, acc in zip(best_channel_per_fold, val_accuracies_per_fold)
+# #                                            if ch == best_channel]
+# #             rep_validation_accuracies.append(np.mean(accuracies_for_best_channel))
+# #             # Evaluate test accuracy using channels selected so far.
+# #             X_train_subset = X_train_val[:, :, step_selected_channels].reshape(len(X_train_val), -1)
+# #             X_test_subset = X_test[:, :, step_selected_channels].reshape(len(X_test), -1)
+# #             model.fit(X_train_subset, y_train_val)
+# #             y_pred = model.predict(X_test_subset)
+# #             rep_test_accuracies.append(balanced_accuracy_score(y_test, y_pred))
+# #
+# #         # End of greedy loop for this repetition.
+# #         all_selected_channels.append(step_selected_channels.copy())
+# #         all_validation_accuracy_per_step.append(rep_validation_accuracies.copy())
+# #         all_test_accuracy_per_step.append(rep_test_accuracies.copy())
+# #
+# #         # ----------------------------------
+# #         # Global aggregation after this repetition:
+# #         # For each greedy step, consider only those repetitions where the selected channel appears,
+# #         # and discard channels that appear in fewer than min_freq repetitions.
+# #         # ----------------------------------
+# #         min_freq = 3  # Set minimum frequency threshold.
+# #         num_reps = len(all_validation_accuracy_per_step)
+# #         min_steps = min(len(rep) for rep in all_validation_accuracy_per_step)
+# #         final_selected_channels = []
+# #         global_val = []
+# #         global_val_std = []
+# #         global_test = []
+# #         global_test_std = []
+# #         global_snr = []
+# #         global_freq = []  # store frequency of the aggregated best candidate at each step
+# #
+# #
+# #         for step in range(min_steps):
+# #             candidate_info = []
+# #             for rep in range(num_reps):
+# #                 candidate_info.append((
+# #                     all_selected_channels[rep][step],
+# #                     all_validation_accuracy_per_step[rep][step],
+# #                     all_test_accuracy_per_step[rep][step]
+# #                 ))
+# #             epsilon = 1e-8
+# #             # Calculate frequency for each candidate channel.
+# #             freq_dict = {}
+# #             for ch, _, _ in candidate_info:
+# #                 freq_dict[ch] = freq_dict.get(ch, 0) + 1
+# #             # Discard candidates that appear less than min_freq times.
+# #             candidate_channels = [ch for ch in freq_dict if freq_dict[ch] >= min_freq]
+# #             # If no candidate meets the threshold, fall back to all candidates.
+# #             if not candidate_channels:
+# #                 candidate_channels = list(freq_dict.keys())
+# #             # Compute average and standard deviation of validation accuracy for each candidate.
+# #             channel_avg = {ch: np.mean([score for c, score, _ in candidate_info if c == ch])
+# #                            for ch in candidate_channels}
+# #             channel_std = {ch: np.std([score for c, score, _ in candidate_info if c == ch])
+# #                            for ch in candidate_channels}
+# #             # Compute SNR.
+# #             channel_snr = {ch: channel_avg[ch] / (channel_std[ch] + epsilon)
+# #                            for ch in candidate_channels}
+# #             best_candidate = max(candidate_channels, key=lambda ch: channel_snr[ch])
+# #             final_selected_channels.append(best_candidate)
+# #             global_snr.append(channel_snr[best_candidate])
+# #             # Record the frequency.
+# #             freq = freq_dict.get(best_candidate, 0)
+# #             global_freq.append(freq)
+# #             # Now, take only those repetitions where the candidate equals the best.
+# #             vals = [val for c, val, _ in candidate_info if c == best_candidate]
+# #             tests = [test for c, _, test in candidate_info if c == best_candidate]
+# #             global_val.append(np.mean(vals))
+# #             global_val_std.append(np.std(vals))
+# #             global_test.append(np.mean(tests))
+# #             global_test_std.append(np.std(tests))
+# #
+# #         # ----------------------------------
+# #         # Update the global plot after this repetition.
+# #         # ----------------------------------
+# #         ax.clear()
+# #         steps = np.arange(1, len(global_val) + 1)
+# #         ax.plot(steps, global_val, marker='s', linestyle='-', label='Validation Accuracy')
+# #         ax.fill_between(steps, np.array(global_val) - np.array(global_val_std),
+# #                         np.array(global_val) + np.array(global_val_std), alpha=0.2)
+# #         ax.plot(steps, global_test, marker='o', linestyle='--', label='Test Accuracy')
+# #         ax.fill_between(steps, np.array(global_test) - np.array(global_test_std),
+# #                         np.array(global_test) + np.array(global_test_std), alpha=0.2)
+# #         ax.set_xlabel("Number of Selected Channels")
+# #         ax.set_ylabel("Balanced Accuracy")
+# #         ax.set_title(f"Global Accuracy Progression (After {num_reps} Repetitions)")
+# #         ax.legend()
+# #         ax.grid()
+# #         # Annotate each step with the aggregated best channel and its average SNR.
+# #         for i, ch in enumerate(final_selected_channels):
+# #             annotation = f"{ch}" # (SNR={global_snr[i]:.2f})"
+# #             ax.annotate(annotation, (i + 1, global_test[i]), textcoords="offset points", xytext=(0, 5), ha='center'
+# #                         , fontsize=6)
+# #             # Annotate the frequency below in a smaller font.
+# #             ax.annotate(f"({global_freq[i]})", (i + 1, global_test[i]),
+# #                     textcoords="offset points", xytext=(0, -10), ha='center', fontsize=6)
+# #         plt.draw()
+# #         plt.pause(1.0)
+# #
+# #     plt.ioff()
+# #     plt.show()
+# #
+# #     return all_selected_channels, all_test_accuracy_per_step, all_validation_accuracy_per_step
+
+# THIS VERSION PARALLELISES THE FOLDS, NOT THE CHANNELS
+def greedy_nested_cv_channel_selection_snr(
+        data, labels, alpha=1.0, num_outer_repeats=3, inner_cv_folds=3,
+        max_channels=40, normalize=True, scaler_type='standard', random_seed=None,
+        parallel=True, n_jobs=-1, method='concatenation', min_frequency=3):
+    """
+    Perform nested CV for greedy channel selection using SNR-based candidate selection.
+    Uses a single outer split per repetition.
+
+    After each outer repetition is completed, the global average performance (over all repetitions so far)
+    is recalculated and the plot is updated showing the performance for all greedy elimination steps.
+    In the global aggregation, for each greedy step, candidate channels that appear at least min_frequency times
+    are given priority over those that do not (i.e. only candidates meeting this frequency threshold are considered;
+    if none meet the threshold, all are considered). Among these, the candidate with the highest average accuracy
+    (or SNR, computed as average accuracy divided by standard deviation) is chosen, and the number of outer repetitions
+    that selected that channel is annotated.
+
+    Returns:
+        - all_selected_channels (list): List of elimination sequences (one per outer repetition)
+        - all_test_accuracy_per_step (list): List of test accuracy lists (one per outer repetition)
+        - all_validation_accuracy_per_step (list): List of validation accuracy lists (one per outer repetition)
+    """
+    import numpy as np
+    from sklearn.linear_model import RidgeClassifier
+    from sklearn.metrics import balanced_accuracy_score
+    from sklearn.model_selection import StratifiedShuffleSplit, BaseCrossValidator
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    from joblib import Parallel, delayed
+    import matplotlib.pyplot as plt
+
+    # Set random seed if not provided.
+    if random_seed is None:
+        random_seed = np.random.randint(0, int(1e6))
+    rng = np.random.default_rng(random_seed)
+
+    # Global accumulators.
+    all_selected_channels = []  # One elimination sequence per outer repetition.
+    all_test_accuracy_per_step = []  # Test accuracies per elimination step.
+    all_validation_accuracy_per_step = []  # Validation accuracies per elimination step.
+
+    # ----------------------------------
+    # Custom CV classes.
+    # ----------------------------------
+    class LeaveOneFromEachClassCV(BaseCrossValidator):
+        def __init__(self, shuffle=True, random_state=None):
+            self.shuffle = shuffle
+            self.random_state = random_state
+
+        def get_n_splits(self, X, y, groups=None):
+            _, counts = np.unique(y, return_counts=True)
+            return int(np.min(counts))
+
+        def split(self, X, y, groups=None):
+            indices_by_class = {}
+            for idx, label in enumerate(y):
+                indices_by_class.setdefault(label, []).append(idx)
+            rng_local = np.random.default_rng(self.random_state)
+            for label in indices_by_class:
+                if self.shuffle:
+                    rng_local.shuffle(indices_by_class[label])
+            n_splits = self.get_n_splits(X, y)
+            for split in range(n_splits):
+                test_indices = []
+                for label, indices in indices_by_class.items():
+                    test_indices.append(indices[split])
+                test_indices = np.array(test_indices)
+                train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+                yield train_indices, test_indices
+
+    class RepeatedLeaveOneFromEachClassCV(BaseCrossValidator):
+        def __init__(self, n_repeats=50, shuffle=True, random_state=None):
+            self.n_repeats = n_repeats
+            self.shuffle = shuffle
+            self.random_state = random_state
+
+        def get_n_splits(self, X, y, groups=None):
+            return self.n_repeats
+
+        def split(self, X, y, groups=None):
+            indices_by_class = {}
+            for idx, label in enumerate(y):
+                indices_by_class.setdefault(label, []).append(idx)
+            rng_local = np.random.default_rng(self.random_state)
+            for _ in range(self.n_repeats):
+                test_indices = []
+                for label, indices in indices_by_class.items():
+                    if self.shuffle:
+                        chosen = rng_local.choice(indices, size=1, replace=False)
+                    else:
+                        chosen = [indices[0]]
+                    test_indices.extend(chosen)
+                test_indices = np.array(test_indices)
+                train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+                yield train_indices, test_indices
+
+    # ----------------------------------
+    # Helper functions.
+    # ----------------------------------
+    def evaluate_channel(ch, selected_channels, X_train, y_train, X_val, y_val, method=method):
+        """
+        Per-candidate evaluation (used for the concatenation method).
+        """
+        candidate_channels = selected_channels + [ch]
+        if method == "concatenation":
+            X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
+            X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+        elif method == "average":
+            X_train_subset = np.mean(X_train[:, :, candidate_channels], axis=2)
+            X_val_subset = np.mean(X_val[:, :, candidate_channels], axis=2)
+        model = RidgeClassifier(alpha=alpha)
+        model.fit(X_train_subset, y_train)
+        y_pred_val = model.predict(X_val_subset)
+        return ch, balanced_accuracy_score(y_val, y_pred_val)
+
+    def evaluate_candidates_average_batch(cum_sum_train, cum_sum_val, count,
+                                          candidate_channels, X_train, y_train, X_val, y_val, alpha):
+        """
+        Batch-evaluate candidate channels for the "average" method.
+        This function computes the averaged features for all candidates at once using broadcasting.
+        Candidate evaluation here is done sequentially within the fold.
+        """
+        n_train = X_train.shape[0]
+        n_val = X_val.shape[0]
+        candidate_train = X_train[:, :, candidate_channels]  # shape: (n_train, n_time, n_candidates)
+        candidate_val = X_val[:, :, candidate_channels]
+        avg_train = (cum_sum_train[..., None] + candidate_train) / (count + 1)
+        avg_val = (cum_sum_val[..., None] + candidate_val) / (count + 1)
+        n_candidates = avg_train.shape[2]
+        results = []
+        for i in range(n_candidates):
+            X_train_candidate = avg_train[:, :, i]
+            X_val_candidate = avg_val[:, :, i]
+            model = RidgeClassifier(alpha=alpha)
+            model.fit(X_train_candidate, y_train)
+            y_pred_val = model.predict(X_val_candidate)
+            score = balanced_accuracy_score(y_val, y_pred_val)
+            results.append((candidate_channels[i], score))
+        return results
+
+    def evaluate_inner_fold(inner_train_idx, inner_val_idx, X_train_val, y_train_val,
+                            selected_channels, remaining_channels, alpha, method):
+        """
+        Evaluate one inner CV fold.
+        For the average method, precompute the cumulative sum for the selected channels
+        and then evaluate all candidate channels (sequentially within that fold).
+        For the concatenation method, evaluate candidates one by one.
+        Returns a tuple: (best_candidate, best_accuracy) for this fold.
+        """
+        X_inner_train = X_train_val[inner_train_idx]
+        X_inner_val = X_train_val[inner_val_idx]
+        y_inner_train = y_train_val[inner_train_idx]
+        y_inner_val = y_train_val[inner_val_idx]
+
+        if method == "concatenation":
+            results = [evaluate_channel(ch, selected_channels, X_inner_train, y_inner_train,
+                                        X_inner_val, y_inner_val, method=method)
+                       for ch in remaining_channels]
+        elif method == "average":
+            if selected_channels:
+                cum_sum_train = np.sum(X_inner_train[:, :, selected_channels], axis=2)
+                cum_sum_val = np.sum(X_inner_val[:, :, selected_channels], axis=2)
+                count = len(selected_channels)
+            else:
+                cum_sum_train = np.zeros_like(X_inner_train[:, :, 0])
+                cum_sum_val = np.zeros_like(X_inner_val[:, :, 0])
+                count = 0
+            results = evaluate_candidates_average_batch(cum_sum_train, cum_sum_val, count,
+                                                        remaining_channels, X_inner_train, y_inner_train,
+                                                        X_inner_val, y_inner_val, alpha)
+        else:
+            raise ValueError("Unsupported method. Choose 'concatenation' or 'average'.")
+
+        best_candidate, best_accuracy = max(results, key=lambda x: x[1])
+        return best_candidate, best_accuracy
+
+    def scale_data(X_train, X_test, scaler_type='standard'):
+        if scaler_type == 'standard':
+            scaler = StandardScaler()
+        elif scaler_type == 'minmax':
+            scaler = MinMaxScaler()
+        else:
+            raise ValueError("Unsupported scaler type. Choose 'standard' or 'minmax'.")
+        X_train = scaler.fit_transform(X_train.reshape(X_train.shape[0], -1)).reshape(X_train.shape)
+        X_test = scaler.transform(X_test.reshape(X_test.shape[0], -1)).reshape(X_test.shape)
+        return X_train, X_test
+
+    model = RidgeClassifier(alpha=alpha)
+
+    # ----------------------------------
+    # Set up interactive plotting.
+    # ----------------------------------
+    plt.ion()
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # ----------------------------------
+    # Outer repetition loop.
+    # ----------------------------------
+    for repeat in range(num_outer_repeats):
+        print(f"\n🔁 Outer CV Repetition {repeat + 1}/{num_outer_repeats}")
+        outer_cv = StratifiedShuffleSplit(n_splits=1, test_size=0.2,
+                                          random_state=rng.integers(0, int(1e6)))
+        train_val_idx, test_idx = next(outer_cv.split(data, labels))
+        X_train_val, X_test = data[train_val_idx], data[test_idx]
+        if normalize:
+            X_train_val, X_test = scale_data(X_train_val, X_test, scaler_type)
+        y_train_val, y_test = labels[train_val_idx], labels[test_idx]
+
+        inner_cv = RepeatedLeaveOneFromEachClassCV(n_repeats=inner_cv_folds, shuffle=True,
+                                                   random_state=rng.integers(0, int(1e6)))
+
+        step_selected_channels = []  # Elimination sequence for this outer repetition.
+        rep_validation_accuracies = []  # Validation accuracy per elimination step.
+        rep_test_accuracies = []  # Test accuracy per elimination step.
+
+        # Greedy elimination loop.
+        for step in range(max_channels):
+            print(f"Selecting channel {step + 1}/{max_channels}")
+            remaining_channels = [ch for ch in range(data.shape[2]) if ch not in step_selected_channels]
+            if not remaining_channels:
+                break
+
+            # Parallelize across inner CV folds (not candidate search within each fold).
+            fold_results = Parallel(n_jobs=n_jobs, backend='loky')(
+                delayed(evaluate_inner_fold)(
+                    inner_train_idx, inner_val_idx, X_train_val, y_train_val,
+                    step_selected_channels, remaining_channels, alpha, method
+                )
+                for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val)
+            )
+
+            # Aggregate the results from inner folds.
+            best_channel_per_fold = [result[0] for result in fold_results]
+            val_accuracies_per_fold = [result[1] for result in fold_results]
+
+            # Compute frequency (across inner folds) for each candidate.
+            candidate_channels = list(set(best_channel_per_fold))
+            freq_dict = {ch: best_channel_per_fold.count(ch) for ch in candidate_channels}
+            # Filter: if any candidate reaches min_frequency, consider only those.
+            candidates_meeting_freq = [ch for ch in candidate_channels if freq_dict[ch] >= min_frequency]
+            if candidates_meeting_freq:
+                candidate_candidates = candidates_meeting_freq
+            else:
+                candidate_candidates = candidate_channels
+
+            # Compute average and standard deviation of accuracies for the candidates.
+            epsilon = 1e-8
+            channel_avg_accuracy = {
+                ch: np.mean(
+                    [acc for ch_fold, acc in zip(best_channel_per_fold, val_accuracies_per_fold) if ch_fold == ch])
+                for ch in candidate_candidates
+            }
+            channel_std_accuracy = {
+                ch: np.std(
+                    [acc for ch_fold, acc in zip(best_channel_per_fold, val_accuracies_per_fold) if ch_fold == ch])
+                for ch in candidate_candidates
+            }
+            # Compute SNR.
+            channel_snr = {
+                ch: channel_avg_accuracy[ch] / (channel_std_accuracy[ch] + epsilon)
+                for ch in candidate_candidates
+            }
+            # Select the best candidate: priority is given to frequency (by filtering), then highest SNR
+            best_candidate = max(candidate_candidates, key=lambda ch: (channel_snr[ch], channel_avg_accuracy[ch]))
+            step_selected_channels.append(best_candidate)
+            accuracies_for_best_channel = [acc for ch, acc in zip(best_channel_per_fold, val_accuracies_per_fold)
+                                           if ch == best_candidate]
+            rep_validation_accuracies.append(np.mean(accuracies_for_best_channel))
+
+            # Evaluate test accuracy using the selected channels so far.
+            X_train_subset = X_train_val[:, :, step_selected_channels].reshape(len(X_train_val), -1)
+            X_test_subset = X_test[:, :, step_selected_channels].reshape(len(X_test), -1)
+            model.fit(X_train_subset, y_train_val)
+            y_pred = model.predict(X_test_subset)
+            rep_test_accuracies.append(balanced_accuracy_score(y_test, y_pred))
+
+        # End of greedy loop for this outer repetition.
+        all_selected_channels.append(step_selected_channels.copy())
+        all_validation_accuracy_per_step.append(rep_validation_accuracies.copy())
+        all_test_accuracy_per_step.append(rep_test_accuracies.copy())
+
+        # ----------------------------------
+        # Global aggregation and plotting (after current outer repetition)
+        # ----------------------------------
+        num_reps = len(all_test_accuracy_per_step)
+        # Use the minimum number of elimination steps across outer repetitions.
+        min_steps_global = min(len(rep) for rep in all_test_accuracy_per_step)
+
+        global_val = []
+        global_val_std = []
+        global_test = []
+        global_test_std = []
+        for step in range(min_steps_global):
+            val_accs = [all_validation_accuracy_per_step[r][step] for r in range(num_reps)]
+            test_accs = [all_test_accuracy_per_step[r][step] for r in range(num_reps)]
+            global_val.append(np.mean(val_accs))
+            global_val_std.append(np.std(val_accs))
+            global_test.append(np.mean(test_accs))
+            global_test_std.append(np.std(test_accs))
+
+        # Annotation: For each addition step, choose the candidate channel most frequently selected
+        # across outer repetitions. Apply the min_frequency rule here as well.
+        final_selected_channels = []
+        global_freq = []
+        for step in range(min_steps_global):
+            candidate_info = [(all_selected_channels[r][step], all_test_accuracy_per_step[r][step])
+                              for r in range(num_reps)]
+            freq_dict = {}
+            candidate_acc = {}
+            for ch, test_acc in candidate_info:
+                freq_dict[ch] = freq_dict.get(ch, 0) + 1
+                candidate_acc.setdefault(ch, []).append(test_acc)
+            # Filter by min_frequency.
+            candidates_meeting = [ch for ch in freq_dict if freq_dict[ch] >= min_frequency]
+            if candidates_meeting:
+                candidate_candidates = candidates_meeting
+            else:
+                candidate_candidates = list(freq_dict.keys())
+            best_candidate = max(candidate_candidates, key=lambda ch: (freq_dict[ch], np.mean(candidate_acc[ch])))
+            final_selected_channels.append(best_candidate)
+            global_freq.append(freq_dict[best_candidate])
+
+        # Plot the aggregated average accuracies.
+        ax.clear()
+        steps_axis = np.arange(1, min_steps_global + 1)
+        ax.plot(steps_axis, global_val, marker='s', linestyle='-', label='Validation Accuracy')
+        ax.fill_between(steps_axis,
+                        np.array(global_val) - np.array(global_val_std),
+                        np.array(global_val) + np.array(global_val_std), alpha=0.2)
+        ax.plot(steps_axis, global_test, marker='o', linestyle='--', label='Test Accuracy')
+        ax.fill_between(steps_axis,
+                        np.array(global_test) - np.array(global_test_std),
+                        np.array(global_test) + np.array(global_test_std), alpha=0.2)
+        ax.set_xlabel("Number of Selected Channels")
+        ax.set_ylabel("Balanced Accuracy")
+        ax.set_title(f"Average Accuracy Progression Across Outer Repetitions (After {num_reps} Repetitions)")
+        ax.legend()
+        ax.grid()
+        # Annotate each elimination step.
+        for i, ch in enumerate(final_selected_channels):
+            ax.annotate(f"{ch}", (steps_axis[i], global_test[i]),
+                        textcoords="offset points", xytext=(0, 5), ha="center", fontsize=10)
+            ax.annotate(f"({global_freq[i]})", (steps_axis[i], global_test[i]),
+                        textcoords="offset points", xytext=(0, -10), ha="center", fontsize=6)
+        plt.draw()
+        plt.pause(1.0)
+
+    plt.ioff()
+    plt.show()
+
+    return all_selected_channels, all_test_accuracy_per_step, all_validation_accuracy_per_step
+
+
+# #THIS VERSION PARALLELISES HE FOLDS AND IMPLEMENT MANY SPEEDUP TRICKS
+# def greedy_nested_cv_channel_selection_snr(
+#         data, labels, alpha=1.0, num_outer_repeats=3, inner_cv_folds=3,
+#         max_channels=40, normalize=True, scaler_type='standard', random_seed=None,
+#         parallel=True, n_jobs=-1, method='concatenation'):
+#     """
+#     Perform nested CV for greedy channel selection using SNR-based candidate selection.
+#     Uses a single outer split per repetition.
+#
+#     After each outer repetition is completed, the global average performance (over all repetitions so far)
+#     is recalculated and the plot is updated showing the performance for all greedy elimination steps.
+#     In the global aggregation, for each greedy step, candidate channels that appear in fewer than min_freq
+#     repetitions are discarded. Among the remaining, the candidate with the highest average SNR (average
+#     validation accuracy divided by standard deviation) is chosen, and only the accuracies from repetitions
+#     selecting that channel are aggregated.
+#
+#     Returns:
+#         - all_selected_channels (list): List of removal sequences (one per outer repetition)
+#         - all_test_accuracy_per_step (list): List of test accuracy lists (one per outer repetition)
+#         - all_validation_accuracy_per_step (list): List of validation accuracy lists (one per outer repetition)
+#     """
+#     import numpy as np
+#     from sklearn.linear_model import RidgeClassifier
+#     from sklearn.metrics import balanced_accuracy_score
+#     from sklearn.model_selection import StratifiedShuffleSplit, BaseCrossValidator
+#     from sklearn.preprocessing import StandardScaler, MinMaxScaler
+#     from joblib import Parallel, delayed
+#     import matplotlib.pyplot as plt
+#
+#     # Set random seed if not provided.
+#     if random_seed is None:
+#         random_seed = np.random.randint(0, int(1e6))
+#     rng = np.random.default_rng(random_seed)
+#
+#     # Global accumulators across outer repetitions.
+#     all_selected_channels = []  # One elimination sequence per outer repetition.
+#     all_test_accuracy_per_step = []  # Test accuracies per elimination step.
+#     all_validation_accuracy_per_step = []  # Validation accuracies per elimination step.
+#
+#     # ----------------------------------
+#     # Custom CV classes.
+#     # ----------------------------------
+#     class LeaveOneFromEachClassCV(BaseCrossValidator):
+#         def __init__(self, shuffle=True, random_state=None):
+#             self.shuffle = shuffle
+#             self.random_state = random_state
+#
+#         def get_n_splits(self, X, y, groups=None):
+#             _, counts = np.unique(y, return_counts=True)
+#             return int(np.min(counts))
+#
+#         def split(self, X, y, groups=None):
+#             indices_by_class = {}
+#             for idx, label in enumerate(y):
+#                 indices_by_class.setdefault(label, []).append(idx)
+#             rng_local = np.random.default_rng(self.random_state)
+#             for label in indices_by_class:
+#                 if self.shuffle:
+#                     rng_local.shuffle(indices_by_class[label])
+#             n_splits = self.get_n_splits(X, y)
+#             for split in range(n_splits):
+#                 test_indices = []
+#                 for label, indices in indices_by_class.items():
+#                     test_indices.append(indices[split])
+#                 test_indices = np.array(test_indices)
+#                 train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+#                 yield train_indices, test_indices
+#
+#     class RepeatedLeaveOneFromEachClassCV(BaseCrossValidator):
+#         def __init__(self, n_repeats=50, shuffle=True, random_state=None):
+#             self.n_repeats = n_repeats
+#             self.shuffle = shuffle
+#             self.random_state = random_state
+#
+#         def get_n_splits(self, X, y, groups=None):
+#             return self.n_repeats
+#
+#         def split(self, X, y, groups=None):
+#             indices_by_class = {}
+#             for idx, label in enumerate(y):
+#                 indices_by_class.setdefault(label, []).append(idx)
+#             rng_local = np.random.default_rng(self.random_state)
+#             for _ in range(self.n_repeats):
+#                 test_indices = []
+#                 for label, indices in indices_by_class.items():
+#                     if self.shuffle:
+#                         chosen = rng_local.choice(indices, size=1, replace=False)
+#                     else:
+#                         chosen = [indices[0]]
+#                     test_indices.extend(chosen)
+#                 test_indices = np.array(test_indices)
+#                 train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+#                 yield train_indices, test_indices
+#
+#     # ----------------------------------
+#     # Helper functions.
+#     # ----------------------------------
+#     def evaluate_channel(ch, selected_channels, X_train, y_train, X_val, y_val, method=method):
+#         """
+#         Legacy per-candidate evaluation (used for the concatenation method).
+#         """
+#         candidate_channels = selected_channels + [ch]
+#         if method == "concatenation":
+#             X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
+#             X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+#         elif method == "average":
+#             X_train_subset = np.mean(X_train[:, :, candidate_channels], axis=2)
+#             X_val_subset = np.mean(X_val[:, :, candidate_channels], axis=2)
+#         model = RidgeClassifier(alpha=alpha)
+#         model.fit(X_train_subset, y_train)
+#         y_pred_val = model.predict(X_val_subset)
+#         return ch, balanced_accuracy_score(y_val, y_pred_val)
+#
+#     def evaluate_candidates_average_batch(cum_sum_train, cum_sum_val, count,
+#                                           candidate_channels, X_train, y_train, X_val, y_val, alpha,
+#                                           parallel_flag=False, n_jobs_flag=1):
+#         """
+#         Batch-evaluate candidate channels for the "average" method.
+#         This function computes the averaged features for all candidates at once using broadcasting.
+#         The internal candidate evaluations can be run sequentially (parallel_flag=False) since
+#         we now parallelize the inner CV folds.
+#         """
+#         n_train = X_train.shape[0]
+#         n_val = X_val.shape[0]
+#         # Extract candidate channel data (shape: [n_train, n_time, n_candidates])
+#         candidate_train = X_train[:, :, candidate_channels]
+#         candidate_val = X_val[:, :, candidate_channels]
+#         # Compute averaged features with broadcasting.
+#         avg_train = (cum_sum_train[..., None] + candidate_train) / (count + 1)
+#         avg_val = (cum_sum_val[..., None] + candidate_val) / (count + 1)
+#         n_candidates = avg_train.shape[2]
+#
+#         # Define a simple inner loop over candidate indices.
+#         results = []
+#         for i in range(n_candidates):
+#             X_train_candidate = avg_train[:, :, i]
+#             X_val_candidate = avg_val[:, :, i]
+#             model = RidgeClassifier(alpha=alpha)
+#             model.fit(X_train_candidate, y_train)
+#             y_pred_val = model.predict(X_val_candidate)
+#             score = balanced_accuracy_score(y_val, y_pred_val)
+#             results.append((candidate_channels[i], score))
+#         return results
+#
+#     def evaluate_inner_fold(inner_train_idx, inner_val_idx, X_train_val, y_train_val,
+#                             selected_channels, remaining_channels, alpha, method):
+#         """
+#         Evaluate one inner CV fold:
+#          - Slice the training and validation sets for this fold.
+#          - For the average method: precompute the cumulative sum for the selected channels,
+#            then evaluate all candidate channels in batch (without further parallelism).
+#          - For the concatenation method: use the legacy per-candidate evaluation.
+#          - Return the best candidate (and its score) for this fold.
+#         """
+#         X_inner_train = X_train_val[inner_train_idx]
+#         X_inner_val = X_train_val[inner_val_idx]
+#         y_inner_train = y_train_val[inner_train_idx]
+#         y_inner_val = y_train_val[inner_val_idx]
+#
+#         if method == "concatenation":
+#             # Evaluate candidates one by one.
+#             results = [evaluate_channel(ch, selected_channels, X_inner_train, y_inner_train, X_inner_val, y_inner_val,
+#                                         method=method)
+#                        for ch in remaining_channels]
+#         elif method == "average":
+#             if selected_channels:
+#                 cum_sum_train = np.sum(X_inner_train[:, :, selected_channels], axis=2)
+#                 cum_sum_val = np.sum(X_inner_val[:, :, selected_channels], axis=2)
+#                 count = len(selected_channels)
+#             else:
+#                 cum_sum_train = np.zeros_like(X_inner_train[:, :, 0])
+#                 cum_sum_val = np.zeros_like(X_inner_val[:, :, 0])
+#                 count = 0
+#             # Evaluate all candidates in batch.
+#             results = evaluate_candidates_average_batch(cum_sum_train, cum_sum_val, count,
+#                                                         remaining_channels, X_inner_train, y_inner_train,
+#                                                         X_inner_val, y_inner_val, alpha,
+#                                                         parallel_flag=False, n_jobs_flag=10)
+#         else:
+#             raise ValueError("Unsupported method. Choose 'concatenation' or 'average'.")
+#
+#         # Choose the best candidate for this fold.
+#         best_candidate, best_accuracy = max(results, key=lambda x: x[1])
+#         return best_candidate, best_accuracy
+#
+#     def scale_data(X_train, X_test, scaler_type='standard'):
+#         if scaler_type == 'standard':
+#             scaler = StandardScaler()
+#         elif scaler_type == 'minmax':
+#             scaler = MinMaxScaler()
+#         else:
+#             raise ValueError("Unsupported scaler type. Choose 'standard' or 'minmax'.")
+#         X_train = scaler.fit_transform(X_train.reshape(X_train.shape[0], -1)).reshape(X_train.shape)
+#         X_test = scaler.transform(X_test.reshape(X_test.shape[0], -1)).reshape(X_test.shape)
+#         return X_train, X_test
+#
+#     model = RidgeClassifier(alpha=alpha)
+#
+#     # ----------------------------------
+#     # Set up interactive plotting.
+#     # ----------------------------------
+#     plt.ion()
+#     fig, ax = plt.subplots(figsize=(10, 6))
+#
+#     # ----------------------------------
+#     # Outer repetition loop.
+#     # ----------------------------------
+#     for repeat in range(num_outer_repeats):
+#         print(f"\n🔁 Outer CV Repetition {repeat + 1}/{num_outer_repeats}")
+#         outer_cv = StratifiedShuffleSplit(n_splits=1, test_size=0.2,
+#                                           random_state=rng.integers(0, int(1e6)))
+#         train_val_idx, test_idx = next(outer_cv.split(data, labels))
+#         X_train_val, X_test = data[train_val_idx], data[test_idx]
+#         if normalize:
+#             X_train_val, X_test = scale_data(X_train_val, X_test, scaler_type)
+#         y_train_val, y_test = labels[train_val_idx], labels[test_idx]
+#
+#         inner_cv = RepeatedLeaveOneFromEachClassCV(n_repeats=inner_cv_folds, shuffle=True,
+#                                                    random_state=rng.integers(0, int(1e6)))
+#
+#         step_selected_channels = []  # Greedy channel sequence for this repetition.
+#         rep_validation_accuracies = []  # Validation accuracy per elimination step.
+#         rep_test_accuracies = []  # Test accuracy per elimination step.
+#
+#         # Greedy elimination loop.
+#         for step in range(max_channels):
+#             print(f"Selecting channel {step + 1}/{max_channels}")
+#             remaining_channels = [ch for ch in range(data.shape[2]) if ch not in step_selected_channels]
+#             if not remaining_channels:
+#                 break
+#
+#             # Parallelize across inner CV folds.
+#             fold_results = Parallel(n_jobs=n_jobs, backend='loky')(
+#                 delayed(evaluate_inner_fold)(
+#                     inner_train_idx, inner_val_idx, X_train_val, y_train_val,
+#                     step_selected_channels, remaining_channels, alpha, method
+#                 )
+#                 for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val)
+#             )
+#
+#             # Collect best candidate and scores from each inner fold.
+#             best_channel_per_fold = [result[0] for result in fold_results]
+#             val_accuracies_per_fold = [result[1] for result in fold_results]
+#
+#             # Compute SNR for candidate channels across inner folds.
+#             epsilon = 1e-8
+#             candidate_channels = list(set(best_channel_per_fold))
+#             channel_avg_accuracy = {
+#                 ch: np.mean([acc for ch_fold, acc in zip(best_channel_per_fold, val_accuracies_per_fold)
+#                              if ch_fold == ch])
+#                 for ch in candidate_channels
+#             }
+#             channel_std_accuracy = {
+#                 ch: np.std([acc for ch_fold, acc in zip(best_channel_per_fold, val_accuracies_per_fold)
+#                             if ch_fold == ch])
+#                 for ch in candidate_channels
+#             }
+#             channel_snr = {
+#                 ch: channel_avg_accuracy[ch] / (channel_std_accuracy[ch] + epsilon)
+#                 for ch in candidate_channels
+#             }
+#             best_candidate = max(candidate_channels, key=lambda ch: channel_snr[ch])
+#             step_selected_channels.append(best_candidate)
+#             accuracies_for_best_channel = [acc for ch, acc in zip(best_channel_per_fold, val_accuracies_per_fold)
+#                                            if ch == best_candidate]
+#             rep_validation_accuracies.append(np.mean(accuracies_for_best_channel))
+#
+#             # Evaluate test accuracy using the channels selected so far.
+#             X_train_subset = X_train_val[:, :, step_selected_channels].reshape(len(X_train_val), -1)
+#             X_test_subset = X_test[:, :, step_selected_channels].reshape(len(X_test), -1)
+#             model.fit(X_train_subset, y_train_val)
+#             y_pred = model.predict(X_test_subset)
+#             rep_test_accuracies.append(balanced_accuracy_score(y_test, y_pred))
+#
+#         # End of greedy loop for this repetition.
+#         all_selected_channels.append(step_selected_channels.copy())
+#         all_validation_accuracy_per_step.append(rep_validation_accuracies.copy())
+#         all_test_accuracy_per_step.append(rep_test_accuracies.copy())
+#
+#         # ----------------------------------
+#         # Global aggregation and plotting.
+#         # ----------------------------------
+#         # min_freq = 3
+#         # num_reps = len(all_validation_accuracy_per_step)
+#         # min_steps = min(len(rep) for rep in all_validation_accuracy_per_step)
+#         # final_selected_channels = []
+#         # global_val = []
+#         # global_val_std = []
+#         # global_test = []
+#         # global_test_std = []
+#         # global_snr = []
+#         # global_freq = []
+#         #
+#         # for step in range(min_steps):
+#         #     candidate_info = []
+#         #     for rep in range(num_reps):
+#         #         candidate_info.append((
+#         #             all_selected_channels[rep][step],
+#         #             all_validation_accuracy_per_step[rep][step],
+#         #             all_test_accuracy_per_step[rep][step]
+#         #         ))
+#         #     epsilon = 1e-8
+#         #     freq_dict = {}
+#         #     for ch, _, _ in candidate_info:
+#         #         freq_dict[ch] = freq_dict.get(ch, 0) + 1
+#         #     candidate_channels = [ch for ch in freq_dict if freq_dict[ch] >= min_freq]
+#         #     if not candidate_channels:
+#         #         candidate_channels = list(freq_dict.keys())
+#         #     channel_avg = {ch: np.mean([score for c, score, _ in candidate_info if c == ch])
+#         #                    for ch in candidate_channels}
+#         #     channel_std = {ch: np.std([score for c, score, _ in candidate_info if c == ch])
+#         #                    for ch in candidate_channels}
+#         #     channel_snr = {ch: channel_avg[ch] / (channel_std[ch] + epsilon)
+#         #                    for ch in candidate_channels}
+#         #     best_candidate = max(candidate_channels, key=lambda ch: channel_snr[ch])
+#         #     final_selected_channels.append(best_candidate)
+#         #     global_snr.append(channel_snr[best_candidate])
+#         #     freq = freq_dict.get(best_candidate, 0)
+#         #     global_freq.append(freq)
+#         #     vals = [val for c, val, _ in candidate_info if c == best_candidate]
+#         #     tests = [test for c, _, test in candidate_info if c == best_candidate]
+#         #     global_val.append(np.mean(vals))
+#         #     global_val_std.append(np.std(vals))
+#         #     global_test.append(np.mean(tests))
+#         #     global_test_std.append(np.std(tests))
+#         #
+#         # ax.clear()
+#         # steps = np.arange(1, len(global_val) + 1)
+#         # ax.plot(steps, global_val, marker='s', linestyle='-', label='Validation Accuracy')
+#         # ax.fill_between(steps, np.array(global_val) - np.array(global_val_std),
+#         #                 np.array(global_val) + np.array(global_val_std), alpha=0.2)
+#         # ax.plot(steps, global_test, marker='o', linestyle='--', label='Test Accuracy')
+#         # ax.fill_between(steps, np.array(global_test) - np.array(global_test_std),
+#         #                 np.array(global_test) + np.array(global_test_std), alpha=0.2)
+#         # ax.set_xlabel("Number of Selected Channels")
+#         # ax.set_ylabel("Balanced Accuracy")
+#         # ax.set_title(f"Global Accuracy Progression (After {num_reps} Repetitions)")
+#         # ax.legend()
+#         # ax.grid()
+#         # for i, ch in enumerate(final_selected_channels):
+#         #     annotation = f"{ch}"
+#         #     ax.annotate(annotation, (i + 1, global_test[i]), textcoords="offset points",
+#         #                 xytext=(0, 5), ha='center', fontsize=10)
+#         #     ax.annotate(f"({global_freq[i]})", (i + 1, global_test[i]),
+#         #                 textcoords="offset points", xytext=(0, -10), ha='center', fontsize=6)
+#         # plt.draw()
+#         # plt.pause(1.0)
+#
+#         # ----------------------------------
+#         # Global aggregation and plotting (Average across outer repetitions)
+#         # ----------------------------------
+#         num_reps = len(all_test_accuracy_per_step)
+#         # Use the minimum number of steps present in all repetitions.
+#         min_steps = min(len(rep) for rep in all_test_accuracy_per_step)
+#
+#         # Aggregate the test and validation accuracies across outer repetitions.
+#         global_val = []
+#         global_val_std = []
+#         global_test = []
+#         global_test_std = []
+#         for step in range(min_steps):
+#             # Extract the accuracies for this elimination step across all outer repetitions.
+#             val_accs = [all_validation_accuracy_per_step[rep][step] for rep in range(num_reps)]
+#             test_accs = [all_test_accuracy_per_step[rep][step] for rep in range(num_reps)]
+#             global_val.append(np.mean(val_accs))
+#             global_val_std.append(np.std(val_accs))
+#             global_test.append(np.mean(test_accs))
+#             global_test_std.append(np.std(test_accs))
+#
+#         # For annotation: For each elimination step, determine the candidate channel
+#         # that was selected most frequently across outer repetitions.
+#         # In case of a tie, choose the one with the highest average test accuracy.
+#         final_selected_channels = []
+#         global_freq = []
+#         for step in range(min_steps):
+#             # Get candidate info from each repetition: (candidate, test_accuracy)
+#             candidate_info = [
+#                 (all_selected_channels[rep][step], all_test_accuracy_per_step[rep][step])
+#                 for rep in range(num_reps)
+#             ]
+#             # Count frequencies and accumulate test accuracies.
+#             freq_dict = {}
+#             candidate_acc = {}
+#             for ch, test_acc in candidate_info:
+#                 freq_dict[ch] = freq_dict.get(ch, 0) + 1
+#                 if ch in candidate_acc:
+#                     candidate_acc[ch].append(test_acc)
+#                 else:
+#                     candidate_acc[ch] = [test_acc]
+#             # Get the list of candidate channels.
+#             unique_candidates = list(freq_dict.keys())
+#             # Choose the candidate maximizing (frequency, average test accuracy).
+#             best_candidate = max(unique_candidates,
+#                                  key=lambda ch: (freq_dict[ch], np.mean(candidate_acc[ch])))
+#             final_selected_channels.append(best_candidate)
+#             global_freq.append(freq_dict[best_candidate])
+#
+#         # Plot the aggregated average accuracies.
+#         ax.clear()
+#         steps = np.arange(1, min_steps + 1)
+#         ax.plot(steps, global_val, marker='s', linestyle='-', label='Validation Accuracy')
+#         ax.fill_between(steps,
+#                         np.array(global_val) - np.array(global_val_std),
+#                         np.array(global_val) + np.array(global_val_std), alpha=0.2)
+#         ax.plot(steps, global_test, marker='o', linestyle='--', label='Test Accuracy')
+#         ax.fill_between(steps,
+#                         np.array(global_test) - np.array(global_test_std),
+#                         np.array(global_test) + np.array(global_test_std), alpha=0.2)
+#         ax.set_xlabel("Number of Selected Channels")
+#         ax.set_ylabel("Balanced Accuracy")
+#         # Updated title: now includes the number of outer repetitions completed.
+#         ax.set_title(f"Average Accuracy Progression Across Outer Repetitions (After {num_reps} Repetitions)")
+#         ax.legend()
+#         ax.grid()
+#
+#         # Annotate each step on the test accuracy graph:
+#         # The annotation shows the candidate channel and, below, the number of outer repetitions that selected it.
+#         for i, ch in enumerate(final_selected_channels):
+#             annotation = f"{ch}"
+#             ax.annotate(annotation,
+#                         (steps[i], global_test[i]),
+#                         textcoords="offset points",
+#                         xytext=(0, 5),
+#                         ha="center",
+#                         fontsize=10)
+#             ax.annotate(f"({global_freq[i]})",
+#                         (steps[i], global_test[i]),
+#                         textcoords="offset points",
+#                         xytext=(0, -10),
+#                         ha="center",
+#                         fontsize=6)
+#         plt.draw()
+#         plt.pause(1.0)
+#
+#     plt.ioff()
+#     plt.show()
+#
+#     return all_selected_channels, all_test_accuracy_per_step, all_validation_accuracy_per_step
+
+
+# THIS VERSION IS ALL IN ONE (ADDING OR REMOVING CHANNELS)
+
+
+# THIS VERSION PARALLELISES THE CHANNELS
+# def greedy_nested_cv_channel_elimination(
+#         data, labels, alpha=1.0, num_outer_splits=5, num_outer_repeats=3, inner_cv_folds=3,
+#         max_channels=40, normalize=True, scaler_type='standard', random_seed=None, parallel=True, n_jobs=-1):
+#     """
+#     Perform nested cross-validation (CV) for greedy channel elimination from the mean TIC or TIS.
+#     Tracks validation and test accuracy for each added channel.
+#
+#     Returns:
+#         - selected_channels (list): Ordered list of selected channels
+#         - avg_validation_accuracies (array): Mean validation accuracy per step
+#         - avg_test_accuracies (array): Mean test accuracy per step
+#     """
+#     import numpy as np
+#     from collections import Counter
+#     from sklearn.linear_model import RidgeClassifier
+#     from sklearn.metrics import balanced_accuracy_score
+#     from sklearn.model_selection import StratifiedKFold, BaseCrossValidator, StratifiedShuffleSplit
+#     from sklearn.preprocessing import StandardScaler, MinMaxScaler
+#     from joblib import Parallel, delayed
+#     import matplotlib.pyplot as plt
+#     import matplotlib
+#     # matplotlib.use("TkAgg")
+#
+#     if random_seed is None:
+#         random_seed = np.random.randint(0, int(1e6))
+#     rng = np.random.default_rng(random_seed)
+#
+#     all_selected_channels = []
+#     all_test_accuracy_per_step = []
+#     all_validation_accuracy_per_step = []
+#
+#     class LeaveOneFromEachClassCV(BaseCrossValidator):
+#         """
+#         Custom cross-validator that, in each fold, leaves one sample per class as the test set.
+#         The number of folds is determined by the minimum number of samples among all classes.
+#         """
+#         def __init__(self, shuffle=True, random_state=None):
+#             self.shuffle = shuffle
+#             self.random_state = random_state
+#
+#         def get_n_splits(self, X, y, groups=None):
+#             _, counts = np.unique(y, return_counts=True)
+#             return int(np.min(counts))
+#
+#         def split(self, X, y, groups=None):
+#             indices_by_class = {}
+#             for idx, label in enumerate(y):
+#                 indices_by_class.setdefault(label, []).append(idx)
+#             rng_local = np.random.default_rng(self.random_state)
+#             for label in indices_by_class:
+#                 if self.shuffle:
+#                     rng_local.shuffle(indices_by_class[label])
+#             n_splits = self.get_n_splits(X, y)
+#             for split in range(n_splits):
+#                 test_indices = []
+#                 for label, indices in indices_by_class.items():
+#                     test_indices.append(indices[split])
+#                 test_indices = np.array(test_indices)
+#                 train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+#                 yield train_indices, test_indices
+#
+#     class RepeatedLeaveOneFromEachClassCV(BaseCrossValidator):
+#         """
+#         Custom cross-validator that randomly selects one sample per class as the test set,
+#         and repeats the process a specified number of times.
+#         """
+#
+#         def __init__(self, n_repeats=50, shuffle=True, random_state=None):
+#             self.n_repeats = n_repeats
+#             self.shuffle = shuffle
+#             self.random_state = random_state
+#
+#         def get_n_splits(self, X, y, groups=None):
+#             return self.n_repeats
+#
+#         def split(self, X, y, groups=None):
+#             indices_by_class = {}
+#             for idx, label in enumerate(y):
+#                 indices_by_class.setdefault(label, []).append(idx)
+#
+#             rng = np.random.default_rng(self.random_state)
+#             for _ in range(self.n_repeats):
+#                 test_indices = []
+#                 for label, indices in indices_by_class.items():
+#                     if self.shuffle:
+#                         chosen = rng.choice(indices, size=1, replace=False)
+#                     else:
+#                         chosen = [indices[0]]
+#                     test_indices.extend(chosen)
+#                 test_indices = np.array(test_indices)
+#                 train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+#                 yield train_indices, test_indices
+#
+#     def evaluate_channel(selected_channels, X_train, y_train, X_val, y_val, method='concatenation'):
+#         candidate_channels = selected_channels
+#         if method == "concatenation":
+#             X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
+#             X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+#         elif method == "average":
+#             #  Average into a single TIC per sample
+#             X_train_subset = np.mean(X_train[:, :, candidate_channels], axis=2)
+#             X_val_subset = np.mean(X_val[:, :, candidate_channels], axis=2)
+#
+#         model = RidgeClassifier(alpha=alpha)
+#         model.fit(X_train_subset, y_train)
+#         y_pred_val = model.predict(X_val_subset)
+#         return balanced_accuracy_score(y_val, y_pred_val)
+#
+#     # def candidate_score(candidate, current_channels, X_train_val, y_train_val, inner_cv):
+#     #     """
+#     #     Evaluate the performance (inner CV score) of the candidate set obtained by removing
+#     #     the specified candidate channel from current_channels.
+#     #
+#     #     Parameters
+#     #     ----------
+#     #     candidate : int
+#     #         The candidate channel to remove.
+#     #     current_channels : list
+#     #         The current list of channel indices.
+#     #     X_train_val : array-like
+#     #         The training data used for inner CV (expected to be 3D: samples x ... x channels).
+#     #     y_train_val : array-like
+#     #         The corresponding labels for X_train_val.
+#     #     inner_cv : BaseCrossValidator
+#     #         The cross-validation splitter for inner CV.
+#     #
+#     #     Returns
+#     #     -------
+#     #     tuple
+#     #         A tuple (candidate, average_score) where average_score is the mean balanced accuracy
+#     #         obtained over the inner folds when candidate is removed.
+#     #     """
+#     #     # Form candidate set by removing the candidate channel.
+#     #     candidate_set = [ch for ch in current_channels if ch != candidate]
+#     #     fold_scores = []
+#     #
+#     #     # # Ensure the training data is a NumPy array.
+#     #     # X_train_val = np.array(X_train_val)
+#     #     # y_train_val = np.array(y_train_val)
+#     #
+#     #     # Evaluate candidate_set on each inner fold.
+#     #     for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val):
+#     #         X_inner_train = X_train_val[inner_train_idx]
+#     #         X_inner_val = X_train_val[inner_val_idx]
+#     #         score = evaluate_channel(candidate_set, X_inner_train, y_train_val[inner_train_idx],
+#     #                                  X_inner_val, y_train_val[inner_val_idx], method="average")
+#     #         fold_scores.append(score)
+#     #
+#     #     candidate_avg_score = np.mean(fold_scores)
+#     #     return candidate, candidate_avg_score
+#
+#     def candidate_score(candidate, current_channels, X_train_val, y_train_val, inner_cv, n_jobs_inner=1):
+#         candidate_set = [ch for ch in current_channels if ch != candidate]
+#
+#         def evaluate_fold(inner_train_idx, inner_val_idx):
+#             X_inner_train = X_train_val[inner_train_idx]
+#             X_inner_val = X_train_val[inner_val_idx]
+#             return evaluate_channel(candidate_set, X_inner_train, y_train_val[inner_train_idx],
+#                                     X_inner_val, y_train_val[inner_val_idx], method="average")
+#
+#         # Parallelize over folds
+#         fold_scores = Parallel(n_jobs=n_jobs_inner, backend='loky')(
+#             delayed(evaluate_fold)(inner_train_idx, inner_val_idx)
+#             for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val)
+#         )
+#         candidate_avg_score = np.mean(fold_scores)
+#         return candidate, candidate_avg_score
+#
+#     def scale_data(X_train, X_test, scaler_type='standard'):
+#         if scaler_type == 'standard':
+#             scaler = StandardScaler()
+#         elif scaler_type == 'minmax':
+#             scaler = MinMaxScaler()
+#         else:
+#             raise ValueError("Unsupported scaler type. Choose 'standard' or 'minmax'.")
+#         X_train = scaler.fit_transform(X_train.reshape(X_train.shape[0], -1)).reshape(X_train.shape)
+#         X_test = scaler.transform(X_test.reshape(X_test.shape[0], -1)).reshape(X_test.shape)
+#         return X_train, X_test
+#
+#     model = RidgeClassifier(alpha=alpha)
+#     # model = LogisticRegression(solver='liblinear', random_state=42)
+#     # model = SGDClassifier()
+#
+#     # Loop over outer repetitions
+#     for repeat in range(num_outer_repeats):
+#         print(f"\n🔁 Outer CV Repetition {repeat + 1}/{num_outer_repeats}")
+#         # outer_cv = StratifiedKFold(n_splits=num_outer_splits, shuffle=True, random_state=rng.integers(0, int(1e6)))
+#         outer_cv = StratifiedShuffleSplit(n_splits=num_outer_splits, test_size=0.2,
+#                                           random_state=rng.integers(0, int(1e6))
+#                                           )
+#
+#         # Temporary lists to hold metrics for this repetition
+#         rep_selected_channels = []
+#         rep_validation_accuracy_per_step = []
+#         rep_test_accuracy_per_step = []
+#
+#         for split, (train_val_idx, test_idx) in enumerate(outer_cv.split(data, labels)):
+#             print(f"▶️ Split {split + 1}/{num_outer_splits}")
+#             X_train_val, X_test = data[train_val_idx], data[test_idx]
+#             if normalize:
+#                 X_train_val, X_test = scale_data(X_train_val, X_test, scaler_type)
+#             y_train_val, y_test = labels[train_val_idx], labels[test_idx]
+#
+#             # Use the custom inner CV (for example, LeaveOneFromEachClassCV)
+#             # inner_cv = LeaveOneFromEachClassCV(shuffle=True, random_state=rng.integers(0, int(1e6)))
+#             inner_cv = RepeatedLeaveOneFromEachClassCV(n_repeats=inner_cv_folds, shuffle=True, random_state=rng.integers(0, int(1e6)))
+#
+#             # Start with ALL channels
+#             current_channels = list(range(data.shape[2]))
+#             split_validation_accuracies = []
+#             split_test_accuracies = []
+#             removal_sequence = []  # Record the channel removed at each step
+#
+#             for step in range(max_channels):
+#                 # Stop if only one channel remains
+#                 if len(current_channels) <= 1:
+#                     break
+#
+#                 if (step + 1) % 1 == 0 or (step + 1) == max_channels:
+#                     print(f"\u23E9 m/z channel removal step: {step + 1}/{max_channels}")
+#
+#                 candidate_scores = []
+#                 # For each channel in the current set, evaluate performance if that channel is removed.
+#                 if parallel:
+#                     candidate_scores = Parallel(n_jobs=n_jobs, backend='loky')(
+#                         delayed(candidate_score)(candidate, current_channels, X_train_val, y_train_val, inner_cv)
+#                         for candidate in current_channels
+#                     )
+#
+#                 else:
+#                     candidate_scores = [candidate_score(candidate, current_channels, X_train_val, y_train_val, inner_cv,
+#                                                         n_jobs_inner=20)
+#                                         for candidate in current_channels]
+#
+#                 # Select the candidate whose removal yields the highest average score.
+#                 best_candidate, best_candidate_score = max(candidate_scores, key=lambda x: x[1])
+#                 removal_sequence.append(best_candidate)
+#                 current_channels.remove(best_candidate)
+#                 split_validation_accuracies.append(best_candidate_score)
+#
+#                 # Evaluate outer test accuracy using the remaining channels.
+#                 X_train_subset = np.mean(X_train_val[:, :, current_channels], axis=2)
+#                 X_test_subset = np.mean(X_test[:, :, current_channels], axis=2)
+#                 model.fit(X_train_subset, y_train_val)
+#                 y_pred = model.predict(X_test_subset)
+#                 split_test_accuracies.append(balanced_accuracy_score(y_test, y_pred))
+#
+#             rep_selected_channels.append(current_channels)
+#             rep_validation_accuracy_per_step.append(split_validation_accuracies)
+#             rep_test_accuracy_per_step.append(split_test_accuracies)
+#
+#         # Compute averages for this repetition over all splits
+#         rep_avg_validation_accuracies = np.mean(rep_validation_accuracy_per_step, axis=0)
+#         rep_std_validation_accuracies = np.std(rep_validation_accuracy_per_step, axis=0)
+#         rep_avg_test_accuracies = np.mean(rep_test_accuracy_per_step, axis=0)
+#         rep_std_test_accuracies = np.std(rep_test_accuracy_per_step, axis=0)
+#
+#         # Append repetition-level results to the global lists
+#         all_selected_channels.extend(rep_selected_channels)
+#         all_validation_accuracy_per_step.extend(rep_validation_accuracy_per_step)
+#         all_test_accuracy_per_step.extend(rep_test_accuracy_per_step)
+#
+#         # Plot for this repetition (non-blocking or save to file)
+#         fig, ax = plt.subplots(figsize=(10, 6))
+#         ax.plot(range(1, len(rep_avg_validation_accuracies) + 1), rep_avg_validation_accuracies,
+#                 marker='s', linestyle='-', label='Validation Accuracy')
+#         ax.fill_between(range(1, len(rep_avg_validation_accuracies) + 1),
+#                         rep_avg_validation_accuracies - rep_std_validation_accuracies,
+#                         rep_avg_validation_accuracies + rep_std_validation_accuracies,
+#                         alpha=0.2)
+#         ax.plot(range(1, len(rep_avg_test_accuracies) + 1), rep_avg_test_accuracies,
+#                 marker='o', linestyle='--', label='Test Accuracy')
+#         ax.fill_between(range(1, len(rep_avg_test_accuracies) + 1),
+#                         rep_avg_test_accuracies - rep_std_test_accuracies,
+#                         rep_avg_test_accuracies + rep_std_test_accuracies,
+#                         alpha=0.2)
+#
+#         # Annotate each test accuracy point with its corresponding removed channel (from the last outer split)
+#         for i, txt in enumerate(removal_sequence):
+#             ax.annotate(str(txt), (i + 1, rep_avg_test_accuracies[i]), textcoords="offset points", xytext=(0, 5), ha='center')
+#
+#         ax.set_xlabel("Number of Removed Channels")
+#         ax.set_ylabel("Balanced Accuracy")
+#         ax.set_title(f"Validation and Test Accuracy Progression (Repetition {repeat + 1})")
+#         ax.legend()
+#         ax.grid()
+#         # Option 1: Non-blocking display
+#         plt.show(block=False)
+#         plt.pause(0.5)
+#         # Option 2: Save to file and close the figure
+#         # plt.savefig(f"rep_{repeat + 1}_plot.png")
+#         # plt.close(fig)
+#
+#     # After all repetitions, compute global averages if needed
+#     avg_test_accuracies = np.mean(all_test_accuracy_per_step, axis=0)
+#     avg_validation_accuracies = np.mean(all_validation_accuracy_per_step, axis=0)
+#
+#     # Global plot if desired
+#     fig, ax = plt.subplots(figsize=(10, 6))
+#     ax.plot(range(1, len(avg_validation_accuracies) + 1), avg_validation_accuracies, marker='s', linestyle='-',
+#             label='Validation Accuracy')
+#     ax.fill_between(range(1, len(avg_validation_accuracies) + 1),
+#                     np.array(avg_validation_accuracies) - np.array(np.std(all_validation_accuracy_per_step, axis=0)),
+#                     np.array(avg_validation_accuracies) + np.array(np.std(all_validation_accuracy_per_step, axis=0)),
+#                     alpha=0.2)
+#     ax.plot(range(1, len(avg_test_accuracies) + 1), avg_test_accuracies, marker='o', linestyle='--', label='Test Accuracy')
+#     ax.fill_between(range(1, len(avg_test_accuracies) + 1),
+#                     np.array(avg_test_accuracies) - np.array(np.std(all_test_accuracy_per_step, axis=0)),
+#                     np.array(avg_test_accuracies) + np.array(np.std(all_test_accuracy_per_step, axis=0)),
+#                     alpha=0.2)
+#
+#     ax.set_xlabel("Number of Removed Channels")
+#     ax.set_ylabel("Balanced Accuracy")
+#     ax.set_title("Global Validation and Test Accuracy Progression")
+#     ax.legend()
+#     ax.grid()
+#
+#     # Final selection per step:
+#     # For each removal step, select the channel that appears most frequently as the best removed channel.
+#     # If tied, use the one with the highest average validation accuracy.
+#     final_selected_channels = []
+#     max_steps = max(len(seq) for seq in all_selected_channels)
+#     for step in range(max_steps):
+#         candidate_info = []  # Will hold tuples (channel, candidate_score) for this step.
+#         for rep in range(len(all_selected_channels)):
+#             if step < len(all_selected_channels[rep]) and step < len(all_validation_accuracy_per_step[rep]):
+#                 ch = all_selected_channels[rep][step]
+#                 score = all_validation_accuracy_per_step[rep][step]
+#                 candidate_info.append((ch, score))
+#         if candidate_info:  # Only proceed if we got data for this step.
+#             freq = {}
+#             avg_score = {}
+#             for ch, score in candidate_info:
+#                 freq[ch] = freq.get(ch, 0) + 1
+#                 avg_score[ch] = avg_score.get(ch, 0) + score
+#             for ch in avg_score:
+#                 avg_score[ch] /= freq[ch]
+#             best_candidate = None
+#             best_freq = -1
+#             best_avg = -np.inf
+#             for ch in freq:
+#                 if freq[ch] > best_freq or (freq[ch] == best_freq and avg_score[ch] > best_avg):
+#                     best_candidate = ch
+#                     best_freq = freq[ch]
+#                     best_avg = avg_score[ch]
+#             final_selected_channels.append(best_candidate)
+#
+#     # Annotate the global plot with final_selected_channels:
+#     for i, channel in enumerate(final_selected_channels):
+#         ax.annotate(str(channel), (i + 1, avg_test_accuracies[i]),
+#                     textcoords="offset points", xytext=(0, 5), ha="center")
+#
+#     plt.show()
+#
+#     return final_selected_channels, avg_test_accuracies, avg_validation_accuracies
+
+
+# def greedy_nested_cv_channel_elimination(
+#         data, labels, alpha=1.0, num_outer_repeats=3, inner_cv_folds=3,
+#         max_channels=40, normalize=True, scaler_type='standard', random_seed=None,
+#         parallel=True, n_jobs=-1, method='concatenation', min_frequency=3):
+#     """
+#     Perform nested CV for greedy channel elimination using SNR-based candidate evaluation.
+#     (Backward elimination: start with all channels and, at each step, remove the channel whose removal
+#     yields the best (or least harmed) validation accuracy.)
+#
+#     After each outer repetition (using a single outer split), the global average performance (over all repetitions so far)
+#     is recalculated and the plot is updated showing the progression of performance across elimination steps.
+#     In the global aggregation, for each step candidate channels that appear in fewer than min_frequency inner folds
+#     are discarded; among those remaining, the candidate with the highest average SNR (average validation accuracy divided
+#     by standard deviation) is chosen, and the number of outer repetitions that selected that channel is annotated.
+#
+#     Returns:
+#       - all_selected_channels (list): List (per outer repetition) of removal sequences (i.e. channels removed in order).
+#       - all_test_accuracy_per_step (list): List (per outer repetition) of test accuracy lists (one per elimination step).
+#       - all_validation_accuracy_per_step (list): List (per outer repetition) of validation accuracy lists (one per elimination step).
+#     """
+#     import numpy as np
+#     from sklearn.linear_model import RidgeClassifier
+#     from sklearn.metrics import balanced_accuracy_score
+#     from sklearn.model_selection import StratifiedShuffleSplit, BaseCrossValidator
+#     from sklearn.preprocessing import StandardScaler, MinMaxScaler
+#     from joblib import Parallel, delayed
+#     import matplotlib.pyplot as plt
+#
+#     # Set random seed if not provided.
+#     if random_seed is None:
+#         random_seed = np.random.randint(0, int(1e6))
+#     rng = np.random.default_rng(random_seed)
+#
+#     # Global accumulators.
+#     all_selected_channels = []  # One elimination sequence per outer repetition.
+#     all_test_accuracy_per_step = []  # Outer test accuracies per elimination step.
+#     all_validation_accuracy_per_step = []  # Inner CV (validation) accuracies per elimination step.
+#
+#     # ----------------------------------
+#     # Custom CV classes.
+#     # (These are identical to your previous version.)
+#     # ----------------------------------
+#     class LeaveOneFromEachClassCV(BaseCrossValidator):
+#         def __init__(self, shuffle=True, random_state=None):
+#             self.shuffle = shuffle
+#             self.random_state = random_state
+#
+#         def get_n_splits(self, X, y, groups=None):
+#             _, counts = np.unique(y, return_counts=True)
+#             return int(np.min(counts))
+#
+#         def split(self, X, y, groups=None):
+#             indices_by_class = {}
+#             for idx, label in enumerate(y):
+#                 indices_by_class.setdefault(label, []).append(idx)
+#             rng_local = np.random.default_rng(self.random_state)
+#             for label in indices_by_class:
+#                 if self.shuffle:
+#                     rng_local.shuffle(indices_by_class[label])
+#             n_splits = self.get_n_splits(X, y)
+#             for split in range(n_splits):
+#                 test_indices = []
+#                 for label, indices in indices_by_class.items():
+#                     test_indices.append(indices[split])
+#                 test_indices = np.array(test_indices)
+#                 train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+#                 yield train_indices, test_indices
+#
+#     class RepeatedLeaveOneFromEachClassCV(BaseCrossValidator):
+#         def __init__(self, n_repeats=50, shuffle=True, random_state=None):
+#             self.n_repeats = n_repeats
+#             self.shuffle = shuffle
+#             self.random_state = random_state
+#
+#         def get_n_splits(self, X, y, groups=None):
+#             return self.n_repeats
+#
+#         def split(self, X, y, groups=None):
+#             indices_by_class = {}
+#             for idx, label in enumerate(y):
+#                 indices_by_class.setdefault(label, []).append(idx)
+#             rng_local = np.random.default_rng(self.random_state)
+#             for _ in range(self.n_repeats):
+#                 test_indices = []
+#                 for label, indices in indices_by_class.items():
+#                     if self.shuffle:
+#                         chosen = rng_local.choice(indices, size=1, replace=False)
+#                     else:
+#                         chosen = [indices[0]]
+#                     test_indices.extend(chosen)
+#                 test_indices = np.array(test_indices)
+#                 train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+#                 yield train_indices, test_indices
+#
+#     # ----------------------------------
+#     # Helper functions.
+#     # ----------------------------------
+#
+#     def evaluate_channel_elimination(ch, selected_channels, X_train, y_train, X_val, y_val, method=method):
+#         """
+#         Evaluate performance when channel 'ch' is removed from the current selection.
+#         For "concatenation", this is implemented as:
+#             candidate_set = [x for x in selected_channels if x != ch]
+#         For "average", it simply computes the mean over candidate_set.
+#         """
+#         candidate_channels = [x for x in selected_channels if x != ch]
+#         if method == "concatenation":
+#             X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
+#             X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+#         elif method == "average":
+#             X_train_subset = np.mean(X_train[:, :, candidate_channels], axis=2)
+#             X_val_subset = np.mean(X_val[:, :, candidate_channels], axis=2)
+#         model = RidgeClassifier(alpha=alpha)
+#         model.fit(X_train_subset, y_train)
+#         y_pred = model.predict(X_val_subset)
+#         return ch, balanced_accuracy_score(y_val, y_pred)
+#
+#     def evaluate_candidates_average_batch_elimination(cum_sum_train, cum_sum_val, count,
+#                                                       candidate_channels, X_train, y_train, X_val, y_val, alpha):
+#         """
+#         Batch-evaluate candidate channels for the "average" method in elimination mode.
+#         In elimination, the new average (if channel c is removed) is computed as:
+#              (cum_sum - X[:,:,c]) / (count - 1)
+#         """
+#         n_train = X_train.shape[0]
+#         n_val = X_val.shape[0]
+#         candidate_train = X_train[:, :, candidate_channels]
+#         candidate_val = X_val[:, :, candidate_channels]
+#         avg_train = (cum_sum_train[..., None] - candidate_train) / (count - 1)
+#         avg_val = (cum_sum_val[..., None] - candidate_val) / (count - 1)
+#         n_candidates = avg_train.shape[2]
+#         results = []
+#         for i in range(n_candidates):
+#             X_train_candidate = avg_train[:, :, i]
+#             X_val_candidate = avg_val[:, :, i]
+#             model = RidgeClassifier(alpha=alpha)
+#             model.fit(X_train_candidate, y_train)
+#             y_pred = model.predict(X_val_candidate)
+#             score = balanced_accuracy_score(y_val, y_pred)
+#             results.append((candidate_channels[i], score))
+#         return results
+#
+#     def evaluate_inner_fold_elimination(inner_train_idx, inner_val_idx, X_train_val, y_train_val,
+#                                         selected_channels, candidate_pool, alpha, method):
+#         """
+#         Evaluate one inner CV fold for elimination.
+#         For the "average" method, if selected_channels is nonempty, precompute the cumulative sum
+#         over the currently selected channels and then, for each candidate in candidate_pool (which is a subset
+#         of selected_channels), compute the new average as (cum_sum - candidate_data) / (count - 1).
+#         For the concatenation method, it calls evaluate_channel_elimination.
+#         Returns (best_candidate, best_accuracy) for this fold.
+#         """
+#         X_inner_train = X_train_val[inner_train_idx]
+#         X_inner_val = X_train_val[inner_val_idx]
+#         y_inner_train = y_train_val[inner_train_idx]
+#         y_inner_val = y_train_val[inner_val_idx]
+#
+#         if method == "concatenation":
+#             results = [evaluate_channel_elimination(ch, selected_channels, X_inner_train, y_inner_train,
+#                                                     X_inner_val, y_inner_val, method=method)
+#                        for ch in candidate_pool]
+#         elif method == "average":
+#             if selected_channels:
+#                 cum_sum_train = np.sum(X_inner_train[:, :, selected_channels], axis=2)
+#                 cum_sum_val = np.sum(X_inner_val[:, :, selected_channels], axis=2)
+#                 count = len(selected_channels)
+#             else:
+#                 # Should not happen in removal mode.
+#                 cum_sum_train = np.zeros_like(X_inner_train[:, :, 0])
+#                 cum_sum_val = np.zeros_like(X_inner_val[:, :, 0])
+#                 count = 0
+#             results = evaluate_candidates_average_batch_elimination(cum_sum_train, cum_sum_val, count,
+#                                                                     candidate_pool, X_inner_train, y_inner_train,
+#                                                                     X_inner_val, y_inner_val, alpha)
+#         else:
+#             raise ValueError("Unsupported method. Choose 'concatenation' or 'average'.")
+#         best_candidate, best_accuracy = max(results, key=lambda x: x[1])
+#         return best_candidate, best_accuracy
+#
+#     def scale_data(X_train, X_test, scaler_type='standard'):
+#         if scaler_type == 'standard':
+#             scaler = StandardScaler()
+#         elif scaler_type == 'minmax':
+#             scaler = MinMaxScaler()
+#         else:
+#             raise ValueError("Unsupported scaler type. Choose 'standard' or 'minmax'.")
+#         X_train = scaler.fit_transform(X_train.reshape(X_train.shape[0], -1)).reshape(X_train.shape)
+#         X_test = scaler.transform(X_test.reshape(X_test.shape[0], -1)).reshape(X_test.shape)
+#         return X_train, X_test
+#
+#     def evaluate_candidate_baseline(current_selection, X_train, y_train, X_val, y_val, method='concatenation'):
+#         """
+#         Evaluate the performance (baseline accuracy) using the current selection of channels.
+#         If current_selection is empty and method=='average', it returns 0.
+#         """
+#         from sklearn.linear_model import RidgeClassifier
+#         from sklearn.metrics import balanced_accuracy_score
+#         if method == "concatenation":
+#             # Use all selected channels.
+#             X_train_subset = X_train[:, :, current_selection].reshape(len(X_train), -1)
+#             X_val_subset = X_val[:, :, current_selection].reshape(len(X_val), -1)
+#         elif method == "average":
+#             count = len(current_selection)
+#             if count > 0:
+#                 X_train_subset = np.sum(X_train[:, :, current_selection], axis=2) / count
+#                 X_val_subset = np.sum(X_val[:, :, current_selection], axis=2) / count
+#             else:
+#                 return 0
+#         else:
+#             raise ValueError("Unsupported method. Choose 'concatenation' or 'average'.")
+#         model = RidgeClassifier(alpha=alpha)
+#         model.fit(X_train_subset, y_train)
+#         y_pred = model.predict(X_val_subset)
+#         return balanced_accuracy_score(y_val, y_pred)
+#
+#     model = RidgeClassifier(alpha=alpha)
+#
+#     # ----------------------------------
+#     # Set up interactive plotting.
+#     # ----------------------------------
+#     plt.ion()
+#     fig, ax = plt.subplots(figsize=(10, 6))
+#
+#     # ----------------------------------
+#     # Outer repetition loop.
+#     # ----------------------------------
+#     for repeat in range(num_outer_repeats):
+#         print(f"\n🔁 Outer CV Repetition {repeat + 1}/{num_outer_repeats}")
+#         outer_cv = StratifiedShuffleSplit(n_splits=1, test_size=0.2,
+#                                           random_state=rng.integers(0, int(1e6)))
+#         train_val_idx, test_idx = next(outer_cv.split(data, labels))
+#         X_train_val, X_test = data[train_val_idx], data[test_idx]
+#         if normalize:
+#             X_train_val, X_test = scale_data(X_train_val, X_test, scaler_type)
+#         y_train_val, y_test = labels[train_val_idx], labels[test_idx]
+#
+#         inner_cv = RepeatedLeaveOneFromEachClassCV(n_repeats=inner_cv_folds, shuffle=True,
+#                                                    random_state=rng.integers(0, int(1e6)))
+#
+#         # In elimination mode, start with all channels.
+#         current_selection = list(range(data.shape[2]))
+#         selection_sequence = []  # Record the channel removed at each step.
+#         rep_validation_accuracies = []  # Inner CV accuracy after each elimination step.
+#         rep_test_accuracies = []  # Outer test accuracy after each elimination step.
+#
+#         # Compute baseline performance using the current selection.
+#         baseline_fold_scores = Parallel(n_jobs=n_jobs, backend='loky')(
+#             delayed(evaluate_candidate_baseline)(current_selection,
+#                                                  X_train_val[inner_train_idx],
+#                                                  y_train_val[inner_train_idx],
+#                                                  X_train_val[inner_val_idx],
+#                                                  y_train_val[inner_val_idx],
+#                                                  method=method)
+#             for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val)
+#         )
+#         baseline = np.mean(baseline_fold_scores) if baseline_fold_scores else 0
+#
+#         for step in range(max_channels):
+#             print(f"Selecting channel {step + 1}/{max_channels}")
+#             # In removal mode, candidate pool = current selection.
+#             candidate_pool = current_selection.copy()
+#             if not candidate_pool:
+#                 break
+#
+#             # Parallelize across inner CV folds.
+#             fold_results = Parallel(n_jobs=n_jobs, backend='loky')(
+#                 delayed(evaluate_inner_fold_elimination)(
+#                     inner_train_idx, inner_val_idx, X_train_val, y_train_val,
+#                     current_selection, candidate_pool, alpha, method
+#                 )
+#                 for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val)
+#             )
+#             best_candidate_per_fold = [result[0] for result in fold_results]
+#             val_accuracies_per_fold = [result[1] for result in fold_results]
+#
+#             # Compute frequency for each candidate across inner folds.
+#             freq_dict = {cand: best_candidate_per_fold.count(cand) for cand in candidate_pool}
+#             candidates_meeting_freq = [cand for cand in candidate_pool if freq_dict[cand] >= min_frequency]
+#             if candidates_meeting_freq:
+#                 eligible = candidates_meeting_freq
+#             else:
+#                 eligible = candidate_pool
+#
+#             # Re-run candidate evaluation over inner folds to get average accuracy.
+#             inner_folds = list(inner_cv.split(X_train_val, y_train_val))
+#             candidate_avg_dict = {}
+#             for cand in candidate_pool:
+#                 fold_scores = Parallel(n_jobs=n_jobs, backend='loky')(
+#                     delayed(evaluate_channel_elimination)(cand, current_selection,
+#                                                           X_train_val[inner_train_idx],
+#                                                           y_train_val[inner_train_idx],
+#                                                           X_train_val[inner_val_idx],
+#                                                           y_train_val[inner_val_idx],
+#                                                           method=method)
+#                     for inner_train_idx, inner_val_idx in inner_folds
+#                 )
+#                 candidate_avg_dict[cand] = np.mean([score for _, score in fold_scores])
+#             best_candidate = max(eligible, key=lambda cand: candidate_avg_dict[cand] - baseline)
+#             best_avg_score = candidate_avg_dict[best_candidate]
+#             selection_sequence.append(best_candidate)
+#             # Remove the best candidate.
+#             current_selection.remove(best_candidate)
+#             rep_validation_accuracies.append(best_avg_score)
+#
+#             # Evaluate outer test accuracy using the current selection.
+#             if method == "concatenation":
+#                 X_train_subset = X_train_val[:, :, current_selection].reshape(len(X_train_val), -1)
+#                 X_test_subset = X_test[:, :, current_selection].reshape(len(X_test), -1)
+#             elif method == "average":
+#                 count = len(current_selection)
+#                 X_train_subset = np.sum(X_train_val[:, :, current_selection], axis=2) / count
+#                 X_test_subset = np.sum(X_test[:, :, current_selection], axis=2) / count
+#             model.fit(X_train_subset, y_train_val)
+#             y_pred = model.predict(X_test_subset)
+#             rep_test_accuracies.append(balanced_accuracy_score(y_test, y_pred))
+#
+#             # Update baseline.
+#             baseline_fold_scores = Parallel(n_jobs=n_jobs, backend='loky')(
+#                 delayed(evaluate_candidate_baseline)(current_selection,
+#                                                      X_train_val[inner_train_idx],
+#                                                      y_train_val[inner_train_idx],
+#                                                      X_train_val[inner_val_idx],
+#                                                      y_train_val[inner_val_idx],
+#                                                      method=method)
+#                 for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val)
+#             )
+#             baseline = np.mean(baseline_fold_scores)
+#
+#         # End of elimination loop for this outer repetition.
+#         all_selected_channels.append(selection_sequence.copy())
+#         all_validation_accuracy_per_step.append(rep_validation_accuracies.copy())
+#         all_test_accuracy_per_step.append(rep_test_accuracies.copy())
+#
+#         # Plot repetition-level results.
+#         num_steps = len(rep_validation_accuracies)
+#         rep_avg_val = np.atleast_1d(np.mean(np.array(rep_validation_accuracies), axis=0))
+#         rep_std_val = np.atleast_1d(np.std(np.array(rep_validation_accuracies), axis=0))
+#         rep_avg_test = np.atleast_1d(np.mean(np.array(rep_test_accuracies), axis=0))
+#         rep_std_test = np.atleast_1d(np.std(np.array(rep_test_accuracies), axis=0))
+#         fig, ax = plt.subplots(figsize=(10, 6))
+#         steps_range = range(1, num_steps + 1)
+#         xlabel = "Number of Removed Channels"
+#         ax.plot(steps_range, rep_avg_val, marker='s', linestyle='-', label='Validation Accuracy')
+#         ax.fill_between(steps_range, rep_avg_val - rep_std_val, rep_avg_val + rep_std_val, alpha=0.2)
+#         ax.plot(steps_range, rep_avg_test, marker='o', linestyle='--', label='Test Accuracy')
+#         ax.fill_between(steps_range, rep_avg_test - rep_std_test, rep_avg_test + rep_std_test, alpha=0.2)
+#         ax.set_xlabel(xlabel)
+#         ax.set_ylabel("Balanced Accuracy")
+#         ax.set_title(f"Validation & Test Accuracy Progression (Repetition {repeat + 1})")
+#         ax.legend()
+#         ax.grid()
+#         if selection_sequence:
+#             for i, ch in enumerate(selection_sequence):
+#                 ax.annotate(str(ch), (i + 1, rep_avg_test[i]),
+#                             textcoords="offset points", xytext=(0, 5), ha="center", fontsize=10)
+#         plt.show(block=False)
+#         plt.pause(0.5)
+#         plt.close(fig)
+#     # End of outer repetitions.
+#
+#     # Global aggregation and plotting (Average across outer repetitions)
+#     num_reps = len(all_test_accuracy_per_step)
+#     min_steps = min(len(rep) for rep in all_test_accuracy_per_step)
+#     global_val = []
+#     global_val_std = []
+#     global_test = []
+#     global_test_std = []
+#     for step in range(min_steps):
+#         val_accs = [all_validation_accuracy_per_step[r][step] for r in range(num_reps)]
+#         test_accs = [all_test_accuracy_per_step[r][step] for r in range(num_reps)]
+#         global_val.append(np.mean(val_accs))
+#         global_val_std.append(np.std(val_accs))
+#         global_test.append(np.mean(test_accs))
+#         global_test_std.append(np.std(test_accs))
+#     final_selected_channels = []
+#     max_steps = max(len(seq) for seq in all_selected_channels)
+#     for step in range(max_steps):
+#         candidate_info = []
+#         for rep in range(len(all_selected_channels)):
+#             if step < len(all_selected_channels[rep]) and step < len(all_validation_accuracy_per_step[rep]):
+#                 ch = all_selected_channels[rep][step]
+#                 score = all_validation_accuracy_per_step[rep][step]
+#                 candidate_info.append((ch, score))
+#         if candidate_info:
+#             freq = {}
+#             avg_score = {}
+#             for ch, score in candidate_info:
+#                 freq[ch] = freq.get(ch, 0) + 1
+#                 avg_score[ch] = avg_score.get(ch, 0) + score
+#             for ch in avg_score:
+#                 avg_score[ch] /= freq[ch]
+#             best_candidate = None
+#             best_freq = -1
+#             best_avg = -np.inf
+#             for ch in freq:
+#                 if freq[ch] > best_freq or (freq[ch] == best_freq and avg_score[ch] > best_avg):
+#                     best_candidate = ch
+#                     best_freq = freq[ch]
+#                     best_avg = avg_score[ch]
+#             final_selected_channels.append(best_candidate)
+#     fig, ax = plt.subplots(figsize=(10, 6))
+#     steps_axis = np.arange(1, min_steps + 1)
+#     ax.plot(steps_axis, global_val, marker='s', linestyle='-', label='Validation Accuracy')
+#     ax.fill_between(steps_axis, np.array(global_val) - np.array(global_val_std),
+#                     np.array(global_val) + np.array(global_val_std), alpha=0.2)
+#     ax.plot(steps_axis, global_test, marker='o', linestyle='--', label='Test Accuracy')
+#     ax.fill_between(steps_axis, np.array(global_test) - np.array(global_test_std),
+#                     np.array(global_test) + np.array(global_test_std), alpha=0.2)
+#     xlabel = "Number of Selected Channels"  # in elimination mode, these are the channels that remain.
+#     ax.set_xlabel(xlabel)
+#     ax.set_ylabel("Balanced Accuracy")
+#     ax.set_title(f"Average Accuracy Progression Across Outer Repetitions (After {num_reps} Repetitions)")
+#     ax.legend()
+#     ax.grid()
+#     for i, ch in enumerate(final_selected_channels):
+#         ax.annotate(str(ch), (steps_axis[i], global_test[i]),
+#                     textcoords="offset points", xytext=(0, 5), ha="center", fontsize=10)
+#     plt.draw()
+#     plt.pause(1.0)
+#
+#     plt.ioff()
+#     plt.show()
+#
+#     return all_selected_channels, all_test_accuracy_per_step, all_validation_accuracy_per_step
+
+# THIS VERSION PLOTS DYNAMICALLY AFTER EACH REPEAT
+def greedy_nested_cv_channel_elimination(
+        data, labels, alpha=1.0, num_outer_repeats=3, inner_cv_folds=3,
+        max_channels=40, normalize=True, scaler_type='standard', random_seed=None,
+        parallel=True, n_jobs=-1, method='concatenation', min_frequency=3):
+    """
+    Perform nested CV for greedy channel elimination using SNR-based candidate evaluation.
+    (Backward elimination: start with all channels and, at each step, remove the channel whose removal
+    yields the best (or least harmed) validation accuracy.)
+
+    After each outer repetition (using a single outer split), the global average performance (over all outer
+    repetitions so far) is recalculated and a global plot is updated showing the progression of performance
+    across elimination steps. In the global aggregation, for each elimination step candidate channels that appear
+    in fewer than min_frequency inner folds are discarded. Among those remaining, the candidate with the highest
+    average SNR (average validation accuracy divided by standard deviation) is chosen and annotated with the
+    number of outer repetitions that selected that channel.
+
+    Returns:
+      - all_selected_channels (list): List (per outer repetition) of removal sequences (i.e. channels removed in order).
+      - all_test_accuracy_per_step (list): List (per outer repetition) of test accuracy lists (one per elimination step).
+      - all_validation_accuracy_per_step (list): List (per outer repetition) of validation accuracy lists (one per elimination step).
+    """
+    import numpy as np
+    from sklearn.linear_model import RidgeClassifier
+    from sklearn.metrics import balanced_accuracy_score
+    from sklearn.model_selection import StratifiedShuffleSplit, BaseCrossValidator
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    from joblib import Parallel, delayed
+    import matplotlib.pyplot as plt
+
+    # Set random seed if not provided.
+    if random_seed is None:
+        random_seed = np.random.randint(0, int(1e6))
+    rng = np.random.default_rng(random_seed)
+
+    # Global accumulators.
+    all_selected_channels = []          # One elimination sequence per outer repetition.
+    all_test_accuracy_per_step = []       # Outer test accuracies per elimination step.
+    all_validation_accuracy_per_step = [] # Inner CV (validation) accuracies per elimination step.
+
+    # ----------------------------------
+    # Custom CV classes.
+    # ----------------------------------
+    class LeaveOneFromEachClassCV(BaseCrossValidator):
+        def __init__(self, shuffle=True, random_state=None):
+            self.shuffle = shuffle
+            self.random_state = random_state
+        def get_n_splits(self, X, y, groups=None):
+            _, counts = np.unique(y, return_counts=True)
+            return int(np.min(counts))
+        def split(self, X, y, groups=None):
+            indices_by_class = {}
+            for idx, label in enumerate(y):
+                indices_by_class.setdefault(label, []).append(idx)
+            rng_local = np.random.default_rng(self.random_state)
+            for label in indices_by_class:
+                if self.shuffle:
+                    rng_local.shuffle(indices_by_class[label])
+            n_splits = self.get_n_splits(X, y)
+            for split in range(n_splits):
+                test_indices = []
+                for label, indices in indices_by_class.items():
+                    test_indices.append(indices[split])
+                test_indices = np.array(test_indices)
+                train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+                yield train_indices, test_indices
+
+    class RepeatedLeaveOneFromEachClassCV(BaseCrossValidator):
+        def __init__(self, n_repeats=50, shuffle=True, random_state=None):
+            self.n_repeats = n_repeats
+            self.shuffle = shuffle
+            self.random_state = random_state
+        def get_n_splits(self, X, y, groups=None):
+            return self.n_repeats
+        def split(self, X, y, groups=None):
+            indices_by_class = {}
+            for idx, label in enumerate(y):
+                indices_by_class.setdefault(label, []).append(idx)
+            rng_local = np.random.default_rng(self.random_state)
+            for _ in range(self.n_repeats):
+                test_indices = []
+                for label, indices in indices_by_class.items():
+                    if self.shuffle:
+                        chosen = rng_local.choice(indices, size=1, replace=False)
+                    else:
+                        chosen = [indices[0]]
+                    test_indices.extend(chosen)
+                test_indices = np.array(test_indices)
+                train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+                yield train_indices, test_indices
+
+    # ----------------------------------
+    # Helper functions.
+    # ----------------------------------
+    def evaluate_channel_elimination(ch, selected_channels, X_train, y_train, X_val, y_val, method=method):
+        """
+        Evaluate performance when channel ch is removed from the current selection.
+        For "concatenation", candidate set = [x for x in selected_channels if x != ch].
+        For "average", it computes the mean over that candidate set.
+        """
+        candidate_channels = [x for x in selected_channels if x != ch]
+        if method == "concatenation":
+            X_train_subset = X_train[:, :, candidate_channels].reshape(len(X_train), -1)
+            X_val_subset = X_val[:, :, candidate_channels].reshape(len(X_val), -1)
+        elif method == "average":
+            X_train_subset = np.mean(X_train[:, :, candidate_channels], axis=2)
+            X_val_subset = np.mean(X_val[:, :, candidate_channels], axis=2)
+        model = RidgeClassifier(alpha=alpha)
+        model.fit(X_train_subset, y_train)
+        y_pred = model.predict(X_val_subset)
+        return ch, balanced_accuracy_score(y_val, y_pred)
+
+    def evaluate_candidates_average_batch_elimination(cum_sum_train, cum_sum_val, count,
+                                                      candidate_channels, X_train, y_train, X_val, y_val, alpha):
+        """
+        Batch-evaluate candidate channels for the "average" method in elimination mode.
+        New average if channel c is removed is computed as:
+            (cum_sum - X[:,:,c]) / (count - 1)
+        """
+        n_train = X_train.shape[0]
+        n_val = X_val.shape[0]
+        candidate_train = X_train[:, :, candidate_channels]
+        candidate_val = X_val[:, :, candidate_channels]
+        avg_train = (cum_sum_train[..., None] - candidate_train) / (count - 1)
+        avg_val = (cum_sum_val[..., None] - candidate_val) / (count - 1)
+        n_candidates = avg_train.shape[2]
+        results = []
+        for i in range(n_candidates):
+            X_train_candidate = avg_train[:, :, i]
+            X_val_candidate = avg_val[:, :, i]
+            model = RidgeClassifier(alpha=alpha)
+            model.fit(X_train_candidate, y_train)
+            y_pred = model.predict(X_val_candidate)
+            score = balanced_accuracy_score(y_val, y_pred)
+            results.append((candidate_channels[i], score))
+        return results
+
+    def evaluate_inner_fold_elimination(inner_train_idx, inner_val_idx, X_train_val, y_train_val,
+                                        selected_channels, candidate_pool, alpha, method):
+        """
+        Evaluate one inner CV fold in elimination mode.
+        For the "average" method, if selected_channels is nonempty, precompute the cumulative sum
+        over the currently selected channels and then, for each candidate in candidate_pool (a subset
+        of selected_channels), compute the new average as (cum_sum - candidate data) / (count - 1).
+        For "concatenation", it calls evaluate_channel_elimination.
+        Returns (best_candidate, best_accuracy) for this fold.
+        """
+        X_inner_train = X_train_val[inner_train_idx]
+        X_inner_val = X_train_val[inner_val_idx]
+        y_inner_train = y_train_val[inner_train_idx]
+        y_inner_val = y_train_val[inner_val_idx]
+        if method == "concatenation":
+            results = [evaluate_channel_elimination(ch, selected_channels, X_inner_train, y_inner_train,
+                                                    X_inner_val, y_inner_val, method=method)
+                       for ch in candidate_pool]
+        elif method == "average":
+            if selected_channels:
+                cum_sum_train = np.sum(X_inner_train[:, :, selected_channels], axis=2)
+                cum_sum_val = np.sum(X_inner_val[:, :, selected_channels], axis=2)
+                count = len(selected_channels)
+            else:
+                cum_sum_train = np.zeros_like(X_inner_train[:, :, 0])
+                cum_sum_val = np.zeros_like(X_inner_val[:, :, 0])
+                count = 0
+            results = evaluate_candidates_average_batch_elimination(cum_sum_train, cum_sum_val, count,
+                                                                    candidate_pool, X_inner_train, y_inner_train,
+                                                                    X_inner_val, y_inner_val, alpha)
+        else:
+            raise ValueError("Unsupported method. Choose 'concatenation' or 'average'.")
+        best_candidate, best_accuracy = max(results, key=lambda x: x[1])
+        return best_candidate, best_accuracy
+
+    def scale_data(X_train, X_test, scaler_type='standard'):
+        if scaler_type == 'standard':
+            scaler = StandardScaler()
+        elif scaler_type == 'minmax':
+            scaler = MinMaxScaler()
+        else:
+            raise ValueError("Unsupported scaler type. Choose 'standard' or 'minmax'.")
+        X_train = scaler.fit_transform(X_train.reshape(X_train.shape[0], -1)).reshape(X_train.shape)
+        X_test = scaler.transform(X_test.reshape(X_test.shape[0], -1)).reshape(X_test.shape)
+        return X_train, X_test
+
+    def evaluate_candidate_baseline(current_selection, X_train, y_train, X_val, y_val, method='concatenation'):
+        """
+        Evaluate the baseline performance (accuracy) using the current selection.
+        If the current selection is empty (for average), return 0.
+        """
+        if method == "concatenation":
+            X_train_subset = X_train[:, :, current_selection].reshape(len(X_train), -1)
+            X_val_subset = X_val[:, :, current_selection].reshape(len(X_val), -1)
+        elif method == "average":
+            count = len(current_selection)
+            if count > 0:
+                X_train_subset = np.sum(X_train[:, :, current_selection], axis=2) / count
+                X_val_subset = np.sum(X_val[:, :, current_selection], axis=2) / count
+            else:
+                return 0
+        else:
+            raise ValueError("Unsupported method. Choose 'concatenation' or 'average'.")
+        model = RidgeClassifier(alpha=alpha)
+        model.fit(X_train_subset, y_train)
+        y_pred = model.predict(X_val_subset)
+        return balanced_accuracy_score(y_val, y_pred)
+
+    model = RidgeClassifier(alpha=alpha)
+
+    # ----------------------------------
+    # Set up interactive plotting.
+    # ----------------------------------
+    plt.ion()
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # ----------------------------------
+    # Outer repetition loop.
+    # ----------------------------------
+    for repeat in range(num_outer_repeats):
+        print(f"\n🔁 Outer CV Repetition {repeat + 1}/{num_outer_repeats}")
+        outer_cv = StratifiedShuffleSplit(n_splits=1, test_size=0.2,
+                                          random_state=rng.integers(0, int(1e6)))
+        train_val_idx, test_idx = next(outer_cv.split(data, labels))
+        X_train_val, X_test = data[train_val_idx], data[test_idx]
+        if normalize:
+            X_train_val, X_test = scale_data(X_train_val, X_test, scaler_type)
+        y_train_val, y_test = labels[train_val_idx], labels[test_idx]
+
+        inner_cv = RepeatedLeaveOneFromEachClassCV(n_repeats=inner_cv_folds, shuffle=True,
+                                                   random_state=rng.integers(0, int(1e6)))
+
+        # In elimination mode, start with all channels.
+        current_selection = list(range(data.shape[2]))
+        selection_sequence = []  # Record the channel removed at each step.
+        rep_validation_accuracies = []  # Inner CV accuracy per elimination step.
+        rep_test_accuracies = []  # Outer test accuracy per elimination step.
+
+        # Compute baseline performance using the current selection.
+        baseline_fold_scores = Parallel(n_jobs=n_jobs, backend='loky')(
+            delayed(evaluate_candidate_baseline)(current_selection,
+                                                 X_train_val[inner_train_idx],
+                                                 y_train_val[inner_train_idx],
+                                                 X_train_val[inner_val_idx],
+                                                 y_train_val[inner_val_idx],
+                                                 method=method)
+            for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val)
+        )
+        baseline = np.mean(baseline_fold_scores) if baseline_fold_scores else 0
+
+        for step in range(max_channels):
+            print(f"Selecting channel {step + 1}/{max_channels}")
+            # In removal mode, candidate pool = current selection.
+            candidate_pool = current_selection.copy()
+            if not candidate_pool:
+                break
+
+            # Parallelize across inner CV folds.
+            fold_results = Parallel(n_jobs=n_jobs, backend='loky')(
+                delayed(evaluate_inner_fold_elimination)(
+                    inner_train_idx, inner_val_idx, X_train_val, y_train_val,
+                    current_selection, candidate_pool, alpha, method
+                )
+                for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val)
+            )
+            best_candidate_per_fold = [result[0] for result in fold_results]
+            val_accuracies_per_fold = [result[1] for result in fold_results]
+
+            # Compute frequency for each candidate across inner folds.
+            freq_dict = {cand: best_candidate_per_fold.count(cand) for cand in candidate_pool}
+            candidates_meeting_freq = [cand for cand in candidate_pool if freq_dict[cand] >= min_frequency]
+            if candidates_meeting_freq:
+                eligible = candidates_meeting_freq
+            else:
+                eligible = candidate_pool
+
+            # Re-run candidate evaluation over inner folds to get average accuracy.
+            inner_folds = list(inner_cv.split(X_train_val, y_train_val))
+            candidate_avg_dict = {}
+            for cand in candidate_pool:
+                fold_scores = Parallel(n_jobs=n_jobs, backend='loky')(
+                    delayed(evaluate_channel_elimination)(cand, current_selection,
+                                                          X_train_val[inner_train_idx],
+                                                          y_train_val[inner_train_idx],
+                                                          X_train_val[inner_val_idx],
+                                                          y_train_val[inner_val_idx],
+                                                          method=method)
+                    for inner_train_idx, inner_val_idx in inner_folds
+                )
+                candidate_avg_dict[cand] = np.mean([score for _, score in fold_scores])
+            best_candidate = max(eligible, key=lambda cand: candidate_avg_dict[cand] - baseline)
+            best_avg_score = candidate_avg_dict[best_candidate]
+            selection_sequence.append(best_candidate)
+            # Remove the best candidate.
+            current_selection.remove(best_candidate)
+            rep_validation_accuracies.append(best_avg_score)
+
+            # Evaluate outer test accuracy using the current selection.
+            if method == "concatenation":
+                X_train_subset = X_train_val[:, :, current_selection].reshape(len(X_train_val), -1)
+                X_test_subset = X_test[:, :, current_selection].reshape(len(X_test), -1)
+            elif method == "average":
+                count = len(current_selection)
+                X_train_subset = np.sum(X_train_val[:, :, current_selection], axis=2) / count
+                X_test_subset = np.sum(X_test[:, :, current_selection], axis=2) / count
+            model.fit(X_train_subset, y_train_val)
+            y_pred = model.predict(X_test_subset)
+            rep_test_accuracies.append(balanced_accuracy_score(y_test, y_pred))
+
+            # Update baseline.
+            baseline_fold_scores = Parallel(n_jobs=n_jobs, backend='loky')(
+                delayed(evaluate_candidate_baseline)(current_selection,
+                                                     X_train_val[inner_train_idx],
+                                                     y_train_val[inner_train_idx],
+                                                     X_train_val[inner_val_idx],
+                                                     y_train_val[inner_val_idx],
+                                                     method=method)
+                for inner_train_idx, inner_val_idx in inner_cv.split(X_train_val, y_train_val)
+            )
+            baseline = np.mean(baseline_fold_scores)
+
+        # End of elimination loop for this outer repetition.
+        all_selected_channels.append(selection_sequence.copy())
+        all_validation_accuracy_per_step.append(rep_validation_accuracies.copy())
+        all_test_accuracy_per_step.append(rep_test_accuracies.copy())
+
+        # ----- Dynamic Global Aggregation and Plotting After Each Repetition -----
+        num_reps = len(all_test_accuracy_per_step)
+        min_steps = min(len(rep) for rep in all_test_accuracy_per_step)
+        global_val = []
+        global_val_std = []
+        global_test = []
+        global_test_std = []
+        for step in range(min_steps):
+            val_accs = [all_validation_accuracy_per_step[r][step] for r in range(num_reps)]
+            test_accs = [all_test_accuracy_per_step[r][step] for r in range(num_reps)]
+            global_val.append(np.mean(val_accs))
+            global_val_std.append(np.std(val_accs))
+            global_test.append(np.mean(test_accs))
+            global_test_std.append(np.std(test_accs))
+        final_selected_channels = []
+        max_steps = max(len(seq) for seq in all_selected_channels)
+        for step in range(max_steps):
+            candidate_info = []
+            for rep in range(len(all_selected_channels)):
+                if step < len(all_selected_channels[rep]) and step < len(all_validation_accuracy_per_step[rep]):
+                    ch = all_selected_channels[rep][step]
+                    score = all_validation_accuracy_per_step[rep][step]
+                    candidate_info.append((ch, score))
+            if candidate_info:
+                freq = {}
+                avg_score = {}
+                for ch, score in candidate_info:
+                    freq[ch] = freq.get(ch, 0) + 1
+                    avg_score[ch] = avg_score.get(ch, 0) + score
+                for ch in avg_score:
+                    avg_score[ch] /= freq[ch]
+                best_candidate = None
+                best_freq = -1
+                best_avg = -np.inf
+                for ch in freq:
+                    if freq[ch] > best_freq or (freq[ch] == best_freq and avg_score[ch] > best_avg):
+                        best_candidate = ch
+                        best_freq = freq[ch]
+                        best_avg = avg_score[ch]
+                final_selected_channels.append(best_candidate)
+        ax.clear()
+        steps_axis = np.arange(1, min_steps + 1)
+        ax.plot(steps_axis, global_val, marker='s', linestyle='-', label='Validation Accuracy')
+        ax.fill_between(steps_axis,
+                        np.array(global_val) - np.array(global_val_std),
+                        np.array(global_val) + np.array(global_val_std), alpha=0.2)
+        ax.plot(steps_axis, global_test, marker='o', linestyle='--', label='Test Accuracy')
+        ax.fill_between(steps_axis,
+                        np.array(global_test) - np.array(global_test_std),
+                        np.array(global_test) + np.array(global_test_std), alpha=0.2)
+        ax.set_xlabel("Number of Selected Channels")
+        ax.set_ylabel("Balanced Accuracy")
+        ax.set_title(f"Average Accuracy Progression Across Outer Repetitions (After {num_reps} Repetitions)")
+        ax.legend()
+        ax.grid()
+        for i, ch in enumerate(final_selected_channels):
+            ax.annotate(str(ch), (steps_axis[i], global_test[i]),
+                        textcoords="offset points", xytext=(0, 5), ha="center", fontsize=10)
+        plt.draw()
+        plt.pause(1.0)
+        # End dynamic global plotting for this repetition.
+
+    plt.ioff()
+    plt.show()
+
+    return all_selected_channels, all_test_accuracy_per_step, all_validation_accuracy_per_step
+
+
 
 def classify_all_channels(data, labels, alpha=1.0, test_size=0.2, num_splits=5, use_pca=False, n_components=None):
     """

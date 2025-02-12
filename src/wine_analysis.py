@@ -775,18 +775,138 @@ class SyncChromatograms:
 
         return np.array(lags_location), np.array(lags)
 
+    # def lag_profile_from_correlation(self, reference_chromatogram, target_chromatogram, initial_slice_length,
+    #                                  hop_size=1, scan_range=10, apply_global_alignment=True,
+    #                                  max_slice_length=None, score=0):
+    #
+    #     if apply_global_alignment:
+    #         # Apply global alignment by finding the best scale and lag
+    #         best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
+    #             gaussian_filter(reference_chromatogram[:10000], 50),
+    #             gaussian_filter(target_chromatogram[:10000], 50),
+    #             np.linspace(1.0, 1.0, 1),
+    #             max_lag=1000
+    #         )
+    #         target_chromatogram_aligned = gaussian_filter(
+    #             self.correct_segment(target_chromatogram, best_scale, best_lag), 5
+    #         )
+    #     else:
+    #         target_chromatogram_aligned = target_chromatogram
+    #         best_lag = 0
+    #
+    #     reference_chromatogram = utils.normalize_amplitude_minmax(reference_chromatogram)
+    #     target_chromatogram_aligned = utils.normalize_amplitude_minmax(target_chromatogram_aligned)
+    #
+    #     safe_boundary = initial_slice_length + scan_range
+    #
+    #     lags = []
+    #     lags_location = []
+    #
+    #     # Iterate through the datapoints in the target chromatogram
+    #     for i in range(safe_boundary, len(target_chromatogram_aligned) - safe_boundary, hop_size):
+    #         # If max_slice_length is provided and greater than initial_slice_length, adjust the slice_length
+    #         if max_slice_length and max_slice_length > initial_slice_length:
+    #             available_slice_length = min(i * 2, (len(target_chromatogram_aligned) - i) * 2)
+    #             slice_length = min(available_slice_length, max_slice_length)
+    #         else:
+    #             slice_length = initial_slice_length
+    #
+    #         half_slice = slice_length // 2
+    #
+    #         best_curr_lag = 0
+    #         best_score = score
+    #
+    #         for offset in range(-scan_range, scan_range + 1):
+    #             reference_center = i + offset
+    #             start_ref_idx = max(reference_center - half_slice, 0)
+    #             end_ref_idx = min(reference_center + half_slice, len(reference_chromatogram))
+    #             reference_slice = reference_chromatogram[start_ref_idx:end_ref_idx]
+    #
+    #             start_idx = max(i - half_slice, 0)
+    #             end_idx = min(i + half_slice, len(target_chromatogram_aligned))
+    #             target_slice = target_chromatogram_aligned[start_idx:end_idx]
+    #
+    #             # Find the minimum length between the two slices
+    #             min_length = min(len(reference_slice), len(target_slice))
+    #
+    #             # Trim both slices to the same length
+    #             reference_slice = reference_slice[:min_length]
+    #             target_slice = target_slice[:min_length]
+    #
+    #             correlation_matrix = np.corrcoef(reference_slice, target_slice)
+    #             normalized_correlation = correlation_matrix[0, 1]
+    #             if normalized_correlation > best_score:
+    #                 best_score = normalized_correlation
+    #                 best_curr_lag = offset
+    #
+    #         # Append the lag and its location
+    #         lags.append(best_lag + best_curr_lag)
+    #         lags_location.append(i)
+    #
+    #     # Ensure the first and last lags are consistent
+    #     if len(lags) > 0:
+    #         lags.insert(0, lags[0])
+    #         lags_location.insert(0, 0)
+    #         lags.append(lags[-1])
+    #         lags_location.append(len(target_chromatogram_aligned))
+    #
+    #     return np.array(lags_location), np.array(lags)
+
     def lag_profile_from_correlation(self, reference_chromatogram, target_chromatogram, initial_slice_length,
                                      hop_size=1, scan_range=10, apply_global_alignment=True,
                                      max_slice_length=None, score=0):
+        """
+        Computes a lag (offset) profile between a reference and a target chromatogram by sliding a window
+        along the target and finding the offset that maximizes the correlation with the corresponding region
+        in the reference chromatogram.
 
+        Parameters
+        ----------
+        reference_chromatogram : array-like
+            The reference signal (chromatogram) used as the baseline.
+        target_chromatogram : array-like
+            The target signal (chromatogram) which will be aligned to the reference.
+        initial_slice_length : int
+            The starting window size (number of data points) used for correlation estimation.
+        hop_size : int, optional
+            The step size for sliding the window along the target chromatogram. Default is 1.
+        scan_range : int, optional
+            The maximum lag (in data points) to scan (in both positive and negative directions) for the best alignment.
+            Default is 10.
+        apply_global_alignment : bool, optional
+            If True, performs a global alignment on the target chromatogram using a pre-computed best scale and lag.
+            Default is True.
+        max_slice_length : int or None, optional
+            If provided and greater than initial_slice_length, allows dynamic adjustment of the slice length up to this value.
+            Default is None.
+        score : float, optional
+            The initial correlation score baseline. Default is 0.
+
+        Returns
+        -------
+        lags_location : ndarray
+            An array of indices along the target chromatogram where the lag was computed.
+        lags : ndarray
+            An array of lag values (offsets) computed for each corresponding location in lags_location.
+
+        Notes
+        -----
+        For TIC data, the x-axis is typically time. The function first (optionally) applies a global alignment
+        to the target chromatogram, normalizes both signals, and then iterates over the target signal in steps.
+        At each step, a window (or slice) is extracted and the correlation with the reference (shifted by various offsets)
+        is computed. The offset that maximizes the correlation is recorded, and a lag profile is built along the target.
+        """
+        # If global alignment is enabled, compute the best scale and lag on the first part of the signals
         if apply_global_alignment:
-            # Apply global alignment by finding the best scale and lag
+            # Apply a heavy Gaussian smoothing (sigma=50) to the first 10,000 points of both signals,
+            # then find the best scale and lag (here scale is fixed since linspace(1.0, 1.0, 1) produces only 1 value)
             best_scale, best_lag, _ = self.find_best_scale_and_lag_corr(
                 gaussian_filter(reference_chromatogram[:10000], 50),
                 gaussian_filter(target_chromatogram[:10000], 50),
                 np.linspace(1.0, 1.0, 1),
                 max_lag=1000
             )
+            # Correct the target chromatogram using the found best scale and lag, then smooth lightly (sigma=5)
             target_chromatogram_aligned = gaussian_filter(
                 self.correct_segment(target_chromatogram, best_scale, best_lag), 5
             )
@@ -794,17 +914,20 @@ class SyncChromatograms:
             target_chromatogram_aligned = target_chromatogram
             best_lag = 0
 
+        # Normalize both signals to a [0,1] range (or similar) for consistent correlation measurement
         reference_chromatogram = utils.normalize_amplitude_minmax(reference_chromatogram)
         target_chromatogram_aligned = utils.normalize_amplitude_minmax(target_chromatogram_aligned)
 
+        # Define a safe boundary to ensure the window is fully contained within the signal
         safe_boundary = initial_slice_length + scan_range
 
-        lags = []
-        lags_location = []
+        lags = []  # List to store computed lag values at each window location
+        lags_location = []  # List to store the corresponding locations (indices)
 
-        # Iterate through the datapoints in the target chromatogram
+        # Slide through the target chromatogram starting from 'safe_boundary' until 'len - safe_boundary'
         for i in range(safe_boundary, len(target_chromatogram_aligned) - safe_boundary, hop_size):
-            # If max_slice_length is provided and greater than initial_slice_length, adjust the slice_length
+            # Determine the slice length: if max_slice_length is provided and larger than initial_slice_length,
+            # adjust the slice length dynamically (but not exceeding max_slice_length).
             if max_slice_length and max_slice_length > initial_slice_length:
                 available_slice_length = min(i * 2, (len(target_chromatogram_aligned) - i) * 2)
                 slice_length = min(available_slice_length, max_slice_length)
@@ -813,9 +936,10 @@ class SyncChromatograms:
 
             half_slice = slice_length // 2
 
-            best_curr_lag = 0
-            best_score = score
+            best_curr_lag = 0  # Best offset found at this position (relative to current index)
+            best_score = score  # Best correlation score observed at this position
 
+            # Test offsets within the defined scan_range
             for offset in range(-scan_range, scan_range + 1):
                 reference_center = i + offset
                 start_ref_idx = max(reference_center - half_slice, 0)
@@ -826,24 +950,24 @@ class SyncChromatograms:
                 end_idx = min(i + half_slice, len(target_chromatogram_aligned))
                 target_slice = target_chromatogram_aligned[start_idx:end_idx]
 
-                # Find the minimum length between the two slices
+                # Ensure both slices are trimmed to the same length
                 min_length = min(len(reference_slice), len(target_slice))
-
-                # Trim both slices to the same length
                 reference_slice = reference_slice[:min_length]
                 target_slice = target_slice[:min_length]
 
+                # Compute the Pearson correlation coefficient between the two slices
                 correlation_matrix = np.corrcoef(reference_slice, target_slice)
                 normalized_correlation = correlation_matrix[0, 1]
+                # If this correlation is better than any previously observed, update the best score and lag
                 if normalized_correlation > best_score:
                     best_score = normalized_correlation
                     best_curr_lag = offset
 
-            # Append the lag and its location
+            # Append the cumulative lag (global best lag plus the current best offset) and the position
             lags.append(best_lag + best_curr_lag)
             lags_location.append(i)
 
-        # Ensure the first and last lags are consistent
+        # Ensure the lag profile spans the full length by repeating the first and last values at the boundaries.
         if len(lags) > 0:
             lags.insert(0, lags[0])
             lags_location.insert(0, 0)
