@@ -770,10 +770,10 @@ def greedy_nested_cv_channel_selection(
         # Annotate each selection step with the channel and its frequency (number of repetitions).
         for i, ch in enumerate(final_selected_channels):
             count = final_selected_channels_counts[i]
-            annotation_text = f"Ch: {ch}\n({count} reps)"
+            annotation_text = f"{ch}\n({count} )"
             ax.annotate(annotation_text, (steps_axis[i], global_test[i]),
                         textcoords="offset points", xytext=(0, -15),
-                        ha="center", fontsize=8, color='red')
+                        ha="center", fontsize=7, color='black')
         plt.draw()
         plt.pause(1.0)
         # End dynamic global plotting for this outer repetition.
@@ -833,5 +833,5 @@ labels = np.array(labels)
 
 greedy_nested_cv_channel_selection(
         data, labels, alpha=1.0, num_outer_repeats=50, inner_cv_folds=50,
-        max_channels=180, normalize=True, scaler_type='standard', random_seed=None,
+        max_channels=3, normalize=True, scaler_type='standard', random_seed=None,
         parallel=True, n_jobs=50, min_frequency=3, selection_direction='forward')
