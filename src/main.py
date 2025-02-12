@@ -75,6 +75,11 @@ if __name__ == "__main__":
     chromatograms1 = utils.load_chromatograms(basedir + file_name1)
     chromatograms2 = utils.load_chromatograms(basedir + file_name2)
 
+    # import matplotlib
+    # matplotlib.use('TkAgg')
+    # plt.plot(chromatograms2[list(chromatograms2)[0]])
+    # plt.plot(chromatograms2[list(chromatograms2)[1]])
+
     mean_c1 = cl.calculate_mean_chromatogram(chromatograms1)
     mean_c2 = cl.calculate_mean_chromatogram(chromatograms2)
 
