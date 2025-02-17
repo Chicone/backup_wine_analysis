@@ -20,7 +20,7 @@ WINDOW = 1000
 STRIDE = 200
 
 # Analysis parameters
-DATA_TYPE = "GCMS"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
+DATA_TYPE = "TIC"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
 CH_TREAT = 'concatenated'  # 'independent',  'concatenated'
 CHANNEL_METHOD = 'greedy_remove' # greedy_remove, greedy, all_channels, individual
 SYNC_STATE = False  # Use retention time alignment

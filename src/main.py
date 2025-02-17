@@ -96,7 +96,10 @@ if __name__ == "__main__":
     data_dict = utils.load_ms_data_from_directories(DATA_DIRECTORY, column_indices, row_start, row_end)
     min_length = min(array.shape[0] for array in data_dict.values())
     data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
-    data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
+    # data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
+    # import scipy.signal as signal
+    # data_dict = {key: signal.decimate(matrix, 20, axis=0, zero_phase=True)
+    #                       for key, matrix in data_dict.items()}
     CHROM_CAP = CHROM_CAP // N_DECIMATION
     gcms = GCMSDataProcessor(data_dict)
 
@@ -171,7 +174,7 @@ if __name__ == "__main__":
     #     random_states=range(0, 1, 4), wk=wine_kind, region=region
     # )
 
-    if DATA_TYPE == "GCMS":
+    if DATA_TYPE == "TIS": # TIS, GCMS
         # data_train, data_val, labels_train, labels_val = train_test_split(
         #     np.array(list(data)), np.array(list(labels)), test_size=0.5, random_state=42, stratify=np.array(list(labels))
         # )
