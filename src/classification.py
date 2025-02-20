@@ -3909,6 +3909,38 @@ def assign_year_to_pinot_noir(labels):
 
     return first_letters
 
+def assign_category_to_press_wine(labels):
+    """
+    Assigns categories (A, B, or C) to each wine label based on whether the letters
+    'A', 'B', or 'C' appear immediately before a number in the label.
+
+    Args:
+        labels (dict_keys or list of str):
+            A list of wine sample labels (or dictionary keys).
+
+    Returns:
+        list of str:
+            A list of categories ('A', 'B', or 'C') corresponding to each label.
+
+    Example:
+        labels = ['Est22CSA1-1', 'Est22CSB1-1', 'Est22CSC1-1']
+        assign_category_to_press_wine(labels)
+        >>> ['A', 'B', 'C']
+    """
+    # Regex pattern to find 'A', 'B', or 'C' followed by a number
+    pattern = re.compile(r'(A|B|C)(?=\d)')
+
+    # Loop through each label, extract category, and store in the list
+    categories = []
+    for label in labels:
+        match = pattern.search(label)
+        if match:
+            categories.append(match.group())  # Append 'A', 'B', or 'C'
+        else:
+            categories.append(None)  # If no match, append None or custom label
+
+    return categories
+
 
 
 def greedy_channel_selection(

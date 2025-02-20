@@ -5,16 +5,18 @@
 # CHEMICAL_NAME = "PINOT_NOIR_LLE_SCAN"
 # DATA_DIRECTORY= "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/DLLME_SCAN/"
 # CHEMICAL_NAME = 'PINOT_NOIR_DLLME_SCAN'
-DATA_DIRECTORY = "/home/luiscamara/Documents/datasets/3D_data/220322_Pinot_Noir_Tom_CDF/"
-CHEMICAL_NAME = 'PINOT_NOIR_CHANGINS_TOM'
+# DATA_DIRECTORY = "/home/luiscamara/Documents/datasets/3D_data/220322_Pinot_Noir_Tom_CDF/"
+# CHEMICAL_NAME = 'PINOT_NOIR_CHANGINS_TOM'
 # DATA_DIRECTORY = "/home/luisgcamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/"
 # CHEMICAL_NAME = 'BORDEAUX_OAK_PAPER_OAK_WOOD'
+DATA_DIRECTORY = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/"
+CHEMICAL_NAME = 'PRESS_WINES_ESTERS_2022_CS'
 
 # Dataset Settings
 ROW_START = 1
 NUM_SPLITS = 5
 CHROM_CAP = 29000  # Limit for chromatogram size
-N_DECIMATION = 5  # Decimation factor for 3D data
+N_DECIMATION = 1  # Decimation factor for 3D data
 VINTAGE = False  # Include vintage data in analysis
 WINDOW = 1000
 STRIDE = 200
@@ -44,7 +46,11 @@ NCONV = 1 # Number of 1D convolutional layers
 MULTICHANNEL = True
 
 # Region and Labels
-WINE_KIND = "pinot_noir" if "pinot_noir" in CHEMICAL_NAME.lower() else "bordeaux"
+WINE_KIND = (
+    "pinot_noir" if "pinot_noir" in CHEMICAL_NAME.lower() else
+    "press" if "press" in CHEMICAL_NAME.lower() else
+    "bordeaux"
+)
 # REGION = "beaume"
 REGION = "winery"
 

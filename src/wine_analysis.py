@@ -191,7 +191,10 @@ class ChromatogramAnalysis:
             closest_to_mean[1], data_dict[closest_to_mean[0]], tics, data_dict,
             np.linspace(0.980, 1.020, 80), initial_lag=25
         )
-        synced_tics = {key: value[:chrom_cap] for key, value in synced_tics.items()}
+        if chrom_cap:
+            synced_tics = {key: value[:chrom_cap] for key, value in synced_tics.items()}
+        else:
+            synced_tics = {key: value for key, value in synced_tics.items()}
         # norm_tics = utils.normalize_dict(synced_tics, scaler='standard')
 
         return synced_tics, synced_gcms
@@ -440,7 +443,7 @@ class ChromatogramAnalysis:
         for i, key in enumerate(input_chromatograms.keys()):
             print(i, key)
             chrom = input_chromatograms[key]
-            target
+
             target_ms =  all_ms[key]
             sync_chrom = SyncChromatograms(
                 reference_chromatogram, chrom, input_chromatograms, reference_ms, target_ms, 1, scales,
@@ -1038,92 +1041,238 @@ class SyncChromatograms:
     #     return np.array(lags_location), np.array(lags)
 
 
+    # def lag_profile_from_ms_data(self, reference_chromatogram, target_chromatogram,
+    #                      reference_matrix, target_matrix, num_segments, sep_thresh, show_corrections=False):
+    #     """
+    #     Divide the reference chromatogram into segments, extract maximum peaks, and for each peak,
+    #     find the best matching row in the target matrix within a specified window using Euclidean distance.
+    #
+    #     Parameters
+    #     ----------
+    #     reference_chromatogram : array-like
+    #         The reference chromatogram.
+    #     target_chromatogram : array-like
+    #         The target chromatogram.
+    #     reference_matrix : 2D array-like
+    #         The MS data matrix for the reference chromatogram.
+    #     target_matrix : 2D array-like
+    #         The MS data matrix for the target chromatogram.
+    #     num_segments : int
+    #         Number of segments to divide the chromatogram into.
+    #
+    #     Returns
+    #     -------
+    #     index_differences : list of int
+    #         A list containing the index difference between each reference peak and its best match in the target.
+    #
+    #     Notes
+    #     -----
+    #     This function divides the chromatogram into segments, identifies the maximum peak in each segment,
+    #     and finds the best match within the target matrix for each peak based on Pearson's coefficient.
+    #     """
+    #
+    #     def is_larger_than_last(value, lst):
+    #         """
+    #         Check if the value is larger than the last element of the list.
+    #         If the list is empty, return True.
+    #         """
+    #         if not lst:  # Check if the list is empty
+    #             return True
+    #         return value > lst[-1]
+    #
+    #         # Ensure peaks in segments of the reference chromatogram
+    #     reference_peaks, _ = find_peaks(reference_chromatogram)
+    #     reference_peaks, valid = self.ensure_peaks_in_segments(
+    #         reference_chromatogram, reference_peaks, num_segments=num_segments
+    #     )
+    #     if not valid:
+    #         raise ValueError("Some segments in the reference chromatogram do not have peaks. Adjust segmentation parameters.")
+    #     target_peaks, _ = find_peaks(target_chromatogram)
+    #     target_peaks, valid = self.ensure_peaks_in_segments(
+    #         target_chromatogram, target_peaks, num_segments= 3 * num_segments
+    #     )
+    #     if not valid:
+    #         raise ValueError("Some segments in the target chromatogram do not have peaks. Adjust segmentation parameters.")
+    #
+    #     index_differences = []
+    #     locations = []
+    #
+    #     for peak_index in reference_peaks:
+    #
+    #         # Extract the corresponding row from the reference matrix
+    #         reference_row = reference_matrix[peak_index]
+    #         reference_row = utils.normalize_amplitude_zscore(reference_row)
+    #
+    #         # Initialize maximum correlation and best matching index
+    #         max_correlation = -1  # Pearson correlation ranges from -1 to 1
+    #         best_match_index = None
+    #
+    #         # Compare the reference row to each row within the window in the target matrix
+    #         for target_index in target_peaks:
+    #             if np.abs(peak_index - target_index) > sep_thresh:
+    #                 continue
+    #             target_row = target_matrix[target_index]
+    #             target_row = utils.normalize_amplitude_zscore(target_row)
+    #             correlation, _ = pearsonr(reference_row, target_row)
+    #
+    #             # Update best match if the correlation is higher
+    #             if correlation > 0.98 and correlation > max_correlation and is_larger_than_last(target_index, locations):
+    #                 max_correlation = correlation
+    #                 best_match_index = target_index
+    #
+    #         # Compute the index difference and store it
+    #         if best_match_index is not None:
+    #             index_difference = peak_index - best_match_index
+    #             index_differences.append(index_difference)
+    #             locations.append(best_match_index)
+    #             if show_corrections:
+    #                 print(f"Reference peak at index {peak_index} best matches target at index {best_match_index} (difference: {index_difference})")
+    #
+    #     return np.array(locations), np.array(index_differences)
+
     def lag_profile_from_ms_data(self, reference_chromatogram, target_chromatogram,
-                         reference_matrix, target_matrix, num_segments, sep_thresh, show_corrections=False):
+                                 reference_matrix, target_matrix, num_segments, sep_thresh, show_corrections=False):
         """
-        Divide the reference chromatogram into segments, extract maximum peaks, and for each peak,
-        find the best matching row in the target matrix within a specified window using Euclidean distance.
+        Compute the lag profile between two chromatograms using MS data.
+
+        This function divides the reference chromatogram into segments, identifies maximum peaks within each segment,
+        and finds the best-matching peak in the target chromatogram within a specified retention time window.
+        Matching is based on the Pearson correlation coefficient of the corresponding rows from the reference and
+        target MS data matrices. The function returns the indices of matched peaks in the target chromatogram
+        and the index differences (lags) between matched peaks.
 
         Parameters
         ----------
         reference_chromatogram : array-like
-            The reference chromatogram.
+            The reference chromatogram used as a baseline for alignment.
         target_chromatogram : array-like
-            The target chromatogram.
+            The target chromatogram to be aligned with the reference.
         reference_matrix : 2D array-like
-            The MS data matrix for the reference chromatogram.
+            The mass spectrometry (MS) data matrix corresponding to the reference chromatogram.
+            Each row corresponds to a retention time, and each column corresponds to an m/z channel.
         target_matrix : 2D array-like
-            The MS data matrix for the target chromatogram.
+            The MS data matrix corresponding to the target chromatogram.
         num_segments : int
-            Number of segments to divide the chromatogram into.
+            The number of segments to divide the chromatogram into for peak detection.
+        sep_thresh : int
+            The maximum allowed retention time difference (in indices) between a reference peak
+            and its matching peak in the target chromatogram.
+        show_corrections : bool, optional (default=False)
+            If True, prints information about each peak match, including the reference peak index,
+            target peak index, and the index difference.
 
         Returns
         -------
-        index_differences : list of int
-            A list containing the index difference between each reference peak and its best match in the target.
+        locations : numpy.ndarray
+            An array of indices representing the locations of matched peaks in the target chromatogram.
+        index_differences : numpy.ndarray
+            An array of index differences between each reference peak and its best match in the target chromatogram.
+
+        Raises
+        ------
+        ValueError
+            - If any segment of the reference chromatogram does not contain a peak.
+            - If any segment of the target chromatogram does not contain a peak.
 
         Notes
         -----
-        This function divides the chromatogram into segments, identifies the maximum peak in each segment,
-        and finds the best match within the target matrix for each peak based on Pearson's coefficient.
+        - The chromatograms are divided into segments using `self.ensure_peaks_in_segments()`.
+        - The maximum peak in each segment is selected as the reference peak.
+        - For each reference peak, the function searches within a window defined by `sep_thresh` in the target chromatogram.
+        - The Pearson correlation coefficient is calculated between the MS rows at each candidate peak index.
+        - The best match is chosen based on the highest Pearson correlation (> 0.98) that also exceeds previous matches.
+        - Matching peaks must have increasing indices to avoid backward shifts in retention time.
+
+        Examples
+        --------
+        >>> locations, index_differences = obj.lag_profile_from_ms_data(
+        ...     reference_chromatogram, target_chromatogram, reference_matrix, target_matrix,
+        ...     num_segments=50, sep_thresh=100, show_corrections=True
+        ... )
+        Reference peak at index 1200 best matches target at index 1195 (difference: 5)
+        Reference peak at index 3400 best matches target at index 3398 (difference: 2)
+        >>> print(locations)
+        [1195, 3398, 4500, 6200]
+        >>> print(index_differences)
+        [5, 2, -3, 1]
         """
 
         def is_larger_than_last(value, lst):
             """
             Check if the value is larger than the last element of the list.
             If the list is empty, return True.
+
+            Parameters
+            ----------
+            value : int or float
+                The value to compare.
+            lst : list of int or float
+                The list whose last element is compared against the value.
+
+            Returns
+            -------
+            bool
+                True if the value is larger than the last element of the list or if the list is empty, False otherwise.
             """
-            if not lst:  # Check if the list is empty
+            if not lst:
                 return True
             return value > lst[-1]
 
-            # Ensure peaks in segments of the reference chromatogram
+        # Ensure peaks in segments of the reference chromatogram
         reference_peaks, _ = find_peaks(reference_chromatogram)
         reference_peaks, valid = self.ensure_peaks_in_segments(
             reference_chromatogram, reference_peaks, num_segments=num_segments
         )
         if not valid:
-            raise ValueError("Some segments in the reference chromatogram do not have peaks. Adjust segmentation parameters.")
+            raise ValueError(
+                "Some segments in the reference chromatogram do not have peaks. Adjust segmentation parameters.")
+
+        # Ensure peaks in segments of the target chromatogram (3x more segments for finer resolution)
         target_peaks, _ = find_peaks(target_chromatogram)
         target_peaks, valid = self.ensure_peaks_in_segments(
-            target_chromatogram, target_peaks, num_segments= 3 * num_segments
+            target_chromatogram, target_peaks, num_segments=3 * num_segments
         )
         if not valid:
-            raise ValueError("Some segments in the target chromatogram do not have peaks. Adjust segmentation parameters.")
+            raise ValueError(
+                "Some segments in the target chromatogram do not have peaks. Adjust segmentation parameters.")
 
         index_differences = []
         locations = []
 
+        # Iterate over each reference peak and find the best match in the target
         for peak_index in reference_peaks:
-
-            # Extract the corresponding row from the reference matrix
+            # Extract and normalize the corresponding row from the reference MS matrix
             reference_row = reference_matrix[peak_index]
             reference_row = utils.normalize_amplitude_zscore(reference_row)
 
-            # Initialize maximum correlation and best matching index
-            max_correlation = -1  # Pearson correlation ranges from -1 to 1
+            # Initialize maximum correlation and best match index
+            max_correlation = -1
             best_match_index = None
 
-            # Compare the reference row to each row within the window in the target matrix
+            # Search within the target peaks within the retention time window
             for target_index in target_peaks:
                 if np.abs(peak_index - target_index) > sep_thresh:
                     continue
                 target_row = target_matrix[target_index]
                 target_row = utils.normalize_amplitude_zscore(target_row)
+
+                # Calculate Pearson correlation
                 correlation, _ = pearsonr(reference_row, target_row)
 
-                # Update best match if the correlation is higher
-                if correlation > 0.98 and correlation > max_correlation and is_larger_than_last(target_index, locations):
+                # Choose the best match with correlation > 0.98 and increasing index order
+                if correlation > 0.98 and correlation > max_correlation and is_larger_than_last(target_index,
+                                                                                                locations):
                     max_correlation = correlation
                     best_match_index = target_index
 
-            # Compute the index difference and store it
+            # Store the index difference if a match was found
             if best_match_index is not None:
                 index_difference = peak_index - best_match_index
                 index_differences.append(index_difference)
                 locations.append(best_match_index)
                 if show_corrections:
-                    print(f"Reference peak at index {peak_index} best matches target at index {best_match_index} (difference: {index_difference})")
+                    print(f"Reference peak at index {peak_index} best matches target at index {best_match_index} "
+                          f"(difference: {index_difference})")
 
         return np.array(locations), np.array(index_differences)
 
@@ -1183,7 +1332,7 @@ class SyncChromatograms:
                 gaussian_filter(reference_chromatogram[:(len(reference_chromatogram) // 3)], 50),
                 gaussian_filter(target_chromatogram[:(len(target_chromatogram) // 3)], 50),
                 np.linspace(1.0, 1.0, 1),
-                max_lag=1000
+                max_lag=int(100 / self.ndec)
             )
             target_chromatogram_aligned = gaussian_filter(
                 self.correct_segment(target_chromatogram, best_scale, best_lag), 5
@@ -1881,7 +2030,7 @@ class SyncChromatograms:
 
         self.lag_res = self.lag_profile_from_ms_data(
             gaussian_filter(self.c1,5), gaussian_filter(offset_corrected_c2, 5), self.ref_ms, self.target_ms,
-            200 // self.ndec, 100 // self.ndec, show_corrections=False
+            100 // self.ndec, 20 // self.ndec, show_corrections=False
         )
         # Ensure the first and last lags are consistent
         self.lag_res = list(self.lag_res)

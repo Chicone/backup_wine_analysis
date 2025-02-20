@@ -1491,8 +1491,8 @@ elif DATA_TYPE == "GCMS":
     # from scipy.signal import decimate
     # data = decimate(data, q=10, axis=1, zero_phase=True)
     greedy_nested_cv_channel_selection_3d(
-            data, labels, alpha=1000.0, num_outer_repeats=50, inner_cv_folds=20,
+            data, labels, alpha=1.0, num_outer_repeats=50, inner_cv_folds=20,
             max_channels=180, normalize=True, scaler_type='standard', random_seed=42,
-            parallel=True, n_jobs=20, min_frequency=3, selection_direction='backward', aggregation_method='average')
+            parallel=True, n_jobs=20, min_frequency=3, selection_direction='forward', aggregation_method='concatenate')
 
 

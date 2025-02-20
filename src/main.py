@@ -58,7 +58,7 @@ import argparse
 from data_loader import DataLoader
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
-                            assign_north_south_to_beaune, BayesianParamOptimizer, greedy_channel_selection,
+                            assign_north_south_to_beaune, assign_category_to_press_wine, BayesianParamOptimizer, greedy_channel_selection,
                             classify_all_channels,
                             remove_highly_correlated_channels, split_by_split_greedy_channel_selection,
                             greedy_nested_cv_channel_selection, greedy_nested_cv_channel_elimination,
@@ -85,22 +85,28 @@ if __name__ == "__main__":
     # plot_channel_selection_performance_isvv()
     # plot_channel_selection_thresholds("""""")
     # plot_accuracy_all_methods()
+    # utils.copy_files_to_matching_directories("/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/2022/CABERNET/",
+    #                                          "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/"
+    #                                          )
 
     cl = ChromatogramAnalysis()
+
+    # utils.convert_ms_files_to_cdf_in_place(DATA_DIRECTORY)
 
     # Set rows in columns to read
     row_start = 1
     row_end, fc_idx, lc_idx = utils.find_data_margins_in_csv(DATA_DIRECTORY)
     column_indices = list(range(fc_idx, lc_idx + 1))
 
-    data_dict = utils.load_ms_data_from_directories(DATA_DIRECTORY, column_indices, row_start, row_end)
+    data_dict = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY, column_indices, row_start, row_end)
     min_length = min(array.shape[0] for array in data_dict.values())
     data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
-    # data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
+    data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
     # import scipy.signal as signal
     # data_dict = {key: signal.decimate(matrix, 20, axis=0, zero_phase=True)
     #                       for key, matrix in data_dict.items()}
     CHROM_CAP = CHROM_CAP // N_DECIMATION
+    # CHROM_CAP = None
     gcms = GCMSDataProcessor(data_dict)
 
     # GCMS-Specific Handling
@@ -125,6 +131,7 @@ if __name__ == "__main__":
                 # norm_tics = utils.normalize_dict(gcms.compute_tics(), scaler='standard')
                 tics = gcms.compute_tics()
             chromatograms = {key: utils.normalize_amplitude_zscore(signal) for key, signal in tics.items()}
+            # chromatograms = {key: signal for key, signal in tics.items()}
         elif DATA_TYPE == "TIS":
             chromatograms = gcms.compute_tiss()
         elif DATA_TYPE == "TIC-TIS":
@@ -165,6 +172,8 @@ if __name__ == "__main__":
             labels = assign_north_south_to_beaune(labels)
         else:
             raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
+    elif WINE_KIND == "press":
+        labels = assign_category_to_press_wine(labels)
 
     # cl.stacked_2D_plots_3D(synced_chromatograms)
     # cl.tsne_analysis(chromatograms, vintage,"Pinot Noir", perplexity_range=range(10, len(labels1) - 1, 2),
@@ -174,7 +183,7 @@ if __name__ == "__main__":
     #     random_states=range(0, 1, 4), wk=wine_kind, region=region
     # )
 
-    if DATA_TYPE == "TIS": # TIS, GCMS
+    if DATA_TYPE == "GCMS": # TIS, GCMS
         # data_train, data_val, labels_train, labels_val = train_test_split(
         #     np.array(list(data)), np.array(list(labels)), test_size=0.5, random_state=42, stratify=np.array(list(labels))
         # )
@@ -226,7 +235,7 @@ if __name__ == "__main__":
                     data=data,
                     labels=labels,
                     alpha=1.0,
-                    test_size=0.25,
+                    test_size=0.2,
                     num_splits=5,
                     use_pca=False,  # Enable PCA
                     n_components=50  # Retain n PCA components
@@ -452,7 +461,7 @@ if __name__ == "__main__":
         # )
 
         classif_res = cls.train_and_evaluate_balanced(
-            num_outer_repeats=10,  # Repeat the outer stratified split 5 times.
+            num_outer_repeats=50,  # Repeat the outer stratified split n times.
             n_inner_repeats=50,  # Use 20 inner CV repeats per outer repetition.
             random_seed=42,
             test_size=0.2,
@@ -460,20 +469,24 @@ if __name__ == "__main__":
             scaler_type='standard',
             use_pca=False,  # Apply PCA.
             vthresh=0.95,  # Variance threshold for PCA.
-            region='winery'  # Set region to 'winery' for a custom confusion matrix order.
+            # region='winery',  # Set region to 'winery' for a custom confusion matrix order.
+            region=None  # Set region to 'winery' for a custom confusion matrix order.
         )
 
-        if region == 'winery':
-            class_labels = [
-                'Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot',
-                'Les Petits Monts', 'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach',
-                'Brunner', 'Vin des Croisés', 'Villard et Fils', 'République',
-                'Maladaires', 'Marimar', 'Drouhin'
-            ]
-        elif region == 'origin':
-            class_labels = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+        # if region == 'winery':
+        #     class_labels = [
+        #         'Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot',
+        #         'Les Petits Monts', 'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach',
+        #         'Brunner', 'Vin des Croisés', 'Villard et Fils', 'République',
+        #         'Maladaires', 'Marimar', 'Drouhin'
+        #     ]
+        # elif region == 'origin':
+        #     class_labels = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+
+
         # visualize_confusion_matrix_3d(classif_res['mean_confusion_matrix'], class_labels=class_labels,
         #                               title="MDS on wineries for ISVV LLE")
+
 
 
     # cl.stacked_2D_plots_3D(synced_chromatograms)

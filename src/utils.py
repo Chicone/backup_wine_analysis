@@ -12,6 +12,7 @@ from scipy.ndimage import gaussian_filter
 from collections import Counter
 from scipy.ndimage import gaussian_filter1d
 from sklearn.model_selection import train_test_split
+import shutil
 
 
 def collapse_lists(d):
@@ -165,6 +166,7 @@ def min_max_normalize(data, min_range=0, max_range=1):
     normalized_data = min_range + ((data - min_val) * (max_range - min_range) / (max_val - min_val))
 
     return normalized_data
+
 
 def normalize_mz_profiles_amplitude(data_dict, method="z-score"):
     """
@@ -448,6 +450,7 @@ def normalize_dict_multichannel(data, scaler='standard'):
 
     return norm_data
 
+
 def normalize_multichannel(data, scaler='standard'):
     """
     Normalize the values across samples for each channel separately.
@@ -543,14 +546,12 @@ def normalize_multichannel(data, scaler='standard'):
         raise TypeError("Input must be a dictionary or a 3D NumPy array.")
 
 
-
-
 def filter_dict_by_keys(original_dict, keys_to_keep):
     return {key: original_dict[key] for key in keys_to_keep if key in original_dict}
 
+
 def filter_dict_by_first_letter(original_dict, letters):
     return {key: original_dict[key] for key in original_dict if key[0] in letters}
-
 
 
 def plot_data_from_dict(data_dict, title, legend=False):
@@ -687,7 +688,52 @@ def calculate_chance_accuracy_with_priors(labels):
     return chance_accuracy
 
 
-def load_ms_data_from_directories(directory, columns, row_start, row_end):
+# def load_ms_csv_data_from_directories(directory, columns, row_start, row_end):
+#     """
+#     Reads CSV files from all .D directories in the specified directory and extracts specific columns and row ranges.
+#
+#     Args:
+#         directory (str): The path to the main directory containing .D directories.
+#         columns (list of int): A list of column indices to extract from each CSV file.
+#         row_start (int): The starting row index to extract (inclusive).
+#         row_end (int): The ending row index to extract (exclusive).
+#
+#     Returns:
+#         dict of numpy arrays: A dictionary where each key is a .D directory name (without the .D suffix),
+#                               and each value is a numpy array containing the extracted data from each CSV file.
+#     """
+#     data_dict = {}
+#
+#     # Loop through all .D directories in the specified directory
+#     for subdir in sorted(os.listdir(directory)):
+#         if subdir.endswith('.D'):
+#             # Remove the '.D' part for use as the dictionary key
+#             dir_name = subdir[:-2]
+#
+#             # Construct the expected CSV file path
+#             # csv_file_path = os.path.join(directory, subdir, f"{dir_name}_MS.csv")
+#             csv_file_path = os.path.join(directory, subdir, f"{dir_name}.csv")
+#
+#             # Check if the expected CSV file exists
+#             if os.path.isfile(csv_file_path):
+#                 try:
+#                     # Read the CSV file with pandas
+#                     df = pd.read_csv(csv_file_path)
+#
+#                     # Select the specified columns and row range
+#                     extracted_data = df.iloc[row_start:row_end, columns].to_numpy()
+#
+#                     # Store the extracted data in the dictionary with the directory name as the key
+#                     data_dict[dir_name] = extracted_data
+#
+#                 except Exception as e:
+#                     print(f"Error processing file {csv_file_path}: {e}")
+#             else:
+#                 print(f"No matching CSV file found in {subdir}.")
+#
+#     return data_dict
+
+def load_ms_csv_data_from_directories(directory, columns, row_start, row_end):
     """
     Reads CSV files from all .D directories in the specified directory and extracts specific columns and row ranges.
 
@@ -706,24 +752,25 @@ def load_ms_data_from_directories(directory, columns, row_start, row_end):
     # Loop through all .D directories in the specified directory
     for subdir in sorted(os.listdir(directory)):
         if subdir.endswith('.D'):
-            # Remove the '.D' part for use as the dictionary key
+            # Extract the directory name without the '.D' suffix
             dir_name = subdir[:-2]
 
-            # Construct the expected CSV file path
-            # csv_file_path = os.path.join(directory, subdir, f"{dir_name}_MS.csv")
+            # Construct the path to the CSV file that matches the directory name
             csv_file_path = os.path.join(directory, subdir, f"{dir_name}.csv")
 
-            # Check if the expected CSV file exists
+            # Check if the CSV file exists
             if os.path.isfile(csv_file_path):
                 try:
-                    # Read the CSV file with pandas
+                    # Read the CSV file using pandas
                     df = pd.read_csv(csv_file_path)
 
-                    # Select the specified columns and row range
+                    # Extract the specified columns and row range
                     extracted_data = df.iloc[row_start:row_end, columns].to_numpy()
 
-                    # Store the extracted data in the dictionary with the directory name as the key
+                    # Store the extracted data in the dictionary using the directory name as the key
                     data_dict[dir_name] = extracted_data
+
+                    print(f"Loaded data from {csv_file_path}")
 
                 except Exception as e:
                     print(f"Error processing file {csv_file_path}: {e}")
@@ -731,6 +778,7 @@ def load_ms_data_from_directories(directory, columns, row_start, row_end):
                 print(f"No matching CSV file found in {subdir}.")
 
     return data_dict
+
 
 def find_data_margins_in_csv(directory):
     """
@@ -883,8 +931,6 @@ def string_to_latex_confusion_matrix(data_str, headers):
     print(latex_string)
 
 
-
-
 def plot_image(image):
     """
     Plot a 1-channel or 3-channel image (either a torch.Tensor or a numpy.ndarray) using Matplotlib.
@@ -938,6 +984,7 @@ def plot_image(image):
 
     plt.axis('off')  # Turn off axes
     plt.show()
+
 
 def aggregate_retention_times(data, window_size, method="mean"):
     """
@@ -1118,10 +1165,42 @@ def reduce_columns_to_final_channels(matrix, final_channels):
     return reduced_matrix
 
 
-
-
 import netCDF4
 import csv
+import os
+import subprocess
+
+
+def convert_ms_files_to_cdf_in_place(root_folder):
+    """
+    Recursively converts all .ms files in the root_folder (including subdirectories)
+    to .cdf format using ProteoWizard's msconvert and saves the output in the same folder.
+
+    Parameters:
+        root_folder (str): Path to the directory containing .ms files.
+
+    Returns:
+        None
+    """
+    for root, _, files in os.walk(root_folder):
+        for file in files:
+            if file.endswith("data.ms"):
+                input_path = os.path.join(root, file)
+                output_path = os.path.join(root, file.replace(".ms", ".cdf"))
+
+                # Run msconvert command
+                command = [
+                    "msconvert", input_path,
+                    "--outdir", root,  # Save in the same folder
+                    "--mzML"
+                ]
+
+                try:
+                    subprocess.run(command, check=True)
+                    print(f"Converted: {input_path} -> {output_path}")
+                except subprocess.CalledProcessError as e:
+                    print(f"Error converting {input_path}: {e}")
+
 
 def convert_cdf_to_csv(cdf_file, csv_file, mz_min=40, mz_max=220):
     """
@@ -1363,3 +1442,53 @@ def split_train_val_test(data, labels, test_size=0.2, validation_size=0.2, rando
     )
 
     return X_train, X_val, X_test, y_train, y_val, y_test
+
+
+def copy_files_to_matching_directories(source_dir, mother_dir):
+    """
+    Reads files from source_dir and copies each file into a directory inside
+    mother_dir (or its subdirectories) that matches the file's name (without extension, ignoring '.D').
+
+    If no matching directory is found, a new directory named 'file.D' is created at the root.
+
+    Args:
+        source_dir (str): Path to the directory containing files to be copied.
+        mother_dir (str): Path to the mother directory where files will be organized.
+    """
+
+    def find_matching_directory(folder_name, mother_dir):
+        """
+        Recursively search for a directory named 'folder_name.D' within 'mother_dir'.
+        Returns the path if found, otherwise None.
+        """
+        for root, dirs, _ in os.walk(mother_dir):
+            for directory in dirs:
+                # Ignore case and check if directory ends with .D and matches folder_name
+                if directory.lower().endswith(".d") and directory[:-2] == folder_name:
+                    return os.path.join(root, directory)
+        return None
+
+    # Ensure the mother directory exists
+    os.makedirs(mother_dir, exist_ok=True)
+
+    # Loop through each file in the source directory
+    for file_name in os.listdir(source_dir):
+        file_path = os.path.join(source_dir, file_name)
+
+        # Only process files
+        if os.path.isfile(file_path):
+            # Extract filename without extension
+            folder_name = os.path.splitext(file_name)[0]
+
+            # Search for a matching directory recursively (ignoring '.D')
+            destination_folder = find_matching_directory(folder_name, mother_dir)
+
+            # If no directory is found, create one at the root of mother_dir with .D suffix
+            if destination_folder is None:
+                destination_folder = os.path.join(mother_dir, folder_name + ".D")
+                os.makedirs(destination_folder, exist_ok=True)
+
+            # Copy the file to the destination folder
+            destination_path = os.path.join(destination_folder, file_name)
+            shutil.copy(file_path, destination_path)
+            print(f"Copied: {file_name} -> {destination_folder}")
