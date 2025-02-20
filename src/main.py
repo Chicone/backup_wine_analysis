@@ -58,11 +58,12 @@ import argparse
 from data_loader import DataLoader
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
-                            assign_north_south_to_beaune, assign_category_to_press_wine, BayesianParamOptimizer, greedy_channel_selection,
+                            assign_north_south_to_beaune, assign_category_to_press_wine, BayesianParamOptimizer,
+                            greedy_channel_selection,
                             classify_all_channels,
                             remove_highly_correlated_channels, split_by_split_greedy_channel_selection,
                             greedy_nested_cv_channel_selection, greedy_nested_cv_channel_elimination,
-                            greedy_nested_cv_channel_selection_snr
+                            greedy_nested_cv_channel_selection_snr, assign_composite_label_to_press_wine
                             )
 from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
 from visualizer import visualize_confusion_matrix_3d, plot_accuracy_vs_channels
@@ -173,7 +174,8 @@ if __name__ == "__main__":
         else:
             raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
     elif WINE_KIND == "press":
-        labels = assign_category_to_press_wine(labels)
+        # labels = assign_category_to_press_wine(labels)
+        labels = assign_composite_label_to_press_wine(labels)
 
     # cl.stacked_2D_plots_3D(synced_chromatograms)
     # cl.tsne_analysis(chromatograms, vintage,"Pinot Noir", perplexity_range=range(10, len(labels1) - 1, 2),
@@ -411,11 +413,12 @@ if __name__ == "__main__":
     # elif DATA_TYPE == "TIC":
     elif DATA_TYPE in ["TIC", "TIS", "TIC-TIS"]:
         cls_type = 'RGC'
+        alpha = 1
         # data_train, data_val, labels_train, labels_val = train_test_split(
         #     np.array(list(data)), np.array(list(labels)), test_size=0.3, random_state=42, stratify=np.array(list(labels))
         # )
-        data_train, data_val, data_test, labels_train, labels_val, labels_test = utils.split_train_val_test(
-            np.array(list(data)), np.array(list(labels)), test_size=0.2, validation_size=0.2)
+        # data_train, data_val, data_test, labels_train, labels_val, labels_test = utils.split_train_val_test(
+        #     np.array(list(data)), np.array(list(labels)), test_size=0.2, validation_size=0.2)
 
 
         # # Generate shuffled indices for the first dimension (samples)
@@ -426,20 +429,19 @@ if __name__ == "__main__":
         # data_val = np.array(list(data))[shuffled_indices]
         # labels_val = np.array(labels)[shuffled_indices]
 
-        alpha = 1
 
-        if BAYES_OPTIMIZE:
-            optimizer = BayesianParamOptimizer(data_train, list(labels_train), n_channels=None)
-            result = optimizer.optimize_tic(n_calls=BAYES_CALLS, random_state=42, num_splits=NUM_SPLITS_BAYES)
-
-            alpha = result.x[0]
-            score = -result.fun
-            print(f"Optimal alpha: {alpha}")
-            print(f"Best score: {score}")
-
-            print("")
-            print (f'sync {SYNC_STATE}')
-            print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
+        # if BAYES_OPTIMIZE:
+        #     optimizer = BayesianParamOptimizer(data_train, list(labels_train), n_channels=None)
+        #     result = optimizer.optimize_tic(n_calls=BAYES_CALLS, random_state=42, num_splits=NUM_SPLITS_BAYES)
+        #
+        #     alpha = result.x[0]
+        #     score = -result.fun
+        #     print(f"Optimal alpha: {alpha}")
+        #     print(f"Best score: {score}")
+        #
+        #     print("")
+        #     print (f'sync {SYNC_STATE}')
+        #     print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
 
         # cls = Classifier(
         #     np.array(list(data_val)), np.array(list(labels_val)), classifier_type=cls_type, wine_kind=WINE_KIND,

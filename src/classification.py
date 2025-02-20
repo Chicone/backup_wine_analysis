@@ -6,7 +6,6 @@ from sklearn.model_selection import StratifiedKFold, BaseCrossValidator
 from sklearn.utils import resample
 from concurrent.futures import ProcessPoolExecutor
 
-
 import utils
 from dimensionality_reduction import DimensionalityReducer
 from sklearn.decomposition import PCA
@@ -17,7 +16,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, balanced_accuracy_score
 from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.linear_model import RidgeClassifierCV
-from sklearn.model_selection import GroupShuffleSplit, GridSearchCV
+from sklearn.model_selection import GroupShuffleSplit, GridSearchCV, ShuffleSplit
 from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
 from scipy.optimize import minimize
 from sklearn.model_selection import train_test_split, StratifiedKFold, LeaveOneOut, LeavePOut
@@ -1699,6 +1698,122 @@ class Classifier:
         from sklearn.decomposition import PCA
         from sklearn.utils.class_weight import compute_sample_weight
 
+        class RepeatedLeaveOneSamplePerClassCV(BaseCrossValidator):
+            """
+            Custom cross-validator that randomly selects one sample per class as the test set,
+            ensuring that all replicates of the same sample stay together, or selects individual
+            samples if standard mode is chosen. Uses composite labels to preserve replicate information.
+
+            Parameters
+            ----------
+            n_repeats : int, optional (default=50)
+                Number of repetitions.
+            shuffle : bool, optional (default=True)
+                Whether to shuffle the samples before splitting.
+            random_state : int, optional (default=None)
+                Seed for reproducibility.
+            use_groups : bool, optional (default=True)
+                If True, replicates of the same sample stay together (group-like behavior).
+                If False, selects individual samples without considering replicates.
+
+            Attributes
+            ----------
+            n_repeats : int
+                Number of repetitions.
+            shuffle : bool
+                Whether to shuffle samples.
+            random_state : int
+                Random seed.
+            use_groups : bool
+                Determines whether to use group-like splitting or standard splitting.
+            """
+
+            def __init__(self, n_repeats=50, shuffle=True, random_state=None, use_groups=True):
+                self.n_repeats = n_repeats
+                self.shuffle = shuffle
+                self.random_state = random_state
+                self.use_groups = use_groups
+
+            def get_n_splits(self, X, y, groups=None):
+                """Returns the number of splits."""
+                return self.n_repeats
+
+            def split(self, X, y):
+                """
+                Splits the dataset into training and test sets using either:
+                - Group-like splitting (all replicates of the same sample stay together).
+                - Standard splitting (individual samples are selected without considering replicates).
+
+                Parameters
+                ----------
+                X : array-like, shape (n_samples, n_features)
+                    Feature matrix or sample labels.
+                y : array-like, shape (n_samples,)
+                    Composite labels (e.g., 'A1', 'B9') that preserve replicate information.
+
+                Yields
+                ------
+                train_indices : ndarray
+                    Training indices.
+                test_indices : ndarray
+                    Test indices.
+                """
+
+                # Step 1: Extract category from composite labels (e.g., 'A1' -> 'A')
+                def get_category(label):
+                    """Extracts the category (A, B, or C) from the composite label."""
+                    match = re.match(r'([A-C])\d+', label)
+                    return match.group(1) if match else label  # Fallback if no match
+
+                rng = np.random.default_rng(self.random_state)
+
+                # ✅ OPTION 1: Group-Like Splitting (use_groups=True)
+                if self.use_groups:
+                    # Group indices by composite labels
+                    indices_by_sample = {}
+                    for idx, label in enumerate(y):
+                        indices_by_sample.setdefault(label, []).append(idx)
+
+                    # Generate splits
+                    for _ in range(self.n_repeats):
+                        test_indices = []
+                        for category in set(map(get_category, y)):
+                            # Select all samples that belong to the current category
+                            class_samples = [label for label in indices_by_sample.keys() if
+                                             get_category(label) == category]
+
+                            # Randomly choose one sample
+                            chosen_sample = rng.choice(class_samples, size=1, replace=False)[0] if self.shuffle else \
+                            class_samples[0]
+
+                            # Add all indices of the chosen sample to the test set
+                            test_indices.extend(indices_by_sample[chosen_sample])
+
+                        test_indices = np.array(test_indices)
+                        train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+
+                        yield train_indices, test_indices
+
+                # ✅ OPTION 2: Standard Splitting (use_groups=False)
+                else:
+                    # Collect indices by category
+                    indices_by_category = {}
+                    for idx, label in enumerate(y):
+                        category = get_category(label)
+                        indices_by_category.setdefault(category, []).append(idx)
+
+                    # Generate splits
+                    for _ in range(self.n_repeats):
+                        test_indices = []
+                        for category, indices in indices_by_category.items():
+                            chosen = rng.choice(indices, size=1, replace=False) if self.shuffle else [indices[0]]
+                            test_indices.extend(chosen)
+
+                        test_indices = np.array(test_indices)
+                        train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+
+                        yield train_indices, test_indices
+
         class RepeatedLeaveOneFromEachClassCV(BaseCrossValidator):
             """
             Custom cross-validator that randomly selects one sample per class as the test set,
@@ -1731,6 +1846,56 @@ class Classifier:
                     train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
                     yield train_indices, test_indices
 
+        def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None):
+            """
+            Perform ShuffleSplit on samples while ensuring that duplicates of the same sample
+            are kept together in the same fold.
+
+            Args:
+                X (array-like): Feature matrix or sample labels.
+                y (array-like): Composite labels (e.g., ['A1', 'A1', 'B2', 'B2']).
+                test_size (float): Fraction of samples to include in the test set.
+                random_state (int): Random seed for reproducibility.
+
+            Returns:
+                tuple: train_indices, test_indices (numpy arrays)
+            """
+            # Step 1: Extract unique samples and their indices
+            unique_samples = {}
+            for idx, label in enumerate(y):
+                unique_samples.setdefault(label, []).append(idx)
+
+            # Step 2: Get all sample labels
+            sample_labels = list(unique_samples.keys())
+
+            # Step 3: Shuffle samples (not individual rows)
+            rng = np.random.default_rng(random_state)
+            rng.shuffle(sample_labels)
+
+            # Step 4: Split into train and test based on unique samples
+            num_test_samples = int(len(sample_labels) * test_size)
+            test_sample_labels = sample_labels[:num_test_samples]
+            train_sample_labels = sample_labels[num_test_samples:]
+
+            # Step 5: Get all indices of the selected samples
+            test_indices = [idx for label in test_sample_labels for idx in unique_samples[label]]
+            train_indices = [idx for label in train_sample_labels for idx in unique_samples[label]]
+
+            return np.array(train_indices), np.array(test_indices)
+
+        def extract_category_labels(composite_labels):
+            """
+            Convert composite labels (e.g., 'A1', 'B9', 'C2') to category labels ('A', 'B', 'C').
+
+            Args:
+                composite_labels (array-like): List or array of composite labels.
+
+            Returns:
+                list: List of category labels.
+            """
+            return [re.match(r'([A-C])', label).group(1) if re.match(r'([A-C])', label) else label
+                    for label in composite_labels]
+
         # Set up a custom order for the confusion matrix if a region is specified.
         if region == 'winery':
             custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
@@ -1757,9 +1922,16 @@ class Classifier:
         for repeat in range(num_outer_repeats):
             print(f"\n🔁 Outer CV Repetition {repeat + 1}/{num_outer_repeats}")
 
+            # Choose whether to use groups based on wine type.
+            use_groups = True if self.wine_kind == "press" else False
+
             # Outer split: use StratifiedShuffleSplit to split the data.
-            sss = StratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=rng.integers(0, int(1e6)))
-            train_idx, _ = next(sss.split(self.data, self.labels))
+            # # sss = StratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=rng.integers(0, int(1e6)))
+            # sss = ShuffleSplit(n_splits=1, test_size=test_size, random_state=rng.integers(0, int(1e6)))
+            # train_idx, _ = next(sss.split(self.data, self.labels))
+            train_idx, _ = shuffle_split_without_splitting_duplicates(
+                self.data, self.labels, test_size=test_size, random_state=rng.integers(0, int(1e6))
+            )
             X_train_full = self.data[train_idx]
             y_train_full = self.labels[train_idx]
 
@@ -1772,14 +1944,25 @@ class Classifier:
             inner_f1 = []
             inner_cm_sum = None
 
-            # Instantiate the custom inner CV (using n_inner_repeats).
-            cv = RepeatedLeaveOneFromEachClassCV(n_repeats=n_inner_repeats, shuffle=True, random_state=random_seed)
+
+            # cv = RepeatedLeaveOneFromEachClassCV(n_repeats=n_inner_repeats, shuffle=True, random_state=random_seed)
+            cv = RepeatedLeaveOneSamplePerClassCV(
+                n_repeats=n_inner_repeats,
+                shuffle=True,
+                random_state=random_seed,
+                use_groups=use_groups
+            )
+
             for i, (inner_train_idx, inner_val_idx) in enumerate(cv.split(X_train_full, y_train_full)):
+            # for i, (inner_train_idx, inner_val_idx) in enumerate(cv.split(X_train_full, y_train_full)):
                 # Create inner training and validation sets.
                 X_train = X_train_full[inner_train_idx]
-                y_train = y_train_full[inner_train_idx]
+                y_train = extract_category_labels(y_train_full[inner_train_idx])  # ✅ Convert to categories NOW
+                # y_train = y_train_full[inner_train_idx]
                 X_val = X_train_full[inner_val_idx]
-                y_val = y_train_full[inner_val_idx]
+                # y_val = y_train_full[inner_val_idx]
+                y_val = extract_category_labels(y_train_full[inner_val_idx])  # ✅ Convert to categories NOW
+
 
                 # Apply normalization if enabled.
                 if normalize:
@@ -1862,8 +2045,8 @@ class Classifier:
             print(f"Overall Precision: {overall_precision:.3f}")
             print(f"Overall Recall: {overall_recall:.3f}")
             print(f"Overall F1 Score: {overall_f1:.3f}")
-            print("Overall Mean Confusion Matrix:")
-            print(overall_cm)
+            # print("Overall Mean Confusion Matrix:")
+            # print(overall_cm)
 
         return {
             'overall_accuracy': overall_accuracy,
@@ -3940,6 +4123,40 @@ def assign_category_to_press_wine(labels):
             categories.append(None)  # If no match, append None or custom label
 
     return categories
+
+def assign_composite_label_to_press_wine(labels):
+    """
+    Assigns composite labels (e.g., 'A1', 'B9', 'C2') to each wine label based on the
+    letter 'A', 'B', or 'C' followed by a number in the label.
+
+    Args:
+        labels (dict_keys or list of str):
+            A list of wine sample labels (or dictionary keys).
+
+    Returns:
+        list of str:
+            A list of composite labels (e.g., 'A1', 'B9', 'C2') corresponding to each label.
+
+    Example:
+        labels = ['Est22CSA1-1', 'Est22CSB9-2', 'Est22CSC3-1']
+        assign_composite_label_to_press_wine(labels)
+        >>> ['A1', 'B9', 'C3']
+    """
+    # Regex pattern to find 'A', 'B', or 'C' followed by a number (e.g., 'A1', 'B9', 'C3')
+    pattern = re.compile(r'([A-C])(\d+)')
+
+    # Loop through each label, extract composite label, and store in the list
+    composite_labels = []
+    for label in labels:
+        match = pattern.search(label)
+        if match:
+            # Combine category and number (e.g., 'A' + '1' = 'A1')
+            composite_labels.append(match.group(1) + match.group(2))
+        else:
+            composite_labels.append(None)  # If no match, append None or custom label
+
+    return composite_labels
+
 
 
 
