@@ -1,3 +1,4 @@
+import numpy as np
 from pynndescent.optimal_transport import total_cost
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, Perceptron, RidgeClassifier, PassiveAggressiveClassifier, SGDClassifier
@@ -22,9 +23,7 @@ from scipy.optimize import minimize
 from sklearn.model_selection import train_test_split, StratifiedKFold, LeaveOneOut, LeavePOut
 
 from utils import find_first_and_last_position, normalize_dict, normalize_data
-import numpy as np
 import re
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -54,1217 +53,6 @@ class CustomDataParallel(torch.nn.DataParallel):
         except AttributeError:
             return getattr(self.module, name)
 
-class CNN1D(nn.Module):
-    def __init__(self, input_length, num_classes, num_channels=1, nconv=2, multichannel=None):
-        """
-        A flexible 1D CNN where the number of convolutional layers can be set via `nconv`.
-
-        Parameters:
-        ----------
-        input_length : int
-            Length of the input sequence.
-        num_classes : int
-            Number of output classes.
-        num_channels : int
-            Number of input channels (e.g., m/z channels).
-        nconv : int
-            Number of convolutional layers.
-        """
-        super(CNN1D, self).__init__()
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.multichannel=multichannel
-
-        self.nconv = nconv
-
-        # Base number of filters and kernel size
-        base_filters = 64
-        kernel_size = 5
-
-        # Dynamically create convolutional and batch normalization layers
-        self.conv_layers = nn.ModuleList()
-        self.bn_layers = nn.ModuleList()
-
-        in_channels = num_channels  # Dynamically set the number of input channels
-        for i in range(nconv):
-            out_channels = base_filters * (2 ** i)  # Double the number of filters at each step
-            self.conv_layers.append(nn.Conv1d(in_channels, out_channels, kernel_size, stride=1, padding=kernel_size // 2))
-            self.bn_layers.append(nn.BatchNorm1d(out_channels))
-            in_channels = out_channels  # Update for the next layer
-
-        # Pooling and dropout
-        self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
-        self.dropout = nn.Dropout(p=0.3)
-
-        # Dynamically calculate the input size for the fully connected layer
-        with torch.no_grad():
-            dummy_input = torch.zeros(1, num_channels, input_length)  # Shape: (batch_size, channels, length)
-            for conv, bn in zip(self.conv_layers, self.bn_layers):
-                dummy_input = self.pool(F.relu(bn(conv(dummy_input))))
-            fc_input_size = dummy_input.numel()
-
-        # Fully connected layers
-        self.fc1 = nn.Linear(fc_input_size, 128)
-        self.fc2 = nn.Linear(128, num_classes)
-        self.flatten = nn.Flatten()
-
-        self._initialize_weights()
-
-    def forward(self, x):
-        # Apply convolutional layers with pooling, batch normalization, and ReLU
-        for conv, bn in zip(self.conv_layers, self.bn_layers):
-            x = self.pool(F.relu(bn(conv(x))))
-
-        # Flatten the output
-        x = self.flatten(x)
-
-        # Fully connected layers with dropout
-        x = self.dropout(F.relu(self.fc1(x)))
-        x = self.fc2(x)
-        return x
-
-    def _initialize_weights(self):
-        """
-        Initialize weights for convolutional and fully connected layers.
-        Uses Kaiming Normal Initialization for weights and constant initialization for biases.
-        """
-        for layer in self.modules():
-            if isinstance(layer, nn.Conv1d):
-                nn.init.kaiming_normal_(layer.weight, mode='fan_in', nonlinearity='relu')
-                if layer.bias is not None:
-                    nn.init.constant_(layer.bias, 0)
-            elif isinstance(layer, nn.Linear):
-                nn.init.kaiming_normal_(layer.weight, mode='fan_in', nonlinearity='relu')
-                if layer.bias is not None:
-                    nn.init.constant_(layer.bias, 0)
-
-
-    def fit(self, X_train, y_train, X_val, y_val, batch_size=32, num_epochs=10, learning_rate=0.001):
-        """
-        Train the model with validation checks.
-
-        Parameters:
-        ----------
-        train_loader : DataLoader
-            DataLoader for training data.
-        val_loader : DataLoader
-            DataLoader for validation data.
-        num_epochs : int
-            Number of epochs to train.
-        learning_rate : float
-            Learning rate for optimizer.
-        """
-        weight_decay = 0.001
-
-        print(f'Batch size =   {batch_size}')
-        print(f'Epochs =       {num_epochs}')
-        print(f'Conv layers =  {self.nconv}')
-        print(f'Learn rate =   {learning_rate}')
-        print(f'Weight decay = {weight_decay}')
-
-
-        # TODO add conditions for single or
-        if not self.multichannel:
-            train_dataset = TensorDataset(X_train.unsqueeze(1), y_train)
-        else:
-            train_dataset = TensorDataset(X_train.squeeze(), y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        # plt.figure();plt.imshow(train_dataset[2][0].permute(1, 2, 0).numpy())
-
-        if not self.multichannel:
-            val_dataset =  TensorDataset(X_val.unsqueeze(1), y_val)
-        else:
-            val_dataset =  TensorDataset(X_val.squeeze(), y_val)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size)
-
-        # Define loss and optimizer
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(self.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
-
-        for epoch in range(num_epochs):
-            self.to(self.device)
-            # Training phase
-            self.train()
-            running_loss = 0.0
-            for tics_batch, labels_batch in train_loader:
-                optimizer.zero_grad()
-                outputs = self(tics_batch)
-                loss = criterion(outputs, labels_batch)
-                loss.backward()
-                optimizer.step()
-                running_loss += loss.item()
-
-            scheduler.step()  # Adjust learning rate
-
-            # Validation phase
-            self.eval()
-            val_loss = 0.0
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for tics_batch, labels_batch in val_loader:
-                    outputs = self(tics_batch)
-                    loss = criterion(outputs, labels_batch)
-                    val_loss += loss.item()
-
-                    _, predicted = outputs.max(1)
-                    total += labels_batch.size(0)
-                    correct += (predicted == labels_batch).sum().item()
-
-            val_accuracy = correct / total
-            print(
-                f"Epoch {epoch + 1}/{num_epochs}, "
-                # f"Learning Rate = {scheduler.get_last_lr()}, "
-                f"Train Loss: {running_loss / len(train_loader):.5f}, "
-                f"Val Loss: {val_loss / len(val_loader):.5f}, "
-                f"Val Accuracy: {val_accuracy:.5f}"
-            )
-
-
-    def predict(self, images):
-        """
-        Predict the class labels for the given input images.
-
-        Parameters:
-        ----------
-        images : Tensor
-            Input data, assumed to be of shape (batch_size, 3, 224, 224).
-
-        Returns:
-        -------
-        y_pred : Tensor
-            Predicted class labels.
-        """
-        self.eval()
-        images = images.to(self.device)
-        with torch.no_grad():
-            outputs = self(images)
-            _, y_pred = outputs.max(1)
-        return y_pred.cpu()
-
-    def score(self, X_test, y_test):
-        """
-        Compute the accuracy of the model on test data.
-
-        Parameters:
-        ----------
-        X_test : torch.Tensor
-            Test feature data of shape (num_samples, num_features).
-        y_test : torch.Tensor
-            True labels for the test data.
-
-        Returns:
-        -------
-        float
-            Accuracy of the model.
-        """
-        self.eval()  # Switch to evaluation mode
-        correct = 0
-        total = 0
-
-        with torch.no_grad():  # Disable gradient computation
-            # Forward pass
-            outputs = self(X_test)
-            _, predicted = outputs.max(1)  # Get class with maximum score
-            total = y_test.size(0)
-            correct = (predicted == y_test).sum().item()
-
-        # Return accuracy
-        return correct / total
-
-# class CNNClassifier(nn.Module):
-    # def __init__(self, input_channels, num_classes, input_height, input_width):
-    #     super(CNNClassifier, self).__init__()
-    #     self.device = "cpu"
-    #     self.conv1 = nn.Conv2d(input_channels, 16, kernel_size=3, stride=1, padding=1)
-    #     self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
-    #     self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-    #
-    #     # Calculate the output size after convolution and pooling
-    #     conv_output_height = input_height // 4  # Two pooling layers reduce height by a factor of 4
-    #     conv_output_width = input_width // 4  # Two pooling layers reduce width by a factor of 4
-    #     flattened_size = 32 * conv_output_height * conv_output_width
-    #
-    #     self.fc1 = nn.Linear(flattened_size, 128)
-    #     self.fc2 = nn.Linear(128, num_classes)
-    #     self.relu = nn.ReLU()
-    #
-    # def forward(self, x):
-    #     x = self.pool(self.relu(self.conv1(x)))
-    #     x = self.pool(self.relu(self.conv2(x)))
-    #     x = x.view(x.size(0), -1)
-    #     x = self.relu(self.fc1(x))
-    #     x = self.fc2(x)
-    #     return x
-
-class PretrainedGoogleNet(nn.Module):
-    def __init__(self, num_classes, pretrained=True):
-        super(PretrainedGoogleNet, self).__init__()
-        # Load pretrained GoogleNet
-        self.model = models.googlenet(pretrained=pretrained)
-
-        # Freeze all layers except the fully connected (fc) layer
-        for name, param in self.model.named_parameters():
-            if "fc" not in name:  # Freeze everything except "fc"
-                param.requires_grad = False
-
-        # # Unfreeze specific layers (e.g., the last inception block and auxiliary layers)
-        # for name, param in self.model.named_parameters():
-        #     if "inception5" in name:  # Unfreeze certain layers
-        #         param.requires_grad = True
-
-        # Replace the final fully connected layer
-        self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
-
-        # Define device
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = self.model.to(self.device)
-
-        # # Print which layers are frozen
-        # for name, param in self.model.named_parameters():
-        #     print(f"{name} is {'trainable' if param.requires_grad else 'frozen'}")
-
-    def forward(self, x):
-        return self.model(x)
-
-    def fit(self, X_train, y_train, X_val, y_val, batch_size =32, num_epochs=10, learning_rate=0.001):
-        """
-        Train the model with validation checks.
-
-        Parameters:
-        ----------
-        train_loader : DataLoader
-            DataLoader for training data.
-        val_loader : DataLoader
-            DataLoader for validation data.
-        num_epochs : int
-            Number of epochs to train.
-        learning_rate : float
-            Learning rate for optimizer.
-        """
-
-        class ToThreeChannels:
-            def __call__(self, img):
-                if len(img.shape) == 2:  # Ensure input is (H, W)
-                    img = img.unsqueeze(0)  # Add channel dimension -> (1, H, W)
-                return img.repeat(3, 1, 1)  # Duplicate channel -> (3, H, W)
-
-        transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            ToThreeChannels(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
-
-        class TransformTensorDataset(torch.utils.data.Dataset):
-            def __init__(self, tensors, transform=None):
-                """
-                Custom dataset to apply transforms on a TensorDataset.
-
-                Parameters:
-                ----------
-                tensors : tuple
-                    A tuple of tensors, e.g., (X_train, y_train).
-                transform : callable, optional
-                    Transform to apply to the first tensor (e.g., X_train).
-                """
-                self.tensors = tensors
-                self.transform = transform
-
-            def __len__(self):
-                return len(self.tensors[0])
-
-            def __getitem__(self, idx):
-                x = self.tensors[0][idx]
-                y = self.tensors[1][idx]
-
-                if self.transform:
-                    x = transforms.ToPILImage()(x)
-                    x = self.transform(x)  # Apply transform to X only
-
-                return x, y
-
-        train_dataset = TransformTensorDataset((X_train, y_train), transform=transform)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        # plt.figure();plt.imshow(train_dataset[2][0].permute(1, 2, 0).numpy())
-
-        val_dataset = TransformTensorDataset((X_val, y_val), transform=transform)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size)
-
-        # Define loss and optimizer
-        criterion = nn.CrossEntropyLoss()
-        # optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()), lr=0.001)
-
-
-        for epoch in range(num_epochs):
-            # Training phase
-            self.model.train()
-            running_loss = 0.0
-            for images, labels in train_loader:
-                images, labels = images.to(self.device), labels.to(self.device)
-
-                optimizer.zero_grad()
-                outputs = self.model(images)
-                loss = criterion(outputs, labels)
-                loss.backward()
-                optimizer.step()
-                running_loss += loss.item()
-
-            # Validation phase
-            self.model.eval()
-            val_loss = 0.0
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for images, labels in val_loader:
-                    images, labels = images.to(self.device), labels.to(self.device)
-                    outputs = self.model(images)
-                    loss = criterion(outputs, labels)
-                    val_loss += loss.item()
-
-                    _, predicted = outputs.max(1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
-
-            val_accuracy = correct / total
-            print(
-                f"Epoch {epoch+1}/{num_epochs}, "
-                f"Train Loss: {running_loss / len(train_loader):.4f}, "
-                f"Val Loss: {val_loss / len(val_loader):.4f}, "
-                f"Val Accuracy: {val_accuracy:.4f}"
-            )
-
-    def predict(self, images):
-        """
-        Predict the class labels for the given input images.
-
-        Parameters:
-        ----------
-        images : Tensor
-            Input data, assumed to be of shape (batch_size, 3, 224, 224).
-
-        Returns:
-        -------
-        y_pred : Tensor
-            Predicted class labels.
-        """
-        self.model.eval()
-        images = images.to(self.device)
-        with torch.no_grad():
-            outputs = self.model(images)
-            _, y_pred = outputs.max(1)
-        return y_pred.cpu()
-
-    def score(self, data_loader):
-        """
-        Compute the accuracy of the model on test data.
-
-        Parameters:
-        ----------
-        data_loader : DataLoader
-            DataLoader for test data.
-
-        Returns:
-        -------
-        float
-            Accuracy of the model.
-        """
-        self.model.eval()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for images, labels in data_loader:
-                images, labels = images.to(self.device), labels.to(self.device)
-                outputs = self.model(images)
-                _, predicted = outputs.max(1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-        return correct / total
-
-
-class InceptionBlock(nn.Module):
-    def __init__(self, in_channels, out_1x1, red_3x3, out_3x3, red_5x5, out_5x5, out_pool):
-        super(InceptionBlock, self).__init__()
-        self.branch1 = nn.Conv2d(in_channels, out_1x1, kernel_size=1)
-
-        self.branch2 = nn.Sequential(
-            nn.Conv2d(in_channels, red_3x3, kernel_size=1),
-            nn.ReLU(),
-            nn.Conv2d(red_3x3, out_3x3, kernel_size=3, padding=1),
-        )
-
-        self.branch3 = nn.Sequential(
-            nn.Conv2d(in_channels, red_5x5, kernel_size=1),
-            nn.ReLU(),
-            nn.Conv2d(red_5x5, out_5x5, kernel_size=5, padding=2),
-        )
-
-        self.branch4 = nn.Sequential(
-            nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
-            nn.Conv2d(in_channels, out_pool, kernel_size=1),
-        )
-
-    def forward(self, x):
-        branch1 = self.branch1(x)
-        branch2 = self.branch2(x)
-        branch3 = self.branch3(x)
-        branch4 = self.branch4(x)
-        return torch.cat([branch1, branch2, branch3, branch4], dim=1)
-
-# Define the GoogleNet-like Architecture
-class GoogleNetLike(nn.Module):
-    def __init__(self, input_channels, num_classes):
-        super(GoogleNetLike, self).__init__()
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        # Initial Convolution and Pooling Layers
-        self.conv1 = nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3)
-        self.pool1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.conv2 = nn.Conv2d(64, 192, kernel_size=3, padding=1)
-        self.pool2 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-
-        # Inception Blocks
-        self.inception3a = InceptionBlock(192, 64, 96, 128, 16, 32, 32)
-        self.inception3b = InceptionBlock(256, 128, 128, 192, 32, 96, 64)
-
-        self.pool3 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-
-        self.inception4a = InceptionBlock(480, 192, 96, 208, 16, 48, 64)
-        self.inception4b = InceptionBlock(512, 160, 112, 224, 24, 64, 64)
-        self.inception4c = InceptionBlock(512, 128, 128, 256, 24, 64, 64)
-
-        self.pool4 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-
-        # Final Layers
-        self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.flatten = nn.Flatten()
-        self.fc = nn.Linear(512, num_classes)
-
-    def forward(self, x):
-        x = self.pool1(torch.relu(self.conv1(x)))
-        x = self.pool2(torch.relu(self.conv2(x)))
-
-        x = self.inception3a(x)
-        x = self.inception3b(x)
-
-        x = self.pool3(x)
-
-        x = self.inception4a(x)
-        x = self.inception4b(x)
-        x = self.inception4c(x)
-
-        x = self.pool4(x)
-
-        x = self.global_avg_pool(x)
-        x = self.flatten(x)
-        x = self.fc(x)
-        return x
-
-    def fit(self, X_train, y_train, X_val, y_val, batch_size=32, num_epochs=20, learning_rate=0.001):
-        train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
-        val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size)
-
-        optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        loss_fn = nn.CrossEntropyLoss()
-
-        self.to(self.device)
-        self.train()
-
-        for epoch in range(num_epochs):
-            total_loss = 0
-            self.train()
-            for batch_X, batch_y in train_loader:
-                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
-
-                optimizer.zero_grad()
-                outputs = self(batch_X)
-                loss = loss_fn(outputs, batch_y)
-                loss.backward()
-                optimizer.step()
-                total_loss += loss.item()
-
-            # Validation
-            self.eval()
-            correct, total = 0, 0
-            with torch.no_grad():
-                for val_X, val_y in val_loader:
-                    val_X, val_y = val_X.to(self.device), val_y.to(self.device)
-                    outputs = self(val_X)
-                    _, predicted = torch.max(outputs, 1)
-                    total += val_y.size(0)
-                    correct += (predicted == val_y).sum().item()
-
-            val_accuracy = correct / total
-            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {total_loss / len(train_loader):.4f}, Val Acc: {val_accuracy:.4f}")
-
-        return self
-
-    def predict(self, X):
-        self.eval()
-        with torch.no_grad():
-            outputs = self(X.to(self.device))
-            _, y_pred = torch.max(outputs, 1)
-        return y_pred.cpu().numpy()
-
-    def score(self, X_test, y_test):
-        self.eval()
-        correct, total = 0, 0
-        with torch.no_grad():
-            for inputs, labels in DataLoader(torch.utils.data.TensorDataset(X_test, y_test), batch_size=32):
-                inputs, labels = inputs.to(self.device), labels.to(self.device)
-                outputs = self(inputs)
-                _, predicted = torch.max(outputs, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-        return correct / total
-
-    def reset_parameters(self):
-        for layer in self.children():
-            if hasattr(layer, 'reset_parameters'):
-                layer.reset_parameters()
-
-
-class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1):
-        super(ResidualBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size, stride, padding)
-        self.bn2 = nn.BatchNorm2d(out_channels)
-
-        # Shortcut connection to match dimensions
-        self.shortcut = nn.Sequential()
-        if in_channels != out_channels:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1),
-                nn.BatchNorm2d(out_channels),
-            )
-
-    def forward(self, x):
-        identity = self.shortcut(x)
-        out = self.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-        out += identity  # Add the residual connection
-        out = self.relu(out)
-        return out
-
-class ImprovedGCMSCNN(nn.Module):
-    def __init__(self, input_channels, num_classes, input_height, input_width):
-        super(ImprovedGCMSCNN, self).__init__()
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        # Convolutional and residual layers
-        self.block1 = ResidualBlock(input_channels, 32)
-        self.block2 = ResidualBlock(32, 64)
-        self.block3 = ResidualBlock(64, 128)
-        self.block4 = ResidualBlock(128, 256)
-        self.block5 = ResidualBlock(256, 512)
-
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.global_avg_pool = nn.AdaptiveAvgPool2d(1)  # Global average pooling
-        self.flatten = nn.Flatten()
-
-        # Fully connected layers
-        self.fc1 = nn.Linear(512, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, num_classes)
-        self.dropout = nn.Dropout(p=0.3)
-
-    def forward(self, x):
-        x = self.pool(self.block1(x))
-        x = self.pool(self.block2(x))
-        x = self.pool(self.block3(x))
-        x = self.pool(self.block4(x))
-        x = self.pool(self.block5(x))
-        x = self.global_avg_pool(x)  # Replace flattening with global avg pooling
-        x = self.flatten(x)
-        x = self.dropout(self.fc1(x))
-        x = self.dropout(self.fc2(x))
-        x = self.fc3(x)
-        return x
-
-    def fit(self, X_train, y_train, X_val, y_val, batch_size=32, num_epochs=20, learning_rate=0.001):
-        """
-        Train the model with validation checks.
-
-        Parameters:
-        ----------
-        X_train : Tensor
-            Training data of shape (num_train_samples, input_channels, input_height, input_width).
-        y_train : Tensor
-            Training labels of shape (num_train_samples,).
-        X_val : Tensor
-            Validation data of shape (num_val_samples, input_channels, input_height, input_width).
-        y_val : Tensor
-            Validation labels of shape (num_val_samples,).
-        batch_size : int
-            Batch size for training.
-        num_epochs : int
-            Number of epochs to train.
-        learning_rate : float
-            Learning rate for optimizer.
-
-        Returns:
-        -------
-        self : SimpleGCMSCNN
-            The trained model.
-        """
-
-
-        self.reset_parameters()
-
-        # Create DataLoader for training and validation
-        # X_train = preprocess_images(X_train)
-        train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
-        # X_val = preprocess_images(X_val)
-        val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size)
-
-        # Define optimizer and loss function
-        optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        loss_fn = nn.CrossEntropyLoss()
-
-        self.to(self.device)
-        self.train()
-
-        for epoch in range(num_epochs):
-            total_loss = 0
-            self.train()  # Set model to training mode
-            for batch_X, batch_y in train_loader:
-                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
-
-                optimizer.zero_grad()
-                outputs = self(batch_X)
-                loss = loss_fn(outputs, batch_y)
-                loss.backward()
-                optimizer.step()
-                total_loss += loss.item()
-
-            # Validation step
-            self.eval()  # Set model to evaluation mode
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for val_X, val_y in val_loader:
-                    val_X, val_y = val_X.to(self.device), val_y.to(self.device)
-                    outputs = self(val_X)
-                    _, predicted = torch.max(outputs, 1)
-                    total += val_y.size(0)
-                    correct += (predicted == val_y).sum().item()
-
-            val_accuracy = correct / total
-
-            print(
-                f"Epoch {epoch + 1}/{num_epochs}, "
-                f"Training Loss: {total_loss / len(train_loader):.4f}, "
-                f"Validation Accuracy: {val_accuracy:.4f}"
-            )
-
-        return self
-
-
-    def predict(self, X):
-        """
-        Predict the class labels for the given input data.
-
-        Parameters:
-        ----------
-        X : numpy.ndarray
-            Input data, assumed to be of shape (num_samples, input_channels, input_height, input_width).
-
-        Returns:
-        -------
-        y_pred : numpy.ndarray
-            Predicted class labels.
-        """
-        self.eval()
-        # X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
-
-        with torch.no_grad():
-            outputs = self(X)
-            _, y_pred = torch.max(outputs, 1)
-
-        return y_pred.cpu().numpy()
-
-    def score(self, X_test, y_test):
-        """
-        Compute the accuracy of the model on test data.
-
-        Parameters:
-        -----------
-        X_test : Tensor
-            Test feature data.
-        y_test : Tensor
-            True labels for the test data.
-
-        Returns:
-        --------
-        float
-            Accuracy of the model.
-        """
-        self.eval()  # Switch to evaluation mode
-        correct = 0
-        total = 0
-
-        with torch.no_grad():  # Disable gradient computation
-            for inputs, labels in DataLoader(torch.utils.data.TensorDataset(X_test, y_test), batch_size=32):
-                outputs = self(inputs)
-                _, predicted = torch.max(outputs, 1)  # Get predicted class
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-
-        return correct / total
-
-    def reset_parameters(self):
-        """
-        Reset all model parameters to their initial states.
-        """
-
-        for layer in self.children():
-            if isinstance(layer, nn.BatchNorm2d):
-                layer.running_mean.zero_()
-                layer.running_var.fill_(1)
-            if hasattr(layer, 'reset_parameters'):
-                layer.reset_parameters()
-
-
-class SimpleGCMSCNN(nn.Module):
-    def __init__(self, input_channels, num_classes, input_height, input_width):
-        super(SimpleGCMSCNN, self).__init__()
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.conv1 = nn.Conv2d(input_channels, 16, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.conv4 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
-        self.conv5 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.flatten = nn.Flatten()
-
-        # Dynamically calculate the size of the feature map after convolutions and pooling
-        with torch.no_grad():
-            dummy_input = torch.zeros(1, input_channels, input_height, input_width)
-            dummy_output = self.pool(self.conv2(self.pool(self.conv1(dummy_input))))
-            dummy_output = self.pool(self.conv5(self.pool(self.conv4(self.pool(self.conv3(
-                self.pool(self.conv2(self.pool(self.conv1(dummy_input))))
-            ))))))
-            flattened_size = dummy_output.numel()
-
-        # Calculate the size of the feature map after convolution and pooling
-        self.fc1 = nn.Linear(flattened_size, 128)  # Adjust size based on input image size
-        self.fc2 = nn.Linear(128, num_classes)
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        x = self.relu(self.conv1(x))
-        x = self.pool(self.relu(self.conv2(x)))
-        x = self.pool(self.relu(self.conv3(x)))
-        x = self.pool(self.relu(self.conv4(x)))
-        x = self.pool(self.relu(self.conv5(x)))
-        x = self.pool(x)  # Additional pooling layer
-        x = self.flatten(x)
-        x = self.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-    def fit(self, X_train, y_train, X_val, y_val, batch_size=32, num_epochs=20, learning_rate=0.001):
-        """
-        Train the model with validation checks.
-
-        Parameters:
-        ----------
-        X_train : Tensor
-            Training data of shape (num_train_samples, input_channels, input_height, input_width).
-        y_train : Tensor
-            Training labels of shape (num_train_samples,).
-        X_val : Tensor
-            Validation data of shape (num_val_samples, input_channels, input_height, input_width).
-        y_val : Tensor
-            Validation labels of shape (num_val_samples,).
-        batch_size : int
-            Batch size for training.
-        num_epochs : int
-            Number of epochs to train.
-        learning_rate : float
-            Learning rate for optimizer.
-
-        Returns:
-        -------
-        self : SimpleGCMSCNN
-            The trained model.
-        """
-
-
-        self.reset_parameters()
-
-        # Create DataLoader for training and validation
-        # X_train = preprocess_images(X_train)
-        train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
-        # X_val = preprocess_images(X_val)
-        val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size)
-
-        # Define optimizer and loss function
-        optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        loss_fn = nn.CrossEntropyLoss()
-
-        self.to(self.device)
-        self.train()
-
-        for epoch in range(num_epochs):
-            total_loss = 0
-            self.train()  # Set model to training mode
-            for batch_X, batch_y in train_loader:
-                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
-
-                optimizer.zero_grad()
-                outputs = self(batch_X)
-                loss = loss_fn(outputs, batch_y)
-                loss.backward()
-                optimizer.step()
-                total_loss += loss.item()
-
-            # Validation step
-            self.eval()  # Set model to evaluation mode
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for val_X, val_y in val_loader:
-                    val_X, val_y = val_X.to(self.device), val_y.to(self.device)
-                    outputs = self(val_X)
-                    _, predicted = torch.max(outputs, 1)
-                    total += val_y.size(0)
-                    correct += (predicted == val_y).sum().item()
-
-            val_accuracy = correct / total
-
-            print(
-                f"Epoch {epoch + 1}/{num_epochs}, "
-                f"Training Loss: {total_loss / len(train_loader):.4f}, "
-                f"Validation Accuracy: {val_accuracy:.4f}"
-            )
-
-        return self
-
-
-    def predict(self, X):
-        """
-        Predict the class labels for the given input data.
-
-        Parameters:
-        ----------
-        X : numpy.ndarray
-            Input data, assumed to be of shape (num_samples, input_channels, input_height, input_width).
-
-        Returns:
-        -------
-        y_pred : numpy.ndarray
-            Predicted class labels.
-        """
-        self.eval()
-        # X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
-
-        with torch.no_grad():
-            outputs = self(X)
-            _, y_pred = torch.max(outputs, 1)
-
-        return y_pred.cpu().numpy()
-
-    def score(self, X_test, y_test):
-        """
-        Compute the accuracy of the model on test data.
-
-        Parameters:
-        -----------
-        X_test : Tensor
-            Test feature data.
-        y_test : Tensor
-            True labels for the test data.
-
-        Returns:
-        --------
-        float
-            Accuracy of the model.
-        """
-        self.eval()  # Switch to evaluation mode
-        correct = 0
-        total = 0
-
-        with torch.no_grad():  # Disable gradient computation
-            for inputs, labels in DataLoader(torch.utils.data.TensorDataset(X_test, y_test), batch_size=32):
-                outputs = self(inputs)
-                _, predicted = torch.max(outputs, 1)  # Get predicted class
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-
-        return correct / total
-
-    def reset_parameters(self):
-        """
-        Reset all model parameters to their initial states.
-        """
-
-        for layer in self.children():
-            if isinstance(layer, nn.BatchNorm2d):
-                layer.running_mean.zero_()
-                layer.running_var.fill_(1)
-            if hasattr(layer, 'reset_parameters'):
-                layer.reset_parameters()
-
-
-class MobileNetClassifier(nn.Module):
-    def __init__(self, input_channels, num_classes):
-        super(MobileNetClassifier, self).__init__()
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        # Load the pre-trained MobileNetV2 model
-        self.mobilenet = models.mobilenet_v2(pretrained=True)
-
-        # Freeze all the feature extractor layers
-        for param in self.mobilenet.features.parameters():
-            param.requires_grad = False
-
-        # Modify the first convolutional layer to accept the desired number of input channels
-        self.mobilenet.features[0][0] = nn.Conv2d(
-            input_channels, 32, kernel_size=3, stride=2, padding=1, bias=False
-        )
-
-        # Replace the classifier to match the number of classes
-        self.mobilenet.classifier = nn.Sequential(
-            nn.Linear(self.mobilenet.last_channel, 128),  # Add a hidden layer for flexibility
-            nn.ReLU(),
-            nn.Linear(128, num_classes)  # Final layer for classification
-        )
-
-    def forward(self, x):
-        return self.mobilenet(x)
-
-    def fit(self, X_train, y_train, X_val, y_val, batch_size=32, num_epochs=20, learning_rate=0.001):
-        """
-        Train the MobileNet model with validation checks.
-
-        Parameters:
-        ----------
-        X_train : Tensor
-            Training data of shape (num_train_samples, input_channels, input_height, input_width).
-        y_train : Tensor
-            Training labels of shape (num_train_samples,).
-        X_val : Tensor
-            Validation data of shape (num_val_samples, input_channels, input_height, input_width).
-        y_val : Tensor
-            Validation labels of shape (num_val_samples,).
-        batch_size : int
-            Batch size for training.
-        num_epochs : int
-            Number of epochs to train.
-        learning_rate : float
-            Learning rate for optimizer.
-
-        Returns:
-        -------
-        self : MobileNetClassifier
-            The trained model.
-        """
-        # Reset model parameters in the classifier head (only trainable layers)
-        for layer in self.mobilenet.classifier:
-            if hasattr(layer, 'reset_parameters'):
-                layer.reset_parameters()
-        # self.reset_parameters()
-
-        # # Define preprocessing transforms
-        # preprocess = transforms.Compose([
-        #     transforms.ToPILImage(),  # Convert tensor to PIL image
-        #     transforms.Resize((224, 224)),  # Resize to 224x224
-        #     transforms.Grayscale(num_output_channels=3),  # Convert single-channel to 3 channels
-        #     transforms.ToTensor(),  # Convert back to tensor
-        #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize to ImageNet stats
-        # ])
-        #
-        # # Apply the preprocessing to each image in the dataset
-        # def preprocess_images(train_tensor):
-        #     processed_images = []
-        #     for img in train_tensor:  # Loop through each image in the dataset
-        #         processed_img = preprocess(
-        #             img.squeeze(0).cpu().numpy())  # Remove channel dimension and apply preprocess
-        #         processed_images.append(processed_img)
-        #     return torch.stack(processed_images)
-
-        # Create DataLoader for training and validation
-        # X_train = preprocess_images(X_train)
-        train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
-        # X_val = preprocess_images(X_val)
-        val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size)
-
-        # Define optimizer and loss function
-        optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        loss_fn = nn.CrossEntropyLoss()
-
-        self.to(self.device)
-        self.train()
-
-        for epoch in range(num_epochs):
-            total_loss = 0
-            self.train()  # Set model to training mode
-            for batch_X, batch_y in train_loader:
-                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
-
-                optimizer.zero_grad()
-                outputs = self(batch_X)
-                loss = loss_fn(outputs, batch_y)
-                loss.backward()
-                optimizer.step()
-                total_loss += loss.item()
-
-            # Validation step
-            self.eval()  # Set model to evaluation mode
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for val_X, val_y in val_loader:
-                    val_X, val_y = val_X.to(self.device), val_y.to(self.device)
-                    outputs = self(val_X)
-                    _, predicted = torch.max(outputs, 1)
-                    total += val_y.size(0)
-                    correct += (predicted == val_y).sum().item()
-
-            val_accuracy = correct / total
-
-            print(
-                f"Epoch {epoch + 1}/{num_epochs}, "
-                f"Training Loss: {total_loss / len(train_loader):.4f}, "
-                f"Validation Accuracy: {val_accuracy:.4f}"
-            )
-
-        return self
-
-    # def fit(self, X_tensor, y_tensor, batch_size=32, epochs=20, learning_rate=0.001):
-    #     """
-    #     Train the CNN model.
-    #
-    #     Parameters:
-    #     ----------
-    #     X : numpy.ndarray
-    #         Training data, assumed to be of shape (num_samples, input_channels, input_height, input_width).
-    #     y : numpy.ndarray
-    #         Labels corresponding to the training data, shape (num_samples,).
-    #     batch_size : int
-    #         Batch size for training.
-    #     epochs : int
-    #         Number of epochs to train.
-    #     learning_rate : float
-    #         Learning rate for optimizer.
-    #
-    #     Returns:
-    #     -------
-    #     self : CNNClassifier
-    #         The trained model.
-    #     """
-    #
-    #     # Reset model parameters
-    #     self.reset_parameters()
-    #
-    #     # Create DataLoader
-    #     dataset = torch.utils.data.TensorDataset(X_tensor, y_tensor)
-    #     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    #
-    #     # Define optimizer and loss function
-    #     optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-    #     loss_fn = nn.CrossEntropyLoss()
-    #
-    #     self.to(self.device)
-    #     self.train()
-    #
-    #     for epoch in range(epochs):
-    #         total_loss = 0
-    #         for batch_X, batch_y in data_loader:
-    #             optimizer.zero_grad()
-    #             outputs = self(batch_X)
-    #             loss = loss_fn(outputs, batch_y)
-    #             loss.backward()
-    #             optimizer.step()
-    #             total_loss += loss.item()
-    #
-    #         print(f"Epoch {epoch + 1}/{epochs}, Loss: {total_loss / len(data_loader):.4f}")
-    #
-    #     return self
-
-    def predict(self, X):
-        """
-        Predict the class labels for the given input data.
-
-        Parameters:
-        ----------
-        X : numpy.ndarray
-            Input data, assumed to be of shape (num_samples, input_channels, input_height, input_width).
-
-        Returns:
-        -------
-        y_pred : numpy.ndarray
-            Predicted class labels.
-        """
-        self.eval()
-        # X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
-
-        with torch.no_grad():
-            outputs = self(X)
-            _, y_pred = torch.max(outputs, 1)
-
-        return y_pred.cpu().numpy()
-
-    def score(self, X_test, y_test):
-        """
-        Compute the accuracy of the model on test data.
-
-        Parameters:
-        -----------
-        X_test : Tensor
-            Test feature data.
-        y_test : Tensor
-            True labels for the test data.
-
-        Returns:
-        --------
-        float
-            Accuracy of the model.
-        """
-        self.eval()  # Switch to evaluation mode
-        correct = 0
-        total = 0
-
-        with torch.no_grad():  # Disable gradient computation
-            for inputs, labels in DataLoader(torch.utils.data.TensorDataset(X_test, y_test), batch_size=32):
-                outputs = self(inputs)
-                _, predicted = torch.max(outputs, 1)  # Get predicted class
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-
-        return correct / total
-
-    def reset_parameters(self):
-        """
-        Reset all model parameters to their initial states.
-        """
-
-        for layer in self.children():
-            if isinstance(layer, nn.BatchNorm2d):
-                layer.running_mean.zero_()
-                layer.running_var.fill_(1)
-            if hasattr(layer, 'reset_parameters'):
-                layer.reset_parameters()
-
-
 class Classifier:
     """
     A classifier class that wraps around various machine learning algorithms
@@ -1293,22 +81,20 @@ class Classifier:
         - 'GNB': Gaussian Naive Bayes
         - 'GBC': Gradient Boosting Classifier
     """
-    def __init__(self, data, labels, classifier_type='LDA', wine_kind='bordeaux', multichannel=True,
-                 window_size=5000, stride=2500, nconv=3, alpha=1):
+    def __init__(self, data, labels, classifier_type='LDA', wine_kind='bordeaux', window_size=5000, stride=2500,
+                 alpha=1):
         self.data = data
         self.labels = labels
-        self.multichannel = multichannel
-        self.nconv = nconv
         self.window_size = window_size
         self.stride = stride
         self.wine_kind = wine_kind
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.alpha=alpha
-        self.classifier = self._get_classifier(classifier_type, multichannel=self.multichannel)
+        self.classifier = self._get_classifier(classifier_type)
 
 
 
-    def _get_classifier(self, classifier_type, multichannel=None):
+    def _get_classifier(self, classifier_type):
         """
         Return the classifier object based on the classifier type.
 
@@ -1350,41 +136,6 @@ class Classifier:
             return GradientBoostingClassifier(n_estimators=50, max_depth=3, learning_rate=0.1)
         elif classifier_type == 'HGBC':
             return HistGradientBoostingClassifier(max_leaf_nodes=31, learning_rate=0.2, max_iter=50, max_bins=128)
-        elif classifier_type == 'CNN':
-            return self._initialize_cnn()
-        elif classifier_type == 'CNN1D':
-            return self._initialize_cnn1d()
-
-    def _initialize_cnn1d(self):
-        """
-        Initialize the 1D CNN classifier. This method can be extended with hyperparameters as needed.
-        """
-        # input_length = self.data.shape[2]
-        input_length = self.window_size
-        if not self.multichannel:
-            channels = 1
-        else:
-            channels = self.data.shape[1]
-        num_classes = len(set(self.labels))  # Number of unique labels
-        model = CNN1D(input_length, num_classes, num_channels=channels, nconv=self.nconv, multichannel=self.multichannel)
-        return model
-
-    def _initialize_cnn(self):
-        """
-        Initialize the CNN classifier. This method can be extended with hyperparameters as needed.
-        """
-        input_channels = 3  # Assuming grayscale images, modify for other cases
-        num_classes = len(set(self.labels))  # Number of unique labels
-        height, width = self.data.shape[-2:]
-        # model = CNNClassifier(input_channels, num_classes, height, width)
-        # model = MobileNetClassifier(input_channels, num_classes)
-        # model = SimpleGCMSCNN(input_channels, num_classes, height, width)
-        # model = ImprovedGCMSCNN(input_channels, num_classes, height, width)
-        # model = GoogleNetLike(input_channels, num_classes)
-        model = PretrainedGoogleNet(num_classes, pretrained=True)
-
-        # model = CustomDataParallel(model)
-        return model
 
     def train_and_evaluate(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
                            scaler_type='standard', use_pca=False, vthresh=0.97, region=None):
@@ -1657,9 +408,8 @@ class Classifier:
 
     def train_and_evaluate_balanced(self, num_outer_repeats=3, n_inner_repeats=50, random_seed=42,
                                     test_size=0.2, normalize=False, scaler_type='standard',
-                                    use_pca=False, vthresh=0.97, region=None,
-                                    batch_size=32, num_epochs=10, learning_rate=0.001,
-                                    print_results=True):
+                                    use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+                                    test_on_discarded=False):
         """
         Train and evaluate the classifier using repeated outer stratified splits. For each outer repetition,
         the training set is further split using RepeatedLeaveOneFromEachClassCV and validation metrics are computed.
@@ -1692,7 +442,6 @@ class Classifier:
         dict
             A dictionary with the average inner validation metrics across all outer repeats.
         """
-        import numpy as np
         from sklearn.model_selection import StratifiedShuffleSplit
         from sklearn.metrics import balanced_accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
         from sklearn.decomposition import PCA
@@ -1814,74 +563,71 @@ class Classifier:
 
                         yield train_indices, test_indices
 
-        class RepeatedLeaveOneFromEachClassCV(BaseCrossValidator):
+
+        def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None, group_duplicates=True):
             """
-            Custom cross-validator that randomly selects one sample per class as the test set,
-            and repeats the process a specified number of times.
-            """
-
-            def __init__(self, n_repeats=50, shuffle=True, random_state=None):
-                self.n_repeats = n_repeats
-                self.shuffle = shuffle
-                self.random_state = random_state
-
-            def get_n_splits(self, X, y, groups=None):
-                return self.n_repeats
-
-            def split(self, X, y, groups=None):
-                indices_by_class = {}
-                for idx, label in enumerate(y):
-                    indices_by_class.setdefault(label, []).append(idx)
-
-                rng = np.random.default_rng(self.random_state)
-                for _ in range(self.n_repeats):
-                    test_indices = []
-                    for label, indices in indices_by_class.items():
-                        if self.shuffle:
-                            chosen = rng.choice(indices, size=1, replace=False)
-                        else:
-                            chosen = [indices[0]]
-                        test_indices.extend(chosen)
-                    test_indices = np.array(test_indices)
-                    train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
-                    yield train_indices, test_indices
-
-        def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None):
-            """
-            Perform ShuffleSplit on samples while ensuring that duplicates of the same sample
-            are kept together in the same fold.
+                Perform ShuffleSplit on samples while ensuring that:
+                - Duplicates of the same sample are kept together (if enabled).
+                - Each class is represented in the test set.
 
             Args:
                 X (array-like): Feature matrix or sample labels.
                 y (array-like): Composite labels (e.g., ['A1', 'A1', 'B2', 'B2']).
                 test_size (float): Fraction of samples to include in the test set.
                 random_state (int): Random seed for reproducibility.
+                group_duplicates (bool): If True, duplicates of the same sample are kept together.
+                                         If False, duplicates are treated independently.
 
             Returns:
                 tuple: train_indices, test_indices (numpy arrays)
             """
-            # Step 1: Extract unique samples and their indices
-            unique_samples = {}
-            for idx, label in enumerate(y):
-                unique_samples.setdefault(label, []).append(idx)
+            import numpy as np
 
-            # Step 2: Get all sample labels
-            sample_labels = list(unique_samples.keys())
-
-            # Step 3: Shuffle samples (not individual rows)
             rng = np.random.default_rng(random_state)
-            rng.shuffle(sample_labels)
 
-            # Step 4: Split into train and test based on unique samples
-            num_test_samples = int(len(sample_labels) * test_size)
-            test_sample_labels = sample_labels[:num_test_samples]
-            train_sample_labels = sample_labels[num_test_samples:]
+            if group_duplicates:
+                unique_samples = {}  # {sample_label: [indices]}
+                class_samples = defaultdict(list)  # {class_label: [sample_label1, sample_label2, ...]}
 
-            # Step 5: Get all indices of the selected samples
-            test_indices = [idx for label in test_sample_labels for idx in unique_samples[label]]
-            train_indices = [idx for label in train_sample_labels for idx in unique_samples[label]]
+                for idx, label in enumerate(y):
+                    unique_samples.setdefault(label, []).append(idx)
+                    class_samples[label[0]].append(label)  # Assuming class is the first character (e.g., 'A1' -> 'A')
+
+                sample_labels = list(unique_samples.keys())
+                rng.shuffle(sample_labels)
+
+                # Step 1: Randomly select test samples
+                num_test_samples = int(len(sample_labels) * test_size)
+                test_sample_labels = set(sample_labels[:num_test_samples])
+
+                # Step 2: Ensure each class is represented in the test set
+                test_classes = {label[0] for label in test_sample_labels}
+                missing_classes = [c for c in class_samples if c not in test_classes]
+
+                # Step 3: Force at least one sample from missing classes
+                for class_label in missing_classes:
+                    additional_sample = rng.choice(class_samples[class_label])
+                    test_sample_labels.add(additional_sample)
+
+                # Step 4: Convert sample labels to index lists
+                test_indices = [idx for label in test_sample_labels for idx in unique_samples[label]]
+                train_indices = [idx for label in sample_labels if label not in test_sample_labels for idx in
+                                 unique_samples[label]]
+
+            else:
+                # Treat each instance independently
+                indices = np.arange(len(y))
+                rng.shuffle(indices)
+
+                # Calculate the number of test samples
+                num_test_samples = int(len(indices) * test_size)
+
+                # Split into train and test sets
+                test_indices = indices[:num_test_samples]
+                train_indices = indices[num_test_samples:]
 
             return np.array(train_indices), np.array(test_indices)
+
 
         def extract_category_labels(composite_labels):
             """
@@ -1895,6 +641,52 @@ class Classifier:
             """
             return [re.match(r'([A-C])', label).group(1) if re.match(r'([A-C])', label) else label
                     for label in composite_labels]
+
+        def process_fold(inner_train_idx, inner_val_idx, X_train_full, y_train_full, normalize, scaler_type, use_pca,
+                         vthresh, custom_order):
+            X_train = X_train_full[inner_train_idx]
+            y_train = extract_category_labels(y_train_full[inner_train_idx])
+            X_val = X_train_full[inner_val_idx]
+            y_val = extract_category_labels(y_train_full[inner_val_idx])
+
+            if normalize:
+                X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+                X_val = scaler.transform(X_val)
+
+            if use_pca:
+                pca = PCA(n_components=None, svd_solver='randomized')
+                pca.fit(X_train)
+                cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+                n_components = np.searchsorted(cumulative_variance, vthresh) + 1
+                n_components = min(n_components, len(np.unique(y_train)))
+                pca = PCA(n_components=n_components, svd_solver='randomized')
+                X_train = pca.fit_transform(X_train)
+                X_val = pca.transform(X_val)
+
+            self.classifier.fit(X_train, y_train)
+            y_pred = self.classifier.predict(X_val)
+
+            acc = self.classifier.score(X_val, y_val)
+            bal_acc = balanced_accuracy_score(y_val, y_pred)
+            sw = compute_sample_weight(class_weight='balanced', y=y_val)
+            w_acc = np.average(y_pred == y_val, weights=sw)
+            prec = precision_score(y_val, y_pred, average='weighted', zero_division=0)
+            rec = recall_score(y_val, y_pred, average='weighted', zero_division=0)
+            f1 = f1_score(y_val, y_pred, average='weighted', zero_division=0)
+            cm = confusion_matrix(y_val, y_pred, labels=custom_order if custom_order else None)
+
+            return acc, bal_acc, w_acc, prec, rec, f1, cm
+
+        category_labels = extract_category_labels(self.labels)
+
+        # Compute class distribution
+        class_counts = Counter(category_labels)
+        total_samples = sum(class_counts.values())
+
+        # Compute Correct Chance Accuracy (Taking Class Distribution into Account)
+        class_probabilities = np.array([count / total_samples for count in class_counts.values()])
+        chance_accuracy = np.sum(class_probabilities ** 2)  # Sum of squared class probabilities
+
 
         # Set up a custom order for the confusion matrix if a region is specified.
         if region == 'winery':
@@ -1924,139 +716,686 @@ class Classifier:
 
             # Choose whether to use groups based on wine type.
             use_groups = True if self.wine_kind == "press" else False
+            # use_groups = False
 
             # Outer split: use StratifiedShuffleSplit to split the data.
             # # sss = StratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=rng.integers(0, int(1e6)))
             # sss = ShuffleSplit(n_splits=1, test_size=test_size, random_state=rng.integers(0, int(1e6)))
             # train_idx, _ = next(sss.split(self.data, self.labels))
-            train_idx, _ = shuffle_split_without_splitting_duplicates(
-                self.data, self.labels, test_size=test_size, random_state=rng.integers(0, int(1e6))
+            train_idx, test_idx = shuffle_split_without_splitting_duplicates(
+                self.data, self.labels, test_size=test_size, random_state=rng.integers(0, int(1e6)),
+                group_duplicates=use_groups
             )
-            X_train_full = self.data[train_idx]
-            y_train_full = self.labels[train_idx]
+            X_train_full, X_test = self.data[train_idx], self.data[test_idx]
+            y_train_full, y_test = self.labels[train_idx], self.labels[test_idx]
 
-            # Accumulators for inner CV metrics in this outer repetition.
-            inner_acc = []
-            inner_bal_acc = []
-            inner_w_acc = []
-            inner_prec = []
-            inner_rec = []
-            inner_f1 = []
-            inner_cm_sum = None
-
-
-            # cv = RepeatedLeaveOneFromEachClassCV(n_repeats=n_inner_repeats, shuffle=True, random_state=random_seed)
-            cv = RepeatedLeaveOneSamplePerClassCV(
-                n_repeats=n_inner_repeats,
-                shuffle=True,
-                random_state=random_seed,
-                use_groups=use_groups
-            )
-
-            for i, (inner_train_idx, inner_val_idx) in enumerate(cv.split(X_train_full, y_train_full)):
+            # # Accumulators for inner CV metrics in this outer repetition.
+            # inner_acc = []
+            # inner_bal_acc = []
+            # inner_w_acc = []
+            # inner_prec = []
+            # inner_rec = []
+            # inner_f1 = []
+            # inner_cm_sum = None
+            #
             # for i, (inner_train_idx, inner_val_idx) in enumerate(cv.split(X_train_full, y_train_full)):
-                # Create inner training and validation sets.
-                X_train = X_train_full[inner_train_idx]
-                y_train = extract_category_labels(y_train_full[inner_train_idx])  # ✅ Convert to categories NOW
-                # y_train = y_train_full[inner_train_idx]
-                X_val = X_train_full[inner_val_idx]
-                # y_val = y_train_full[inner_val_idx]
-                y_val = extract_category_labels(y_train_full[inner_val_idx])  # ✅ Convert to categories NOW
+            # # for i, (inner_train_idx, inner_val_idx) in enumerate(cv.split(X_train_full, y_train_full)):
+            #     # Create inner training and validation sets.
+            #     X_train = X_train_full[inner_train_idx]
+            #     y_train = extract_category_labels(y_train_full[inner_train_idx])  # ✅ Convert to categories NOW
+            #     # y_train = y_train_full[inner_train_idx]
+            #     X_val = X_train_full[inner_val_idx]
+            #     # y_val = y_train_full[inner_val_idx]
+            #     y_val = extract_category_labels(y_train_full[inner_val_idx])  # ✅ Convert to categories NOW
+            #
+            #
+            #     # Apply normalization if enabled.
+            #     if normalize:
+            #         X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+            #         X_val = scaler.transform(X_val)
+            #
+            #     # Apply PCA if enabled.
+            #     if use_pca:
+            #         pca = PCA(n_components=None, svd_solver='randomized')
+            #         pca.fit(X_train)
+            #         cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+            #         n_components = np.searchsorted(cumulative_variance, vthresh) + 1
+            #         n_components = min(n_components, len(np.unique(y_train)))
+            #         pca = PCA(n_components=n_components, svd_solver='randomized')
+            #         X_train = pca.fit_transform(X_train)
+            #         X_val = pca.transform(X_val)
+            #
+            #     # Train the classifier on inner training set.
+            #     self.classifier.fit(X_train, y_train)
+            #     y_pred = self.classifier.predict(X_val)
+            #
+            #     # Compute and accumulate metrics for this inner fold.
+            #     inner_acc.append(self.classifier.score(X_val, y_val))
+            #     inner_bal_acc.append(balanced_accuracy_score(y_val, y_pred))
+            #     sw = compute_sample_weight(class_weight='balanced', y=y_val)
+            #     inner_w_acc.append(np.average(y_pred == y_val, weights=sw))
+            #     inner_prec.append(precision_score(y_val, y_pred, average='weighted', zero_division=0))
+            #     inner_rec.append(recall_score(y_val, y_pred, average='weighted', zero_division=0))
+            #     inner_f1.append(f1_score(y_val, y_pred, average='weighted', zero_division=0))
+            #
+            #     cm = confusion_matrix(y_val, y_pred, labels=custom_order if custom_order else None)
+            #     if inner_cm_sum is None:
+            #         inner_cm_sum = cm
+            #     else:
+            #         inner_cm_sum += cm
 
-
-                # Apply normalization if enabled.
+            if test_on_discarded:
                 if normalize:
-                    X_train, scaler = normalize_data(X_train, scaler=scaler_type)
-                    X_val = scaler.transform(X_val)
+                    X_train_full, scaler = normalize_data(X_train_full, scaler=scaler_type)
+                    X_test = scaler.transform(X_test)
 
-                # Apply PCA if enabled.
                 if use_pca:
                     pca = PCA(n_components=None, svd_solver='randomized')
-                    pca.fit(X_train)
-                    cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
-                    n_components = np.searchsorted(cumulative_variance, vthresh) + 1
-                    n_components = min(n_components, len(np.unique(y_train)))
-                    pca = PCA(n_components=n_components, svd_solver='randomized')
-                    X_train = pca.fit_transform(X_train)
-                    X_val = pca.transform(X_val)
+                    pca.fit(X_train_full)
+                    X_train_full = pca.transform(X_train_full)
+                    X_test = pca.transform(X_test)
 
-                # Train the classifier on inner training set.
-                self.classifier.fit(X_train, y_train)
-                y_pred = self.classifier.predict(X_val)
+                self.classifier.fit(X_train_full, extract_category_labels(y_train_full))
+                y_pred = self.classifier.predict(X_test)
+                y_test = extract_category_labels(y_test)
 
-                # Compute and accumulate metrics for this inner fold.
-                inner_acc.append(self.classifier.score(X_val, y_val))
-                inner_bal_acc.append(balanced_accuracy_score(y_val, y_pred))
-                sw = compute_sample_weight(class_weight='balanced', y=y_val)
-                inner_w_acc.append(np.average(y_pred == y_val, weights=sw))
-                inner_prec.append(precision_score(y_val, y_pred, average='weighted', zero_division=0))
-                inner_rec.append(recall_score(y_val, y_pred, average='weighted', zero_division=0))
-                inner_f1.append(f1_score(y_val, y_pred, average='weighted', zero_division=0))
+                outer_accuracy.append(accuracy_score(y_test, y_pred))
+                outer_balanced_accuracy.append(balanced_accuracy_score(y_test, y_pred))
+                outer_weighted_accuracy.append(
+                    np.average(y_pred == y_test, weights=compute_sample_weight('balanced', y_test)))
+                outer_precision.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
+                outer_recall.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
+                outer_f1.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
+                outer_cm.append(confusion_matrix(y_test, y_pred))
 
-                cm = confusion_matrix(y_val, y_pred, labels=custom_order if custom_order else None)
-                if inner_cm_sum is None:
-                    inner_cm_sum = cm
-                else:
-                    inner_cm_sum += cm
+                if print_results:
+                    print(f"  Test on discarded data metrics:")
+                    print(f"    Accuracy: {outer_accuracy[-1]:.3f}")
+                    print(f"    Balanced Accuracy: {outer_balanced_accuracy[-1]:.3f}")
+                    print(f"    Weighted Accuracy: {outer_weighted_accuracy[-1]:.3f}")
+                    print(f"    Precision: {outer_precision[-1]:.3f}")
+                    print(f"    Recall: {outer_recall[-1]:.3f}")
+                    print(f"    F1 Score: {outer_f1[-1]:.3f}")
 
-            # Compute averages for this outer repetition.
-            avg_acc = np.mean(inner_acc)
-            avg_bal_acc = np.mean(inner_bal_acc)
-            avg_w_acc = np.mean(inner_w_acc)
-            avg_prec = np.mean(inner_prec)
-            avg_rec = np.mean(inner_rec)
-            avg_f1 = np.mean(inner_f1)
-            avg_cm = inner_cm_sum / n_inner_repeats
+            else:
+                # cv = RepeatedLeaveOneFromEachClassCV(n_repeats=n_inner_repeats, shuffle=True, random_state=random_seed)
+                cv = RepeatedLeaveOneSamplePerClassCV(
+                    n_repeats=n_inner_repeats,
+                    shuffle=True,
+                    random_state=random_seed,
+                    use_groups=use_groups
+                )
 
-            if print_results:
-                print(f"Outer repetition {repeat + 1} metrics:")
-                print(f"  Accuracy: {avg_acc:.3f}")
-                print(f"  Balanced Accuracy: {avg_bal_acc:.3f}")
-                print(f"  Weighted Accuracy: {avg_w_acc:.3f}")
-                print(f"  Precision: {avg_prec:.3f}")
-                print(f"  Recall: {avg_rec:.3f}")
-                print(f"  F1 Score: {avg_f1:.3f}")
+                results = Parallel(n_jobs=n_jobs, backend='loky')(
+                    delayed(process_fold)(inner_train_idx, inner_val_idx, X_train_full, y_train_full, normalize,
+                                          scaler_type, use_pca, vthresh, custom_order)
+                    for inner_train_idx, inner_val_idx in cv.split(X_train_full, y_train_full)
+                )
 
-            # Accumulate outer metrics.
-            outer_accuracy.append(avg_acc)
-            outer_balanced_accuracy.append(avg_bal_acc)
-            outer_weighted_accuracy.append(avg_w_acc)
-            outer_precision.append(avg_prec)
-            outer_recall.append(avg_rec)
-            outer_f1.append(avg_f1)
-            outer_cm.append(avg_cm)
+                inner_acc, inner_bal_acc, inner_w_acc, inner_prec, inner_rec, inner_f1, inner_cm = zip(*results)
 
-        # After all outer repetitions, compute overall averages.
-        overall_accuracy = np.mean(outer_accuracy)
-        overall_balanced_accuracy = np.mean(outer_balanced_accuracy)
-        overall_weighted_accuracy = np.mean(outer_weighted_accuracy)
-        overall_precision = np.mean(outer_precision)
-        overall_recall = np.mean(outer_recall)
-        overall_f1 = np.mean(outer_f1)
+                outer_accuracy.append(np.mean(inner_acc))
+                outer_balanced_accuracy.append(np.mean(inner_bal_acc))
+                outer_weighted_accuracy.append(np.mean(inner_w_acc))
+                outer_precision.append(np.mean(inner_prec))
+                outer_recall.append(np.mean(inner_rec))
+                outer_f1.append(np.mean(inner_f1))
+                outer_cm.append(np.mean(inner_cm, axis=0))
+
+                if print_results:
+                    print(f"  Inner CV Averages:")
+                    print(f"    Accuracy: {outer_accuracy[-1]:.3f}")
+                    print(f"    Balanced Accuracy: {outer_balanced_accuracy[-1]:.3f}")
+                    print(f"    Weighted Accuracy: {outer_weighted_accuracy[-1]:.3f}")
+                    print(f"    Precision: {outer_precision[-1]:.3f}")
+                    print(f"    Recall: {outer_recall[-1]:.3f}")
+                    print(f"    F1 Score: {outer_f1[-1]:.3f}")
+
+        # Compute the averaged confusion matrix across all repetitions
         overall_cm = np.mean(outer_cm, axis=0)
 
-        if print_results:
-            print("\nFinal Averaged Inner CV Metrics Across Outer Repetitions:")
-            print(f"Overall Accuracy: {overall_accuracy:.3f} (+/- {np.std(outer_accuracy) * 2:.3f})")
-            print(
-                f"Overall Balanced Accuracy: {overall_balanced_accuracy:.3f} (+/- {np.std(outer_balanced_accuracy) * 2:.3f})")
-            print(
-                f"Overall Weighted Accuracy: {overall_weighted_accuracy:.3f} (+/- {np.std(outer_weighted_accuracy) * 2:.3f})")
-            print(f"Overall Precision: {overall_precision:.3f}")
-            print(f"Overall Recall: {overall_recall:.3f}")
-            print(f"Overall F1 Score: {overall_f1:.3f}")
-            # print("Overall Mean Confusion Matrix:")
-            # print(overall_cm)
+        # Normalize confusion matrix row-wise (true label-wise)
+        overall_cm_normalized = overall_cm.astype('float') / overall_cm.sum(axis=1, keepdims=True)
 
-        return {
-            'overall_accuracy': overall_accuracy,
-            'overall_balanced_accuracy': overall_balanced_accuracy,
-            'overall_weighted_accuracy': overall_weighted_accuracy,
-            'overall_precision': overall_precision,
-            'overall_recall': overall_recall,
-            'overall_f1_score': overall_f1,
-            'overall_confusion_matrix': overall_cm
+        overall_results = {
+            'chance_accuracy': chance_accuracy,
+            'overall_accuracy': np.mean(outer_accuracy),
+            'overall_balanced_accuracy': np.mean(outer_balanced_accuracy),
+            'overall_weighted_accuracy': np.mean(outer_weighted_accuracy),
+            'overall_precision': np.mean(outer_precision),
+            'overall_recall': np.mean(outer_recall),
+            'overall_f1_score': np.mean(outer_f1),
+            'overall_confusion_matrix': overall_cm,
+            'overall_confusion_matrix_normalized': overall_cm_normalized,
         }
+
+        if print_results:
+            print("\nFinal Results:")
+            print(f"  Overall Accuracy: {overall_results['overall_accuracy']:.3f}")
+            print(f"  Overall Balanced Accuracy: {overall_results['overall_balanced_accuracy']:.3f}")
+            print(f"  Overall Weighted Accuracy: {overall_results['overall_weighted_accuracy']:.3f}")
+            print(f"  Overall Precision: {overall_results['overall_precision']:.3f}")
+            print(f"  Overall Recall: {overall_results['overall_recall']:.3f}")
+            print(f"  Overall F1 Score: {overall_results['overall_f1_score']:.3f}")
+            # print("Overall Mean Confusion Matrix:")
+            # print(overall_results['overall_confusion_matrix'])
+            # print(overall_results['overall_confusion_matrix_normalized'])
+
+
+
+        return overall_results
+
+            # # Compute averages for this outer repetition.
+            # avg_acc = np.mean(inner_acc)
+            # avg_bal_acc = np.mean(inner_bal_acc)
+            # avg_w_acc = np.mean(inner_w_acc)
+            # avg_prec = np.mean(inner_prec)
+            # avg_rec = np.mean(inner_rec)
+            # avg_f1 = np.mean(inner_f1)
+            # avg_cm = np.mean(inner_cm, axis=0)
+            # # avg_cm = inner_cm_sum / n_inner_repeats
+
+            # if print_results:
+            #     print(f"Outer repetition {repeat + 1} metrics:")
+            #     print(f"  Accuracy: {avg_acc:.3f}")
+            #     print(f"  Balanced Accuracy: {avg_bal_acc:.3f}")
+            #     print(f"  Weighted Accuracy: {avg_w_acc:.3f}")
+            #     print(f"  Precision: {avg_prec:.3f}")
+            #     print(f"  Recall: {avg_rec:.3f}")
+            #     print(f"  F1 Score: {avg_f1:.3f}")
+
+            # # Accumulate outer metrics.
+            # outer_accuracy.append(avg_acc)
+            # outer_balanced_accuracy.append(avg_bal_acc)
+            # outer_weighted_accuracy.append(avg_w_acc)
+            # outer_precision.append(avg_prec)
+            # outer_recall.append(avg_rec)
+            # outer_f1.append(avg_f1)
+            # outer_cm.append(avg_cm)
+
+        # # After all outer repetitions, compute overall averages.
+        # overall_accuracy = np.mean(outer_accuracy)
+        # overall_balanced_accuracy = np.mean(outer_balanced_accuracy)
+        # overall_weighted_accuracy = np.mean(outer_weighted_accuracy)
+        # overall_precision = np.mean(outer_precision)
+        # overall_recall = np.mean(outer_recall)
+        # overall_f1 = np.mean(outer_f1)
+        # overall_cm = np.mean(outer_cm, axis=0)
+        #
+        # if print_results:
+        #     print("\nFinal Averaged Inner CV Metrics Across Outer Repetitions:")
+        #     print(f"Overall Accuracy: {overall_accuracy:.3f} (+/- {np.std(outer_accuracy) * 2:.3f})")
+        #     print(
+        #         f"Overall Balanced Accuracy: {overall_balanced_accuracy:.3f} (+/- {np.std(outer_balanced_accuracy) * 2:.3f})")
+        #     print(
+        #         f"Overall Weighted Accuracy: {overall_weighted_accuracy:.3f} (+/- {np.std(outer_weighted_accuracy) * 2:.3f})")
+        #     print(f"Overall Precision: {overall_precision:.3f}")
+        #     print(f"Overall Recall: {overall_recall:.3f}")
+        #     print(f"Overall F1 Score: {overall_f1:.3f}")
+        #     # print("Overall Mean Confusion Matrix:")
+        #     # print(overall_cm)
+        #
+        # return {
+        #     'overall_accuracy': overall_accuracy,
+        #     'overall_balanced_accuracy': overall_balanced_accuracy,
+        #     'overall_weighted_accuracy': overall_weighted_accuracy,
+        #     'overall_precision': overall_precision,
+        #     'overall_recall': overall_recall,
+        #     'overall_f1_score': overall_f1,
+        #     'overall_confusion_matrix': overall_cm
+        # }
+
+    def train_and_evaluate_ranked_greedy(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
+                                                     random_seed=42,
+                                                     test_size=0.2, normalize=False, scaler_type='standard',
+                                                     use_pca=False, vthresh=0.97, region=None, print_results=True,
+                                                     n_jobs=-1,
+                                                     num_top_channels=50):
+        all_test_accuracies = []
+
+        cls_data = self.data.copy()
+        num_channels = cls_data.shape[2]
+        labels = self.labels
+
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+
+            # Step 1: Channel Selection Loop
+            mean_accuracies = []
+            for ch_idx in range(num_channels):
+                single_channel_data = cls_data[:, :, ch_idx].reshape(cls_data.shape[0], cls_data.shape[1])
+                cls = Classifier(single_channel_data, labels, classifier_type="RGC",
+                                 wine_kind=self.wine_kind)
+                results = cls.train_and_evaluate_balanced(
+                    num_outer_repeats=num_outer_repeats,
+                    n_inner_repeats=n_inner_repeats,
+                    random_seed=random_seed + repeat_idx,
+                    test_size=test_size,
+                    normalize=normalize,
+                    scaler_type=scaler_type,
+                    use_pca=use_pca,
+                    vthresh=vthresh,
+                    region=region,
+                    print_results=False,
+                    n_jobs=n_jobs,
+                    test_on_discarded=False
+                )
+                print(f'Channel = {ch_idx}')
+                mean_accuracies.append(results['overall_balanced_accuracy'])
+
+            # Step 2: Sort channels by mean accuracy
+            sorted_indices = np.argsort(mean_accuracies)[::-1]
+
+            # Step 3: Incrementally concatenate top n channels and evaluate
+            incremental_accuracies = []
+            for n in range(1, min(num_top_channels, len(sorted_indices)) + 1):
+                top_n_indices = sorted_indices[:n]
+                concatenated_data = np.concatenate(
+                    [cls_data[:, :, idx].reshape(cls_data.shape[0], -1) for idx in top_n_indices], axis=1)
+
+                cls = Classifier(concatenated_data, labels, classifier_type="RGC",
+                                 wine_kind=self.wine_kind)
+                results = cls.train_and_evaluate_balanced(
+                    num_outer_repeats=num_outer_repeats,
+                    n_inner_repeats=n_inner_repeats,
+                    random_seed=random_seed + repeat_idx,
+                    test_size=test_size,
+                    normalize=normalize,
+                    scaler_type=scaler_type,
+                    use_pca=use_pca,
+                    vthresh=vthresh,
+                    region=region,
+                    print_results=False,
+                    n_jobs=n_jobs,
+                    test_on_discarded=True
+                )
+                incremental_accuracies.append(results['overall_balanced_accuracy'])
+
+            all_test_accuracies.append(incremental_accuracies)
+
+
+        # Compute average performance across repeats
+        mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
+        std_test_accuracies = np.std(all_test_accuracies, axis=0)
+
+        # Plot the trend with shaded standard deviation
+        plt.figure(figsize=(10, 6))
+        x = range(1, len(mean_test_accuracies) + 1)
+
+        # Line plot for mean accuracy
+        plt.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
+
+        # Shaded region for standard deviation
+        plt.fill_between(x, mean_test_accuracies - std_test_accuracies,
+                         mean_test_accuracies + std_test_accuracies, alpha=0.3, label='± 1 Std Dev')
+
+        # Labels and aesthetics
+        plt.xlabel("Number of Best Concatenated Channels")
+        plt.ylabel("Mean Balanced Accuracy")
+        plt.title("Performance Trend with Incrementally Concatenated Channels")
+        plt.grid(True)
+        plt.legend()
+        plt.show()
+
+
+        print(f"Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
+
+
+        return mean_test_accuracies, std_test_accuracies
+
+    def train_and_evaluate_greedy_remove(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
+                                         random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
+                                         use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+                                         feature_type="concatenated"):
+        """
+        Perform greedy channel removal with an option to use either:
+          - "concatenated": Raw m/z channels concatenated as features.
+          - "tic_tis": Computes and concatenates TIC (Total Ion Chromatogram) and TIS (Total Ion Spectrum).
+
+        Parameters:
+        ----------
+        feature_type : str
+            - "concatenated" (default) → Uses raw m/z channels.
+            - "tic_tis" → Uses TIC (sum over m/z) and TIS (sum over time).
+        """
+
+        all_test_accuracies = []
+
+        cls_data = self.data.copy()  # Shape: (num_samples, num_timepoints, num_channels)
+        num_samples, num_timepoints, num_channels = cls_data.shape
+        labels = self.labels
+
+        # Start with all channels
+        remaining_indices = list(range(num_channels))
+
+        def compute_features(channels):
+            """ Compute features based on chosen feature type. """
+            if feature_type == "concatenated":
+                # Concatenate raw selected channels
+                concatenated_data = np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+                return concatenated_data
+            elif feature_type == "tic_tis":
+                # Compute TIC (sum over m/z) and TIS (sum over time)
+                tic = np.sum(cls_data[:, :, channels], axis=2)  # (num_samples, num_timepoints)
+                tis = np.sum(cls_data[:, :, channels], axis=1)  # (num_samples, num_channels)
+                return np.hstack([tic, tis])  # Combine TIC and TIS
+            else:
+                raise ValueError("Invalid feature_type. Use 'concatenated' or 'tic_tis'.")
+
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+
+            incremental_accuracies = [None]  # Store accuracy before removing any channels
+
+            for step in range(min(num_channels, 140 + 1)):  # Limit number of removals for efficiency
+
+                # Evaluate the accuracy of removing each channel
+                def evaluate_channel(ch_idx):
+                    print(f'Step {step}; Channel = {ch_idx}')
+                    temp_indices = [idx for idx in remaining_indices if idx != ch_idx]
+                    feature_matrix = compute_features(temp_indices)
+
+                    cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+                    results = cls.train_and_evaluate_balanced(
+                        num_outer_repeats=num_outer_repeats,
+                        n_inner_repeats=n_inner_repeats,
+                        random_seed=random_seed + repeat_idx,
+                        test_size=test_size,
+                        normalize=normalize,
+                        scaler_type=scaler_type,
+                        use_pca=use_pca,
+                        vthresh=vthresh,
+                        region=region,
+                        print_results=False,
+                        n_jobs=1,
+                        test_on_discarded=False
+                    )
+                    return ch_idx, results['overall_balanced_accuracy']
+
+                # Parallel execution to test removing each channel
+                validation_accuracies = Parallel(n_jobs=n_jobs, backend='loky')(
+                    delayed(evaluate_channel)(ch_idx) for ch_idx in remaining_indices)
+
+                # Compute current accuracy before removing any channel this iteration
+                feature_matrix = compute_features(remaining_indices)
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+                results = cls.train_and_evaluate_balanced(
+                    num_outer_repeats=num_outer_repeats,
+                    n_inner_repeats=n_inner_repeats,
+                    random_seed=random_seed + repeat_idx,
+                    test_size=test_size,
+                    normalize=normalize,
+                    scaler_type=scaler_type,
+                    use_pca=use_pca,
+                    vthresh=vthresh,
+                    region=region,
+                    print_results=False,
+                    n_jobs=n_jobs,
+                    test_on_discarded=True
+                )
+
+                # Store accuracy at current step (before removal)
+                if incremental_accuracies[0] is None:
+                    incremental_accuracies[0] = results['overall_balanced_accuracy']
+                else:
+                    incremental_accuracies.append(results['overall_balanced_accuracy'])
+
+                # Remove the channel whose removal leads to the highest validation accuracy
+                max_accuracy = max(validation_accuracies, key=lambda x: x[1])[1]
+                candidates = [ch_idx for ch_idx, acc in validation_accuracies if acc == max_accuracy]
+                best_channel_to_remove = random.choice(candidates)  # Randomly select one of the best
+                remaining_indices.remove(best_channel_to_remove)
+
+                if print_results:
+                    print(
+                        f"After removing {step + 1} channel(s): Test Accuracy = {results['overall_balanced_accuracy']:.3f}")
+
+            all_test_accuracies.append(incremental_accuracies)
+
+            # Dynamic plot after each repeat
+            plt.ion()  # Enable interactive mode
+            plt.clf()  # Clear the current figure
+            mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
+            std_test_accuracies = np.std(all_test_accuracies, axis=0)
+
+            x = range(len(mean_test_accuracies))
+            plt.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
+            plt.fill_between(x, mean_test_accuracies - std_test_accuracies, mean_test_accuracies + std_test_accuracies,
+                             alpha=0.3, label='± 1 Std Dev')
+
+            plt.xlabel("Number of Channels Removed")
+            plt.ylabel("Mean Balanced Accuracy")
+            plt.title(f"Performance Trend as Channels are Removed (Repeat {repeat_idx + 1} / {num_repeats})")
+            plt.grid(True)
+            plt.legend()
+            if repeat_idx == num_repeats - 1:
+                plt.show(block=True)  # Keep the final plot open without closing the program
+            else:
+                plt.pause(1)  # Pause briefly to allow the plot to update
+
+        # Final Summary
+        print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
+
+        return mean_test_accuracies, std_test_accuracies
+
+    # def train_and_evaluate_greedy_remove(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
+    #                                      random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
+    #                                      use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1):
+    #     import numpy as np
+    #     import matplotlib.pyplot as plt
+    #     from IPython.display import clear_output
+    #
+    #     all_test_accuracies = []
+    #
+    #     cls_data = self.data.copy()
+    #     num_channels = cls_data.shape[2]
+    #     num_samples, num_timepoints, _ = cls_data.shape
+    #     labels = self.labels
+    #
+    #     # Flatten each channel individually and store as a list
+    #     channel_list = [cls_data[:, :, ch].reshape(num_samples, -1) for ch in range(num_channels)]
+    #
+    #     for repeat_idx in range(num_repeats):
+    #         print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+    #
+    #         # Start with all channels
+    #         remaining_indices = list(range(num_channels))
+    #         incremental_accuracies = [None]  # ✅ Added a placeholder for initial accuracy at 0 channels removed
+    #
+    #         for step in range(min(num_channels, 3 +1)):  # Limit to 100 removals for performance
+    #             # Parallel loop to evaluate removal of each channel
+    #             def evaluate_channel(ch_idx):
+    #                 print(f'Step {step}; Channel = {ch_idx}')
+    #                 temp_indices = [idx for idx in remaining_indices if idx != ch_idx]
+    #
+    #                 # Pre-allocate array and fill it
+    #                 total_timepoints = num_timepoints * len(temp_indices)
+    #                 concatenated_data = np.empty((num_samples, total_timepoints), dtype=np.float32)
+    #
+    #                 col_start = 0
+    #                 for idx in temp_indices:
+    #                     col_end = col_start + num_timepoints
+    #                     concatenated_data[:, col_start:col_end] = channel_list[idx]
+    #                     col_start = col_end
+    #
+    #                 cls = Classifier(concatenated_data, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+    #                 results = cls.train_and_evaluate_balanced(
+    #                     num_outer_repeats=num_outer_repeats,
+    #                     n_inner_repeats=n_inner_repeats,
+    #                     random_seed=random_seed + repeat_idx,
+    #                     test_size=test_size,
+    #                     normalize=normalize,
+    #                     scaler_type=scaler_type,
+    #                     use_pca=use_pca,
+    #                     vthresh=vthresh,
+    #                     region=region,
+    #                     print_results=False,
+    #                     n_jobs=1,
+    #                     test_on_discarded=False
+    #                 )
+    #                 return ch_idx, results['overall_balanced_accuracy']
+    #
+    #             # Parallel execution
+    #             validation_accuracies = Parallel(n_jobs=n_jobs)(
+    #                 delayed(evaluate_channel)(ch_idx) for ch_idx in remaining_indices)
+    #
+    #             # Evaluate accuracy with the current set of channels (before removing any channel this iteration)
+    #             total_timepoints = num_timepoints * len(remaining_indices)
+    #             concatenated_data = np.empty((num_samples, total_timepoints), dtype=np.float32)
+    #
+    #             col_start = 0
+    #             for idx in remaining_indices:
+    #                 col_end = col_start + num_timepoints
+    #                 concatenated_data[:, col_start:col_end] = channel_list[idx]
+    #                 col_start = col_end
+    #
+    #             cls = Classifier(concatenated_data, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+    #             results = cls.train_and_evaluate_balanced(
+    #                 num_outer_repeats=num_outer_repeats,
+    #                 n_inner_repeats=n_inner_repeats,
+    #                 random_seed=random_seed + repeat_idx,
+    #                 test_size=test_size,
+    #                 normalize=normalize,
+    #                 scaler_type=scaler_type,
+    #                 use_pca=use_pca,
+    #                 vthresh=vthresh,
+    #                 region=region,
+    #                 print_results=False,
+    #                 n_jobs=n_jobs,
+    #                 test_on_discarded=True
+    #             )
+    #             # Store this accuracy as the accuracy at the current step (before removal)
+    #             if incremental_accuracies[0] is None:
+    #                 incremental_accuracies[0] = results['overall_balanced_accuracy']
+    #             else:
+    #                 incremental_accuracies.append(results['overall_balanced_accuracy'])
+    #
+    #             # Remove the channel whose removal leads to the highest validation accuracy
+    #             # best_channel_to_remove = max(validation_accuracies, key=lambda x: x[1])[0]
+    #             # remaining_indices.remove(best_channel_to_remove)
+    #
+    #             max_accuracy = max(validation_accuracies, key=lambda x: x[1])[1]  # Get the highest accuracy
+    #             candidates = [ch_idx for ch_idx, acc in validation_accuracies if
+    #                           acc == max_accuracy]  # All channels with max accuracy
+    #             best_channel_to_remove = random.choice(candidates)  # Randomly select one of the best
+    #             remaining_indices.remove(best_channel_to_remove)
+    #
+    #             if print_results:
+    #                 print(
+    #                     f"After removing {step + 1} channel(s): Test Accuracy = {results['overall_balanced_accuracy']:.3f}")
+    #
+    #         all_test_accuracies.append(incremental_accuracies)
+    #
+    #         # Dynamic plot after each repeat
+    #         plt.ion()  # Enable interactive mode
+    #         plt.clf()  # Clear the current figure
+    #         mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
+    #         std_test_accuracies = np.std(all_test_accuracies, axis=0)
+    #
+    #         # plt.figure(figsize=(10, 6))
+    #         x = range(len(mean_test_accuracies))
+    #         plt.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
+    #         plt.fill_between(x, mean_test_accuracies - std_test_accuracies, mean_test_accuracies + std_test_accuracies,
+    #                          alpha=0.3, label='± 1 Std Dev')
+    #
+    #         plt.xlabel("Number of Channels Removed")
+    #         plt.ylabel("Mean Balanced Accuracy")
+    #         plt.title(f"Performance Trend as Channels are Removed (Repeat {repeat_idx + 1} / {num_repeats})")
+    #         plt.grid(True)
+    #         plt.legend()
+    #         if repeat_idx == num_repeats - 1:
+    #             plt.show(block=True)  # Keep the final plot open without closing the program
+    #         else:
+    #             plt.pause(1)  # Pause briefly to allow the plot to update
+    #         # plt.show()
+    #         # plt.pause(0.1)
+    #
+    #     # Final Summary
+    #     print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
+    #
+    #     return mean_test_accuracies, std_test_accuracies
+
+
+    def train_and_evaluate_tic(
+            self, num_repeats=10, num_outer_repeats=1, random_seed=42, test_size=0.2, normalize=False,
+            scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1
+    ):
+        cls_data = self.data.copy()
+        labels = self.labels
+        accuracies = []
+        confusion_matrices = []  # Store confusion matrices
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+
+            cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+            results = cls.train_and_evaluate_balanced(
+                num_outer_repeats=num_outer_repeats,
+                random_seed=random_seed + repeat_idx,
+                test_size=test_size,
+                normalize=normalize,
+                scaler_type=scaler_type,
+                use_pca=use_pca,
+                vthresh=vthresh,
+                region=region,
+                print_results=True,
+                n_jobs=n_jobs,
+                test_on_discarded=True
+            )
+            accuracies.append(results['overall_balanced_accuracy'])
+            confusion_matrices.append(results['overall_confusion_matrix_normalized'])  # Collect confusion matrices
+
+        # Compute average performance across repeats
+        mean_test_accuracy = np.mean(accuracies, axis=0)
+        std_test_accuracy = np.std(accuracies, axis=0)
+        print("\n##################################")
+        print(f"Final Mean Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f} "
+              f"(chance {results['chance_accuracy']:.3f})")
+
+        # Compute the averaged confusion matrix across all repetitions
+        mean_confusion_matrix = np.mean(confusion_matrices, axis=0)
+
+        # Print final normalized confusion matrix
+        print("\nFinal Averaged Normalized Confusion Matrix:")
+        print(mean_confusion_matrix)
+        print("##################################")
+
+
+        return mean_test_accuracy, std_test_accuracy
+
+
+    def train_and_evaluate_all_channels(
+            self, num_repeats=10, num_outer_repeats=1, random_seed=42, test_size=0.2, normalize=False,
+            scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1
+    ):
+        cls_data = self.data.copy()
+        labels = self.labels
+        accuracies = []
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+
+            cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+            results = cls.train_and_evaluate_balanced(
+                num_outer_repeats=num_outer_repeats,
+                random_seed=random_seed + repeat_idx,
+                test_size=test_size,
+                normalize=normalize,
+                scaler_type=scaler_type,
+                use_pca=use_pca,
+                vthresh=vthresh,
+                region=region,
+                print_results=False,
+                n_jobs=n_jobs,
+                test_on_discarded=True
+            )
+            accuracies.append(results['overall_balanced_accuracy'])
+
+        # Compute average performance across repeats
+        mean_test_accuracy = np.mean(accuracies, axis=0)
+        std_test_accuracy = np.std(accuracies, axis=0)
+
+        print(f"Mean Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")
+
+        return mean_test_accuracy, std_test_accuracy
 
 
     def train_and_evaluate_balanced_with_alpha(self, n_splits=50, vintage=False, random_seed=42, test_size=None,
@@ -7235,6 +6574,107 @@ def classify_all_channels(data, labels, alpha=1.0, test_size=0.2, num_splits=5, 
         results["mean_explained_variance"] = mean_explained_variance
 
     return results
+
+
+# def classify_all_channels(data, labels, alpha=1.0, test_size=0.2, num_splits=5, use_pca=False, n_components=None, use_groups=True):
+#     from sklearn.model_selection import train_test_split
+#     from sklearn.linear_model import RidgeClassifier
+#     from sklearn.metrics import balanced_accuracy_score
+#     from sklearn.decomposition import PCA
+#     from sklearn.utils import shuffle
+#     import numpy as np
+#
+#     def extract_category_labels(composite_labels):
+#         """
+#         Convert composite labels (e.g., 'A1', 'B9', 'C2') to category labels ('A', 'B', 'C').
+#
+#         Args:
+#             composite_labels (array-like): List or array of composite labels.
+#
+#         Returns:
+#             list: List of category labels.
+#         """
+#         return [re.match(r'([A-C])', label).group(1) if re.match(r'([A-C])', label) else label
+#                 for label in composite_labels]
+#
+#     class RepeatedLeaveOneFromEachClassCV:
+#         def __init__(self, n_repeats=5, shuffle=True, random_state=None, use_groups=True):
+#             self.n_repeats = n_repeats
+#             self.shuffle = shuffle
+#             self.random_state = random_state
+#             self.use_groups = use_groups
+#
+#         def split(self, X, y):
+#             unique_labels = np.unique(y)
+#             rng = np.random.default_rng(self.random_state)
+#
+#             for _ in range(self.n_repeats):
+#                 test_indices = []
+#                 for label in unique_labels:
+#                     indices = np.where(np.char.equal(y, label))[0]
+#                     if len(indices) == 0:
+#                         continue
+#                     if self.use_groups:
+#                         chosen_index = rng.choice(indices, size=1, replace=False).astype(int)
+#                         test_indices.extend(chosen_index)
+#                     else:
+#                         chosen_index = rng.choice(indices, size=1, replace=False).astype(int)
+#                         test_indices.append(int(chosen_index[0]))
+#
+#                 test_indices = np.array(test_indices, dtype=int)
+#                 train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+#                 yield np.array(train_indices, dtype=int), np.array(test_indices, dtype=int)
+#
+#     flattened_data = data.transpose(0, 2, 1).reshape(data.shape[0], -1)
+#
+#     accuracies = []
+#     balanced_accuracies = []
+#     explained_variance_ratios = [] if use_pca else None
+#
+#     print("Starting classification with balanced cross-validation...")
+#     model = RidgeClassifier(alpha=alpha)
+#
+#     cv = RepeatedLeaveOneFromEachClassCV(n_repeats=num_splits, use_groups=use_groups)
+#
+#     for split_idx, (train_idx, test_idx) in enumerate(cv.split(flattened_data, labels)):
+#         X_train, X_test = flattened_data[train_idx.astype(int)], flattened_data[test_idx.astype(int)]
+#         y_train, y_test = np.array(labels)[train_idx.astype(int)], np.array(labels)[test_idx.astype(int)]
+#
+#         # Apply extract_category_labels before training
+#         y_train = extract_category_labels(y_train)
+#         y_test = extract_category_labels(y_test)
+#
+#         if use_pca:
+#             pca = PCA(n_components=n_components)
+#             X_train = pca.fit_transform(X_train)
+#             X_test = pca.transform(X_test)
+#             explained_variance_ratios.append(np.sum(pca.explained_variance_ratio_))
+#
+#         model.fit(X_train, y_train)
+#         y_pred = model.predict(X_test)
+#
+#         accuracies.append(model.score(X_test, y_test))
+#         balanced_accuracies.append(balanced_accuracy_score(y_test, y_pred))
+#
+#         print(f"Split {split_idx + 1}/{num_splits} completed.")
+#
+#     mean_accuracy = np.mean(accuracies)
+#     mean_balanced_accuracy = np.mean(balanced_accuracies)
+#     mean_explained_variance = np.mean(explained_variance_ratios) if use_pca else None
+#
+#     print(f"Mean Accuracy: {mean_accuracy:.4f}")
+#     print(f"Mean Balanced Accuracy: {mean_balanced_accuracy:.4f}")
+#     if use_pca:
+#         print(f"Mean Explained Variance (PCA): {mean_explained_variance:.4f}")
+#
+#     results = {
+#         "mean_accuracy": mean_accuracy,
+#         "mean_balanced_accuracy": mean_balanced_accuracy,
+#     }
+#     if use_pca:
+#         results["mean_explained_variance"] = mean_explained_variance
+#
+#     return results
 
 
 def remove_highly_correlated_channels(data, correlation_threshold=0.9):

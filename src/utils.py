@@ -1097,7 +1097,7 @@ def split_tensor_into_overlapping_windows(tensor, window_size, stride):
 #     return reduced_dict
 
 
-def reduce_columns_in_dict(matrices_dict, n):
+def reduce_columns_in_dict(matrices_dict, n, normalize=False):
     """
     Reduces the column dimension of matrices in a dictionary by summing n contiguous columns.
     Excess columns are added to the last column of the reduced matrix if the total is not divisible by n.
@@ -1125,7 +1125,8 @@ def reduce_columns_in_dict(matrices_dict, n):
             # Add excess to the last column of the reduced matrix
             reduced_matrix[:, -1] += excess_columns.flatten()
 
-        reduced_matrix = np.apply_along_axis(utils.normalize_amplitude_zscore, axis=0, arr=reduced_matrix)
+        if normalize:
+            reduced_matrix = np.apply_along_axis(utils.normalize_amplitude_zscore, axis=0, arr=reduced_matrix)
 
         # Store in the result dictionary
         reduced_dict[key] = reduced_matrix
