@@ -22,11 +22,11 @@ DATA_DIRECTORY_2 = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Este
 CHEMICAL_NAME_2 = 'PRESS_WINES_ESTERS_2022_CS'
 
 # Dataset Settings
-JOIN_DATASETS=False
+JOIN_DATASETS=True
 ROW_START = 1
 NUM_SPLITS = 1000
 CHROM_CAP = 29000  # Limit for chromatogram size
-N_DECIMATION = 20  # Decimation factor for 3D data
+N_DECIMATION = 1  # Decimation factor for 3D data
 VINTAGE = False  # Include vintage data in analysis
 WINDOW = 1000
 STRIDE = 200
