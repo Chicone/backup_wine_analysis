@@ -22,6 +22,9 @@ from traitlets.config import get_config
 from config import (
     DATA_DIRECTORY,
     CHEMICAL_NAME,
+    DATA_DIRECTORY_2,
+    CHEMICAL_NAME_2,
+    JOIN_DATASETS,
     ROW_START,
     NUM_SPLITS,
     SYNC_STATE,
@@ -91,13 +94,50 @@ if __name__ == "__main__":
 
     # Set rows in columns to read
     row_start = 1
-    row_end, fc_idx, lc_idx = utils.find_data_margins_in_csv(DATA_DIRECTORY)
-    column_indices = list(range(fc_idx, lc_idx + 1))
+    row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(DATA_DIRECTORY)
+    column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
 
-    data_dict = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY, column_indices, row_start, row_end)
-    min_length = min(array.shape[0] for array in data_dict.values())
-    data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
-    data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
+    # Load primary dataset
+    data_dict = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY, column_indices, row_start, row_end_1)
+
+    if JOIN_DATASETS:
+        row_end_2, fc_idx_2, lc_idx_2 = utils.find_data_margins_in_csv(DATA_DIRECTORY_2)
+
+        # Ensure column indices match
+        assert fc_idx_1 == fc_idx_2 and lc_idx_1 == lc_idx_2, "Mismatch in column indices between datasets."
+
+        # Load secondary dataset
+        data_dict_2 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_2, column_indices, row_start, row_end_2)
+
+        # Trim samples to the shortest length for each dataset
+        min_length_1 = min(array.shape[0] for array in data_dict.values())
+        min_length_2 = min(array.shape[0] for array in data_dict_2.values())
+        min_length = min(min_length_1, min_length_2)
+
+        data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
+        data_dict_2 = {key: array[:min_length, :] for key, array in data_dict_2.items()}
+
+        # Apply decimation
+        data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
+        data_dict_2 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_2.items()}
+
+        # Merge datasets without checking keys
+        merged_data = {}
+        for key in set(data_dict.keys()).union(data_dict_2.keys()):
+            array_1 = data_dict.get(key,
+                                    np.empty((0, data_dict[next(iter(data_dict))].shape[1])))  # Handle missing keys
+            array_2 = data_dict_2.get(key, np.empty((0, data_dict_2[next(iter(data_dict_2))].shape[1])))
+
+            merged_data[key] = np.vstack((array_1, array_2))
+
+        data_dict = merged_data
+
+    else:
+        # If not joining datasets, apply decimation only to primary dataset
+        min_length = min(array.shape[0] for array in data_dict.values())
+        data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
+        data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
+
     # import scipy.signal as signal
     # data_dict = {key: signal.decimate(matrix, 20, axis=0, zero_phase=True)
     #                       for key, matrix in data_dict.items()}

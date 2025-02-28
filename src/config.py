@@ -18,18 +18,21 @@ DATA_DIRECTORY = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters
 CHEMICAL_NAME = 'PRESS_WINES_ESTERS_2022_M'
 # DATA_DIRECTORY = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/"
 # CHEMICAL_NAME = 'PRESS_WINES_ESTERS_2022_CS'
+DATA_DIRECTORY_2 = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/"
+CHEMICAL_NAME_2 = 'PRESS_WINES_ESTERS_2022_CS'
 
 # Dataset Settings
+JOIN_DATASETS=False
 ROW_START = 1
-NUM_SPLITS = 100
+NUM_SPLITS = 1000
 CHROM_CAP = 29000  # Limit for chromatogram size
-N_DECIMATION = 1  # Decimation factor for 3D data
+N_DECIMATION = 20  # Decimation factor for 3D data
 VINTAGE = False  # Include vintage data in analysis
 WINDOW = 1000
 STRIDE = 200
 
 # Analysis parameters
-DATA_TYPE = "GCMS"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
+DATA_TYPE = "TIC"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
 CH_TREAT = 'concatenated'  # 'independent',  'concatenated'
 CHANNEL_METHOD = 'ranked_greedy' # greedy_remove, greedy_add, greedy, all_channels, ranked_greedy
 SYNC_STATE = False  # Use retention time alignment
