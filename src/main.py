@@ -69,7 +69,7 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
 from plots import (plot_channel_selection_performance_changins, plot_channel_selection_performance_isvv,
-                   plot_channel_selection_thresholds, plot_accuracy_all_methods)
+                   plot_channel_selection_thresholds, plot_accuracy_all_methods, plot_accuracy_vs_decimation)
 
 if __name__ == "__main__":
     time.sleep(DELAY)
@@ -82,6 +82,8 @@ if __name__ == "__main__":
     # utils.copy_files_to_matching_directories("/home/luiscamara/kk/",
     #                                          "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/MERLOT/"
     #                                          )
+    # plot_accuracy_vs_decimation('merlot')
+    # plot_accuracy_vs_decimation('cabernet_sauvignon')
 
     cl = ChromatogramAnalysis()
 
@@ -124,8 +126,8 @@ if __name__ == "__main__":
             else:
                 # norm_tics = utils.normalize_dict(gcms.compute_tics(), scaler='standard')
                 tics = gcms.compute_tics()
-            chromatograms = {key: utils.normalize_amplitude_zscore(signal) for key, signal in tics.items()}
-            # chromatograms = {key: signal for key, signal in tics.items()}
+            # chromatograms = {key: utils.normalize_amplitude_zscore(signal) for key, signal in tics.items()}
+            chromatograms = {key: signal for key, signal in tics.items()}
         elif DATA_TYPE == "TIS":
             chromatograms = gcms.compute_tiss()
         elif DATA_TYPE == "TIC-TIS":
@@ -137,10 +139,13 @@ if __name__ == "__main__":
             # norm_tics, _ = cl.align_tics(data_dict, gcms, chrom_cap=CHROM_CAP)
             # tics = {key: utils.normalize_amplitude_zscore(signal) for key, signal in norm_tics.items()}
             tiss = gcms.compute_tiss()
-            chromatograms = utils.concatenate_dict_values(
-                {key: list(value) for key, value in tics.items()},
-                {key: list(value) for key, value in tiss.items()}
-            )
+            # chromatograms = utils.concatenate_dict_values(
+            #     {key: list(value) for key, value in tics.items()},
+            #     {key: list(value) for key, value in tiss.items()}
+            # )
+            chromatograms = {key: signal for key, signal in tics.items()}
+            chromatograms_tic = {key: signal for key, signal in tics.items()}
+            chromatograms_tis = {key: signal for key, signal in tiss.items()}
         else:
             raise ValueError("Invalid 'data_type' option.")
         data = chromatograms.values()
@@ -242,66 +247,66 @@ if __name__ == "__main__":
                     test_size=0.2, normalize=True, scaler_type='standard',
                     use_pca=False, vthresh=0.97, region=None,
                     print_results=True,
-                    n_jobs=10
+                    n_jobs=100
                 )
 
-            elif CHANNEL_METHOD == 'greedy':
-                correlation_thresholds = [1.0]
-                # correlation_thresholds = np.linspace(0.5, 0.9, num=5)  # Adjust the number of steps if needed
-                accuracy_progressions = {}  # Store accuracies for each threshold
-                for correlation_threshold in correlation_thresholds:
-                    print(f"Processing correlation_threshold = {correlation_threshold:.2f}")
-
-                    # selected_channels, val_accuracies, test_accuracies = greedy_nested_cv_channel_selection(
-                    selected_channels, val_accuracies, test_accuracies = greedy_nested_cv_channel_selection_snr(
-                        # data[:, :, [10, 13, 27]],
-                        data,
-                        np.array(labels),
-                        alpha=alpha,
-                        # test_size=0.2,
-                        # num_splits=NUM_SPLITS,
-                        # tolerated_no_improvement_steps=10,
-                        max_channels=181,
-                        num_outer_repeats=100,
-                        # num_outer_splits=1,
-                        inner_cv_folds=15,
-                        normalize=False,
-                        scaler_type='standard',
-                        random_seed=42,  # 42
-                        parallel=True,
-                        n_jobs=15,
-                        method='average', # average, concatenation
-                        # selection_mode='add',
-                        # min_frequency=3
-                        )
-
-                    # Store the accuracies for this threshold
-                    accuracy_progressions[correlation_threshold] = test_accuracies
-
-                # # Print results
-                # print("Selected Channels (in order):", selected_channels)
-                # print("Accuracies at each step:", accuracies)
-
-                # Plot the incremental performance
-                import matplotlib.pyplot as plt
-                # Plot the accuracy progression for each correlation threshold
-                plt.figure(figsize=(12, 8))
-                for correlation_threshold, test_accuracies in accuracy_progressions.items():
-                    plt.plot(range(1, len(test_accuracies) + 1), test_accuracies, marker='o', linestyle='-', label=f'Threshold {correlation_threshold:.2f}')
-
-                plt.xlabel("Number of Selected Channels")
-                plt.ylabel("Balanced Test Accuracy")
-                plt.title("Incremental Channel Selection Performance Across Correlation Thresholds")
-                plt.legend(title="Correlation Threshold", loc="lower right")
-                plt.grid()
-                plt.tight_layout()
-                plt.show()
+            # elif CHANNEL_METHOD == 'greedy':
+            #     correlation_thresholds = [1.0]
+            #     # correlation_thresholds = np.linspace(0.5, 0.9, num=5)  # Adjust the number of steps if needed
+            #     accuracy_progressions = {}  # Store accuracies for each threshold
+            #     for correlation_threshold in correlation_thresholds:
+            #         print(f"Processing correlation_threshold = {correlation_threshold:.2f}")
+            #
+            #         # selected_channels, val_accuracies, test_accuracies = greedy_nested_cv_channel_selection(
+            #         selected_channels, val_accuracies, test_accuracies = greedy_nested_cv_channel_selection_snr(
+            #             # data[:, :, [10, 13, 27]],
+            #             data,
+            #             np.array(labels),
+            #             alpha=alpha,
+            #             # test_size=0.2,
+            #             # num_splits=NUM_SPLITS,
+            #             # tolerated_no_improvement_steps=10,
+            #             max_channels=181,
+            #             num_outer_repeats=100,
+            #             # num_outer_splits=1,
+            #             inner_cv_folds=15,
+            #             normalize=False,
+            #             scaler_type='standard',
+            #             random_seed=42,  # 42
+            #             parallel=True,
+            #             n_jobs=15,
+            #             method='average', # average, concatenation
+            #             # selection_mode='add',
+            #             # min_frequency=3
+            #             )
+            #
+            #         # Store the accuracies for this threshold
+            #         accuracy_progressions[correlation_threshold] = test_accuracies
+            #
+            #     # # Print results
+            #     # print("Selected Channels (in order):", selected_channels)
+            #     # print("Accuracies at each step:", accuracies)
+            #
+            #     # Plot the incremental performance
+            #     import matplotlib.pyplot as plt
+            #     # Plot the accuracy progression for each correlation threshold
+            #     plt.figure(figsize=(12, 8))
+            #     for correlation_threshold, test_accuracies in accuracy_progressions.items():
+            #         plt.plot(range(1, len(test_accuracies) + 1), test_accuracies, marker='o', linestyle='-', label=f'Threshold {correlation_threshold:.2f}')
+            #
+            #     plt.xlabel("Number of Selected Channels")
+            #     plt.ylabel("Balanced Test Accuracy")
+            #     plt.title("Incremental Channel Selection Performance Across Correlation Thresholds")
+            #     plt.legend(title="Correlation Threshold", loc="lower right")
+            #     plt.grid()
+            #     plt.tight_layout()
+            #     plt.show()
 
             elif CHANNEL_METHOD == "greedy_remove":
                 cls.train_and_evaluate_greedy_remove(
                     num_repeats=100,
                     num_outer_repeats=1,
-                    n_inner_repeats=40,
+                    n_inner_repeats=20,
                     random_seed=42,
                     test_size=0.2,
                     normalize=True,
@@ -310,20 +315,37 @@ if __name__ == "__main__":
                     vthresh=0.97,
                     region=None,
                     print_results=True,
-                    n_jobs=135,
+                    n_jobs=100,
+                    feature_type='tic_tis'
+                )
+            elif CHANNEL_METHOD == "greedy_add":
+                cls.train_and_evaluate_greedy_add(
+                    num_repeats=100,
+                    num_outer_repeats=1,
+                    n_inner_repeats=20,
+                    random_seed=42,
+                    test_size=0.2,
+                    normalize=True,
+                    scaler_type='standard',
+                    use_pca=False,
+                    vthresh=0.97,
+                    region=None,
+                    print_results=True,
+                    n_jobs=100,
                     feature_type='tic_tis'
                 )
             elif CHANNEL_METHOD == "ranked_greedy":
                 cls.train_and_evaluate_ranked_greedy(
-                    num_repeats=50,
+                    num_repeats=100,
                     num_outer_repeats=1,
-                    n_inner_repeats=50,
+                    n_inner_repeats=10,
                     random_seed=42,
                     test_size=0.2, normalize=True, scaler_type='standard',
                     use_pca=False, vthresh=0.97, region=None,
                     print_results=True,
                     n_jobs=10,
-                    num_top_channels=50
+                    num_top_channels=137,
+                    feature_type='concatenated'
                 )
 
         elif CH_TREAT == 'independent':
@@ -333,20 +355,39 @@ if __name__ == "__main__":
                 best_alpha=alpha,
             )
 
-    elif DATA_TYPE in ["TIC", "TIS", "TIC-TIS"]:
+    if DATA_TYPE == "TIC" or DATA_TYPE == "TIS":
         cls_type = 'RGC'
         alpha = 1
         cls = Classifier(
             np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=WINE_KIND,
             window_size=WINDOW, stride=STRIDE
         )
-
         cls.train_and_evaluate_tic(
+            num_repeats=NUM_SPLITS,
+            n_inner_repeats=50,
+            random_seed=42,
+            test_size=0.2, normalize=True, scaler_type='standard',
+            use_pca=False, vthresh=0.97, region=None,
+            print_results=True,
+            n_jobs=10,
+        )
+    elif DATA_TYPE == "TIC-TIS":
+        cls_type = 'RGC'
+        alpha = 1
+        tic_data = chromatograms_tic.values()
+        tis_data = chromatograms_tis.values()
+
+        cls = Classifier(
+            np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=WINE_KIND,
+            window_size=WINDOW, stride=STRIDE
+        )
+        cls.train_and_evaluate_tic_tis(
+            np.array(list(tic_data)),
+            np.array(list(tis_data)),
             num_repeats=NUM_SPLITS,
             num_outer_repeats=1,
             random_seed=42,
             test_size=0.2, normalize=True, scaler_type='standard',
             use_pca=False, vthresh=0.97, region=None,
             print_results=True,
-            n_jobs=10,
         )

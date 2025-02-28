@@ -21,9 +21,9 @@ CHEMICAL_NAME = 'PRESS_WINES_ESTERS_2022_M'
 
 # Dataset Settings
 ROW_START = 1
-NUM_SPLITS = 1000
+NUM_SPLITS = 100
 CHROM_CAP = 29000  # Limit for chromatogram size
-N_DECIMATION = 20  # Decimation factor for 3D data
+N_DECIMATION = 1  # Decimation factor for 3D data
 VINTAGE = False  # Include vintage data in analysis
 WINDOW = 1000
 STRIDE = 200
@@ -31,7 +31,7 @@ STRIDE = 200
 # Analysis parameters
 DATA_TYPE = "GCMS"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
 CH_TREAT = 'concatenated'  # 'independent',  'concatenated'
-CHANNEL_METHOD = 'greedy_remove' # greedy_remove, greedy, all_channels, ranked_greedy
+CHANNEL_METHOD = 'ranked_greedy' # greedy_remove, greedy_add, greedy, all_channels, ranked_greedy
 SYNC_STATE = False  # Use retention time alignment
 CONCATENATE_TICS = False
 CNN_DIM = None  # 1, 2, None

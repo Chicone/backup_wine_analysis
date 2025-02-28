@@ -204,3 +204,49 @@ def plot_accuracy_all_methods():
     plt.tight_layout()
     plt.show()
 
+def plot_accuracy_vs_decimation(wine_type):
+    """
+    Plots accuracy vs. decimation factor for TIC, TIS, and TIC-TIS feature extraction methods.
+    The data is hardcoded within the function.
+    """
+    import matplotlib
+    matplotlib.use('TkAgg')  # Ensure TkAgg backend is used (better for debugging)
+
+
+
+    # Hardcoded accuracy data for each method
+    if wine_type == 'merlot':
+        # Merlot
+        decimation_factors = np.array([    1,     2,     3,     4,     5,    10,    20,    30,    40,    50,   100,   500,  722])
+        accuracy_tic =       np.array([0.843, 0.841, 0.841, 0.832, 0.850, 0.851, 0.862, 0.842, 0.825, 0.837, 0.807, 0.692, 0.665])
+        accuracy_tis =       np.array([0.640, 0.630, 0.633, 0.611, 0.621, 0.641, 0.706, 0.844, 0.774, 0.795, 0.779, 0.683, 0.646])
+        accuracy_tic_tis =   np.array([0.843, 0.840, 0.839, 0.829, 0.848, 0.849, 0.873, 0.850, 0.827, 0.833, 0.799, 0.696, 0.711])
+        title = "Accuracy vs. Decimation Factor (Merlot)"
+    elif wine_type == 'cabernet_sauvignon':
+        # # Cabernet Sauvignon
+        decimation_factors = np.array([    1,     2,     3,     4,     5,    10,    20,    30,    40,    50,   100,   500,  1000])
+        accuracy_tic =       np.array([0.673, 0.676, 0.669, 0.681, 0.661, 0.648, 0.657, 0.616, 0.586, 0.692, 0.673, 0.633, 0.645])
+        accuracy_tis =       np.array([0.496, 0.495, 0.484, 0.460, 0.508, 0.473, 0.461, 0.565, 0.571, 0.569, 0.621, 0.593, 0.568])
+        accuracy_tic_tis =   np.array([0.677, 0.674, 0.675, 0.666, 0.659, 0.640, 0.635, 0.623, 0.563, 0.685, 0.684, 0.613, 0.563])
+        title = "Accuracy vs. Decimation Factor (Cabernet Sauvignon)"
+    else:
+        raise ValueError("Invalid wine type. Use 'merlot' or 'cabernet_sauvignon'.")
+
+    # Plot
+    plt.figure(figsize=(8, 6))
+    plt.plot(decimation_factors, accuracy_tic, marker='o', linestyle='-', label="TIC", linewidth=2)
+    plt.plot(decimation_factors, accuracy_tis, marker='s', linestyle='--', label="TIS", linewidth=2)
+    plt.plot(decimation_factors, accuracy_tic_tis, marker='^', linestyle='-.', label="TIC-TIS", linewidth=2)
+
+    # Labels and formatting
+    plt.xlabel("Decimation Factor", fontsize=12)
+    plt.ylabel("Accuracy", fontsize=12)
+    plt.title(title, fontsize=14)
+    # plt.title("Accuracy vs. Decimation Factor (Cabernet Sauvignon)", fontsize=14)
+    plt.legend()
+    plt.grid(True)
+    plt.xscale("log")  # Log scale for better visualization
+    plt.ylim(0.5, 0.9)  # Adjust y-axis for better visibility
+
+    # Show plot
+    plt.show()
