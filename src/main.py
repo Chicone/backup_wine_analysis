@@ -382,14 +382,14 @@ if __name__ == "__main__":
                 )
             elif CHANNEL_METHOD == "ranked_greedy":
                 cls.train_and_evaluate_ranked_greedy(
-                    num_repeats=100,
+                    num_repeats=1000,
                     num_outer_repeats=1,
-                    n_inner_repeats=20,
+                    n_inner_repeats=5,
                     random_seed=42,
                     test_size=0.2, normalize=True, scaler_type='standard',
                     use_pca=False, vthresh=0.97, region=None,
                     print_results=True,
-                    n_jobs=20,
+                    n_jobs=5,
                     num_top_channels=139,
                     feature_type=FEATURE_TYPE
                 )
