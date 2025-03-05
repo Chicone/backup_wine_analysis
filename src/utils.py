@@ -1493,3 +1493,32 @@ def copy_files_to_matching_directories(source_dir, mother_dir):
             destination_path = os.path.join(destination_folder, file_name)
             shutil.copy(file_path, destination_path)
             print(f"Copied: {file_name} -> {destination_folder}")
+
+
+def remove_zero_variance_channels(data_dict):
+    """
+    Removes channels with zero variance across all samples in the dataset.
+
+    Parameters:
+        data_dict (dict): Dictionary where keys are sample IDs and values are NumPy arrays
+                          of shape (timepoints, num_channels).
+
+    Returns:
+        filtered_data_dict (dict): Dictionary with zero-variance channels removed.
+        valid_channels (list): Indices of retained channels.
+    """
+    # Stack all sample arrays along a new axis: shape (num_samples, timepoints, num_channels)
+    all_samples = np.array(list(data_dict.values()))  # Shape: (num_samples, timepoints, num_channels)
+
+    # Compute variance for each channel across all timepoints and samples
+    channel_variances = np.var(all_samples, axis=(0, 1))  # Shape: (num_channels,)
+
+    # Identify valid channels (non-zero variance)
+    valid_channels = np.where(channel_variances > 1e-8)[0]  # Indices of channels to keep
+
+    # Remove zero-variance channels from each sample
+    filtered_data_dict = {
+        sample_id: data[:, valid_channels] for sample_id, data in data_dict.items()
+    }
+
+    return filtered_data_dict, valid_channels

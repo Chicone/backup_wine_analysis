@@ -38,6 +38,7 @@ from config import (
     NUM_AGGR_CHANNELS,
     DELAY,
     CHANNEL_METHOD,
+    FEATURE_TYPE,
     CONCATENATE_TICS,
     PCA_STATE,
     WINDOW,
@@ -143,6 +144,8 @@ if __name__ == "__main__":
     #                       for key, matrix in data_dict.items()}
     CHROM_CAP = CHROM_CAP // N_DECIMATION
     # CHROM_CAP = None
+    data_dict, valid_channels = utils.remove_zero_variance_channels(data_dict)
+
     gcms = GCMSDataProcessor(data_dict)
 
     # GCMS-Specific Handling
@@ -343,10 +346,11 @@ if __name__ == "__main__":
             #     plt.show()
 
             elif CHANNEL_METHOD == "greedy_remove":
-                cls.train_and_evaluate_greedy_remove(
+                # cls.train_and_evaluate_greedy_remove(
+                cls.train_and_evaluate_greedy_remove_batch(
                     num_repeats=100,
                     num_outer_repeats=1,
-                    n_inner_repeats=20,
+                    n_inner_repeats=10,
                     random_seed=42,
                     test_size=0.2,
                     normalize=True,
@@ -355,8 +359,10 @@ if __name__ == "__main__":
                     vthresh=0.97,
                     region=None,
                     print_results=True,
-                    n_jobs=100,
-                    feature_type='tic_tis'
+                    n_jobs=10,
+                    feature_type='tic_tis',
+                    batch_size = 1,
+                    selection_mode = "contiguous"
                 )
             elif CHANNEL_METHOD == "greedy_add":
                 cls.train_and_evaluate_greedy_add(
@@ -371,21 +377,21 @@ if __name__ == "__main__":
                     vthresh=0.97,
                     region=None,
                     print_results=True,
-                    n_jobs=100,
+                    n_jobs=20,
                     feature_type='tic_tis'
                 )
             elif CHANNEL_METHOD == "ranked_greedy":
                 cls.train_and_evaluate_ranked_greedy(
                     num_repeats=100,
                     num_outer_repeats=1,
-                    n_inner_repeats=10,
+                    n_inner_repeats=20,
                     random_seed=42,
                     test_size=0.2, normalize=True, scaler_type='standard',
                     use_pca=False, vthresh=0.97, region=None,
                     print_results=True,
-                    n_jobs=10,
-                    num_top_channels=137,
-                    feature_type='concatenated'
+                    n_jobs=20,
+                    num_top_channels=139,
+                    feature_type=FEATURE_TYPE
                 )
 
         elif CH_TREAT == 'independent':
