@@ -1435,8 +1435,11 @@ class Classifier:
         def compute_features(channels):
             """ Compute features based on chosen feature type. """
             if feature_type == "concatenated":
-                # Concatenate raw selected channels
-                concatenated_data = np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+                try:
+                    # Concatenate raw selected channels
+                    concatenated_data = np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+                except Exception as e:
+                    print(f"An error occurred while plotting: {e}")
                 return concatenated_data
             elif feature_type == "tic_tis":
                 # Compute TIC (sum over m/z) and TIS (sum over time)
@@ -1450,7 +1453,15 @@ class Classifier:
         def evaluate_channel(ch_idx):
             print(f'Step {step}; Channel = {ch_idx}')
             temp_indices = [idx for idx in remaining_indices if idx != ch_idx]
+            if not temp_indices:  # If no channels remain, skip this iteration
+                print(f"⚠️ No remaining channels after removing {ch_idx}. Skipping evaluation.")
+                return ch_idx, None  # Return None to avoid breaking max() call later
+
             feature_matrix = compute_features(temp_indices)
+
+            if feature_matrix is None or feature_matrix.size == 0:  # Check if feature matrix is empty
+                print(f"⚠️ Feature matrix is empty after removing {ch_idx}. Skipping.")
+                return ch_idx, None
 
             cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
             results = cls.train_and_evaluate_balanced(
@@ -1537,7 +1548,7 @@ class Classifier:
 
             plt.xlabel("Number of Channels Removed")
             plt.ylabel("Mean Balanced Accuracy")
-            plt.title(f"Performance Trend as Channels are Removed (Repeat {repeat_idx + 1} / {num_repeats})")
+            plt.title(f"Performance Trend with Greedy Remove ({feature_type}; {repeat_idx + 1} / {num_repeats})")
             plt.grid(True)
             plt.legend()
             if repeat_idx == num_repeats - 1:
@@ -1895,7 +1906,7 @@ class Classifier:
 
             plt.xlabel("Number of Channels Added")
             plt.ylabel("Mean Balanced Accuracy")
-            plt.title(f"Performance Trend as Greedy Add (Repeat {repeat_idx + 1} / {num_repeats})")
+            plt.title(f"Performance Trend with Greedy Add ({feature_type}; {repeat_idx + 1} / {num_repeats})")
             plt.grid(True)
             plt.legend()
             if repeat_idx == num_repeats - 1:
@@ -2048,7 +2059,7 @@ class Classifier:
 
 
     def train_and_evaluate_tic(
-            self, num_repeats=10, n_inner_repeats=1, random_seed=42, test_size=0.2, normalize=False,
+            self, num_repeats=10, random_seed=42, test_size=0.2, normalize=False,
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1
     ):
         cls_data = self.data.copy()

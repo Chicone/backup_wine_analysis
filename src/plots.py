@@ -217,10 +217,11 @@ def plot_accuracy_vs_decimation(wine_type):
     # Hardcoded accuracy data for each method
     if wine_type == 'merlot':
         # Merlot
-        decimation_factors = np.array([    1,     2,     3,     4,     5,    10,    20,    30,    40,    50,   100,   500,  722])
+        decimation_factors = np.array([    1,     2,     3,     4,     5,    10,    20,    30,    40,    50,   100,   500,  1000])
         accuracy_tic =       np.array([0.843, 0.841, 0.841, 0.832, 0.850, 0.851, 0.862, 0.842, 0.825, 0.837, 0.807, 0.692, 0.665])
         accuracy_tis =       np.array([0.640, 0.630, 0.633, 0.611, 0.621, 0.641, 0.706, 0.844, 0.774, 0.795, 0.779, 0.683, 0.646])
         accuracy_tic_tis =   np.array([0.843, 0.840, 0.839, 0.829, 0.848, 0.849, 0.873, 0.850, 0.827, 0.833, 0.799, 0.696, 0.711])
+        accuracy_concat =    np.array([0.844, 0.843, 0.832, 0.838, 0.841, 0.838, 0.845, 0.830, 0.871, 0.850, 0.853, 0.756, 0.764])
         title = "Accuracy vs. Decimation Factor (Merlot)"
     elif wine_type == 'cabernet_sauvignon':
         # # Cabernet Sauvignon
@@ -228,6 +229,7 @@ def plot_accuracy_vs_decimation(wine_type):
         accuracy_tic =       np.array([0.673, 0.676, 0.669, 0.681, 0.661, 0.648, 0.657, 0.616, 0.586, 0.692, 0.673, 0.633, 0.645])
         accuracy_tis =       np.array([0.496, 0.495, 0.484, 0.460, 0.508, 0.473, 0.461, 0.565, 0.571, 0.569, 0.621, 0.593, 0.568])
         accuracy_tic_tis =   np.array([0.677, 0.674, 0.675, 0.666, 0.659, 0.640, 0.635, 0.623, 0.563, 0.685, 0.684, 0.613, 0.563])
+        accuracy_concat =    np.array([0.703, 0.689, 0.696, 0.682, 0.688, 0.692, 0.688, 0.688, 0.696, 0.715, 0.736, 0.520, 0.445])
         title = "Accuracy vs. Decimation Factor (Cabernet Sauvignon)"
     else:
         raise ValueError("Invalid wine type. Use 'merlot' or 'cabernet_sauvignon'.")
@@ -237,6 +239,7 @@ def plot_accuracy_vs_decimation(wine_type):
     plt.plot(decimation_factors, accuracy_tic, marker='o', linestyle='-', label="TIC", linewidth=2)
     plt.plot(decimation_factors, accuracy_tis, marker='s', linestyle='--', label="TIS", linewidth=2)
     plt.plot(decimation_factors, accuracy_tic_tis, marker='^', linestyle='-.', label="TIC-TIS", linewidth=2)
+    plt.plot(decimation_factors, accuracy_concat, marker='d', linestyle=':', label="All m/z", linewidth=2)  # Changed marker for differentiation
 
     # Labels and formatting
     plt.xlabel("Decimation Factor", fontsize=12)
@@ -246,7 +249,48 @@ def plot_accuracy_vs_decimation(wine_type):
     plt.legend()
     plt.grid(True)
     plt.xscale("log")  # Log scale for better visualization
-    plt.ylim(0.5, 0.9)  # Adjust y-axis for better visibility
+    plt.ylim(0.4, 0.9)  # Adjust y-axis for better visibility
+
+    # Show plot
+    plt.show()
+
+
+def plot_press_wines_accuracies():
+    import matplotlib
+    matplotlib.use('TkAgg')  # Ensure TkAgg backend is used (better for debugging)
+    # Data
+    algorithms = ["TIC", "TIS", "TIC-TIS", "All m/z", "Best m/z",
+                  "Greedy ranked (TIC-TIS)", "Greedy ranked (concat.)",
+                  "Greedy add (TIC-TIS)", "Greedy add (concat.)",
+                  "Greedy remove (TIC-TIS)", "Greedy remove (concat.)"]
+
+    merlot_acc = [0.850, 0.706, 0.873, 0.845, 0.776,
+                  0.870, 0.845, 0.876, 0.845, 0.000, 0.000]
+
+    csauv_acc = [0.661, 0.461, 0.635, 0.688, 0.633,
+                 0.000, 0.000, 0.000, 0.000, 0.000, 0.000]
+
+    x = np.arange(len(algorithms))  # Label locations
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bar_width = 0.4
+
+    ax.bar(x - bar_width/2, merlot_acc, bar_width, label="Merlot", color='royalblue', alpha=0.8)
+    ax.bar(x + bar_width/2, csauv_acc, bar_width, label="C. Sauv.", color='tomato', alpha=0.8)
+
+    # Labels and formatting
+    ax.set_xlabel("Algorithm", fontsize=12)
+    ax.set_ylabel("Accuracy", fontsize=12)
+    ax.set_title("Comparison of Classification Accuracy for Different Algorithms", fontsize=14)
+    ax.set_xticks(x)
+    ax.set_xticklabels(algorithms, rotation=45, ha="right")
+    ax.legend()
+
+    # Grid and layout adjustments
+    ax.set_ylim(0, 1)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.6)
+    plt.tight_layout()
 
     # Show plot
     plt.show()

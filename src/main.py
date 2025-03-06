@@ -73,7 +73,8 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
 from plots import (plot_channel_selection_performance_changins, plot_channel_selection_performance_isvv,
-                   plot_channel_selection_thresholds, plot_accuracy_all_methods, plot_accuracy_vs_decimation)
+                   plot_channel_selection_thresholds, plot_accuracy_all_methods, plot_accuracy_vs_decimation,
+                   plot_press_wines_accuracies)
 
 if __name__ == "__main__":
     time.sleep(DELAY)
@@ -88,6 +89,7 @@ if __name__ == "__main__":
     #                                          )
     # plot_accuracy_vs_decimation('merlot')
     # plot_accuracy_vs_decimation('cabernet_sauvignon')
+    # plot_press_wines_accuracies()
 
     cl = ChromatogramAnalysis()
 
@@ -346,11 +348,11 @@ if __name__ == "__main__":
             #     plt.show()
 
             elif CHANNEL_METHOD == "greedy_remove":
-                # cls.train_and_evaluate_greedy_remove(
-                cls.train_and_evaluate_greedy_remove_batch(
-                    num_repeats=100,
+                cls.train_and_evaluate_greedy_remove(
+                # cls.train_and_evaluate_greedy_remove_batch(
+                    num_repeats=1000,
                     num_outer_repeats=1,
-                    n_inner_repeats=10,
+                    n_inner_repeats=5,
                     random_seed=42,
                     test_size=0.2,
                     normalize=True,
@@ -359,16 +361,16 @@ if __name__ == "__main__":
                     vthresh=0.97,
                     region=None,
                     print_results=True,
-                    n_jobs=10,
-                    feature_type='tic_tis',
-                    batch_size = 1,
-                    selection_mode = "contiguous"
+                    n_jobs=5,
+                    feature_type=FEATURE_TYPE,
+                    # batch_size = 1,
+                    # selection_mode = "contiguous"
                 )
             elif CHANNEL_METHOD == "greedy_add":
                 cls.train_and_evaluate_greedy_add(
-                    num_repeats=100,
+                    num_repeats=1000,
                     num_outer_repeats=1,
-                    n_inner_repeats=20,
+                    n_inner_repeats=5,
                     random_seed=42,
                     test_size=0.2,
                     normalize=True,
@@ -377,8 +379,8 @@ if __name__ == "__main__":
                     vthresh=0.97,
                     region=None,
                     print_results=True,
-                    n_jobs=20,
-                    feature_type='tic_tis'
+                    n_jobs=5,
+                    feature_type=FEATURE_TYPE
                 )
             elif CHANNEL_METHOD == "ranked_greedy":
                 cls.train_and_evaluate_ranked_greedy(
@@ -410,7 +412,6 @@ if __name__ == "__main__":
         )
         cls.train_and_evaluate_tic(
             num_repeats=NUM_SPLITS,
-            n_inner_repeats=50,
             random_seed=42,
             test_size=0.2, normalize=True, scaler_type='standard',
             use_pca=False, vthresh=0.97, region=None,
