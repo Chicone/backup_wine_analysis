@@ -78,18 +78,20 @@ from plots import (plot_channel_selection_performance_changins, plot_channel_sel
 
 if __name__ == "__main__":
     time.sleep(DELAY)
+
+    # ##### Utils and plots #####
     # plot_classification_accuracy()
     # plot_accuracy_vs_channels()
     # plot_channel_selection_performance_changins()
     # plot_channel_selection_performance_isvv()
     # plot_channel_selection_thresholds("""""")
     # plot_accuracy_all_methods()
-    # utils.copy_files_to_matching_directories("/home/luiscamara/kk/",
-    #                                          "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/MERLOT/"
-    #                                          )
+    # utils.copy_files_to_matching_directories("/home/luiscamara/kk/", "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/MERLOT/")
     # plot_accuracy_vs_decimation('merlot')
     # plot_accuracy_vs_decimation('cabernet_sauvignon')
     # plot_press_wines_accuracies()
+    # utils.rename_directories("/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/050524/")
+    ###########################
 
     cl = ChromatogramAnalysis()
 
@@ -147,6 +149,7 @@ if __name__ == "__main__":
     CHROM_CAP = CHROM_CAP // N_DECIMATION
     # CHROM_CAP = None
     data_dict, valid_channels = utils.remove_zero_variance_channels(data_dict)
+    # utils.plot_snr_per_channel(data_dict)
 
     gcms = GCMSDataProcessor(data_dict)
 
@@ -295,64 +298,12 @@ if __name__ == "__main__":
                     n_jobs=100
                 )
 
-            # elif CHANNEL_METHOD == 'greedy':
-            #     correlation_thresholds = [1.0]
-            #     # correlation_thresholds = np.linspace(0.5, 0.9, num=5)  # Adjust the number of steps if needed
-            #     accuracy_progressions = {}  # Store accuracies for each threshold
-            #     for correlation_threshold in correlation_thresholds:
-            #         print(f"Processing correlation_threshold = {correlation_threshold:.2f}")
-            #
-            #         # selected_channels, val_accuracies, test_accuracies = greedy_nested_cv_channel_selection(
-            #         selected_channels, val_accuracies, test_accuracies = greedy_nested_cv_channel_selection_snr(
-            #             # data[:, :, [10, 13, 27]],
-            #             data,
-            #             np.array(labels),
-            #             alpha=alpha,
-            #             # test_size=0.2,
-            #             # num_splits=NUM_SPLITS,
-            #             # tolerated_no_improvement_steps=10,
-            #             max_channels=181,
-            #             num_outer_repeats=100,
-            #             # num_outer_splits=1,
-            #             inner_cv_folds=15,
-            #             normalize=False,
-            #             scaler_type='standard',
-            #             random_seed=42,  # 42
-            #             parallel=True,
-            #             n_jobs=15,
-            #             method='average', # average, concatenation
-            #             # selection_mode='add',
-            #             # min_frequency=3
-            #             )
-            #
-            #         # Store the accuracies for this threshold
-            #         accuracy_progressions[correlation_threshold] = test_accuracies
-            #
-            #     # # Print results
-            #     # print("Selected Channels (in order):", selected_channels)
-            #     # print("Accuracies at each step:", accuracies)
-            #
-            #     # Plot the incremental performance
-            #     import matplotlib.pyplot as plt
-            #     # Plot the accuracy progression for each correlation threshold
-            #     plt.figure(figsize=(12, 8))
-            #     for correlation_threshold, test_accuracies in accuracy_progressions.items():
-            #         plt.plot(range(1, len(test_accuracies) + 1), test_accuracies, marker='o', linestyle='-', label=f'Threshold {correlation_threshold:.2f}')
-            #
-            #     plt.xlabel("Number of Selected Channels")
-            #     plt.ylabel("Balanced Test Accuracy")
-            #     plt.title("Incremental Channel Selection Performance Across Correlation Thresholds")
-            #     plt.legend(title="Correlation Threshold", loc="lower right")
-            #     plt.grid()
-            #     plt.tight_layout()
-            #     plt.show()
-
             elif CHANNEL_METHOD == "greedy_remove":
                 cls.train_and_evaluate_greedy_remove(
                 # cls.train_and_evaluate_greedy_remove_batch(
-                    num_repeats=1000,
+                    num_repeats=50,
                     num_outer_repeats=1,
-                    n_inner_repeats=5,
+                    n_inner_repeats=50,
                     random_seed=42,
                     test_size=0.2,
                     normalize=True,
@@ -361,16 +312,34 @@ if __name__ == "__main__":
                     vthresh=0.97,
                     region=None,
                     print_results=True,
-                    n_jobs=5,
+                    n_jobs=50,
                     feature_type=FEATURE_TYPE,
-                    # batch_size = 1,
-                    # selection_mode = "contiguous"
+                    # batch_size = 3,
+                    # selection_mode = "correlation"
+                )
+            elif CHANNEL_METHOD == "greedy_remove_batch":
+                cls.train_and_evaluate_greedy_remove_batch(
+                    num_repeats=50,
+                    num_outer_repeats=1,
+                    n_inner_repeats=50,
+                    random_seed=42,
+                    test_size=0.2,
+                    normalize=True,
+                    scaler_type='standard',
+                    use_pca=False,
+                    vthresh=0.97,
+                    region=None,
+                    print_results=True,
+                    n_jobs=50,
+                    feature_type=FEATURE_TYPE,
+                    batch_size = 1,
+                    selection_mode = 'correlation'  # None, correlation, snr
                 )
             elif CHANNEL_METHOD == "greedy_add":
                 cls.train_and_evaluate_greedy_add(
-                    num_repeats=1000,
+                    num_repeats=50,
                     num_outer_repeats=1,
-                    n_inner_repeats=5,
+                    n_inner_repeats=50,
                     random_seed=42,
                     test_size=0.2,
                     normalize=True,
@@ -379,19 +348,19 @@ if __name__ == "__main__":
                     vthresh=0.97,
                     region=None,
                     print_results=True,
-                    n_jobs=5,
+                    n_jobs=50,
                     feature_type=FEATURE_TYPE
                 )
-            elif CHANNEL_METHOD == "ranked_greedy":
-                cls.train_and_evaluate_ranked_greedy(
-                    num_repeats=1000,
+            elif CHANNEL_METHOD == "greedy_ranked":
+                cls.train_and_evaluate_greedy_ranked(
+                    num_repeats=50,
                     num_outer_repeats=1,
-                    n_inner_repeats=5,
+                    n_inner_repeats=50,
                     random_seed=42,
                     test_size=0.2, normalize=True, scaler_type='standard',
                     use_pca=False, vthresh=0.97, region=None,
                     print_results=True,
-                    n_jobs=5,
+                    n_jobs=50,
                     num_top_channels=139,
                     feature_type=FEATURE_TYPE
                 )

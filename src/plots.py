@@ -264,11 +264,11 @@ def plot_press_wines_accuracies():
                   "Greedy add (TIC-TIS)", "Greedy add (concat.)",
                   "Greedy remove (TIC-TIS)", "Greedy remove (concat.)"]
 
-    merlot_acc = [0.850, 0.706, 0.873, 0.845, 0.776,
-                  0.870, 0.845, 0.876, 0.845, 0.000, 0.000]
+    merlot_acc = [0.844, 0.612, 0.839, 0.833, 0.789,
+                  0.853, 0.839, 0.844, 0.836, 0.850, 0.833]
 
-    csauv_acc = [0.661, 0.461, 0.635, 0.688, 0.633,
-                 0.000, 0.000, 0.000, 0.000, 0.000, 0.000]
+    csauv_acc = [0.637, 0.524, 0.637, 0.679, 0.699,
+                 0.730, 0.729, 0.704, 0.724, 0.714, 0.696]
 
     x = np.arange(len(algorithms))  # Label locations
 

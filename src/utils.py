@@ -1522,3 +1522,76 @@ def remove_zero_variance_channels(data_dict):
     }
 
     return filtered_data_dict, valid_channels
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+def plot_snr_per_channel(data_dict):
+    """
+    Plots the Signal-to-Noise Ratio (SNR) for each channel as a bar plot.
+
+    Parameters:
+    - data_dict: dict
+        Dictionary where keys are sample identifiers and values are 2D NumPy arrays
+        representing chromatographic data (retention times as rows, m/z channels as columns).
+    """
+    import matplotlib
+    matplotlib.use('TkAgg')
+
+    # Convert data dictionary to an array (num_samples, num_timepoints, num_channels)
+    valid_channels_data = np.array(list(data_dict.values()))  # Shape: (num_samples, num_timepoints, num_channels)
+
+    # Compute the mean and standard deviation across timepoints and samples for each channel
+    mean_signal = np.mean(valid_channels_data, axis=(0, 1))  # Shape: (num_channels,)
+    std_noise = np.std(valid_channels_data, axis=(0, 1))  # Shape: (num_channels,)
+
+    # Compute Signal-to-Noise Ratio (SNR) for each channel (avoid division by zero)
+    snr_values = mean_signal / (std_noise + 1e-10)
+
+    # Plot SNR per channel
+    plt.figure(figsize=(10, 5))
+    plt.bar(range(len(snr_values)), snr_values, color='blue', alpha=0.7)
+    plt.xlabel("Channel Index", fontsize=12)
+    plt.ylabel("Signal-to-Noise Ratio (SNR)", fontsize=12)
+    plt.title("SNR for Each Channel", fontsize=14)
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.show()
+
+    # Example usage:
+    # plot_snr_per_channel(data_dict)
+
+
+def rename_directories(directory_path):
+    """
+    Renames directories in the specified path according to the transformation rules:
+      - Remove 'ML' prefix
+      - Replace 'Ester-' with 'Est'
+      - Keep the numeric part after 'ML' and move it after 'Est'
+      - Replace '_' with '-' in the remaining part of the name
+    """
+    for dir_name in os.listdir(directory_path):
+        old_path = os.path.join(directory_path, dir_name)
+
+        # Ensure it's a directory before renaming
+        if os.path.isdir(old_path) and dir_name.startswith("ML") and "Ester-" in dir_name:
+            # Extract the numeric part after 'ML'
+            parts = dir_name.split('_')
+            first_part = parts[0]  # ML23_Ester-CSA9
+            rest = '_'.join(parts[1:])  # 2.D
+
+            # Remove 'ML' prefix and extract the numeric value
+            ml_part, ester_part = dir_name.split("_Ester-")
+            number = ml_part.replace("ML", "", 1)
+
+            # Construct the new name
+            new_name = f"Est{number}{ester_part}".replace("_", "-")
+
+            new_path = os.path.join(directory_path, new_name)
+
+            try:
+                os.rename(old_path, new_path)
+                print(f"Renamed: {dir_name} -> {new_name}")
+            except Exception as e:
+                print(f"Error renaming {dir_name}: {e}")
