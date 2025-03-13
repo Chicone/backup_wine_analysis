@@ -83,7 +83,7 @@ class Classifier:
         - 'GBC': Gradient Boosting Classifier
     """
     def __init__(self, data, labels, classifier_type='LDA', wine_kind='bordeaux', window_size=5000, stride=2500,
-                 alpha=1):
+                 alpha=1, year_labels= None):
         self.data = data
         self.labels = labels
         self.window_size = window_size
@@ -92,6 +92,7 @@ class Classifier:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.alpha=alpha
         self.classifier = self._get_classifier(classifier_type)
+        self.year_labels = year_labels
 
 
 
@@ -677,11 +678,13 @@ class Classifier:
             return acc, bal_acc, w_acc, prec, rec, f1, cm
 
 
-
         category_labels = extract_category_labels(self.labels)
 
         # Compute class distribution
-        class_counts = Counter(category_labels)
+        if self.year_labels.size > 0 and np.any(self.year_labels != None):
+            class_counts = Counter(self.year_labels)
+        else:
+            class_counts = Counter(category_labels)
         total_samples = sum(class_counts.values())
 
         # Compute Correct Chance Accuracy (Taking Class Distribution into Account)
@@ -725,7 +728,11 @@ class Classifier:
             group_duplicates=use_groups
         )
         X_train_full, X_test = self.data[train_idx], self.data[test_idx]
-        y_train_full, y_test = self.labels[train_idx], self.labels[test_idx]
+        if self.year_labels.size > 0 and np.any(self.year_labels != None):
+            y_train_full, y_test = self.year_labels[train_idx], self.year_labels[test_idx]
+        else:
+            y_train_full, y_test = self.labels[train_idx], self.labels[test_idx]
+
 
         if test_on_discarded:
             if normalize:
@@ -738,9 +745,13 @@ class Classifier:
                 X_train_full = pca.transform(X_train_full)
                 X_test = pca.transform(X_test)
 
-            self.classifier.fit(X_train_full, extract_category_labels(y_train_full))
+            if self.year_labels.size > 0 and np.any(self.year_labels != None):
+                self.classifier.fit(X_train_full, y_train_full)
+            else:
+                self.classifier.fit(X_train_full, extract_category_labels(y_train_full))
+                y_test = extract_category_labels(y_test)
             y_pred = self.classifier.predict(X_test)
-            y_test = extract_category_labels(y_test)
+
 
             outer_accuracy.append(accuracy_score(y_test, y_pred))
             outer_balanced_accuracy.append(balanced_accuracy_score(y_test, y_pred))
@@ -2308,7 +2319,8 @@ class Classifier:
         for repeat_idx in range(num_repeats):
             print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
 
-            cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+            # cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+            cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind, year_labels=self.year_labels)
             results = cls.train_and_evaluate_balanced(
                 random_seed=random_seed + repeat_idx,
                 test_size=test_size,
@@ -4533,6 +4545,30 @@ def assign_composite_label_to_press_wine(labels):
     return composite_labels
 
 
+def extract_year_from_samples(sample_names):
+    """
+    Extracts the year from a list of sample names.
+    Assumes the first two-digit number after 'Est' represents the year (e.g., '23' → 2023).
+
+    Parameters:
+        sample_names (list of str): List of sample names.
+
+    Returns:
+        list of int or None: A list of extracted years (e.g., [2023, 2022, None]) corresponding to each sample.
+    """
+    import re
+    pattern = re.compile(r'Est(\d{2})')
+
+    years = []
+    for sample in sample_names:
+        match = pattern.search(sample)
+        if match:
+            year = int(match.group(1))
+            years.append(str(2000 + year if year >= 20 else 1900 + year))  # Adjust century if needed
+        else:
+            years.append(None)  # Append None if no match is found
+
+    return years
 
 
 def greedy_channel_selection(

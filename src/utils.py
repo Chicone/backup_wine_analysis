@@ -1563,35 +1563,70 @@ def plot_snr_per_channel(data_dict):
     # plot_snr_per_channel(data_dict)
 
 
+# def rename_directories(directory_path):
+#     """
+#     Renames directories in the specified path according to the transformation rules:
+#       - Remove 'ML' prefix
+#       - Replace 'Ester-' with 'Est'
+#       - Keep the numeric part after 'ML' and move it after 'Est'
+#       - Replace '_' with '-' in the remaining part of the name
+#     """
+#     for dir_name in os.listdir(directory_path):
+#         old_path = os.path.join(directory_path, dir_name)
+#
+#         # Ensure it's a directory before renaming
+#         if os.path.isdir(old_path) and dir_name.startswith("ML") and "Ester-" in dir_name:
+#             # Extract the numeric part after 'ML'
+#             parts = dir_name.split('_')
+#             first_part = parts[0]  # ML23_Ester-CSA9
+#             rest = '_'.join(parts[1:])  # 2.D
+#
+#             # Remove 'ML' prefix and extract the numeric value
+#             ml_part, ester_part = dir_name.split("_Ester-")
+#             number = ml_part.replace("ML", "", 1)
+#
+#             # Construct the new name
+#             new_name = f"Est{number}{ester_part}".replace("_", "-")
+#
+#             new_path = os.path.join(directory_path, new_name)
+#
+#             try:
+#                 os.rename(old_path, new_path)
+#                 print(f"Renamed: {dir_name} -> {new_name}")
+#             except Exception as e:
+#                 print(f"Error renaming {dir_name}: {e}")
+
+
 def rename_directories(directory_path):
     """
     Renames directories in the specified path according to the transformation rules:
-      - Remove 'ML' prefix
-      - Replace 'Ester-' with 'Est'
-      - Keep the numeric part after 'ML' and move it after 'Est'
+      - Remove 'ML_' prefix
+      - Extract the numeric part after 'ML_' and use it as the year (e.g., ML_MA1_3.D -> Est21MA1-3.D)
       - Replace '_' with '-' in the remaining part of the name
+      - If there is no '_number' before '.D', add '_1' before '.D'
     """
     for dir_name in os.listdir(directory_path):
         old_path = os.path.join(directory_path, dir_name)
 
         # Ensure it's a directory before renaming
-        if os.path.isdir(old_path) and dir_name.startswith("ML") and "Ester-" in dir_name:
-            # Extract the numeric part after 'ML'
+        if os.path.isdir(old_path) and dir_name.startswith("ML_"):
             parts = dir_name.split('_')
-            first_part = parts[0]  # ML23_Ester-CSA9
-            rest = '_'.join(parts[1:])  # 2.D
 
-            # Remove 'ML' prefix and extract the numeric value
-            ml_part, ester_part = dir_name.split("_Ester-")
-            number = ml_part.replace("ML", "", 1)
+            if len(parts) >= 2:
+                # Extract the numeric part (assuming it's a year reference)
+                number = "21"  # Assuming '21' is the correct year reference
 
-            # Construct the new name
-            new_name = f"Est{number}{ester_part}".replace("_", "-")
+                # Check if there is a '_number' before '.D'
+                base_name = '_'.join(parts[1:])
+                if not re.search(r'_\d+(?=\.D$)', base_name):
+                    base_name = base_name.replace(".D", "_1.D")
 
-            new_path = os.path.join(directory_path, new_name)
+                # Construct the new name
+                new_name = f"Est{number}{base_name}".replace("_", "-")
+                new_path = os.path.join(directory_path, new_name)
 
-            try:
-                os.rename(old_path, new_path)
-                print(f"Renamed: {dir_name} -> {new_name}")
-            except Exception as e:
-                print(f"Error renaming {dir_name}: {e}")
+                try:
+                    os.rename(old_path, new_path)
+                    print(f"Renamed: {dir_name} -> {new_name}")
+                except Exception as e:
+                    print(f"Error renaming {dir_name}: {e}")

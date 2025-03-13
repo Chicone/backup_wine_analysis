@@ -24,6 +24,8 @@ from config import (
     CHEMICAL_NAME,
     DATA_DIRECTORY_2,
     CHEMICAL_NAME_2,
+    DATA_DIRECTORY_3,
+    CHEMICAL_NAME_3,
     JOIN_DATASETS,
     ROW_START,
     NUM_SPLITS,
@@ -37,6 +39,7 @@ from config import (
     GCMS_DIRECTION,
     NUM_AGGR_CHANNELS,
     DELAY,
+    CLASS_BY_YEAR,
     CHANNEL_METHOD,
     FEATURE_TYPE,
     CONCATENATE_TICS,
@@ -60,7 +63,8 @@ from classification import (Classifier, process_labels, assign_country_to_pinot_
                             classify_all_channels,
                             remove_highly_correlated_channels, split_by_split_greedy_channel_selection,
                             greedy_nested_cv_channel_selection, greedy_nested_cv_channel_elimination,
-                            greedy_nested_cv_channel_selection_snr, assign_composite_label_to_press_wine
+                            greedy_nested_cv_channel_selection_snr, assign_composite_label_to_press_wine,
+                            extract_year_from_samples
                             )
 from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
 from visualizer import visualize_confusion_matrix_3d, plot_accuracy_vs_channels
@@ -90,7 +94,7 @@ if __name__ == "__main__":
     # plot_accuracy_vs_decimation('merlot')
     # plot_accuracy_vs_decimation('cabernet_sauvignon')
     # plot_press_wines_accuracies()
-    # utils.rename_directories("/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/050524/")
+    # utils.rename_directories("/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/011222/")
     ###########################
 
     cl = ChromatogramAnalysis()
@@ -105,36 +109,73 @@ if __name__ == "__main__":
     # Load primary dataset
     data_dict = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY, column_indices, row_start, row_end_1)
 
+    # if JOIN_DATASETS:
+    #     row_end_2, fc_idx_2, lc_idx_2 = utils.find_data_margins_in_csv(DATA_DIRECTORY_2)
+    #
+    #     # Ensure column indices match
+    #     assert fc_idx_1 == fc_idx_2 and lc_idx_1 == lc_idx_2, "Mismatch in column indices between datasets."
+    #
+    #     # Load secondary dataset
+    #     data_dict_2 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_2, column_indices, row_start, row_end_2)
+    #
+    #     # Trim samples to the shortest length for each dataset
+    #     min_length_1 = min(array.shape[0] for array in data_dict.values())
+    #     min_length_2 = min(array.shape[0] for array in data_dict_2.values())
+    #     min_length = min(min_length_1, min_length_2)
+    #
+    #     data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
+    #     data_dict_2 = {key: array[:min_length, :] for key, array in data_dict_2.items()}
+    #
+    #     # Apply decimation
+    #     data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
+    #     data_dict_2 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_2.items()}
+    #
+    #     # Merge datasets without checking keys
+    #     merged_data = {}
+    #     for key in set(data_dict.keys()).union(data_dict_2.keys()):
+    #         array_1 = data_dict.get(key,
+    #                                 np.empty((0, data_dict[next(iter(data_dict))].shape[1])))  # Handle missing keys
+    #         array_2 = data_dict_2.get(key, np.empty((0, data_dict_2[next(iter(data_dict_2))].shape[1])))
+    #
+    #         merged_data[key] = np.vstack((array_1, array_2))
+    #
+    #     data_dict = merged_data
+
     if JOIN_DATASETS:
         row_end_2, fc_idx_2, lc_idx_2 = utils.find_data_margins_in_csv(DATA_DIRECTORY_2)
+        row_end_3, fc_idx_3, lc_idx_3 = utils.find_data_margins_in_csv(DATA_DIRECTORY_3)
 
-        # Ensure column indices match
-        assert fc_idx_1 == fc_idx_2 and lc_idx_1 == lc_idx_2, "Mismatch in column indices between datasets."
+        # Ensure column indices match across all datasets
+        assert fc_idx_1 == fc_idx_2 == fc_idx_3 and lc_idx_1 == lc_idx_2 == lc_idx_3, "Mismatch in column indices between datasets."
 
-        # Load secondary dataset
+        # Load secondary and tertiary datasets
         data_dict_2 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_2, column_indices, row_start, row_end_2)
+        data_dict_3 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_3, column_indices, row_start, row_end_3)
 
         # Trim samples to the shortest length for each dataset
         min_length_1 = min(array.shape[0] for array in data_dict.values())
         min_length_2 = min(array.shape[0] for array in data_dict_2.values())
-        min_length = min(min_length_1, min_length_2)
+        min_length_3 = min(array.shape[0] for array in data_dict_3.values())
+        min_length = min(min_length_1, min_length_2, min_length_3)
 
         data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
         data_dict_2 = {key: array[:min_length, :] for key, array in data_dict_2.items()}
+        data_dict_3 = {key: array[:min_length, :] for key, array in data_dict_3.items()}
 
         # Apply decimation
         data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
         data_dict_2 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_2.items()}
+        data_dict_3 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_3.items()}
 
         # Merge datasets without checking keys
         merged_data = {}
-        for key in set(data_dict.keys()).union(data_dict_2.keys()):
+        for key in set(data_dict.keys()).union(data_dict_2.keys()).union(data_dict_3.keys()):
             array_1 = data_dict.get(key,
                                     np.empty((0, data_dict[next(iter(data_dict))].shape[1])))  # Handle missing keys
             array_2 = data_dict_2.get(key, np.empty((0, data_dict_2[next(iter(data_dict_2))].shape[1])))
+            array_3 = data_dict_3.get(key, np.empty((0, data_dict_3[next(iter(data_dict_3))].shape[1])))
 
-            merged_data[key] = np.vstack((array_1, array_2))
-
+            merged_data[key] = np.vstack((array_1, array_2, array_3))
         data_dict = merged_data
 
     else:
@@ -220,6 +261,7 @@ if __name__ == "__main__":
         else:
             raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
     elif WINE_KIND == "press":
+        year_labels = extract_year_from_samples(chromatograms.keys()) if CLASS_BY_YEAR else None
         # labels = assign_category_to_press_wine(labels)
         labels = assign_composite_label_to_press_wine(labels)
 
@@ -377,7 +419,8 @@ if __name__ == "__main__":
         alpha = 1
         cls = Classifier(
             np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=WINE_KIND,
-            window_size=WINDOW, stride=STRIDE
+            window_size=WINDOW, stride=STRIDE,
+            year_labels=np.array(year_labels)
         )
         cls.train_and_evaluate_tic(
             num_repeats=NUM_SPLITS,
