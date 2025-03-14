@@ -108,75 +108,82 @@ if __name__ == "__main__":
 
     # Load primary dataset
     data_dict = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY, column_indices, row_start, row_end_1)
+    dataset_origins = {key: "dataset1" for key in data_dict.keys()}
 
-    # if JOIN_DATASETS:
-    #     row_end_2, fc_idx_2, lc_idx_2 = utils.find_data_margins_in_csv(DATA_DIRECTORY_2)
-    #
-    #     # Ensure column indices match
-    #     assert fc_idx_1 == fc_idx_2 and lc_idx_1 == lc_idx_2, "Mismatch in column indices between datasets."
-    #
-    #     # Load secondary dataset
-    #     data_dict_2 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_2, column_indices, row_start, row_end_2)
-    #
-    #     # Trim samples to the shortest length for each dataset
-    #     min_length_1 = min(array.shape[0] for array in data_dict.values())
-    #     min_length_2 = min(array.shape[0] for array in data_dict_2.values())
-    #     min_length = min(min_length_1, min_length_2)
-    #
-    #     data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
-    #     data_dict_2 = {key: array[:min_length, :] for key, array in data_dict_2.items()}
-    #
-    #     # Apply decimation
-    #     data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
-    #     data_dict_2 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_2.items()}
-    #
-    #     # Merge datasets without checking keys
-    #     merged_data = {}
-    #     for key in set(data_dict.keys()).union(data_dict_2.keys()):
-    #         array_1 = data_dict.get(key,
-    #                                 np.empty((0, data_dict[next(iter(data_dict))].shape[1])))  # Handle missing keys
-    #         array_2 = data_dict_2.get(key, np.empty((0, data_dict_2[next(iter(data_dict_2))].shape[1])))
-    #
-    #         merged_data[key] = np.vstack((array_1, array_2))
-    #
-    #     data_dict = merged_data
-
+    # For 2 datasets
     if JOIN_DATASETS:
         row_end_2, fc_idx_2, lc_idx_2 = utils.find_data_margins_in_csv(DATA_DIRECTORY_2)
-        row_end_3, fc_idx_3, lc_idx_3 = utils.find_data_margins_in_csv(DATA_DIRECTORY_3)
 
-        # Ensure column indices match across all datasets
-        assert fc_idx_1 == fc_idx_2 == fc_idx_3 and lc_idx_1 == lc_idx_2 == lc_idx_3, "Mismatch in column indices between datasets."
+        # Ensure column indices match
+        assert fc_idx_1 == fc_idx_2 and lc_idx_1 == lc_idx_2, "Mismatch in column indices between datasets."
 
-        # Load secondary and tertiary datasets
+        # Load secondary dataset
         data_dict_2 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_2, column_indices, row_start, row_end_2)
-        data_dict_3 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_3, column_indices, row_start, row_end_3)
+        dataset_origins_2 = {key: "dataset2" for key in data_dict_2.keys()}
+
 
         # Trim samples to the shortest length for each dataset
         min_length_1 = min(array.shape[0] for array in data_dict.values())
         min_length_2 = min(array.shape[0] for array in data_dict_2.values())
-        min_length_3 = min(array.shape[0] for array in data_dict_3.values())
-        min_length = min(min_length_1, min_length_2, min_length_3)
+        min_length = min(min_length_1, min_length_2)
 
         data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
         data_dict_2 = {key: array[:min_length, :] for key, array in data_dict_2.items()}
-        data_dict_3 = {key: array[:min_length, :] for key, array in data_dict_3.items()}
 
         # Apply decimation
         data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
         data_dict_2 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_2.items()}
-        data_dict_3 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_3.items()}
 
         # Merge datasets without checking keys
         merged_data = {}
-        for key in set(data_dict.keys()).union(data_dict_2.keys()).union(data_dict_3.keys()):
-            array_1 = data_dict.get(key,
-                                    np.empty((0, data_dict[next(iter(data_dict))].shape[1])))  # Handle missing keys
+        merged_origins = {}
+        for key in set(data_dict.keys()).union(data_dict_2.keys()):
+            array_1 = data_dict.get(key,np.empty((0, data_dict[next(iter(data_dict))].shape[1])))  # Handle missing keys
             array_2 = data_dict_2.get(key, np.empty((0, data_dict_2[next(iter(data_dict_2))].shape[1])))
-            array_3 = data_dict_3.get(key, np.empty((0, data_dict_3[next(iter(data_dict_3))].shape[1])))
 
-            merged_data[key] = np.vstack((array_1, array_2, array_3))
+            merged_data[key] = np.vstack((array_1, array_2))
+            merged_origins[key] = dataset_origins.get(key, "dataset2")
+
         data_dict = merged_data
+        dataset_origins = merged_origins
+
+    # # for  3 datasets
+    # if JOIN_DATASETS:
+    #     row_end_2, fc_idx_2, lc_idx_2 = utils.find_data_margins_in_csv(DATA_DIRECTORY_2)
+    #     row_end_3, fc_idx_3, lc_idx_3 = utils.find_data_margins_in_csv(DATA_DIRECTORY_3)
+    #
+    #     # Ensure column indices match across all datasets
+    #     assert fc_idx_1 == fc_idx_2 == fc_idx_3 and lc_idx_1 == lc_idx_2 == lc_idx_3, "Mismatch in column indices between datasets."
+    #
+    #     # Load secondary and tertiary datasets
+    #     data_dict_2 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_2, column_indices, row_start, row_end_2)
+    #     data_dict_3 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_3, column_indices, row_start, row_end_3)
+    #
+    #     # Trim samples to the shortest length for each dataset
+    #     min_length_1 = min(array.shape[0] for array in data_dict.values())
+    #     min_length_2 = min(array.shape[0] for array in data_dict_2.values())
+    #     min_length_3 = min(array.shape[0] for array in data_dict_3.values())
+    #     min_length = min(min_length_1, min_length_2, min_length_3)
+    #
+    #     data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
+    #     data_dict_2 = {key: array[:min_length, :] for key, array in data_dict_2.items()}
+    #     data_dict_3 = {key: array[:min_length, :] for key, array in data_dict_3.items()}
+    #
+    #     # Apply decimation
+    #     data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
+    #     data_dict_2 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_2.items()}
+    #     data_dict_3 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_3.items()}
+    #
+    #     # Merge datasets without checking keys
+    #     merged_data = {}
+    #     for key in set(data_dict.keys()).union(data_dict_2.keys()).union(data_dict_3.keys()):
+    #         array_1 = data_dict.get(key,
+    #                                 np.empty((0, data_dict[next(iter(data_dict))].shape[1])))  # Handle missing keys
+    #         array_2 = data_dict_2.get(key, np.empty((0, data_dict_2[next(iter(data_dict_2))].shape[1])))
+    #         array_3 = data_dict_3.get(key, np.empty((0, data_dict_3[next(iter(data_dict_3))].shape[1])))
+    #
+    #         merged_data[key] = np.vstack((array_1, array_2, array_3))
+    #     data_dict = merged_data
 
     else:
         # If not joining datasets, apply decimation only to primary dataset
@@ -293,7 +300,8 @@ if __name__ == "__main__":
         # labels_val = np.array(labels)[shuffled_indices]
         cls = Classifier(
             np.array(list(data_val)), np.array(list(labels_val)), classifier_type='RGC', wine_kind=WINE_KIND,
-            window_size=WINDOW, stride=STRIDE
+            window_size=WINDOW, stride=STRIDE,
+            year_labels=np.array(year_labels)
         )
         cls_type = 'RGC'
         alpha = 1
@@ -417,18 +425,24 @@ if __name__ == "__main__":
     if DATA_TYPE == "TIC" or DATA_TYPE == "TIS":
         cls_type = 'RGC'
         alpha = 1
+
+        dataset_origins_array = np.array([dataset_origins[key] for key in tics.keys()])
+
         cls = Classifier(
             np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=WINE_KIND,
             window_size=WINDOW, stride=STRIDE,
             year_labels=np.array(year_labels)
         )
-        cls.train_and_evaluate_tic(
+        # cls.train_and_evaluate_tic(
+        cls.train_and_evaluate_tic_diff_origins(
             num_repeats=NUM_SPLITS,
             random_seed=42,
             test_size=0.2, normalize=True, scaler_type='standard',
             use_pca=False, vthresh=0.97, region=None,
             print_results=True,
             n_jobs=10,
+            dataset_origins = dataset_origins_array
+
         )
     elif DATA_TYPE == "TIC-TIS":
         cls_type = 'RGC'

@@ -14,15 +14,15 @@
 # CHEMICAL_NAME = 'BORDEAUX_OAK_PAPER_OAK_WOOD'
 
  ##### PRESS WINES #####
-DATA_DIRECTORY = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/"
+DATA_DIRECTORY = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/MERLOT/"
 CHEMICAL_NAME = 'PRESS_WINES_ESTERS_2022_M'
 # DATA_DIRECTORY = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/"
 # CHEMICAL_NAME = 'PRESS_WINES_ESTERS_2022_CS'
-# DATA_DIRECTORY_2 = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/"
-# CHEMICAL_NAME_2 = 'PRESS_WINES_ESTERS_2022_CS'
-DATA_DIRECTORY_2 = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/"
-CHEMICAL_NAME_2 = 'PRESS_WINES_ESTERS_2023_M'
-DATA_DIRECTORY_3 = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/"
+DATA_DIRECTORY_2 = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/"
+CHEMICAL_NAME_2 = 'PRESS_WINES_ESTERS_2022_CS'
+# DATA_DIRECTORY_2 = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/MERLOT/"
+# CHEMICAL_NAME_2 = 'PRESS_WINES_ESTERS_2023_M'
+DATA_DIRECTORY_3 = "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/MERLOT/"
 CHEMICAL_NAME_3 = 'PRESS_WINES_ESTERS_2021_M'
 
 
@@ -39,7 +39,7 @@ STRIDE = 200
 # Analysis parameters
 DATA_TYPE = "TIC"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
 CH_TREAT = 'concatenated'  # 'independent',  'concatenated'
-CHANNEL_METHOD = 'all_channels' # greedy_remove, greedy_remove_batch, greedy_add, all_channels, greedy_ranked
+CHANNEL_METHOD = 'greedy_add' # greedy_remove, greedy_remove_batch, greedy_add, all_channels, greedy_ranked
 FEATURE_TYPE = 'tic_tis'  # concatenated tic_tis
 SYNC_STATE = False  # Use retention time alignment
 CONCATENATE_TICS = False
@@ -48,7 +48,7 @@ gcms_options = ["RT_DIRECTION", "MS_DIRECTION"]
 GCMS_DIRECTION = gcms_options[0]
 NUM_AGGR_CHANNELS = 1
 DELAY = 0
-CLASS_BY_YEAR = True
+CLASS_BY_YEAR = False
 
 # PCA and Classification
 PCA_STATE = [False]  # Enable PCA for classification

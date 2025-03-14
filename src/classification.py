@@ -83,7 +83,7 @@ class Classifier:
         - 'GBC': Gradient Boosting Classifier
     """
     def __init__(self, data, labels, classifier_type='LDA', wine_kind='bordeaux', window_size=5000, stride=2500,
-                 alpha=1, year_labels= None):
+                 alpha=1, year_labels= None, dataset_origins=None):
         self.data = data
         self.labels = labels
         self.window_size = window_size
@@ -92,7 +92,8 @@ class Classifier:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.alpha=alpha
         self.classifier = self._get_classifier(classifier_type)
-        self.year_labels = year_labels
+        self.year_labels = year_labels,
+        self.dataset_origins=dataset_origins
 
 
 
@@ -283,130 +284,6 @@ class Classifier:
             'mean_f1_score': f1_scores.mean(),
             'mean_confusion_matrix': mean_confusion_matrix
         }
-
-    # def train_and_evaluate_balanced(self, n_splits=50, vintage=False, random_seed=42, test_size=None, normalize=False,
-    #                                 scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
-    #                                 batch_size=32, num_epochs=10, learning_rate=0.001):
-    #     """
-    #     Train and evaluate the classifier using cross-validation, with accuracy metrics for imbalanced classes.
-    #
-    #     Parameters
-    #     ----------
-    #     (same as original)
-    #
-    #     Returns
-    #     -------
-    #     dict
-    #         A dictionary containing mean accuracy, balanced accuracy, weighted accuracy, precision, recall, F1-score, and
-    #         the mean confusion matrix.
-    #     """
-    #     # Initialize accumulators for metrics
-    #     accuracy_scores = []
-    #     balanced_accuracy_scores = []
-    #     weighted_accuracy_scores = []
-    #     precision_scores = []
-    #     recall_scores = []
-    #     f1_scores = []
-    #     confusion_matrix_sum = None
-    #
-    #     if region == 'winery':
-    #         custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
-    #     elif region == 'origin':
-    #         custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
-    #     else:
-    #         custom_order = None
-    #
-    #     # Use the same random seed logic
-    #     if random_seed is None:
-    #         random_seed = np.random.randint(0, 1e6)
-    #     rng = np.random.default_rng(random_seed)
-    #
-    #     # Predefine splits for consistency
-    #     predefined_splits = []
-    #     for _ in range(n_splits):
-    #         train_idx, temp_idx = train_test_split(
-    #             np.arange(len(self.labels)), test_size=test_size + test_size, stratify=self.labels,
-    #             random_state=rng.integers(0, 1e6)
-    #         )
-    #         val_idx, test_idx = train_test_split(
-    #             temp_idx, test_size=0.5, stratify=self.labels[temp_idx], random_state=rng.integers(0, 1e6)
-    #         )
-    #         predefined_splits.append((train_idx, val_idx, test_idx))
-    #
-    #     # Apply PCA if enabled
-    #     if use_pca:
-    #         reducer = DimensionalityReducer(self.data)
-    #         _, _, n_components = reducer.cumulative_variance(self.labels, variance_threshold=vthresh, plot=False)
-    #         n_components = min(n_components, len(set(self.labels)))  # Adjust PCA components based on class count
-    #         pca = PCA(n_components=n_components, svd_solver='randomized')
-    #
-    #     print('Split', end=' ', flush=True)
-    #     # Cross-validation loop
-    #     for i, (train_idx, val_idx, test_idx) in enumerate(predefined_splits):
-    #         X_train = self.data[train_idx]
-    #         X_test = self.data[test_idx]
-    #         y_train, y_test = self.labels[train_idx], self.labels[test_idx]
-    #
-    #         # Normalize data if enabled
-    #         if normalize:
-    #             X_train, scaler = normalize_data(X_train, scaler=scaler_type)
-    #             X_test = scaler.transform(X_test)
-    #
-    #         # Apply PCA if enabled
-    #         if use_pca:
-    #             X_train = pca.fit_transform(X_train)
-    #             X_test = pca.transform(X_test)
-    #
-    #         # Train the classifier
-    #         self.classifier.fit(X_train, y_train)
-    #
-    #         # Print progress every 5 iterations
-    #         print(i, end=' ', flush=True) if i % 5 == 0 else None
-    #
-    #         # Predictions on test data
-    #         y_pred = self.classifier.predict(X_test)
-    #
-    #         # Calculate metrics
-    #         accuracy_scores.append(self.classifier.score(X_test, y_test))
-    #         balanced_accuracy_scores.append(balanced_accuracy_score(y_test, y_pred))
-    #
-    #         # Compute weighted accuracy, precision, recall, and F1-score with sample weights
-    #         sample_weights = compute_sample_weight(class_weight='balanced', y=y_test)
-    #         weighted_accuracy = np.average(y_pred == y_test, weights=sample_weights)
-    #         weighted_accuracy_scores.append(weighted_accuracy)
-    #         precision_scores.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
-    #         recall_scores.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
-    #         f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
-    #
-    #         # Confusion matrix for the current split
-    #         cm = confusion_matrix(y_test, y_pred, labels=custom_order if custom_order else None)
-    #         confusion_matrix_sum = cm if confusion_matrix_sum is None else confusion_matrix_sum + cm
-    #
-    #     print(i, end=' ', flush=True) if i % 5 == 0 else None
-    #
-    #     # Calculate mean confusion matrix and print results
-    #     mean_confusion_matrix = confusion_matrix_sum / n_splits
-    #     print(f"Accuracy: {np.mean(accuracy_scores):.3f} (+/- {np.std(accuracy_scores) * 2:.3f})")
-    #     print(
-    #         f"Balanced Accuracy: {np.mean(balanced_accuracy_scores):.3f} (+/- {np.std(balanced_accuracy_scores) * 2:.3f})")
-    #     print(
-    #         f"Weighted Accuracy: {np.mean(weighted_accuracy_scores):.3f} (+/- {np.std(weighted_accuracy_scores) * 2:.3f})")
-    #     print(f"Precision: {np.mean(precision_scores):.3f}")
-    #     print(f"Recall: {np.mean(recall_scores):.3f}")
-    #     print(f"F1 Score: {np.mean(f1_scores):.3f}")
-    #     np.set_printoptions(linewidth=np.inf)
-    #     print("Mean Confusion Matrix:", mean_confusion_matrix)
-    #
-    #     # Return metrics
-    #     return {
-    #         'mean_accuracy': np.mean(accuracy_scores),
-    #         'mean_balanced_accuracy': np.mean(balanced_accuracy_scores),
-    #         'mean_weighted_accuracy': np.mean(weighted_accuracy_scores),
-    #         'mean_precision': np.mean(precision_scores),
-    #         'mean_recall': np.mean(recall_scores),
-    #         'mean_f1_score': np.mean(f1_scores),
-    #         'mean_confusion_matrix': mean_confusion_matrix
-    #     }
 
     def train_and_evaluate_balanced(self, n_inner_repeats=50, random_seed=42,
                                     test_size=0.2, normalize=False, scaler_type='standard',
@@ -836,6 +713,165 @@ class Classifier:
             # print(overall_results['overall_confusion_matrix_normalized'])
 
         return overall_results
+
+    def train_and_evaluate_balanced_diff_origins(self, n_inner_repeats=50, random_seed=42,
+                                    test_size=0.2, normalize=False, scaler_type='standard',
+                                    use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+                                    test_on_discarded=False):
+
+        def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None, group_duplicates=True):
+            """
+                Perform ShuffleSplit on samples while ensuring that:
+                - Duplicates of the same sample are kept together (if enabled).
+                - Each class is represented in the test set.
+
+            Args:
+                X (array-like): Feature matrix or sample labels.
+                y (array-like): Composite labels (e.g., ['A1', 'A1', 'B2', 'B2']).
+                test_size (float): Fraction of samples to include in the test set.
+                random_state (int): Random seed for reproducibility.
+                group_duplicates (bool): If True, duplicates of the same sample are kept together.
+                                         If False, duplicates are treated independently.
+
+            Returns:
+                tuple: train_indices, test_indices (numpy arrays)
+            """
+            import numpy as np
+
+            rng = np.random.default_rng(random_state)
+
+            if group_duplicates:
+                unique_samples = {}  # {sample_label: [indices]}
+                class_samples = defaultdict(list)  # {class_label: [sample_label1, sample_label2, ...]}
+
+                for idx, label in enumerate(y):
+                    unique_samples.setdefault(label, []).append(idx)
+                    class_samples[label[0]].append(label)  # Assuming class is the first character (e.g., 'A1' -> 'A')
+
+                sample_labels = list(unique_samples.keys())
+                rng.shuffle(sample_labels)
+
+                # Step 1: Randomly select test samples
+                num_test_samples = int(len(sample_labels) * test_size)
+                test_sample_labels = set(sample_labels[:num_test_samples])
+
+                # Step 2: Ensure each class is represented in the test set
+                test_classes = {label[0] for label in test_sample_labels}
+                missing_classes = [c for c in class_samples if c not in test_classes]
+
+                # Step 3: Force at least one sample from missing classes
+                for class_label in missing_classes:
+                    additional_sample = rng.choice(class_samples[class_label])
+                    test_sample_labels.add(additional_sample)
+
+                # Step 4: Convert sample labels to index lists
+                test_indices = [idx for label in test_sample_labels for idx in unique_samples[label]]
+                train_indices = [idx for label in sample_labels if label not in test_sample_labels for idx in
+                                 unique_samples[label]]
+
+            else:
+                # Treat each instance independently
+                indices = np.arange(len(y))
+                rng.shuffle(indices)
+
+                # Calculate the number of test samples
+                num_test_samples = int(len(indices) * test_size)
+
+                # Split into train and test sets
+                test_indices = indices[:num_test_samples]
+                train_indices = indices[num_test_samples:]
+
+            return np.array(train_indices), np.array(test_indices)
+
+        def extract_category_labels(composite_labels):
+            """
+            Convert composite labels (e.g., 'A1', 'B9', 'C2') to category labels ('A', 'B', 'C').
+
+            Args:
+                composite_labels (array-like): List or array of composite labels.
+
+            Returns:
+                list: List of category labels.
+            """
+            return [re.match(r'([A-C])', label).group(1) if re.match(r'([A-C])', label) else label
+                    for label in composite_labels]
+
+        category_labels = extract_category_labels(self.labels)
+
+        # Compute Correct Chance Accuracy
+        class_counts = Counter(category_labels)
+        total_samples = sum(class_counts.values())
+        class_probabilities = np.array([count / total_samples for count in class_counts.values()])
+        chance_accuracy = np.sum(class_probabilities ** 2)  # Sum of squared class probabilities
+
+        results_by_origin = {}
+
+        # Split the dataset into training (80%) and test (20%) without separating duplicates
+        train_idx, test_idx = shuffle_split_without_splitting_duplicates(
+            self.data, self.labels, test_size=test_size, random_state=random_seed, group_duplicates=True
+        )
+
+        X_train_full, X_test_full = self.data[train_idx], self.data[test_idx]
+        y_train_full, y_test_full = np.array(category_labels)[train_idx], np.array(category_labels)[test_idx]
+        dataset_origins_test = self.dataset_origins[test_idx]
+
+        if normalize:
+            X_train_full, scaler = normalize_data(X_train_full, scaler=scaler_type)
+            X_test_full = scaler.transform(X_test_full)
+
+        if use_pca:
+            pca = PCA(n_components=None, svd_solver='randomized')
+            pca.fit(X_train_full)
+            X_train_full = pca.transform(X_train_full)
+            X_test_full = pca.transform(X_test_full)
+
+        self.classifier.fit(X_train_full, y_train_full)
+
+        if self.dataset_origins is not None:
+            unique_origins = np.unique(self.dataset_origins)
+        else:
+            unique_origins = [None]
+
+        for origin in unique_origins:
+            if dataset_origins_test is not None:
+                origin_mask = dataset_origins_test == origin
+                X_test = X_test_full[origin_mask]
+                y_test = y_test_full[origin_mask]
+            else:
+                X_test = X_test_full
+                y_test = y_test_full
+
+            y_pred = self.classifier.predict(X_test)
+
+            acc = accuracy_score(y_test, y_pred)
+            bal_acc = balanced_accuracy_score(y_test, y_pred)
+            weighted_acc = np.average(y_pred == y_test, weights=compute_sample_weight('balanced', y_test))
+            prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
+            rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
+            f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
+            cm = confusion_matrix(y_test, y_pred)
+
+            results_by_origin[origin] = {
+                'accuracy': acc,
+                'balanced_accuracy': bal_acc,
+                'weighted_accuracy': weighted_acc,
+                'precision': prec,
+                'recall': rec,
+                'f1_score': f1,
+                'confusion_matrix': cm,
+            }
+
+            if print_results:
+                print(f"Results for {origin if origin is not None else 'All Data'}:")
+                print(f"  Accuracy: {acc:.3f}")
+                print(f"  Balanced Accuracy: {bal_acc:.3f}")
+                print(f"  Weighted Accuracy: {weighted_acc:.3f}")
+                print(f"  Precision: {prec:.3f}")
+                print(f"  Recall: {rec:.3f}")
+                print(f"  F1 Score: {f1:.3f}")
+                print(f"  Confusion Matrix:\n{cm}")
+
+        return results_by_origin
 
 
     def train_and_evaluate_balanced_tic_tis(self, tics, tiss, n_inner_repeats=50, random_seed=42,
@@ -1629,7 +1665,8 @@ class Classifier:
                 print(f"⚠️ Feature matrix is empty after removing {ch_idx}. Skipping.")
                 return ch_idx, None
 
-            cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+            cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                             year_labels=self.year_labels)
             results = cls.train_and_evaluate_balanced(
                 n_inner_repeats=n_inner_repeats,
                 random_seed=random_seed + repeat_idx,
@@ -1664,7 +1701,8 @@ class Classifier:
 
                 # Compute current accuracy before removing any channel this iteration
                 feature_matrix = compute_features(remaining_indices)
-                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels)
                 results = cls.train_and_evaluate_balanced(
                     n_inner_repeats=n_inner_repeats,
                     random_seed=random_seed + repeat_idx,
@@ -2192,6 +2230,8 @@ class Classifier:
         """
 
         all_test_accuracies = []
+        first_five_chosen_channels = []  # Track channels chosen in the first 5 steps
+
 
         def compute_features(channels):
             """ Compute features based on chosen feature type. """
@@ -2228,7 +2268,8 @@ class Classifier:
                     temp_indices = selected_indices + [ch_idx]
                     feature_matrix = compute_features(temp_indices)
 
-                    cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+                    cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                     year_labels=self.year_labels)
                     results = cls.train_and_evaluate_balanced(
                         n_inner_repeats=n_inner_repeats,
                         random_seed=random_seed + repeat_idx,
@@ -2255,9 +2296,14 @@ class Classifier:
                 selected_indices.append(best_channel_to_add)
                 available_indices.remove(best_channel_to_add)
 
+                # Track the first 5 chosen channels
+                if step < 5:
+                    first_five_chosen_channels.append(best_channel_to_add)
+
                 # Compute accuracy after adding the best channel
                 feature_matrix = compute_features(selected_indices)
-                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels)
                 results = cls.train_and_evaluate_balanced(
                     n_inner_repeats=n_inner_repeats,
                     random_seed=random_seed + repeat_idx,
@@ -2302,6 +2348,15 @@ class Classifier:
             else:
                 plt.pause(1)
 
+        # Plot histogram of the first 5 chosen channels across repeats
+        plt.figure(figsize=(10, 6))
+        plt.hist(first_five_chosen_channels, bins=np.arange(min(first_five_chosen_channels), max(first_five_chosen_channels) + 1) - 0.5, edgecolor='black')
+        plt.xlabel("Channel Index")
+        plt.ylabel("Number of Repeats")
+        plt.title("Histogram of Channels Chosen in the First 5 Steps Across Repeats")
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.show(block=True)
+
         # Final Summary
         print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
 
@@ -2310,7 +2365,8 @@ class Classifier:
 
     def train_and_evaluate_tic(
             self, num_repeats=10, random_seed=42, test_size=0.2, normalize=False,
-            scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1
+            scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+            dataset_origins=None
     ):
         cls_data = self.data.copy()
         labels = self.labels
@@ -2319,8 +2375,7 @@ class Classifier:
         for repeat_idx in range(num_repeats):
             print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
 
-            # cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind)
-            cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind, year_labels=self.year_labels)
+            cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind,year_labels=self.year_labels)
             results = cls.train_and_evaluate_balanced(
                 random_seed=random_seed + repeat_idx,
                 test_size=test_size,
@@ -2351,8 +2406,71 @@ class Classifier:
         print(mean_confusion_matrix)
         print("##################################")
 
+        if dataset_origins is not None:
+            for dataset in np.unique(dataset_origins):
+                mask = dataset_origins == dataset
+                dataset_accuracy = np.mean(np.array(accuracies)[mask])
+                print(f"\n{dataset} Accuracy: {dataset_accuracy:.3f}")
 
         return mean_test_accuracy, std_test_accuracy
+
+
+    def train_and_evaluate_tic_diff_origins(
+            self, num_repeats=10, random_seed=42, test_size=0.2, normalize=False,
+            scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+            dataset_origins=None
+    ):
+        cls_data = self.data.copy()
+        labels = self.labels
+        accuracies = {}
+        confusion_matrices = {}
+        # accuracies = []
+        # confusion_matrices = []  # Store confusion matrices
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+
+            cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                             year_labels=self.year_labels,
+                             dataset_origins=dataset_origins
+                             )
+            results = cls.train_and_evaluate_balanced_diff_origins(
+                random_seed=random_seed + repeat_idx,
+                test_size=test_size,
+                normalize=normalize,
+                scaler_type=scaler_type,
+                use_pca=use_pca,
+                vthresh=vthresh,
+                region=region,
+                print_results=True,
+                n_jobs=n_jobs,
+                test_on_discarded=True
+            )
+            # Store accuracy and confusion matrices per dataset origin
+            for dataset, metrics in results.items():
+                dataset_key = str(dataset)  # Convert numpy.str_ to a native Python string
+
+                if dataset_key not in accuracies:
+                    accuracies[dataset_key] = []
+                    confusion_matrices[dataset_key] = []
+
+                accuracies[dataset_key].append(metrics['balanced_accuracy'])
+                confusion_matrices[dataset_key].append(metrics['confusion_matrix'])
+
+        # Compute and print average performance per dataset origin
+        print("\n##################################")
+        for dataset, acc_list in accuracies.items():
+            mean_acc = np.mean(acc_list)
+            std_acc = np.std(acc_list)
+            print(f"{dataset} Mean Accuracy: {mean_acc:.3f} ± {std_acc:.3f}")
+
+        # Compute and print the averaged confusion matrix per dataset origin
+        for dataset, cm_list in confusion_matrices.items():
+            mean_cm = np.mean(cm_list, axis=0)
+            print(f"\n{dataset} Final Averaged Normalized Confusion Matrix:")
+            print(mean_cm)
+        print("##################################")
+
+        return accuracies, confusion_matrices
 
 
     def train_and_evaluate_tic_tis(
