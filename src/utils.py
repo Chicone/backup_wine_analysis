@@ -1630,3 +1630,66 @@ def rename_directories(directory_path):
                     print(f"Renamed: {dir_name} -> {new_name}")
                 except Exception as e:
                     print(f"Error renaming {dir_name}: {e}")
+
+
+def join_datasets(selected_datasets, data_directories, n_decimation):
+    """
+    Joins multiple datasets based on the given indices.
+
+    Parameters:
+        dataset_indices (list of str): List of dataset names to join (e.g., ["press_2022", "merlot_2021"]).
+        data_directories (dict): Dictionary mapping dataset names to their directories.
+        n_decimation (int): Decimation factor for reducing data size.
+    """
+    merged_data = {}
+    merged_origins = {}
+    dataset_dicts = []
+    dataset_origins_list = []
+
+    row_start = 1  # Define row start
+    first_dataset = selected_datasets[0]  # Use the first dataset to determine column indices
+    first_directory = data_directories.get(first_dataset)
+
+    if first_directory is None:
+        raise ValueError(f"Dataset {first_dataset} does not have a corresponding directory.")
+
+    row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(first_directory)
+    column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
+
+    # Load and process each selected dataset
+    for dataset_name in selected_datasets:
+        directory = data_directories.get(dataset_name)
+        if directory is None:
+            raise ValueError(f"Dataset {dataset_name} does not have a corresponding directory.")
+
+        row_end, fc_idx, lc_idx = utils.find_data_margins_in_csv(directory)
+
+        # Ensure column indices match
+        assert fc_idx == fc_idx_1 and lc_idx == lc_idx_1, "Mismatch in column indices between datasets."
+
+        data_dict = utils.load_ms_csv_data_from_directories(directory, column_indices, row_start, row_end)
+        dataset_origins = {key: dataset_name for key in data_dict.keys()}
+
+        dataset_dicts.append({'data': data_dict, 'origins': dataset_origins})
+
+    # Determine the minimum sample length across all datasets
+    min_length = min(
+        min(array.shape[0] for array in dataset_dict['data'].values()) for dataset_dict in dataset_dicts
+    )
+
+    # Trim and decimate datasets
+    for dataset_dict in dataset_dicts:
+        dataset_dict['data'] = {key: array[:min_length, :] for key, array in dataset_dict['data'].items()}
+        dataset_dict['data'] = {key: matrix[::n_decimation, :] for key, matrix in dataset_dict['data'].items()}
+        dataset_origins_list.append(dataset_dict['origins'])
+
+    # Merge datasets
+    for dataset_dict in dataset_dicts:
+        for key in dataset_dict['data'].keys():
+            if key not in merged_data:
+                merged_data[key] = dataset_dict['data'][key]
+                merged_origins[key] = dataset_dict['origins'][key]
+            else:
+                merged_data[key] = np.vstack((merged_data[key], dataset_dict['data'][key]))
+
+    return merged_data, merged_origins

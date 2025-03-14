@@ -20,14 +20,8 @@ import time
 from traitlets.config import get_config
 
 from config import (
-    DATA_DIRECTORY,
-    CHEMICAL_NAME,
-    DATA_DIRECTORY_2,
-    CHEMICAL_NAME_2,
-    DATA_DIRECTORY_3,
-    CHEMICAL_NAME_3,
-    JOIN_DATASETS,
-    ROW_START,
+    DATASET_DIRECTORIES,
+    SELECTED_DATASETS,
     NUM_SPLITS,
     SYNC_STATE,
     CH_TREAT,
@@ -35,7 +29,6 @@ from config import (
     N_DECIMATION,
     VINTAGE,
     DATA_TYPE,
-    CNN_DIM,
     GCMS_DIRECTION,
     NUM_AGGR_CHANNELS,
     DELAY,
@@ -46,7 +39,6 @@ from config import (
     PCA_STATE,
     WINDOW,
     STRIDE,
-    WINE_KIND,
     REGION,
     BAYES_OPTIMIZE,
     NUM_SPLITS_BAYES,
@@ -58,24 +50,12 @@ import argparse
 from data_loader import DataLoader
 from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
                             assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir,
-                            assign_north_south_to_beaune, assign_category_to_press_wine, BayesianParamOptimizer,
-                            greedy_channel_selection,
-                            classify_all_channels,
-                            remove_highly_correlated_channels, split_by_split_greedy_channel_selection,
-                            greedy_nested_cv_channel_selection, greedy_nested_cv_channel_elimination,
-                            greedy_nested_cv_channel_selection_snr, assign_composite_label_to_press_wine,
+                            assign_north_south_to_beaune, BayesianParamOptimizer,
+                            assign_composite_label_to_press_wine,
                             extract_year_from_samples
                             )
 from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
-from visualizer import visualize_confusion_matrix_3d, plot_accuracy_vs_channels
-from dimensionality_reduction import run_umap_and_evaluate, run_tsne_and_evaluate
 import utils
-from scipy.ndimage import gaussian_filter
-import torch
-import torch.nn.functional as F
-from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-
 from plots import (plot_channel_selection_performance_changins, plot_channel_selection_performance_isvv,
                    plot_channel_selection_thresholds, plot_accuracy_all_methods, plot_accuracy_vs_decimation,
                    plot_press_wines_accuracies)
@@ -99,103 +79,14 @@ if __name__ == "__main__":
 
     cl = ChromatogramAnalysis()
 
-    # utils.convert_ms_files_to_cdf_in_place(DATA_DIRECTORY)
-
-    # Set rows in columns to read
-    row_start = 1
-    row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(DATA_DIRECTORY)
-    column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
-
-    # Load primary dataset
-    data_dict = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY, column_indices, row_start, row_end_1)
-    dataset_origins = {key: "dataset1" for key in data_dict.keys()}
-
-    # For 2 datasets
-    if JOIN_DATASETS:
-        row_end_2, fc_idx_2, lc_idx_2 = utils.find_data_margins_in_csv(DATA_DIRECTORY_2)
-
-        # Ensure column indices match
-        assert fc_idx_1 == fc_idx_2 and lc_idx_1 == lc_idx_2, "Mismatch in column indices between datasets."
-
-        # Load secondary dataset
-        data_dict_2 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_2, column_indices, row_start, row_end_2)
-        dataset_origins_2 = {key: "dataset2" for key in data_dict_2.keys()}
+    # Dataset management
+    selected_paths = {name: DATASET_DIRECTORIES[name] for name in SELECTED_DATASETS}
+    first_path = next(iter(selected_paths.values()), "").lower()  # Get first value or empty string
+    wine_kind = ("pinot_noir" if "pinot_noir" in first_path else "press" if "press" in first_path else "bordeaux")
+    data_dict, dataset_origins = utils.join_datasets(SELECTED_DATASETS, DATASET_DIRECTORIES, N_DECIMATION)
 
 
-        # Trim samples to the shortest length for each dataset
-        min_length_1 = min(array.shape[0] for array in data_dict.values())
-        min_length_2 = min(array.shape[0] for array in data_dict_2.values())
-        min_length = min(min_length_1, min_length_2)
-
-        data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
-        data_dict_2 = {key: array[:min_length, :] for key, array in data_dict_2.items()}
-
-        # Apply decimation
-        data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
-        data_dict_2 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_2.items()}
-
-        # Merge datasets without checking keys
-        merged_data = {}
-        merged_origins = {}
-        for key in set(data_dict.keys()).union(data_dict_2.keys()):
-            array_1 = data_dict.get(key,np.empty((0, data_dict[next(iter(data_dict))].shape[1])))  # Handle missing keys
-            array_2 = data_dict_2.get(key, np.empty((0, data_dict_2[next(iter(data_dict_2))].shape[1])))
-
-            merged_data[key] = np.vstack((array_1, array_2))
-            merged_origins[key] = dataset_origins.get(key, "dataset2")
-
-        data_dict = merged_data
-        dataset_origins = merged_origins
-
-    # # for  3 datasets
-    # if JOIN_DATASETS:
-    #     row_end_2, fc_idx_2, lc_idx_2 = utils.find_data_margins_in_csv(DATA_DIRECTORY_2)
-    #     row_end_3, fc_idx_3, lc_idx_3 = utils.find_data_margins_in_csv(DATA_DIRECTORY_3)
-    #
-    #     # Ensure column indices match across all datasets
-    #     assert fc_idx_1 == fc_idx_2 == fc_idx_3 and lc_idx_1 == lc_idx_2 == lc_idx_3, "Mismatch in column indices between datasets."
-    #
-    #     # Load secondary and tertiary datasets
-    #     data_dict_2 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_2, column_indices, row_start, row_end_2)
-    #     data_dict_3 = utils.load_ms_csv_data_from_directories(DATA_DIRECTORY_3, column_indices, row_start, row_end_3)
-    #
-    #     # Trim samples to the shortest length for each dataset
-    #     min_length_1 = min(array.shape[0] for array in data_dict.values())
-    #     min_length_2 = min(array.shape[0] for array in data_dict_2.values())
-    #     min_length_3 = min(array.shape[0] for array in data_dict_3.values())
-    #     min_length = min(min_length_1, min_length_2, min_length_3)
-    #
-    #     data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
-    #     data_dict_2 = {key: array[:min_length, :] for key, array in data_dict_2.items()}
-    #     data_dict_3 = {key: array[:min_length, :] for key, array in data_dict_3.items()}
-    #
-    #     # Apply decimation
-    #     data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
-    #     data_dict_2 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_2.items()}
-    #     data_dict_3 = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict_3.items()}
-    #
-    #     # Merge datasets without checking keys
-    #     merged_data = {}
-    #     for key in set(data_dict.keys()).union(data_dict_2.keys()).union(data_dict_3.keys()):
-    #         array_1 = data_dict.get(key,
-    #                                 np.empty((0, data_dict[next(iter(data_dict))].shape[1])))  # Handle missing keys
-    #         array_2 = data_dict_2.get(key, np.empty((0, data_dict_2[next(iter(data_dict_2))].shape[1])))
-    #         array_3 = data_dict_3.get(key, np.empty((0, data_dict_3[next(iter(data_dict_3))].shape[1])))
-    #
-    #         merged_data[key] = np.vstack((array_1, array_2, array_3))
-    #     data_dict = merged_data
-
-    else:
-        # If not joining datasets, apply decimation only to primary dataset
-        min_length = min(array.shape[0] for array in data_dict.values())
-        data_dict = {key: array[:min_length, :] for key, array in data_dict.items()}
-        data_dict = {key: matrix[::N_DECIMATION, :] for key, matrix in data_dict.items()}
-
-    # import scipy.signal as signal
-    # data_dict = {key: signal.decimate(matrix, 20, axis=0, zero_phase=True)
-    #                       for key, matrix in data_dict.items()}
-    CHROM_CAP = CHROM_CAP // N_DECIMATION
-    # CHROM_CAP = None
+    # Remove empty channels
     data_dict, valid_channels = utils.remove_zero_variance_channels(data_dict)
     # utils.plot_snr_per_channel(data_dict)
 
@@ -247,10 +138,10 @@ if __name__ == "__main__":
         data = chromatograms.values()
         labels = chromatograms.keys()
 
-    if WINE_KIND == "bordeaux":
+    if wine_kind == "bordeaux":
         region = 'bordeaux_chateaux'
         labels = process_labels(labels, vintage=VINTAGE)
-    elif WINE_KIND == "pinot_noir":
+    elif wine_kind == "pinot_noir":
         region = REGION
         # region = 'origin'
         if region == 'continent':
@@ -267,7 +158,7 @@ if __name__ == "__main__":
             labels = assign_north_south_to_beaune(labels)
         else:
             raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
-    elif WINE_KIND == "press":
+    elif wine_kind == "press":
         year_labels = extract_year_from_samples(chromatograms.keys()) if CLASS_BY_YEAR else None
         # labels = assign_category_to_press_wine(labels)
         labels = assign_composite_label_to_press_wine(labels)
@@ -299,7 +190,7 @@ if __name__ == "__main__":
         # data_val = np.array(list(data))[shuffled_indices]
         # labels_val = np.array(labels)[shuffled_indices]
         cls = Classifier(
-            np.array(list(data_val)), np.array(list(labels_val)), classifier_type='RGC', wine_kind=WINE_KIND,
+            np.array(list(data_val)), np.array(list(labels_val)), classifier_type='RGC', wine_kind=wine_kind,
             window_size=WINDOW, stride=STRIDE,
             year_labels=np.array(year_labels)
         )
@@ -321,7 +212,7 @@ if __name__ == "__main__":
             print(f"Best score: {-result.fun}")
             print("")
             print(f'sync {SYNC_STATE}')
-            print(f"Estimating LOO accuracy on dataset {CHEMICAL_NAME}...")
+            print(f"Estimating LOO accuracy on dataset {" + ".join(selected_datasets)}...")
 
             # data_copy = cls.data.copy()
             cls.data = utils.reduce_columns_to_final_channels(cls.data, num_total_channels)
@@ -334,7 +225,7 @@ if __name__ == "__main__":
                 data = data.transpose(0, 2, 1).reshape(data.shape[0], data.shape[1] * data.shape[2])
 
                 cls = Classifier(
-                    np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=WINE_KIND,
+                    np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=wine_kind,
                     window_size=WINDOW, stride=STRIDE, alpha=alpha
                 )
 
@@ -429,12 +320,12 @@ if __name__ == "__main__":
         dataset_origins_array = np.array([dataset_origins[key] for key in tics.keys()])
 
         cls = Classifier(
-            np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=WINE_KIND,
+            np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=wine_kind,
             window_size=WINDOW, stride=STRIDE,
             year_labels=np.array(year_labels)
         )
-        # cls.train_and_evaluate_tic(
-        cls.train_and_evaluate_tic_diff_origins(
+        cls.train_and_evaluate_tic(
+        # cls.train_and_evaluate_tic_diff_origins(
             num_repeats=NUM_SPLITS,
             random_seed=42,
             test_size=0.2, normalize=True, scaler_type='standard',
@@ -451,7 +342,7 @@ if __name__ == "__main__":
         tis_data = chromatograms_tis.values()
 
         cls = Classifier(
-            np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=WINE_KIND,
+            np.array(list(data)), np.array(list(labels)), classifier_type=cls_type, wine_kind=wine_kind,
             window_size=WINDOW, stride=STRIDE
         )
         cls.train_and_evaluate_tic_tis(

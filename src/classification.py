@@ -557,11 +557,12 @@ class Classifier:
 
         category_labels = extract_category_labels(self.labels)
 
-        # Compute class distribution
-        if self.year_labels.size > 0 and np.any(self.year_labels != None):
-            class_counts = Counter(self.year_labels)
-        else:
-            class_counts = Counter(category_labels)
+        # # Compute class distribution
+        # if self.year_labels.size > 0 and np.any(self.year_labels != None):
+        #     class_counts = Counter(self.year_labels)
+        # else:
+        #     class_counts = Counter(category_labels)
+        class_counts = Counter(category_labels)
         total_samples = sum(class_counts.values())
 
         # Compute Correct Chance Accuracy (Taking Class Distribution into Account)
@@ -605,11 +606,12 @@ class Classifier:
             group_duplicates=use_groups
         )
         X_train_full, X_test = self.data[train_idx], self.data[test_idx]
-        if self.year_labels.size > 0 and np.any(self.year_labels != None):
-            y_train_full, y_test = self.year_labels[train_idx], self.year_labels[test_idx]
-        else:
-            y_train_full, y_test = self.labels[train_idx], self.labels[test_idx]
+        # if self.year_labels.size > 0 and np.any(self.year_labels != None):
+        #     y_train_full, y_test = self.year_labels[train_idx], self.year_labels[test_idx]
+        # else:
+        #     y_train_full, y_test = self.labels[train_idx], self.labels[test_idx]
 
+        y_train_full, y_test = self.labels[train_idx], self.labels[test_idx]
 
         if test_on_discarded:
             if normalize:
@@ -622,11 +624,14 @@ class Classifier:
                 X_train_full = pca.transform(X_train_full)
                 X_test = pca.transform(X_test)
 
-            if self.year_labels.size > 0 and np.any(self.year_labels != None):
-                self.classifier.fit(X_train_full, y_train_full)
-            else:
-                self.classifier.fit(X_train_full, extract_category_labels(y_train_full))
-                y_test = extract_category_labels(y_test)
+            # if self.year_labels.size > 0 and np.any(self.year_labels != None):
+            #     self.classifier.fit(X_train_full, y_train_full)
+            # else:
+            #     self.classifier.fit(X_train_full, extract_category_labels(y_train_full))
+            #     y_test = extract_category_labels(y_test)
+
+            self.classifier.fit(X_train_full, extract_category_labels(y_train_full))
+            y_test = extract_category_labels(y_test)
             y_pred = self.classifier.predict(X_test)
 
 
@@ -2406,11 +2411,11 @@ class Classifier:
         print(mean_confusion_matrix)
         print("##################################")
 
-        if dataset_origins is not None:
-            for dataset in np.unique(dataset_origins):
-                mask = dataset_origins == dataset
-                dataset_accuracy = np.mean(np.array(accuracies)[mask])
-                print(f"\n{dataset} Accuracy: {dataset_accuracy:.3f}")
+        # if dataset_origins is not None:
+        #     for dataset in np.unique(dataset_origins):
+        #         mask = dataset_origins == dataset
+        #         dataset_accuracy = np.mean(np.array(accuracies)[mask])
+        #         print(f"\n{dataset} Accuracy: {dataset_accuracy:.3f}")
 
         return mean_test_accuracy, std_test_accuracy
 
