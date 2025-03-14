@@ -22,7 +22,7 @@ DATASET_DIRECTORIES = {
     "cab_sauv_2022": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/",
     "cab_sauv_2023": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/"
    }
-SELECTED_DATASETS = ["merlot_2022"]
+SELECTED_DATASETS = ["merlot_2022", "cab_sauv_2022"]
 
 ROW_START = 1
 NUM_SPLITS = 100
@@ -33,7 +33,7 @@ WINDOW = 1000
 STRIDE = 200
 
 # Analysis parameters
-DATA_TYPE = "TIC"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
+DATA_TYPE = "GCMS"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
 CH_TREAT = 'concatenated'  # 'independent',  'concatenated'
 CHANNEL_METHOD = 'greedy_add' # greedy_remove, greedy_remove_batch, greedy_add, all_channels, greedy_ranked
 FEATURE_TYPE = 'tic_tis'  # concatenated tic_tis
