@@ -7,63 +7,10 @@ from traitlets.config import get_config
 from config import *
 from data_loader import DataLoader
 from classification import *
-from wine_analysis import WineAnalysis, ChromatogramAnalysis, GCMSDataProcessor
+from wine_analysis import *
 import utils
 from plots import *
 
-def process_labels_by_wine_kind(labels, wine_kind, region, vintage, class_by_year, chromatograms):
-    if wine_kind == "bordeaux":
-        return process_labels(labels, vintage=vintage)
-    elif wine_kind == "pinot_noir":
-        if region == 'continent':
-            return assign_continent_to_pinot_noir(labels)
-        elif region == 'country':
-            return assign_country_to_pinot_noir(labels)
-        elif region == 'origin':
-            return assign_origin_to_pinot_noir(labels)
-        elif region == 'winery':
-            return assign_winery_to_pinot_noir(labels)
-        elif region == 'year':
-            return assign_year_to_pinot_noir(labels)
-        elif region == 'beaume':
-            return assign_north_south_to_beaune(labels)
-        else:
-            raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
-    elif wine_kind == "press":
-        year_labels = extract_year_from_samples(chromatograms.keys()) if class_by_year else None
-        return assign_composite_label_to_press_wine(labels), year_labels
-    else:
-        raise ValueError("Invalid wine kind")
-
-def optimize_bayesian_params(data, labels, num_splits, ch_treat):
-    n_channels = data.shape[2]
-    optimizer = BayesianParamOptimizer(data, list(labels), n_channels=n_channels)
-    result = optimizer.optimize_gcms(
-        n_calls=BAYES_CALLS, random_state=42, num_splits=num_splits, ch_treat=ch_treat
-    )
-    num_total_channels = n_channels // result.x[0]
-    alpha = result.x[1]
-
-    print(f"Optimal channel aggregation number: {result.x[0]}")
-    print(f"Optimal number of channels: {num_total_channels}")
-    print(f"Optimal alpha: {result.x[1]}")
-    print(f"Best score: {-result.fun}")
-    return alpha, num_total_channels
-
-def process_chromatograms(gcms, data_type, sync_state, chrom_cap):
-    if data_type == "TIC":
-        return gcms.compute_tics()
-    elif data_type == "TIS":
-        return gcms.compute_tiss()
-    elif data_type == "TIC-TIS":
-        if sync_state:
-            tics, _ = cl.align_tics(gcms.data, gcms, chrom_cap=chrom_cap)
-        else:
-            tics = gcms.compute_tics()
-        tiss = gcms.compute_tiss()
-        return tics, tiss  # Return both TIC and TIS chromatograms
-    else:
-        raise ValueError("Invalid data type. Options are 'TIC', 'TIS', or 'TIC-TIS'")
 
 if __name__ == "__main__":
     time.sleep(DELAY)

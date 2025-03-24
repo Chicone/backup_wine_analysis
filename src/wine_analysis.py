@@ -67,8 +67,10 @@ from scipy.ndimage import gaussian_filter
 from sklearn.metrics import mutual_info_score
 from scipy.stats import spearmanr, kendalltau
 import utils
-from classification import (Classifier, process_labels, assign_country_to_pinot_noir, assign_origin_to_pinot_noir,
-                            assign_continent_to_pinot_noir, assign_winery_to_pinot_noir, assign_year_to_pinot_noir)
+
+from config import *
+
+from classification import *
 
 class WineAnalysis:
     """
@@ -2457,6 +2459,133 @@ class GCMSDataProcessor:
             {label: pd.DataFrame(matrix) for label, matrix in self.data.items()},
             axis=1
         )
+
+def optimize_bayesian_params(data, labels, num_splits, ch_treat):
+    """
+        Perform Bayesian optimization to select the best hyperparameters for GCMS channel reduction and classification.
+
+        This function searches for the optimal number of channel aggregations and regularization strength (alpha)
+        using Bayesian optimization. It returns the best alpha and the resulting total number of channels.
+
+        Args:
+            data (np.ndarray): Input GCMS data of shape (n_samples, n_timepoints, n_channels).
+            labels (list or np.ndarray): Corresponding class labels for each sample.
+            num_splits (int): Number of splits to use in cross-validation during optimization.
+            ch_treat (str): Channel treatment strategy ('concatenated' or 'independent').
+
+        Returns:
+            tuple:
+                alpha (float): The optimal regularization strength found by the optimizer.
+                num_total_channels (int): The number of channels after optimal aggregation.
+
+        Prints:
+            - Optimal aggregation factor.
+            - Total resulting channels.
+            - Optimal alpha.
+            - Best (lowest) loss achieved during optimization.
+        """
+    n_channels = data.shape[2]
+    optimizer = BayesianParamOptimizer(data, list(labels), n_channels=n_channels)
+    result = optimizer.optimize_gcms(
+        n_calls=BAYES_CALLS, random_state=42, num_splits=num_splits, ch_treat=ch_treat
+    )
+    num_total_channels = n_channels // result.x[0]
+    alpha = result.x[1]
+
+    print(f"Optimal channel aggregation number: {result.x[0]}")
+    print(f"Optimal number of channels: {num_total_channels}")
+    print(f"Optimal alpha: {result.x[1]}")
+    print(f"Best score: {-result.fun}")
+    return alpha, num_total_channels
+
+def process_labels_by_wine_kind(labels, wine_kind, region, vintage, class_by_year, chromatograms):
+    """
+       Assign labels based on the type of wine and the desired classification region or scheme.
+
+       This function handles label processing differently depending on the wine type:
+       - For 'bordeaux': returns processed labels, optionally including vintage year.
+       - For 'pinot_noir': assigns labels based on the specified region (e.g., country, origin, winery, etc.).
+       - For 'press' wines: assigns composite labels, and optionally extracts vintage year labels
+         if `class_by_year` is True.
+
+       Args:
+           labels (list or np.ndarray): Original labels or identifiers of the samples.
+           wine_kind (str): Type of wine. One of: 'bordeaux', 'pinot_noir', or 'press'.
+           region (str): Labeling scheme to use for 'pinot_noir' (e.g., 'origin', 'country', 'winery', etc.).
+           vintage (bool): Whether to include vintage information (used for 'bordeaux').
+           class_by_year (bool): If True and `wine_kind` is 'press', extract year labels from chromatogram keys.
+           chromatograms (dict): Dictionary of chromatograms with sample keys used to extract years for 'press'.
+
+       Returns:
+           If wine_kind == 'press':
+               tuple: (processed_labels, year_labels)
+           Otherwise:
+               processed_labels
+
+       Raises:
+           ValueError: If an invalid wine kind or region is specified.
+       """
+    if wine_kind == "bordeaux":
+        return process_labels(labels, vintage=vintage)
+    elif wine_kind == "pinot_noir":
+        if region == 'continent':
+            return assign_continent_to_pinot_noir(labels)
+        elif region == 'country':
+            return assign_country_to_pinot_noir(labels)
+        elif region == 'origin':
+            return assign_origin_to_pinot_noir(labels)
+        elif region == 'winery':
+            return assign_winery_to_pinot_noir(labels)
+        elif region == 'year':
+            return assign_year_to_pinot_noir(labels)
+        elif region == 'beaume':
+            return assign_north_south_to_beaune(labels)
+        else:
+            raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
+    elif wine_kind == "press":
+        year_labels = extract_year_from_samples(chromatograms.keys()) if class_by_year else None
+        return assign_composite_label_to_press_wine(labels), year_labels
+    else:
+        raise ValueError("Invalid wine kind")
+
+def process_chromatograms(gcms, data_type, sync_state, chrom_cap):
+    """
+    Process chromatographic data based on the specified data type and synchronization setting.
+
+    This function extracts TIC (Total Ion Chromatogram), TIS (Total Ion Spectrum), or both,
+    depending on the specified `data_type`. If `sync_state` is True and `data_type` is "TIC-TIS",
+    retention time alignment is performed before extraction.
+
+    Args:
+        gcms (GCMSDataProcessor): An instance containing preloaded GC-MS data.
+        data_type (str): Type of chromatographic signal to process. Must be one of:
+                         "TIC", "TIS", or "TIC-TIS".
+        sync_state (bool): If True and data_type is "TIC-TIS", perform TIC alignment using cl.align_tics.
+        chrom_cap (int): Chromatogram cap used during TIC alignment.
+
+    Returns:
+        dict or tuple:
+            - If data_type is "TIC" or "TIS", returns a dictionary of chromatograms.
+            - If data_type is "TIC-TIS", returns a tuple (tics, tiss) of dictionaries.
+
+    Raises:
+        ValueError: If `data_type` is not one of the supported options.
+    """
+    if data_type == "TIC":
+        return gcms.compute_tics()
+    elif data_type == "TIS":
+        return gcms.compute_tiss()
+    elif data_type == "TIC-TIS":
+        if sync_state:
+            tics, _ = cl.align_tics(gcms.data, gcms, chrom_cap=chrom_cap)
+        else:
+            tics = gcms.compute_tics()
+        tiss = gcms.compute_tiss()
+        return tics, tiss  # Return both TIC and TIS chromatograms
+    else:
+        raise ValueError("Invalid data type. Options are 'TIC', 'TIS', or 'TIC-TIS'")
+
+
 
 
 
