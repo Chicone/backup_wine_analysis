@@ -1347,6 +1347,7 @@ class Classifier:
                 if print_results:
                     print(f"After adding {n} channel(s): Test Accuracy = {results['overall_balanced_accuracy']:.3f}")
 
+            first_five_chosen_channels.append(selected_indices[:5])
             all_test_accuracies.append(incremental_accuracies)
 
             # Compute Mean and Standard Deviation Across Repeats
@@ -1376,7 +1377,7 @@ class Classifier:
         plt.show(block=True)
 
         # Save histogram data to CSV
-        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_ranked_merlot.csv", 'w', newline='') as file:
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_add_ranked_merlot.csv", 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["Channel Index"])
             for ch in first_five_chosen_channels:
@@ -1486,7 +1487,7 @@ class Classifier:
                     removed_channels.append(selected_indices[0])
                     selected_indices.pop(0)  # Remove worst-ranked remaining channel
 
-            final_removed_channels.extend(removed_channels[-5:])
+            final_removed_channels.append(removed_channels[-5:])
             all_test_accuracies.append(incremental_accuracies)
 
             # Dynamic plot update
@@ -1509,11 +1510,11 @@ class Classifier:
 
         # Save histogram data to CSV
         with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_remove_ranked_merlot.csv",
-                  'w', newline='') as file:
+                  'w', newline=''
+                  ) as file:
             writer = csv.writer(file)
             writer.writerow(["Channel Index"])
-            for ch in final_removed_channels:
-                writer.writerow([ch])
+            writer.writerows([[ch] for ch in final_removed_channels])
 
         # Plot histogram
         plt.figure(figsize=(10, 6))
