@@ -99,10 +99,18 @@ if __name__ == "__main__":
 
         elif CHANNEL_METHOD == "greedy_add_ranked":
             cls.train_and_evaluate_greedy_add_ranked(
-                num_repeats=50, num_outer_repeats=1, n_inner_repeats=50,
+                num_repeats=200, num_outer_repeats=1, n_inner_repeats=20,
                 random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=50, num_top_channels=139, feature_type=FEATURE_TYPE
+                n_jobs=20, num_top_channels=139, feature_type=FEATURE_TYPE
+            )
+
+        elif CHANNEL_METHOD == "greedy_remove_ranked":
+            cls.train_and_evaluate_greedy_remove_ranked(
+                num_repeats=200, n_inner_repeats=20,
+                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                use_pca=False, vthresh=0.97, region=None, print_results=True,
+                n_jobs=20, feature_type=FEATURE_TYPE
             )
 
         elif CHANNEL_METHOD == "greedy_add":
@@ -111,14 +119,6 @@ if __name__ == "__main__":
                 random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
                 n_jobs=20, feature_type=FEATURE_TYPE
-            )
-
-        elif CHANNEL_METHOD == "greedy_remove_ranked":
-            cls.train_and_evaluate_greedy_remove_ranked(
-                num_repeats=50, n_inner_repeats=50,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
-                use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=50, feature_type=FEATURE_TYPE
             )
 
         elif CHANNEL_METHOD == "greedy_remove":

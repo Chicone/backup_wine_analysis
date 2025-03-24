@@ -1252,6 +1252,7 @@ class Classifier:
             - "sum" → Sums selected channels into a single time-series vector per sample.
         """
         all_test_accuracies = []
+        first_five_chosen_channels = []  # Track first 5 selected channels in each repeat
 
         cls_data = self.data.copy()  # Shape: (num_samples, num_timepoints, num_channels)
         num_samples, num_timepoints, num_channels = cls_data.shape
@@ -1362,7 +1363,7 @@ class Classifier:
 
             ax.set_xlabel("Number of Best Channels Added")
             ax.set_ylabel("Mean Balanced Accuracy")
-            ax.set_title(f"Performance Trend with Greedy Ranked ({feature_type}; {repeat_idx + 1} / {num_repeats})")
+            ax.set_title(f"Performance Trend with Greedy Ranked Add ({feature_type}; {repeat_idx + 1} / {num_repeats})")
             # ax.text(0.05, 0.95, f"Repeat {repeat_idx + 1}/{num_repeats}", transform=ax.transAxes,
             #         fontsize=12, verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
             ax.grid(True)
@@ -1372,6 +1373,24 @@ class Classifier:
 
         # Keep the final plot open after all repeats
         plt.ioff()  # Disable interactive mode
+        plt.show(block=True)
+
+        # Save histogram data to CSV
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_ranked_merlot.csv", 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Channel Index"])
+            for ch in first_five_chosen_channels:
+                writer.writerow([ch])
+
+        # Plot histogram of channels selected in first 5 steps
+        plt.figure(figsize=(10, 6))
+        plt.hist(first_five_chosen_channels,
+                 bins=np.arange(min(first_five_chosen_channels), max(first_five_chosen_channels) + 2) - 0.5,
+                 edgecolor='black')
+        plt.xlabel("Channel Index")
+        plt.ylabel("Number of Repeats")
+        plt.title("Histogram of Channels Chosen in First 5 Steps Across Repeats")
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.show(block=True)
 
         print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
@@ -1404,6 +1423,7 @@ class Classifier:
             feature_type (str): Feature representation.
         """
         all_test_accuracies = []
+        final_removed_channels = []  # Track the last 5 removed channels per repeat
         cls_data = self.data.copy()
         num_samples, num_timepoints, num_channels = cls_data.shape
         labels = self.labels
@@ -1445,6 +1465,8 @@ class Classifier:
 
             selected_indices = list(sorted_indices)  # Start with all channels
             incremental_accuracies = []
+            removed_channels = []
+
 
             for n in range(num_channels, num_min_channels - 1, -1):
                 feature_matrix = compute_features(selected_indices)
@@ -1461,26 +1483,47 @@ class Classifier:
                     print(f"Remaining {n} channel(s): Test Accuracy = {results['overall_balanced_accuracy']:.3f}")
 
                 if n > num_min_channels:
+                    removed_channels.append(selected_indices[0])
                     selected_indices.pop(0)  # Remove worst-ranked remaining channel
 
+            final_removed_channels.extend(removed_channels[-5:])
             all_test_accuracies.append(incremental_accuracies)
 
             # Dynamic plot update
             ax.clear()
-            x = range(num_channels, num_min_channels - 1, -1)
+            x = range(0, num_channels - num_min_channels + 1)
             mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
             std_test_accuracies = np.std(all_test_accuracies, axis=0)
             ax.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
             ax.fill_between(x, mean_test_accuracies - std_test_accuracies,
                             mean_test_accuracies + std_test_accuracies, alpha=0.3, label='± 1 Std Dev')
-            ax.set_xlabel("Number of Channels Remaining")
+            ax.set_xlabel("Number of Worst Channels Removed")
             ax.set_ylabel("Mean Balanced Accuracy")
-            ax.set_title(f"Greedy Ranked Remove ({feature_type}); Repeat {repeat_idx + 1}/{num_repeats}")
+            ax.set_title(f"Performance Trend with Greedy Ranked Remove ({feature_type}); Repeat {repeat_idx + 1}/{num_repeats}")
             ax.grid(True)
             ax.legend()
             plt.pause(0.5)
 
         plt.ioff()
+        plt.show(block=True)
+
+        # Save histogram data to CSV
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_remove_ranked_merlot.csv",
+                  'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Channel Index"])
+            for ch in final_removed_channels:
+                writer.writerow([ch])
+
+        # Plot histogram
+        plt.figure(figsize=(10, 6))
+        plt.hist(final_removed_channels,
+                 bins=np.arange(min(final_removed_channels), max(final_removed_channels) + 2) - 0.5,
+                 edgecolor='black')
+        plt.xlabel("Channel Index")
+        plt.ylabel("Number of Occurrences")
+        plt.title("Histogram of Last 5 Removed Channels Across Repeats")
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.show(block=True)
 
         print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
