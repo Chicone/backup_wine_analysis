@@ -29,8 +29,8 @@ if __name__ == "__main__":
     # plot_press_wines_accuracies()
     # utils.rename_directories("/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/011222/")
     # plot_histogram_correlation(
-    #     "/home/luiscamara/PycharmProjects/wine_analysis/src/hist_last_five_channels_merlot.csv",
-    #     "/home/luiscamara/PycharmProjects/wine_analysis/src/hist_last_five_channels_cab_sauv.csv",
+    #     "/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_merlot.csv",
+    #     "/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_cab_sauv.csv"
     # )
     ###########################
 
@@ -97,6 +97,30 @@ if __name__ == "__main__":
                 n_jobs=50
             )
 
+        elif CHANNEL_METHOD == "greedy_add_ranked":
+            cls.train_and_evaluate_greedy_add_ranked(
+                num_repeats=50, num_outer_repeats=1, n_inner_repeats=50,
+                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                use_pca=False, vthresh=0.97, region=None, print_results=True,
+                n_jobs=50, num_top_channels=139, feature_type=FEATURE_TYPE
+            )
+
+        elif CHANNEL_METHOD == "greedy_add":
+            cls.train_and_evaluate_greedy_add(
+                num_repeats=200, num_outer_repeats=1, n_inner_repeats=20,
+                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                use_pca=False, vthresh=0.97, region=None, print_results=True,
+                n_jobs=20, feature_type=FEATURE_TYPE
+            )
+
+        elif CHANNEL_METHOD == "greedy_remove_ranked":
+            cls.train_and_evaluate_greedy_remove_ranked(
+                num_repeats=50, n_inner_repeats=50,
+                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                use_pca=False, vthresh=0.97, region=None, print_results=True,
+                n_jobs=50, feature_type=FEATURE_TYPE
+            )
+
         elif CHANNEL_METHOD == "greedy_remove":
             cls.train_and_evaluate_greedy_remove(
                 num_repeats=200, num_outer_repeats=1, n_inner_repeats=20,
@@ -114,21 +138,9 @@ if __name__ == "__main__":
                 batch_size=1, selection_mode='correlation'
             )
 
-        elif CHANNEL_METHOD == "greedy_add":
-            cls.train_and_evaluate_greedy_add(
-                num_repeats=50, num_outer_repeats=1, n_inner_repeats=50,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
-                use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=50, feature_type=FEATURE_TYPE
-            )
 
-        elif CHANNEL_METHOD == "greedy_ranked":
-            cls.train_and_evaluate_greedy_ranked(
-                num_repeats=50, num_outer_repeats=1, n_inner_repeats=50,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
-                use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=50, num_top_channels=139, feature_type=FEATURE_TYPE
-            )
+
+
 
     # elif CH_TREAT == 'independent':
     #     cls.train_and_evaluate_balanced_with_best_alpha2(

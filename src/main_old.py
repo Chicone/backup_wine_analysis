@@ -292,8 +292,8 @@ if __name__ == "__main__":
                     n_jobs=50,
                     feature_type=FEATURE_TYPE
                 )
-            elif CHANNEL_METHOD == "greedy_ranked":
-                cls.train_and_evaluate_greedy_ranked(
+            elif CHANNEL_METHOD == "greedy_add_ranked":
+                cls.train_and_evaluate_greedy_add_ranked(
                     num_repeats=50,
                     num_outer_repeats=1,
                     n_inner_repeats=50,

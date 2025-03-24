@@ -1237,7 +1237,7 @@ class Classifier:
         return overall_results
 
 
-    def train_and_evaluate_greedy_ranked(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
+    def train_and_evaluate_greedy_add_ranked(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
                                          random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
                                          use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
                                          num_top_channels=50, feature_type="concatenated"):
@@ -1290,7 +1290,9 @@ class Classifier:
             mean_accuracies = []
             for ch_idx in range(num_channels):
                 feature_matrix = compute_features([ch_idx])  # Evaluate one channel at a time
-                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels
+                                 )
                 results = cls.train_and_evaluate_balanced(
                     n_inner_repeats=n_inner_repeats,
                     random_seed=random_seed + repeat_idx,
@@ -1323,7 +1325,9 @@ class Classifier:
                 selected_indices.append(sorted_indices[n - 1])  # Add next best channel
                 feature_matrix = compute_features(selected_indices)  # Recompute features
 
-                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels
+                                 )
                 results = cls.train_and_evaluate_balanced(
                     n_inner_repeats=n_inner_repeats,
                     random_seed=random_seed + repeat_idx,
@@ -1375,251 +1379,266 @@ class Classifier:
         return mean_test_accuracies, std_test_accuracies
 
 
-    # def train_and_evaluate_ranked_greedy(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
-    #                                                  random_seed=42,
-    #                                                  test_size=0.2, normalize=False, scaler_type='standard',
-    #                                                  use_pca=False, vthresh=0.97, region=None, print_results=True,
-    #                                                  n_jobs=-1,
-    #                                                  num_top_channels=50):
-    #     all_test_accuracies = []
-    #
-    #     cls_data = self.data.copy()
-    #     num_channels = cls_data.shape[2]
-    #     labels = self.labels
-    #
-    #     for repeat_idx in range(num_repeats):
-    #         print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
-    #
-    #         # Step 1: Channel Selection Loop
-    #         mean_accuracies = []
-    #         for ch_idx in range(num_channels):
-    #             single_channel_data = cls_data[:, :, ch_idx].reshape(cls_data.shape[0], cls_data.shape[1])
-    #             cls = Classifier(single_channel_data, labels, classifier_type="RGC",
-    #                              wine_kind=self.wine_kind)
-    #             results = cls.train_and_evaluate_balanced(
-    #                 n_inner_repeats=n_inner_repeats,
-    #                 random_seed=random_seed + repeat_idx,
-    #                 test_size=test_size,
-    #                 normalize=normalize,
-    #                 scaler_type=scaler_type,
-    #                 use_pca=use_pca,
-    #                 vthresh=vthresh,
-    #                 region=region,
-    #                 print_results=False,
-    #                 n_jobs=n_jobs,
-    #                 test_on_discarded=False
-    #             )
-    #             print(f'Channel = {ch_idx}')
-    #             mean_accuracies.append(results['overall_balanced_accuracy'])
-    #
-    #         # Step 2: Sort channels by mean accuracy
-    #         sorted_indices = np.argsort(mean_accuracies)[::-1]
-    #
-    #         # Step 3: Incrementally concatenate top n channels and evaluate
-    #         incremental_accuracies = []
-    #         for n in range(1, min(num_top_channels, len(sorted_indices)) + 1):
-    #             top_n_indices = sorted_indices[:n]
-    #             concatenated_data = np.concatenate(
-    #                 [cls_data[:, :, idx].reshape(cls_data.shape[0], -1) for idx in top_n_indices], axis=1)
-    #
-    #             cls = Classifier(concatenated_data, labels, classifier_type="RGC",
-    #                              wine_kind=self.wine_kind)
-    #             results = cls.train_and_evaluate_balanced(
-    #                 n_inner_repeats=n_inner_repeats,
-    #                 random_seed=random_seed + repeat_idx,
-    #                 test_size=test_size,
-    #                 normalize=normalize,
-    #                 scaler_type=scaler_type,
-    #                 use_pca=use_pca,
-    #                 vthresh=vthresh,
-    #                 region=region,
-    #                 print_results=False,
-    #                 n_jobs=n_jobs,
-    #                 test_on_discarded=True
-    #             )
-    #             incremental_accuracies.append(results['overall_balanced_accuracy'])
-    #
-    #         all_test_accuracies.append(incremental_accuracies)
-    #
-    #
-    #     # Compute average performance across repeats
-    #     mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
-    #     std_test_accuracies = np.std(all_test_accuracies, axis=0)
-    #
-    #     # Plot the trend with shaded standard deviation
-    #     plt.figure(figsize=(10, 6))
-    #     x = range(1, len(mean_test_accuracies) + 1)
-    #
-    #     # Line plot for mean accuracy
-    #     plt.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
-    #
-    #     # Shaded region for standard deviation
-    #     plt.fill_between(x, mean_test_accuracies - std_test_accuracies,
-    #                      mean_test_accuracies + std_test_accuracies, alpha=0.3, label='± 1 Std Dev')
-    #
-    #     # Labels and aesthetics
-    #     plt.xlabel("Number of Best Concatenated Channels")
-    #     plt.ylabel("Mean Balanced Accuracy")
-    #     plt.title("Performance Trend with Incrementally Concatenated Channels")
-    #     plt.grid(True)
-    #     plt.legend()
-    #     plt.show()
-    #
-    #
-    #     print(f"Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
-    #
-    #     return mean_test_accuracies, std_test_accuracies
+
+    def train_and_evaluate_greedy_remove_ranked(self, num_repeats=10, n_inner_repeats=50,
+                                                random_seed=42, test_size=0.2, normalize=False,
+                                                scaler_type='standard', use_pca=False, vthresh=0.97,
+                                                region=None, print_results=True, n_jobs=-1,
+                                                num_min_channels=1, feature_type="concatenated"):
+        """
+        Perform greedy ranked channel removal starting from all channels.
+
+        Args:
+            num_repeats (int): Number of outer repetitions.
+            n_inner_repeats (int): Repeats for inner evaluation.
+            random_seed (int): Seed for reproducibility.
+            test_size (float): Test split ratio.
+            normalize (bool): Whether to normalize features.
+            scaler_type (str): Type of scaler ('standard', etc).
+            use_pca (bool): Whether to apply PCA.
+            vthresh (float): Variance threshold for PCA.
+            region (str or None): Region specifier.
+            print_results (bool): Whether to print progress.
+            n_jobs (int): Number of parallel jobs.
+            num_min_channels (int): Minimum number of channels to stop removing.
+            feature_type (str): Feature representation.
+        """
+        all_test_accuracies = []
+        cls_data = self.data.copy()
+        num_samples, num_timepoints, num_channels = cls_data.shape
+        labels = self.labels
+
+        def compute_features(channels):
+            if feature_type == "concatenated":
+                return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+            elif feature_type == "tic_tis":
+                tic = np.sum(cls_data[:, :, channels], axis=2)
+                tis = np.sum(cls_data[:, :, channels], axis=1)
+                return np.hstack([tic, tis])
+            else:
+                raise ValueError("Invalid feature_type")
+
+        plt.ion()
+        fig, ax = plt.subplots()
+
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+            rng = np.random.default_rng(random_seed + repeat_idx)
+            mean_accuracies = []
+            for ch_idx in range(num_channels):
+                feature_matrix = compute_features([ch_idx])
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels
+                                 )
+                results = cls.train_and_evaluate_balanced(
+                    n_inner_repeats=n_inner_repeats, random_seed=random_seed + repeat_idx,
+                    test_size=test_size, normalize=normalize, scaler_type=scaler_type, use_pca=use_pca,
+                    vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs, test_on_discarded=False)
+                mean_accuracies.append(results['overall_balanced_accuracy'])
+
+            unique_accuracies = np.unique(mean_accuracies)
+            sorted_indices = []
+            for acc in sorted(unique_accuracies):
+                tied_channels = [idx for idx, val in enumerate(mean_accuracies) if val == acc]
+                rng.shuffle(tied_channels)
+                sorted_indices.extend(tied_channels)
+
+            selected_indices = list(sorted_indices)  # Start with all channels
+            incremental_accuracies = []
+
+            for n in range(num_channels, num_min_channels - 1, -1):
+                feature_matrix = compute_features(selected_indices)
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels
+                                 )
+                results = cls.train_and_evaluate_balanced(
+                    n_inner_repeats=n_inner_repeats, random_seed=random_seed + repeat_idx,
+                    test_size=test_size, normalize=normalize, scaler_type=scaler_type, use_pca=use_pca,
+                    vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs, test_on_discarded=True)
+                incremental_accuracies.append(results['overall_balanced_accuracy'])
+
+                if print_results:
+                    print(f"Remaining {n} channel(s): Test Accuracy = {results['overall_balanced_accuracy']:.3f}")
+
+                if n > num_min_channels:
+                    selected_indices.pop(0)  # Remove worst-ranked remaining channel
+
+            all_test_accuracies.append(incremental_accuracies)
+
+            # Dynamic plot update
+            ax.clear()
+            x = range(num_channels, num_min_channels - 1, -1)
+            mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
+            std_test_accuracies = np.std(all_test_accuracies, axis=0)
+            ax.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
+            ax.fill_between(x, mean_test_accuracies - std_test_accuracies,
+                            mean_test_accuracies + std_test_accuracies, alpha=0.3, label='± 1 Std Dev')
+            ax.set_xlabel("Number of Channels Remaining")
+            ax.set_ylabel("Mean Balanced Accuracy")
+            ax.set_title(f"Greedy Ranked Remove ({feature_type}); Repeat {repeat_idx + 1}/{num_repeats}")
+            ax.grid(True)
+            ax.legend()
+            plt.pause(0.5)
+
+        plt.ioff()
+        plt.show(block=True)
+
+        print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
+
+        return mean_test_accuracies, std_test_accuracies
 
 
 
+    def train_and_evaluate_greedy_add(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
+                                      random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
+                                      use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+                                      feature_type="concatenated"):
+        """
+        Perform greedy channel addition with an option to use either:
+          - "concatenated": Raw m/z channels concatenated as features.
+          - "tic_tis": Computes and concatenates TIC (Total Ion Chromatogram) and TIS (Total Ion Spectrum).
+
+        Starts with a single best-performing channel and adds channels iteratively to maximize accuracy.
+        """
+
+        all_test_accuracies = []
+        first_five_chosen_channels = []  # Track channels chosen in the first 5 steps
 
 
-    # def train_and_evaluate_greedy_remove(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
-    #                                      random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
-    #                                      use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
-    #                                      feature_type="concatenated"):
-    #     """
-    #     Perform greedy channel removal with an option to use either:
-    #       - "concatenated": Raw m/z channels concatenated as features.
-    #       - "tic_tis": Computes and concatenates TIC (Total Ion Chromatogram) and TIS (Total Ion Spectrum).
-    #
-    #     Parameters:
-    #     ----------
-    #     feature_type : str
-    #         - "concatenated" (default) → Uses raw m/z channels.
-    #         - "tic_tis" → Uses TIC (sum over m/z) and TIS (sum over time).
-    #     """
-    #
-    #     all_test_accuracies = []
-    #
-    #     def compute_features(channels):
-    #         """ Compute features based on chosen feature type. """
-    #         if feature_type == "concatenated":
-    #             try:
-    #                 # Concatenate raw selected channels
-    #                 concatenated_data = np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
-    #             except Exception as e:
-    #                 print(f"An error occurred while plotting: {e}")
-    #             return concatenated_data
-    #         elif feature_type == "tic_tis":
-    #             # Compute TIC (sum over m/z) and TIS (sum over time)
-    #             tic = np.sum(cls_data[:, :, channels], axis=2)  # (num_samples, num_timepoints)
-    #             tis = np.sum(cls_data[:, :, channels], axis=1)  # (num_samples, num_channels)
-    #             return np.hstack([tic, tis])  # Combine TIC and TIS
-    #         else:
-    #             raise ValueError("Invalid feature_type. Use 'concatenated' or 'tic_tis'.")
-    #
-    #     # Evaluate the accuracy of removing each channel
-    #     def evaluate_channel(ch_idx):
-    #         print(f'Step {step}; Channel = {ch_idx}')
-    #         temp_indices = [idx for idx in remaining_indices if idx != ch_idx]
-    #         if not temp_indices:  # If no channels remain, skip this iteration
-    #             print(f"⚠️ No remaining channels after removing {ch_idx}. Skipping evaluation.")
-    #             return ch_idx, None  # Return None to avoid breaking max() call later
-    #
-    #         feature_matrix = compute_features(temp_indices)
-    #
-    #         if feature_matrix is None or feature_matrix.size == 0:  # Check if feature matrix is empty
-    #             print(f"⚠️ Feature matrix is empty after removing {ch_idx}. Skipping.")
-    #             return ch_idx, None
-    #
-    #         cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
-    #         results = cls.train_and_evaluate_balanced(
-    #             n_inner_repeats=n_inner_repeats,
-    #             random_seed=random_seed + repeat_idx,
-    #             test_size=test_size,
-    #             normalize=normalize,
-    #             scaler_type=scaler_type,
-    #             use_pca=use_pca,
-    #             vthresh=vthresh,
-    #             region=region,
-    #             print_results=False,
-    #             n_jobs=1,
-    #             test_on_discarded=False
-    #         )
-    #         return ch_idx, results['overall_balanced_accuracy']
-    #
-    #     for repeat_idx in range(num_repeats):
-    #         print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
-    #
-    #         cls_data = self.data.copy()  # Shape: (num_samples, num_timepoints, num_channels)
-    #         num_samples, num_timepoints, num_channels = cls_data.shape
-    #         labels = self.labels
-    #
-    #         # Start with all channels
-    #         remaining_indices = list(range(num_channels))
-    #         incremental_accuracies = [None]  # Store accuracy before removing any channels
-    #
-    #         for step in range(min(num_channels, 137 + 1)):  # Limit number of removals for efficiency
-    #
-    #             if not remaining_indices:  # Prevent issues when all channels are removed
-    #                 print("⚠️ No more channels left to remove. Stopping early.")
-    #                 break
-    #
-    #             # Compute current accuracy before removing any channel this iteration
-    #             feature_matrix = compute_features(remaining_indices)
-    #             cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
-    #             results = cls.train_and_evaluate_balanced(
-    #                 n_inner_repeats=n_inner_repeats,
-    #                 random_seed=random_seed + repeat_idx,
-    #                 test_size=test_size,
-    #                 normalize=normalize,
-    #                 scaler_type=scaler_type,
-    #                 use_pca=use_pca,
-    #                 vthresh=vthresh,
-    #                 region=region,
-    #                 print_results=False,
-    #                 n_jobs=n_jobs,
-    #                 test_on_discarded=True
-    #             )
-    #
-    #             # Parallel execution to test removing each channel
-    #             validation_accuracies = Parallel(n_jobs=n_jobs, backend='loky')(
-    #                 delayed(evaluate_channel)(ch_idx) for ch_idx in remaining_indices)
-    #
-    #             # Store accuracy at current step (before removal)
-    #             if incremental_accuracies[0] is None:
-    #                 incremental_accuracies[0] = results['overall_balanced_accuracy']
-    #             else:
-    #                 incremental_accuracies.append(results['overall_balanced_accuracy'])
-    #
-    #             # Remove the channel whose removal leads to the highest validation accuracy
-    #             max_accuracy = max(validation_accuracies, key=lambda x: x[1])[1]
-    #             candidates = [ch_idx for ch_idx, acc in validation_accuracies if acc == max_accuracy]
-    #             best_channel_to_remove = random.choice(candidates)  # Randomly select one of the best
-    #             remaining_indices.remove(best_channel_to_remove)
-    #
-    #             if print_results:
-    #                 print(
-    #                     f"After removing {step + 1} channel(s): Test Accuracy = {results['overall_balanced_accuracy']:.3f}")
-    #
-    #         all_test_accuracies.append(incremental_accuracies)
-    #
-    #         # Dynamic plot after each repeat
-    #         plt.ion()  # Enable interactive mode
-    #         plt.clf()  # Clear the current figure
-    #         mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
-    #         std_test_accuracies = np.std(all_test_accuracies, axis=0)
-    #
-    #         x = range(len(mean_test_accuracies))
-    #         plt.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
-    #         plt.fill_between(x, mean_test_accuracies - std_test_accuracies, mean_test_accuracies + std_test_accuracies,
-    #                          alpha=0.3, label='± 1 Std Dev')
-    #
-    #         plt.xlabel("Number of Channels Removed")
-    #         plt.ylabel("Mean Balanced Accuracy")
-    #         plt.title(f"Performance Trend with Greedy Remove ({feature_type}; {repeat_idx + 1} / {num_repeats})")
-    #         plt.grid(True)
-    #         plt.legend()
-    #         if repeat_idx == num_repeats - 1:
-    #             plt.show(block=True)  # Keep the final plot open without closing the program
-    #         else:
-    #             plt.pause(1)  # Pause briefly to allow the plot to update
-    #
-    #     # Final Summary
-    #     print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
-    #
-    #     return mean_test_accuracies, std_test_accuracies
+        def compute_features(channels):
+            """ Compute features based on chosen feature type. """
+            if feature_type == "concatenated":
+                concatenated_data = np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+                return concatenated_data
+            elif feature_type == "tic_tis":
+                tic = np.sum(cls_data[:, :, channels], axis=2)
+                tis = np.sum(cls_data[:, :, channels], axis=1)
+                return np.hstack([tic, tis])
+            else:
+                raise ValueError("Invalid feature_type. Use 'concatenated' or 'tic_tis'.")
+
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+
+            cls_data = self.data.copy()
+            num_samples, num_timepoints, num_channels = cls_data.shape
+            labels = self.labels
+
+            # Start with no channels, then add iteratively
+            available_indices = list(range(num_channels))
+            selected_indices = []
+            incremental_accuracies = []
+
+            for step in range(min(num_channels, 140 + 1)):
+                if not available_indices:
+                    print("⚠️ No more channels left to add. Stopping early.")
+                    break
+
+                # Evaluate the accuracy of adding each channel
+                def evaluate_channel(ch_idx):
+                    print(f'Step {step}; Adding Channel = {ch_idx}')
+                    temp_indices = selected_indices + [ch_idx]
+                    feature_matrix = compute_features(temp_indices)
+
+                    cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                     year_labels=self.year_labels)
+                    results = cls.train_and_evaluate_balanced(
+                        n_inner_repeats=n_inner_repeats,
+                        random_seed=random_seed + repeat_idx,
+                        test_size=test_size,
+                        normalize=normalize,
+                        scaler_type=scaler_type,
+                        use_pca=use_pca,
+                        vthresh=vthresh,
+                        region=region,
+                        print_results=False,
+                        n_jobs=1,
+                        test_on_discarded=False
+                    )
+                    return ch_idx, results['overall_balanced_accuracy']
+
+                # Parallel execution to test adding each channel
+                validation_accuracies = Parallel(n_jobs=n_jobs, backend='loky')(
+                    delayed(evaluate_channel)(ch_idx) for ch_idx in available_indices)
+
+                # Select the best channel to add
+                max_accuracy = max(validation_accuracies, key=lambda x: x[1])[1]
+                candidates = [ch_idx for ch_idx, acc in validation_accuracies if acc == max_accuracy]
+                best_channel_to_add = random.choice(candidates)
+                selected_indices.append(best_channel_to_add)
+                available_indices.remove(best_channel_to_add)
+
+                if len(selected_indices) == 5:
+                    first_five_chosen_channels.append(
+                        list(selected_indices))  # Store only once when 5 channels have been added
+
+                # Compute accuracy after adding the best channel
+                feature_matrix = compute_features(selected_indices)
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels)
+                results = cls.train_and_evaluate_balanced(
+                    n_inner_repeats=n_inner_repeats,
+                    random_seed=random_seed + repeat_idx,
+                    test_size=test_size,
+                    normalize=normalize,
+                    scaler_type=scaler_type,
+                    use_pca=use_pca,
+                    vthresh=vthresh,
+                    region=region,
+                    print_results=False,
+                    n_jobs=n_jobs,
+                    test_on_discarded=True
+                )
+
+                incremental_accuracies.append(results['overall_balanced_accuracy'])
+
+                if print_results:
+                    print(
+                        f"After adding {step + 1} channel(s): Test Accuracy = {results['overall_balanced_accuracy']:.3f}")
+
+                plt.pause(0.1)
+            all_test_accuracies.append(incremental_accuracies)
+
+            # Dynamic plot after each repeat
+            plt.ion()
+            plt.clf()
+            mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
+            std_test_accuracies = np.std(all_test_accuracies, axis=0)
+
+            x = range(len(mean_test_accuracies))
+            plt.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
+            plt.fill_between(x, mean_test_accuracies - std_test_accuracies, mean_test_accuracies + std_test_accuracies,
+                             alpha=0.3, label='± 1 Std Dev')
+
+            plt.xlabel("Number of Channels Added")
+            plt.ylabel("Mean Balanced Accuracy")
+            plt.title(f"Performance Trend with Greedy Add ({feature_type}; {repeat_idx + 1} / {num_repeats})")
+            plt.grid(True)
+            plt.legend()
+            if repeat_idx == num_repeats - 1:
+                plt.show(block=True)
+            else:
+                plt.pause(1)
+
+        # Save histogram data to file
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_wine_type.csv", 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Channel Index"])
+            writer.writerows([[ch] for ch in first_five_chosen_channels])
+
+        # Plot histogram of the first 5 chosen channels across repeats
+        plt.figure(figsize=(10, 6))
+        plt.hist(first_five_chosen_channels, bins=np.arange(min(first_five_chosen_channels), max(first_five_chosen_channels) + 1) - 0.5, edgecolor='black')
+        plt.xlabel("Channel Index")
+        plt.ylabel("Number of Repeats")
+        plt.title("Histogram of Channels Chosen in the First 5 Steps Across Repeats")
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.show(block=True)
+
+        # Final Summary
+        print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
+
+        return mean_test_accuracies, std_test_accuracies
 
 
 
@@ -1801,240 +1820,6 @@ class Classifier:
         return mean_test_accuracies, std_test_accuracies
 
 
-    # def train_and_evaluate_greedy_remove_batch(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
-    #                                            random_seed=42, test_size=0.2, normalize=False,
-    #                                            scaler_type='standard',
-    #                                            use_pca=False, vthresh=0.97, region=None, print_results=True,
-    #                                            n_jobs=-1,
-    #                                            feature_type="concatenated", batch_size=50,
-    #                                            selection_mode="importance"): # importance random contiguous
-    #     """
-    #     Perform greedy channel removal in small batches based on the specified selection mode.
-    #     Options for selection_mode:
-    #     - "contiguous": Remove contiguous channels.
-    #     - "random": Remove randomly selected channels.
-    #     - "importance": Remove least important channels based on variance.
-    #     - "mutual_info": Remove channels with lowest mutual information with the labels.
-    #     - "pca": Remove channels contributing least to principal components.
-    #     - "correlation": Remove highly correlated channels to reduce redundancy.
-    #     """
-    #
-    #     all_test_accuracies = []
-    #
-    #     def compute_features(channels):
-    #         """ Compute features based on chosen feature type. """
-    #         if isinstance(channels, int):
-    #             channels = [channels]  # Convert single integer to list
-    #         if feature_type == "concatenated":
-    #             concatenated_data = np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
-    #             return concatenated_data
-    #         elif feature_type == "tic_tis":
-    #             tic = np.sum(cls_data[:, :, channels], axis=2)
-    #             tis = np.sum(cls_data[:, :, channels], axis=1)
-    #             return np.hstack([tic, tis])
-    #         else:
-    #             raise ValueError("Invalid feature_type. Use 'concatenated' or 'tic_tis'.")
-    #
-    #     def evaluate_channels(channel_subset):
-    #         temp_indices = [idx for idx in remaining_indices if idx not in channel_subset]
-    #         if len(temp_indices) == 0:  # Prevent empty feature selection
-    #             print("⚠️ No channels left to remove. Skipping.")
-    #             return channel_subset, 0  # Return a default accuracy (0) to avoid errors
-    #         feature_matrix = compute_features(temp_indices)
-    #         cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
-    #         results = cls.train_and_evaluate_balanced(
-    #             n_inner_repeats=n_inner_repeats,
-    #             random_seed=random_seed + repeat_idx,
-    #             test_size=test_size,
-    #             normalize=normalize,
-    #             scaler_type=scaler_type,
-    #             use_pca=use_pca,
-    #             vthresh=vthresh,
-    #             region=region,
-    #             print_results=False,
-    #             n_jobs=n_jobs,
-    #             test_on_discarded=False
-    #         )
-    #         return channel_subset, results['overall_balanced_accuracy']
-    #
-    #     for repeat_idx in range(num_repeats):
-    #         print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
-    #         cls_data = self.data.copy()
-    #         num_samples, num_timepoints, num_channels = cls_data.shape
-    #         labels = self.labels
-    #
-    #         if selection_mode == "correlation":
-    #             # Compute correlation directly on raw channel data without averaging over time
-    #             reshaped_data = cls_data.transpose(2, 0, 1).reshape(num_channels,-1)  # Shape: (n_channels, n_samples * n_timepoints)
-    #
-    #             # Identify and store indices of non-zero variance channels
-    #             valid_channels_mask = np.std(reshaped_data, axis=1) > 1e-8
-    #             valid_channels = np.where(valid_channels_mask)[0]  # Get original indices of valid channels
-    #             reshaped_data = reshaped_data[valid_channels]  # Keep only valid channels
-    #
-    #             # Compute correlation only on valid channels
-    #             corr_matrix = np.corrcoef(reshaped_data)
-    #             mean_correlation = np.abs(corr_matrix).mean(axis=1)
-    #
-    #             # Identify key channels that are highly correlated with others but not among themselves
-    #             highly_corr_threshold = 0.8
-    #             high_corr_groups = []
-    #             processed_channels = set()
-    #
-    #             for i in range(len(valid_channels)):  # Use the valid index range
-    #                 if i in processed_channels:
-    #                     continue
-    #                 correlated_channels = np.where(corr_matrix[i] > highly_corr_threshold)[0].tolist()
-    #                 if len(correlated_channels) > 1:
-    #                     high_corr_groups.append(correlated_channels)
-    #                     processed_channels.update(correlated_channels)
-    #
-    #             # Map valid indices back to original channel indices
-    #             selected_representatives = [valid_channels[group[0]] for group in high_corr_groups]
-    #             removable_channels = [valid_channels[ch] for group in high_corr_groups for ch in group if
-    #                                   valid_channels[ch] not in selected_representatives]
-    #
-    #             # Remaining channels (less correlated ones)
-    #             remaining_channels = [ch for ch in valid_channels if ch not in removable_channels]
-    #
-    #             # Final ordering: remove correlated channels first, then the least correlated ones last
-    #             sorted_indices = removable_channels + remaining_channels
-    #             remaining_indices = list(sorted_indices)
-    #
-    #         elif selection_mode == "individual_accuracy":
-    #             channel_accuracies = []
-    #
-    #             for ch in range(num_channels):
-    #                 feature_matrix = compute_features(ch)
-    #                 cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
-    #                 results = cls.train_and_evaluate_balanced(
-    #                     n_inner_repeats=50,  # Fewer repeats for efficiency
-    #                     random_seed=42,
-    #                     test_size=0.2,
-    #                     normalize=True,
-    #                     scaler_type='standard',
-    #                     use_pca=False,
-    #                     vthresh=0.97,
-    #                     region=None,
-    #                     print_results=False,
-    #                     n_jobs=10,
-    #                     test_on_discarded=False
-    #                 )
-    #                 channel_accuracies.append((ch, results['overall_balanced_accuracy']))
-    #             # Sort channels from **lowest to highest accuracy** (we want to remove the least useful ones first)
-    #
-    #             sorted_indices = [ch for ch, acc in sorted(channel_accuracies, key=lambda x: x[1])]
-    #             remaining_indices = list(sorted_indices)
-    #         elif selection_mode == "importance":
-    #             channel_variances = np.var(cls_data, axis=(0, 1))
-    #             sorted_indices = np.argsort(channel_variances)
-    #             remaining_indices = list(sorted_indices)
-    #         elif selection_mode == "random":
-    #             remaining_indices = list(range(num_channels))
-    #             random.shuffle(remaining_indices)
-    #         elif selection_mode == "contiguous":
-    #             remaining_indices = list(range(num_channels))
-    #         elif selection_mode == "mutual_info":
-    #             feature_matrix = compute_features(range(num_channels))
-    #             mi_scores = mutual_info_classif(feature_matrix, assign_category_to_press_wine(labels))
-    #             sorted_indices = np.argsort(mi_scores)
-    #             remaining_indices = list(sorted_indices)
-    #         elif selection_mode == "pca":
-    #             scaler = StandardScaler()
-    #             scaled_data = scaler.fit_transform(cls_data)
-    #             pca = PCA(n_components=min(num_channels, 10))
-    #             pca.fit(scaled_data)
-    #             explained_variances = np.abs(pca.components_).sum(axis=0)
-    #             sorted_indices = np.argsort(explained_variances)
-    #             remaining_indices = list(sorted_indices)
-    #         elif selection_mode == "correlation":
-    #             feature_matrix = compute_features(range(num_channels))
-    #             corr_matrix = np.corrcoef(feature_matrix, rowvar=False)
-    #             mean_correlation = np.abs(corr_matrix).mean(axis=1)
-    #             sorted_indices = np.argsort(mean_correlation)
-    #             remaining_indices = list(sorted_indices)
-    #         else:
-    #             raise ValueError(
-    #                 "Invalid selection_mode. Choose from 'contiguous', 'random', 'importance', 'mutual_info', 'pca', or 'correlation'.")
-    #
-    #         incremental_accuracies = [None]
-    #
-    #         for step in range(0, min(num_channels, 125 + 1), batch_size):
-    #             if len(remaining_indices) < batch_size:
-    #                 print("⚠️ Too few channels left to remove in batch. Stopping early.")
-    #                 break
-    #
-    #             if len(remaining_indices) == 0:  # Prevent empty feature selection
-    #                 print("⚠️ No more channels left. Stopping early.")
-    #                 break
-    #
-    #             feature_matrix = compute_features(remaining_indices)
-    #             cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind)
-    #             results = cls.train_and_evaluate_balanced(
-    #                 n_inner_repeats=n_inner_repeats,
-    #                 random_seed=random_seed + repeat_idx,
-    #                 test_size=test_size,
-    #                 normalize=normalize,
-    #                 scaler_type=scaler_type,
-    #                 use_pca=use_pca,
-    #                 vthresh=vthresh,
-    #                 region=region,
-    #                 print_results=False,
-    #                 n_jobs=n_jobs,
-    #                 test_on_discarded=True
-    #             )
-    #
-    #             validation_accuracies = Parallel(n_jobs=5, backend='loky')(
-    #                 # delayed(evaluate_channels)(remaining_indices[i:i + batch_size])
-    #                 delayed(evaluate_channels)(remaining_indices[i:i + min(batch_size, len(remaining_indices) - i)])
-    #                 for i in range(0, len(remaining_indices), batch_size)
-    #             )
-    #
-    #             if incremental_accuracies[0] is None:
-    #                 incremental_accuracies[0] = results['overall_balanced_accuracy']
-    #             else:
-    #                 incremental_accuracies.append(results['overall_balanced_accuracy'])
-    #
-    #             best_subset = min(validation_accuracies, key=lambda x: x[1])[0]
-    #             for ch in best_subset:
-    #                 remaining_indices.remove(ch)
-    #
-    #             if print_results:
-    #                 print(
-    #                     f"After removing {step + batch_size} channels: Test Accuracy = {results['overall_balanced_accuracy']:.3f}")
-    #
-    #         all_test_accuracies.append(incremental_accuracies)
-    #
-    #         max_length = max(len(acc) for acc in all_test_accuracies)  # Find longest list
-    #
-    #         # Pad shorter lists with NaNs to match max_length
-    #         all_test_accuracies = [acc + [np.nan] * (max_length - len(acc)) for acc in all_test_accuracies]
-    #
-    #         if repeat_idx == 0:
-    #             plt.figure(figsize=(12, 6))
-    #         plt.ion()
-    #         plt.clf()
-    #         mean_test_accuracies = np.nanmean(all_test_accuracies, axis=0)
-    #         std_test_accuracies = np.nanstd(all_test_accuracies, axis=0)
-    #
-    #         x = [i * batch_size for i in range(len(mean_test_accuracies))]
-    #         plt.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
-    #         plt.fill_between(x, mean_test_accuracies - std_test_accuracies,
-    #                          mean_test_accuracies + std_test_accuracies,
-    #                          alpha=0.3, label='± 1 Std Dev')
-    #         plt.xlabel(f"Number of Channels Removed (Batch {batch_size})")
-    #         plt.ylabel("Mean Balanced Accuracy")
-    #         plt.title(f"Performance Trend Greedy Remove ({selection_mode.capitalize()} Method) "
-    #                   f"(Repeat {repeat_idx + 1} / {num_repeats})")
-    #         plt.grid(True)
-    #         plt.legend()
-    #         if repeat_idx == num_repeats - 1:
-    #             plt.show(block=True)
-    #         else:
-    #             plt.pause(1)
-    #
-    #         print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
-    #     return mean_test_accuracies, std_test_accuracies
 
     def train_and_evaluate_greedy_remove_batch(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
                                                random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
@@ -2233,156 +2018,6 @@ class Classifier:
             print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
         return mean_test_accuracies, std_test_accuracies
 
-    def train_and_evaluate_greedy_add(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
-                                      random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
-                                      use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
-                                      feature_type="concatenated"):
-        """
-        Perform greedy channel addition with an option to use either:
-          - "concatenated": Raw m/z channels concatenated as features.
-          - "tic_tis": Computes and concatenates TIC (Total Ion Chromatogram) and TIS (Total Ion Spectrum).
-
-        Starts with a single best-performing channel and adds channels iteratively to maximize accuracy.
-        """
-
-        all_test_accuracies = []
-        first_five_chosen_channels = []  # Track channels chosen in the first 5 steps
-
-
-        def compute_features(channels):
-            """ Compute features based on chosen feature type. """
-            if feature_type == "concatenated":
-                concatenated_data = np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
-                return concatenated_data
-            elif feature_type == "tic_tis":
-                tic = np.sum(cls_data[:, :, channels], axis=2)
-                tis = np.sum(cls_data[:, :, channels], axis=1)
-                return np.hstack([tic, tis])
-            else:
-                raise ValueError("Invalid feature_type. Use 'concatenated' or 'tic_tis'.")
-
-        for repeat_idx in range(num_repeats):
-            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
-
-            cls_data = self.data.copy()
-            num_samples, num_timepoints, num_channels = cls_data.shape
-            labels = self.labels
-
-            # Start with no channels, then add iteratively
-            available_indices = list(range(num_channels))
-            selected_indices = []
-            incremental_accuracies = []
-
-            for step in range(min(num_channels, 140 + 1)):
-                if not available_indices:
-                    print("⚠️ No more channels left to add. Stopping early.")
-                    break
-
-                # Evaluate the accuracy of adding each channel
-                def evaluate_channel(ch_idx):
-                    print(f'Step {step}; Adding Channel = {ch_idx}')
-                    temp_indices = selected_indices + [ch_idx]
-                    feature_matrix = compute_features(temp_indices)
-
-                    cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
-                                     year_labels=self.year_labels)
-                    results = cls.train_and_evaluate_balanced(
-                        n_inner_repeats=n_inner_repeats,
-                        random_seed=random_seed + repeat_idx,
-                        test_size=test_size,
-                        normalize=normalize,
-                        scaler_type=scaler_type,
-                        use_pca=use_pca,
-                        vthresh=vthresh,
-                        region=region,
-                        print_results=False,
-                        n_jobs=1,
-                        test_on_discarded=False
-                    )
-                    return ch_idx, results['overall_balanced_accuracy']
-
-                # Parallel execution to test adding each channel
-                validation_accuracies = Parallel(n_jobs=n_jobs, backend='loky')(
-                    delayed(evaluate_channel)(ch_idx) for ch_idx in available_indices)
-
-                # Select the best channel to add
-                max_accuracy = max(validation_accuracies, key=lambda x: x[1])[1]
-                candidates = [ch_idx for ch_idx, acc in validation_accuracies if acc == max_accuracy]
-                best_channel_to_add = random.choice(candidates)
-                selected_indices.append(best_channel_to_add)
-                available_indices.remove(best_channel_to_add)
-
-                if len(selected_indices) == 5:
-                    first_five_chosen_channels.append(
-                        list(selected_indices))  # Store only once when 5 channels have been added
-
-                # Compute accuracy after adding the best channel
-                feature_matrix = compute_features(selected_indices)
-                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
-                                 year_labels=self.year_labels)
-                results = cls.train_and_evaluate_balanced(
-                    n_inner_repeats=n_inner_repeats,
-                    random_seed=random_seed + repeat_idx,
-                    test_size=test_size,
-                    normalize=normalize,
-                    scaler_type=scaler_type,
-                    use_pca=use_pca,
-                    vthresh=vthresh,
-                    region=region,
-                    print_results=False,
-                    n_jobs=n_jobs,
-                    test_on_discarded=True
-                )
-
-                incremental_accuracies.append(results['overall_balanced_accuracy'])
-
-                if print_results:
-                    print(
-                        f"After adding {step + 1} channel(s): Test Accuracy = {results['overall_balanced_accuracy']:.3f}")
-
-                plt.pause(0.1)
-            all_test_accuracies.append(incremental_accuracies)
-
-            # Dynamic plot after each repeat
-            plt.ion()
-            plt.clf()
-            mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
-            std_test_accuracies = np.std(all_test_accuracies, axis=0)
-
-            x = range(len(mean_test_accuracies))
-            plt.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
-            plt.fill_between(x, mean_test_accuracies - std_test_accuracies, mean_test_accuracies + std_test_accuracies,
-                             alpha=0.3, label='± 1 Std Dev')
-
-            plt.xlabel("Number of Channels Added")
-            plt.ylabel("Mean Balanced Accuracy")
-            plt.title(f"Performance Trend with Greedy Add ({feature_type}; {repeat_idx + 1} / {num_repeats})")
-            plt.grid(True)
-            plt.legend()
-            if repeat_idx == num_repeats - 1:
-                plt.show(block=True)
-            else:
-                plt.pause(1)
-
-        # Save histogram data to file
-        with open("hist_first_five_channels", 'w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(["Channel Index"])
-            writer.writerows([[ch] for ch in first_five_chosen_channels])
-
-        # Plot histogram of the first 5 chosen channels across repeats
-        plt.figure(figsize=(10, 6))
-        plt.hist(first_five_chosen_channels, bins=np.arange(min(first_five_chosen_channels), max(first_five_chosen_channels) + 1) - 0.5, edgecolor='black')
-        plt.xlabel("Channel Index")
-        plt.ylabel("Number of Repeats")
-        plt.title("Histogram of Channels Chosen in the First 5 Steps Across Repeats")
-        plt.grid(axis='y', linestyle='--', alpha=0.7)
-        plt.show(block=True)
-
-        # Final Summary
-        print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
-
-        return mean_test_accuracies, std_test_accuracies
 
 
     def train_and_evaluate_tic(
