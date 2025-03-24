@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import re
+import matplotlib
+matplotlib.use('TkAgg')
 
 def plot_channel_selection_performance_changins():
 
@@ -293,4 +295,94 @@ def plot_press_wines_accuracies():
     plt.tight_layout()
 
     # Show plot
+    plt.show()
+
+
+def plot_histogram_correlation(file1, file2, wine1="Merlot", wine2="Cab. Sauv.", threshold=0):
+    """
+    Load two CSV files containing histogram data from different runs, construct histograms,
+    plot histograms for each dataset, and examine their correlation.
+
+    Args:
+        file1 (str): Path to the first CSV file.
+        file2 (str): Path to the second CSV file.
+        wine1 (str): Name of the first wine.
+        wine2 (str): Name of the second wine.
+        threshold (int): Minimum count required for a bin to be considered in the analysis.
+
+    Returns:
+        None
+    """
+    import pandas as pd
+    import ast
+    def load_and_flatten_csv(file_path):
+        """Load a CSV file, parse lists from strings, and flatten to a single NumPy array."""
+        df = pd.read_csv(file_path, skiprows=1, header=None)  # Skip the first row (header)
+        parsed_data = df[0].apply(ast.literal_eval)  # Convert string representation to lists
+        flattened_data = np.concatenate(parsed_data.values)  # Flatten the list of lists
+        return flattened_data
+
+    # Load data from CSV files
+    data1 = load_and_flatten_csv(file1)
+    data2 = load_and_flatten_csv(file2)
+
+    # Compute unique channel indices to use as bin edges
+    unique_channels = np.unique(np.concatenate([data1, data2]))  # Get all unique channels
+    bins = np.arange(unique_channels.min(), unique_channels.max() + 2) - 0.5  # Bin edges
+
+    # Compute histograms
+    hist1, _ = np.histogram(data1, bins=bins)
+    hist2, _ = np.histogram(data2, bins=bins)
+
+    # Apply threshold: Select only bins where at least one dataset exceeds the threshold
+    mask = (hist1 > threshold) | (hist2 > threshold)
+    filtered_channels = unique_channels[mask]
+    hist1 = hist1[mask]
+    hist2 = hist2[mask]
+
+    # Create figure with improved aesthetics
+    fig, axes = plt.subplots(1, 3, figsize=(16, 6), gridspec_kw={'width_ratios': [1, 1, 1.2]})
+
+    # Colors
+    color1 = '#4C72B0'  # Blue
+    color2 = '#C44E52'  # Red
+    scatter_color = '#8172B3'  # Purple
+
+    # Histogram for File 1
+    axes[0].bar(filtered_channels, hist1, width=1, color=color1, alpha=0.8, edgecolor='black', label=f"{wine1} Histogram")
+    axes[0].set_title(f"Histogram of Channels ({wine1})", fontsize=14)
+    axes[0].set_xlabel("Channel Index", fontsize=12)
+    axes[0].set_ylabel("Count", fontsize=12)
+    axes[0].grid(axis='y', linestyle='--', alpha=0.5)
+    axes[0].tick_params(axis='x', rotation=45)  # Rotate x labels for better readability
+    axes[0].legend()
+
+    # Histogram for File 2
+    axes[1].bar(filtered_channels, hist2, width=1, color=color2, alpha=0.8, edgecolor='black', label=f"{wine2} Histogram")
+    axes[1].set_title(f"Histogram of Channels ({wine2})", fontsize=14)
+    axes[1].set_xlabel("Channel Index", fontsize=12)
+    axes[1].set_ylabel("Count", fontsize=12)
+    axes[1].grid(axis='y', linestyle='--', alpha=0.5)
+    axes[1].tick_params(axis='x', rotation=45)
+    axes[1].legend()
+
+    # Scatter plot for histogram correlation
+    axes[2].scatter(hist1, hist2, alpha=0.8, color=scatter_color, edgecolors='black', label="Histogram Correlation")
+    axes[2].plot([0, max(hist1.max(), hist2.max())], [0, max(hist1.max(), hist2.max())], 'r--',
+                 label="y = x (perfect correlation)")
+    axes[2].set_xlabel(f"Histogram Counts in {wine1}", fontsize=12)
+    axes[2].set_ylabel(f"Histogram Counts in {wine2}", fontsize=12)
+    axes[2].set_title(f"Histogram Correlation: {wine1} vs {wine2}", fontsize=14)
+    axes[2].legend()
+    axes[2].grid(True)
+
+
+
+    # Compute and print Pearson correlation coefficient
+    correlation = np.corrcoef(hist1, hist2)[0, 1]
+    print(f"Pearson Correlation Between {wine1} and {wine2}: {correlation:.3f}")
+    axes[2].text(0.05 * max(hist1), 0.9 * max(hist2),  # Position it near the top-left of the plot
+                 f"Pearson: {correlation:.3f}", fontsize=12, color='black',
+                 bbox=dict(facecolor='white', alpha=0.7))  # Background box for visibility
+    plt.tight_layout()
     plt.show()

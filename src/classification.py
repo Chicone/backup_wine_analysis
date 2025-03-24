@@ -45,6 +45,8 @@ import random
 import matplotlib.pyplot as plt
 
 from collections import Counter, defaultdict
+import csv
+
 
 
 class CustomDataParallel(torch.nn.DataParallel):
@@ -1740,8 +1742,9 @@ class Classifier:
                 remaining_indices.remove(best_channel_to_remove)
 
                 # Track the last 5 steps' remaining channels
-                if len(remaining_indices) <= 5:
-                    final_channel_distributions.extend(remaining_indices)
+                if len(remaining_indices) == 5:
+                    final_channel_distributions.append(
+                        list(remaining_indices))  # Only store when there are exactly 5 left
 
                 if print_results:
                     print(
@@ -1775,6 +1778,13 @@ class Classifier:
         unique_channels, counts = np.unique(final_channel_distributions, return_counts=True)
         for ch, count in zip(unique_channels, counts):
             print(f"Channel {ch}: {count} occurrences")
+
+
+        # Save histogram data to file
+        with open("hist_last_five_channels_joint2.csv", 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Channel Index"])
+            writer.writerows([[ch] for ch in final_channel_distributions])
 
         # Plot histogram of remaining channels in the last 5 steps across repeats
         plt.figure(figsize=(10, 6))
@@ -2302,9 +2312,9 @@ class Classifier:
                 selected_indices.append(best_channel_to_add)
                 available_indices.remove(best_channel_to_add)
 
-                # Track the first 5 chosen channels
-                if step < 5:
-                    first_five_chosen_channels.append(best_channel_to_add)
+                if len(selected_indices) == 5:
+                    first_five_chosen_channels.append(
+                        list(selected_indices))  # Store only once when 5 channels have been added
 
                 # Compute accuracy after adding the best channel
                 feature_matrix = compute_features(selected_indices)
@@ -2353,6 +2363,12 @@ class Classifier:
                 plt.show(block=True)
             else:
                 plt.pause(1)
+
+        # Save histogram data to file
+        with open("hist_first_five_channels", 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Channel Index"])
+            writer.writerows([[ch] for ch in first_five_chosen_channels])
 
         # Plot histogram of the first 5 chosen channels across repeats
         plt.figure(figsize=(10, 6))

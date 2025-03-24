@@ -81,6 +81,10 @@ if __name__ == "__main__":
     # plot_accuracy_vs_decimation('cabernet_sauvignon')
     # plot_press_wines_accuracies()
     # utils.rename_directories("/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/011222/")
+    # plot_histogram_correlation(
+    #     "/home/luiscamara/PycharmProjects/wine_analysis/src/hist_last_five_channels_merlot.csv",
+    #     "/home/luiscamara/PycharmProjects/wine_analysis/src/hist_last_five_channels_cab_sauv.csv",
+    # )
     ###########################
 
     cl = ChromatogramAnalysis()
@@ -148,10 +152,10 @@ if __name__ == "__main__":
 
         elif CHANNEL_METHOD == "greedy_remove":
             cls.train_and_evaluate_greedy_remove(
-                num_repeats=50, num_outer_repeats=1, n_inner_repeats=50,
+                num_repeats=200, num_outer_repeats=1, n_inner_repeats=20,
                 random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=50, feature_type=FEATURE_TYPE
+                n_jobs=20, feature_type=FEATURE_TYPE
             )
 
         elif CHANNEL_METHOD == "greedy_remove_batch":
