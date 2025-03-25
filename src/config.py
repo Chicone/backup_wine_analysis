@@ -35,7 +35,7 @@ STRIDE = 200
 # Analysis parameters
 DATA_TYPE = "GCMS"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
 CH_TREAT = 'concatenated'  # 'independent',  'concatenated'
-CHANNEL_METHOD = 'greedy_add_ranked' # greedy_remove, greedy_remove_batch, greedy_add, all_channels, greedy_add_ranked, greedy_remove_ranked
+CHANNEL_METHOD = 'greedy_remove' # all_channels, greedy_add_ranked, greedy_add, greedy_remove_ranked, greedy_remove, greedy_remove_batch
 FEATURE_TYPE = 'tic_tis'  # concatenated tic_tis
 SYNC_STATE = False  # Use retention time alignment
 CONCATENATE_TICS = False

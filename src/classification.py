@@ -1377,7 +1377,7 @@ class Classifier:
         plt.show(block=True)
 
         # Save histogram data to CSV
-        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_add_ranked_merlot.csv", 'w', newline='') as file:
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_add_ranked_merlot.csv", 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["Channel Index"])
             for ch in first_five_chosen_channels:
@@ -1509,7 +1509,7 @@ class Classifier:
         plt.show(block=True)
 
         # Save histogram data to CSV
-        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_remove_ranked_merlot.csv",
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_remove_ranked_merlot.csv",
                   'w', newline=''
                   ) as file:
             writer = csv.writer(file)
@@ -1665,7 +1665,7 @@ class Classifier:
                 plt.pause(1)
 
         # Save histogram data to file
-        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_first_five_channels_wine_type.csv", 'w', newline='') as file:
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_add_merlot.csv", 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["Channel Index"])
             writer.writerows([[ch] for ch in first_five_chosen_channels])
@@ -1844,7 +1844,7 @@ class Classifier:
 
 
         # Save histogram data to file
-        with open("hist_last_five_channels_joint2.csv", 'w', newline='') as file:
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_remove_merlot.csv", 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["Channel Index"])
             writer.writerows([[ch] for ch in final_channel_distributions])
