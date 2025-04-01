@@ -1,3 +1,30 @@
+"""
+This script trains and evaluates a classifier to distinguish between two types of press wine
+(Merlot and Cabernet Sauvignon) based on GC-MS (Gas Chromatography-Mass Spectrometry) data
+using Total Ion Chromatograms (TICs) as features.
+
+Workflow summary:
+1. Load GC-MS data from CSV files for Merlot (training) and Cabernet (test) samples.
+2. Align sample lengths and decimate the data to reduce dimensionality.
+3. Compute Total Ion Chromatograms (TICs) for each sample.
+4. Normalize the TIC data (optional).
+5. Assign class labels based on file identifiers.
+6. Train a Ridge Classifier on the Merlot TICs.
+7. Evaluate performance on Cabernet samples using standard classification metrics:
+   - Accuracy, Balanced Accuracy, Weighted Accuracy
+   - Precision, Recall, F1 Score
+   - Normalized Confusion Matrix
+8. Print all metrics and compare against chance-level performance based on class priors.
+
+Dependencies:
+- NumPy
+- Scikit-learn
+- Custom modules: `utils`, `wine_analysis`, and `classification`
+
+Note:
+- Designed for comparing generalization to a different varietal (domain shift).
+- Data format must match expected structure in `utils.load_ms_csv_data_from_directories()`.
+"""
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA

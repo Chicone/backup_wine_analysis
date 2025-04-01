@@ -727,69 +727,123 @@ class Classifier:
                                     use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
                                     test_on_discarded=False):
 
-        def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None, group_duplicates=True):
+        # def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None, group_duplicates=True):
+        #     """
+        #         Perform ShuffleSplit on samples while ensuring that:
+        #         - Duplicates of the same sample are kept together (if enabled).
+        #         - Each class is represented in the test set.
+        #
+        #     Args:
+        #         X (array-like): Feature matrix or sample labels.
+        #         y (array-like): Composite labels (e.g., ['A1', 'A1', 'B2', 'B2']).
+        #         test_size (float): Fraction of samples to include in the test set.
+        #         random_state (int): Random seed for reproducibility.
+        #         group_duplicates (bool): If True, duplicates of the same sample are kept together.
+        #                                  If False, duplicates are treated independently.
+        #
+        #     Returns:
+        #         tuple: train_indices, test_indices (numpy arrays)
+        #     """
+        #     import numpy as np
+        #
+        #     rng = np.random.default_rng(random_state)
+        #
+        #     if group_duplicates:
+        #         unique_samples = {}  # {sample_label: [indices]}
+        #         class_samples = defaultdict(list)  # {class_label: [sample_label1, sample_label2, ...]}
+        #
+        #         for idx, label in enumerate(y):
+        #             unique_samples.setdefault(label, []).append(idx)
+        #             class_samples[label[0]].append(label)  # Assuming class is the first character (e.g., 'A1' -> 'A')
+        #
+        #         sample_labels = list(unique_samples.keys())
+        #         rng.shuffle(sample_labels)
+        #
+        #         # Step 1: Randomly select test samples
+        #         num_test_samples = int(len(sample_labels) * test_size)
+        #         test_sample_labels = set(sample_labels[:num_test_samples])
+        #
+        #         # Step 2: Ensure each class is represented in the test set
+        #         test_classes = {label[0] for label in test_sample_labels}
+        #         missing_classes = [c for c in class_samples if c not in test_classes]
+        #
+        #         # Step 3: Force at least one sample from missing classes
+        #         for class_label in missing_classes:
+        #             additional_sample = rng.choice(class_samples[class_label])
+        #             test_sample_labels.add(additional_sample)
+        #
+        #         # Step 4: Convert sample labels to index lists
+        #         test_indices = [idx for label in test_sample_labels for idx in unique_samples[label]]
+        #         train_indices = [idx for label in sample_labels if label not in test_sample_labels for idx in
+        #                          unique_samples[label]]
+        #
+        #     else:
+        #         # Treat each instance independently
+        #         indices = np.arange(len(y))
+        #         rng.shuffle(indices)
+        #
+        #         # Calculate the number of test samples
+        #         num_test_samples = int(len(indices) * test_size)
+        #
+        #         # Split into train and test sets
+        #         test_indices = indices[:num_test_samples]
+        #         train_indices = indices[num_test_samples:]
+        #
+        #     return np.array(train_indices), np.array(test_indices)
+
+        def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None,
+                                                       group_duplicates=True):
             """
-                Perform ShuffleSplit on samples while ensuring that:
-                - Duplicates of the same sample are kept together (if enabled).
-                - Each class is represented in the test set.
-
-            Args:
-                X (array-like): Feature matrix or sample labels.
-                y (array-like): Composite labels (e.g., ['A1', 'A1', 'B2', 'B2']).
-                test_size (float): Fraction of samples to include in the test set.
-                random_state (int): Random seed for reproducibility.
-                group_duplicates (bool): If True, duplicates of the same sample are kept together.
-                                         If False, duplicates are treated independently.
-
-            Returns:
-                tuple: train_indices, test_indices (numpy arrays)
+            Perform ShuffleSplit on samples while ensuring:
+            - Duplicates of the same sample (including dataset origin) are kept together (if enabled).
+            - Each class is represented in the test set.
             """
-            import numpy as np
-
             rng = np.random.default_rng(random_state)
 
             if group_duplicates:
-                unique_samples = {}  # {sample_label: [indices]}
-                class_samples = defaultdict(list)  # {class_label: [sample_label1, sample_label2, ...]}
+                unique_samples = {}  # {(origin, label): [indices]}
+                class_samples = defaultdict(list)  # {class_label: [(origin, label), ...]}
 
                 for idx, label in enumerate(y):
-                    unique_samples.setdefault(label, []).append(idx)
-                    class_samples[label[0]].append(label)  # Assuming class is the first character (e.g., 'A1' -> 'A')
+                    origin = self.dataset_origins[idx]
+                    key = (origin, label)
+                    unique_samples.setdefault(key, []).append(idx)
+                    class_label = label[0]  # e.g. 'A' from 'A1'
+                    class_samples[class_label].append(key)
 
-                sample_labels = list(unique_samples.keys())
-                rng.shuffle(sample_labels)
+                sample_keys = list(unique_samples.keys())
+                rng.shuffle(sample_keys)
 
                 # Step 1: Randomly select test samples
-                num_test_samples = int(len(sample_labels) * test_size)
-                test_sample_labels = set(sample_labels[:num_test_samples])
+                num_test_samples = int(len(sample_keys) * test_size)
+                test_sample_keys = set(sample_keys[:num_test_samples])
 
-                # Step 2: Ensure each class is represented in the test set
-                test_classes = {label[0] for label in test_sample_labels}
-                missing_classes = [c for c in class_samples if c not in test_classes]
+                # Step 2: Ensure all class labels are represented
+                test_classes = {key[1][0] for key in test_sample_keys}  # e.g. 'A' from ('merlot', 'A1')
+                missing_classes = [cls for cls in class_samples if cls not in test_classes]
 
-                # Step 3: Force at least one sample from missing classes
                 for class_label in missing_classes:
-                    additional_sample = rng.choice(class_samples[class_label])
-                    test_sample_labels.add(additional_sample)
+                    candidate_keys = class_samples[class_label]
+                    additional_key = rng.choice(candidate_keys)
+                    test_sample_keys.add(additional_key)
 
-                # Step 4: Convert sample labels to index lists
-                test_indices = [idx for label in test_sample_labels for idx in unique_samples[label]]
-                train_indices = [idx for label in sample_labels if label not in test_sample_labels for idx in
-                                 unique_samples[label]]
+                # Step 3: Translate keys into train/test indices
+                test_indices = [idx for key in test_sample_keys for idx in unique_samples[key]]
+                train_indices = [idx for key in sample_keys if key not in test_sample_keys for idx in
+                                 unique_samples[key]]
 
             else:
-                # Treat each instance independently
+                # Fallback: treat each instance independently
                 indices = np.arange(len(y))
                 rng.shuffle(indices)
-
-                # Calculate the number of test samples
                 num_test_samples = int(len(indices) * test_size)
-
-                # Split into train and test sets
                 test_indices = indices[:num_test_samples]
                 train_indices = indices[num_test_samples:]
 
             return np.array(train_indices), np.array(test_indices)
+
+
+
 
         def extract_category_labels(composite_labels):
             """
@@ -1424,7 +1478,8 @@ class Classifier:
             feature_type (str): Feature representation.
         """
         all_test_accuracies = []
-        final_removed_channels = []  # Track the last 5 removed channels per repeat
+        # final_removed_channels = []  # Track the last 5 removed channels per repeat
+        final_remaining_channels = []  # Track the last 5 remaining channels per repeat
         cls_data = self.data.copy()
         num_samples, num_timepoints, num_channels = cls_data.shape
         labels = self.labels
@@ -1483,11 +1538,15 @@ class Classifier:
                 if print_results:
                     print(f"Remaining {n} channel(s): Test Accuracy = {results['overall_balanced_accuracy']:.3f}")
 
+                # Corrected code to save when exactly 5 channels remain:
+                if len(selected_indices) == 5:
+                    final_remaining_channels.append(selected_indices.copy())
+
                 if n > num_min_channels:
                     removed_channels.append(selected_indices[0])
                     selected_indices.pop(0)  # Remove worst-ranked remaining channel
 
-            final_removed_channels.append(removed_channels[-5:])
+            # final_removed_channels.append(removed_channels[-5:])
             all_test_accuracies.append(incremental_accuracies)
 
             # Dynamic plot update
@@ -1514,12 +1573,17 @@ class Classifier:
                   ) as file:
             writer = csv.writer(file)
             writer.writerow(["Channel Index"])
-            writer.writerows([[ch] for ch in final_removed_channels])
+            # writer.writerows([[ch] for ch in final_removed_channels])
+            for channels in final_remaining_channels:
+                writer.writerow([str(channels)])  # Convert list explicitly to string
 
         # Plot histogram
         plt.figure(figsize=(10, 6))
-        plt.hist(final_removed_channels,
-                 bins=np.arange(min(final_removed_channels), max(final_removed_channels) + 2) - 0.5,
+        # plt.hist(final_removed_channels,
+        #          bins=np.arange(min(final_removed_channels), max(final_removed_channels) + 2) - 0.5,
+        #          edgecolor='black')
+        plt.hist(final_remaining_channels,
+                 bins=np.arange(min(final_remaining_channels), max(final_remaining_channels) + 2) - 0.5,
                  edgecolor='black')
         plt.xlabel("Channel Index")
         plt.ylabel("Number of Occurrences")
@@ -1665,7 +1729,7 @@ class Classifier:
                 plt.pause(1)
 
         # Save histogram data to file
-        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_add_merlot.csv", 'w', newline='') as file:
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_add_wine_type.csv", 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["Channel Index"])
             writer.writerows([[ch] for ch in first_five_chosen_channels])
@@ -1806,6 +1870,7 @@ class Classifier:
 
                 # Track the last 5 steps' remaining channels
                 if len(remaining_indices) == 5:
+                # if len(remaining_indices) == 10:
                     final_channel_distributions.append(
                         list(remaining_indices))  # Only store when there are exactly 5 left
 
@@ -1844,7 +1909,201 @@ class Classifier:
 
 
         # Save histogram data to file
-        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_remove_merlot.csv", 'w', newline='') as file:
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_remove_wine_type.csv", 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Channel Index"])
+            writer.writerows([[ch] for ch in final_channel_distributions])
+
+        # Plot histogram of remaining channels in the last 5 steps across repeats
+        plt.figure(figsize=(10, 6))
+        plt.hist(final_channel_distributions, bins=np.arange(min(final_channel_distributions), max(final_channel_distributions) + 1) - 0.5, edgecolor='black')
+        plt.xlabel("Channel Index")
+        plt.ylabel("Number of Repeats")
+        plt.title("Histogram of Channels Remaining in the Last 5 Steps Across Repeats")
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.show(block=True)
+
+        # Final Summary
+        print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
+
+        return mean_test_accuracies, std_test_accuracies
+
+
+    def train_and_evaluate_greedy_remove_diff_origins(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
+                                         random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
+                                         use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+                                         feature_type="concatenated",
+                                         dataset_origins=None,
+                                         target_origin=None):
+        """
+        Perform greedy channel removal with an option to use either:
+          - "concatenated": Raw m/z channels concatenated as features.
+          - "tic_tis": Computes and concatenates TIC (Total Ion Chromatogram) and TIS (Total Ion Spectrum).
+
+        Parameters:
+        ----------
+        feature_type : str
+            - "concatenated" (default) → Uses raw m/z channels.
+            - "tic_tis" → Uses TIC (sum over m/z) and TIS (sum over time).
+        """
+
+        all_test_accuracies = []
+        final_channel_distributions = []  # Track channels left in last 5 steps
+
+        def compute_features(channels):
+            """ Compute features based on chosen feature type. """
+            if feature_type == "concatenated":
+                try:
+                    # Concatenate raw selected channels
+                    concatenated_data = np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+                except Exception as e:
+                    print(f"An error occurred while plotting: {e}")
+                return concatenated_data
+            elif feature_type == "tic_tis":
+                # Compute TIC (sum over m/z) and TIS (sum over time)
+                tic = np.sum(cls_data[:, :, channels], axis=2)  # (num_samples, num_timepoints)
+                tis = np.sum(cls_data[:, :, channels], axis=1)  # (num_samples, num_channels)
+                return np.hstack([tic, tis])  # Combine TIC and TIS
+            else:
+                raise ValueError("Invalid feature_type. Use 'concatenated' or 'tic_tis'.")
+
+        # Evaluate the accuracy of removing each channel
+        def evaluate_channel(ch_idx):
+            print(f'Step {step}; Channel = {ch_idx}')
+            temp_indices = [idx for idx in remaining_indices if idx != ch_idx]
+            if not temp_indices:  # If no channels remain, skip this iteration
+                print(f"⚠️ No remaining channels after removing {ch_idx}. Skipping evaluation.")
+                return ch_idx, None  # Return None to avoid breaking max() call later
+
+            feature_matrix = compute_features(temp_indices)
+
+            if feature_matrix is None or feature_matrix.size == 0:  # Check if feature matrix is empty
+                print(f"⚠️ Feature matrix is empty after removing {ch_idx}. Skipping.")
+                return ch_idx, None
+
+            cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                             year_labels=self.year_labels,
+                             dataset_origins=dataset_origins)
+            results = cls.train_and_evaluate_balanced_diff_origins(
+                random_seed=random_seed + repeat_idx,
+                test_size=test_size,
+                normalize=normalize,
+                scaler_type=scaler_type,
+                use_pca=use_pca,
+                vthresh=vthresh,
+                region=region,
+                print_results=False,
+                n_jobs=n_jobs,
+                test_on_discarded=True
+            )
+            # Extract just the result for the target origin
+            origin_key = str(target_origin)
+            if origin_key not in results:
+                print(f"⚠️ Target origin '{origin_key}' not found in results. Skipping.")
+                return None  # Or continue safely
+
+            # Pull the accuracy for that specific dataset
+            accuracy = results[origin_key]["balanced_accuracy"]
+            return ch_idx, accuracy
+
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+
+            cls_data = self.data.copy()  # Shape: (num_samples, num_timepoints, num_channels)
+            num_samples, num_timepoints, num_channels = cls_data.shape
+            labels = self.labels
+
+            # Start with all channels
+            remaining_indices = list(range(num_channels))
+            incremental_accuracies = [None]  # Store accuracy before removing any channels
+
+            for step in range(min(num_channels, 137 + 1)):  # Limit number of removals for efficiency
+
+                if not remaining_indices:  # Prevent issues when all channels are removed
+                    print("⚠️ No more channels left to remove. Stopping early.")
+                    break
+
+                # Compute current accuracy before removing any channel this iteration
+                feature_matrix = compute_features(remaining_indices)
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels,
+                                 dataset_origins=dataset_origins)
+                results = cls.train_and_evaluate_balanced_diff_origins(
+                    random_seed=random_seed + repeat_idx,
+                    test_size=test_size,
+                    normalize=normalize,
+                    scaler_type=scaler_type,
+                    use_pca=use_pca,
+                    vthresh=vthresh,
+                    region=region,
+                    print_results=False,
+                    n_jobs=n_jobs,
+                    test_on_discarded=True
+                )
+                # Extract just the result for the target origin
+                origin_key = str(target_origin)
+                if origin_key not in results:
+                    print(f"⚠️ Target origin '{origin_key}' not found in results. Skipping.")
+                    return None  # Or continue safely
+
+                # Parallel execution to test removing each channel
+                validation_accuracies = Parallel(n_jobs=n_jobs, backend='loky')(
+                    delayed(evaluate_channel)(ch_idx) for ch_idx in remaining_indices)
+
+                # Store accuracy at current step (before removal)
+                if incremental_accuracies[0] is None:
+                    incremental_accuracies[0] = results[origin_key]["balanced_accuracy"]
+                else:
+                    incremental_accuracies.append(results[origin_key]['balanced_accuracy'])
+
+                # Remove the channel whose removal leads to the highest validation accuracy
+                max_accuracy = max(validation_accuracies, key=lambda x: x[1])[1]
+                candidates = [ch_idx for ch_idx, acc in validation_accuracies if acc == max_accuracy]
+                best_channel_to_remove = random.choice(candidates)  # Randomly select one of the best
+                remaining_indices.remove(best_channel_to_remove)
+
+                # Track the last 5 steps' remaining channels
+                if len(remaining_indices) == 5:
+                # if len(remaining_indices) == 10:
+                    final_channel_distributions.append(
+                        list(remaining_indices))  # Only store when there are exactly 5 left
+
+                if print_results:
+                    print(
+                        f"After removing {step + 1} channel(s): Test Accuracy = {results[origin_key]['balanced_accuracy']:.3f}")
+
+            all_test_accuracies.append(incremental_accuracies)
+
+            # Dynamic plot after each repeat
+            plt.ion()  # Enable interactive mode
+            plt.clf()  # Clear the current figure
+            mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
+            std_test_accuracies = np.std(all_test_accuracies, axis=0)
+
+            x = range(len(mean_test_accuracies))
+            plt.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
+            plt.fill_between(x, mean_test_accuracies - std_test_accuracies, mean_test_accuracies + std_test_accuracies,
+                             alpha=0.3, label='± 1 Std Dev')
+
+            plt.xlabel("Number of Channels Removed")
+            plt.ylabel("Mean Balanced Accuracy")
+            plt.title(f"Performance Trend with Greedy Remove ({feature_type}; {repeat_idx + 1} / {num_repeats})")
+            plt.grid(True)
+            plt.legend()
+            if repeat_idx == num_repeats - 1:
+                plt.show(block=True)  # Keep the final plot open without closing the program
+            else:
+                plt.pause(1)  # Pause briefly to allow the plot to update
+
+        # Print distribution of remaining channels
+        print("\nDistribution of Remaining Channels in the Last 5 Steps:")
+        unique_channels, counts = np.unique(final_channel_distributions, return_counts=True)
+        for ch, count in zip(unique_channels, counts):
+            print(f"Channel {ch}: {count} occurrences")
+
+
+        # Save histogram data to file
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_remove_wine_type.csv", 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["Channel Index"])
             writer.writerows([[ch] for ch in final_channel_distributions])
@@ -2062,6 +2321,87 @@ class Classifier:
             print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
         return mean_test_accuracies, std_test_accuracies
 
+    def train_and_evaluate_random_channel_subsets(self, num_repeats=100, n_inner_repeats=20,
+                                                  random_seed=42, test_size=0.2, normalize=False,
+                                                  scaler_type='standard', use_pca=False, vthresh=0.97,
+                                                  region=None, print_results=True, n_jobs=-1,
+                                                  feature_type="tic_tis"):
+        """
+        Randomly selects 5 channels for each repeat and evaluates performance.
+        Intended for comparison with greedy removal, for histogram generation.
+        """
+        all_test_accuracies = []
+        final_channel_distributions = []
+
+        def compute_features(channels):
+            if feature_type == "concatenated":
+                return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+            elif feature_type == "tic_tis":
+                tic = np.sum(cls_data[:, :, channels], axis=2)
+                tis = np.sum(cls_data[:, :, channels], axis=1)
+                return np.hstack([tic, tis])
+            else:
+                raise ValueError("Invalid feature_type. Use 'concatenated' or 'tic_tis'.")
+
+        import time
+        random_seed = int(time.time_ns())  # use time-based entropy
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+
+            cls_data = self.data.copy()
+            labels = self.labels
+            num_samples, num_timepoints, num_channels = cls_data.shape
+
+            random.seed(random_seed + repeat_idx)
+            selected_channels = sorted(random.sample(range(num_channels), 5))
+            final_channel_distributions.append(selected_channels)
+
+            feature_matrix = compute_features(selected_channels)
+
+            cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                             year_labels=self.year_labels)
+
+            results = cls.train_and_evaluate_balanced(
+                n_inner_repeats=n_inner_repeats,
+                random_seed=random_seed + repeat_idx,
+                test_size=test_size,
+                normalize=normalize,
+                scaler_type=scaler_type,
+                use_pca=use_pca,
+                vthresh=vthresh,
+                region=region,
+                print_results=False,
+                n_jobs=n_jobs,
+                test_on_discarded=False
+            )
+
+            all_test_accuracies.append(results['overall_balanced_accuracy'])
+
+            if print_results:
+                print(f"Selected Channels: {selected_channels} | Accuracy = {results['overall_balanced_accuracy']:.3f}")
+
+        # Save histogram data
+        output_file = "/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_random_channel_subset_merlot.csv"
+        with open(output_file, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Selected Channels"])
+            for subset in final_channel_distributions:
+                writer.writerow([subset])
+
+        # Plot histogram
+        flat_channels = [ch for subset in final_channel_distributions for ch in subset]
+        plt.figure(figsize=(10, 6))
+        plt.hist(flat_channels, bins=np.arange(min(flat_channels), max(flat_channels) + 2) - 0.5, edgecolor='black')
+        plt.xlabel("Channel Index")
+        plt.ylabel("Frequency across repeats")
+        plt.title("Histogram of Randomly Selected 5 Channels")
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.show(block=True)
+
+        print(f"\nFinal Mean Accuracy: {np.mean(all_test_accuracies):.3f} ± {np.std(all_test_accuracies):.3f}")
+
+        return np.mean(all_test_accuracies), np.std(all_test_accuracies)
+
 
 
     def train_and_evaluate_tic(
@@ -2201,7 +2541,7 @@ class Classifier:
         mean_test_accuracy = np.mean(accuracies, axis=0)
         std_test_accuracy = np.std(accuracies, axis=0)
         print("\n##################################")
-        print(f"Final Mean Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f} "
+        print(f"Final Mean Balanced Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f} "
               f"(chance {results['chance_accuracy']:.3f})")
 
         # Compute the averaged confusion matrix across all repetitions
@@ -2213,6 +2553,7 @@ class Classifier:
         print("##################################")
 
         return mean_test_accuracy, std_test_accuracy
+
 
 
     def train_and_evaluate_all_channels(

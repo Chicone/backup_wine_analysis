@@ -883,52 +883,82 @@ def sum_data_in_data_dict(data_dict, axis=1):
 #     # Print without escape characters
 #     print(latex_string)
 
-def string_to_latex_confusion_matrix(data_str, headers):
+def string_to_latex_correlation_matrix(data_str, headers):
     """
-    Converts a confusion matrix string to a LaTeX table format with rows summing to 100%.
+    Converts a correlation matrix string to a LaTeX table with \cellcolorval highlighting.
 
     Parameters:
     ----------
     data_str : str
-        The confusion matrix as a string (rows separated by `] [`).
+        The correlation matrix as a string (e.g., from np.array2string()).
     headers : list of str
-        List of column/row headers.
+        List of column and row headers.
 
     Returns:
     -------
     None
-        Prints the LaTeX string for the confusion matrix, ready for copy-pasting.
+        Prints the LaTeX-formatted table with \cellcolorval for values in [0, 1].
     """
-    # Convert string to numpy array
-    data_str = re.sub(r'\s+', ' ', data_str.replace('\n', ' '))  # Clean up whitespace
+    # Cleanup and parse matrix from string to numpy array
+    data_str = re.sub(r'\s+', ' ', data_str.replace('\n', ' '))
     data = np.array([list(map(float, row.split())) for row in data_str[2:-2].split('] [')])
 
-    # Normalize each row to sum to 100%
-    normalized_data = []
-    for row in data:
-        row = row / row.sum() * 100  # Normalize to percentages
-        rounded_row = np.floor(row).astype(int)  # Round down all values
-        rounded_row[-1] += 100 - rounded_row.sum()  # Adjust the last element
-        normalized_data.append(rounded_row)
-    normalized_data = np.array(normalized_data)
-
     # Begin LaTeX table string
-    latex_string = "\\begin{table}[h!]\n\\centering\n\\begin{tabular}{|c|" + "c|" * len(headers) + "}\n    \\hline\n"
+    latex = "\\begin{table}[h!]\n\\centering\n\\begin{tabular}{|c|" + "c|" * len(headers) + "}\n\\hline\n"
 
-    # Add column headers with rotated labels
-    latex_string += "    & " + " & ".join(f"\\rotatebox{{90}}{{{header}}}" for header in headers) + " \\\\\\hline\n"
+    # Add headers
+    latex += " & " + " & ".join(f"\\rotatebox{{90}}{{{h}}}" for h in headers) + " \\\\\n\\hline\n"
 
-    # Populate rows with cell color and no display value
-    for i, row in enumerate(normalized_data):
-        row_name = headers[i]
-        row_cells = " & ".join(f"\\cellcolorval{{{value}}}" for value in row)
-        latex_string += f"    {row_name} & {row_cells} \\\\\\hline\n"
+    # Populate rows with \cellcolorval and actual values
+    for i, row in enumerate(data):
+        row_label = headers[i]
+        formatted_row = " & ".join(f"\\cellcolorval{{{v:.3f}}} {v:.3f}" for v in row)
+        latex += f"{row_label} & {formatted_row} \\\\\n\\hline\n"
 
-    # Complete LaTeX table
-    latex_string += "\\end{tabular}\n\\caption{Confusion Matrix in LaTeX}\n\\end{table}"
+    latex += "\\end{tabular}\n\\caption{Correlation Matrix with Heatmap Coloring}\n\\end{table}"
+    print(latex)
 
-    # Print the LaTeX table
-    print(latex_string)
+
+def string_to_latex_colored_matrix(data_str, headers, round_decimals=3):
+    """
+    Converts a correlation matrix string to a LaTeX table with dynamic cell coloring and font color for readability.
+
+    Parameters:
+    -----------
+    data_str : str
+        Correlation matrix as a string from np.array2string().
+    headers : list of str
+        Labels for rows/columns.
+    round_decimals : int
+        Number of decimals to display in the cell.
+    """
+    import re
+    import numpy as np
+
+    # Parse and clean string matrix
+    data_str = re.sub(r'\s+', ' ', data_str.replace('\n', ' '))
+    data = np.array([list(map(float, row.split())) for row in data_str[2:-2].split('] [')])
+
+    # Begin LaTeX table
+    latex = "\\begin{table}[h!]\n\\centering\n\\begin{tabular}{|c|" + "c|" * len(headers) + "}\n\\hline\n"
+    latex += " & " + " & ".join(f"\\rotatebox{{90}}{{{h}}}" for h in headers) + " \\\\\n\\hline\n"
+
+    for i, row in enumerate(data):
+        label = headers[i]
+        cells = []
+        for val in row:
+            colorval = int(round(val * 100))
+            text_color = ""
+            # text_color = "\\textcolor{white}" if colorval > 70 else ""
+            cell = f"\\cellcolor{{lightblue!{colorval}!white}} {text_color}{{{val:.{round_decimals}f}}}"
+            cells.append(cell)
+        latex += f"{label} & {' & '.join(cells)} \\\\\n\\hline\n"
+
+    latex += "\\end{tabular}\n\\caption{Correlation Matrix with Heatmap Coloring}\n\\end{table}"
+
+    print(latex)
+
+
 
 
 def plot_image(image):
