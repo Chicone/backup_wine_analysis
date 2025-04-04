@@ -95,9 +95,59 @@ class Classifier:
         self.alpha=alpha
         self.classifier = self._get_classifier(classifier_type)
         self.year_labels = year_labels
-        self.dataset_origins=dataset_origins
+        self.dataset_origins = dataset_origins
 
+    def shuffle_split_without_splitting_duplicates(self, X, y, test_size=0.2, random_state=None,
+                                                   group_duplicates=True,
+                                                   dataset_origins=None):
+        """
+        Perform ShuffleSplit on samples while ensuring:
+        - Duplicates of the same sample (including dataset origin) are kept together (if enabled).
+        - Each class is represented in the test set.
+        """
+        rng = np.random.default_rng(random_state)
 
+        if group_duplicates:
+            unique_samples = {}  # {(origin, label): [indices]}
+            class_samples = defaultdict(list)  # {class_label: [(origin, label), ...]}
+
+            for idx, label in enumerate(y):
+                origin = dataset_origins[idx]
+                key = (origin, label)
+                unique_samples.setdefault(key, []).append(idx)
+                class_label = label[0]  # e.g. 'A' from 'A1'
+                class_samples[class_label].append(key)
+
+            sample_keys = list(unique_samples.keys())
+            rng.shuffle(sample_keys)
+
+            # Step 1: Randomly select test samples
+            num_test_samples = int(len(sample_keys) * test_size)
+            test_sample_keys = set(sample_keys[:num_test_samples])
+
+            # Step 2: Ensure all class labels are represented
+            test_classes = {key[1][0] for key in test_sample_keys}  # e.g. 'A' from ('merlot', 'A1')
+            missing_classes = [cls for cls in class_samples if cls not in test_classes]
+
+            for class_label in missing_classes:
+                candidate_keys = class_samples[class_label]
+                additional_key = tuple(rng.choice(candidate_keys))
+                test_sample_keys.add(additional_key)
+
+            # Step 3: Translate keys into train/test indices
+            test_indices = [idx for key in test_sample_keys for idx in unique_samples[key]]
+            train_indices = [idx for key in sample_keys if key not in test_sample_keys for idx in
+                             unique_samples[key]]
+
+        else:
+            # Fallback: treat each instance independently
+            indices = np.arange(len(y))
+            rng.shuffle(indices)
+            num_test_samples = int(len(indices) * test_size)
+            test_indices = indices[:num_test_samples]
+            train_indices = indices[num_test_samples:]
+
+        return np.array(train_indices), np.array(test_indices)
 
     def _get_classifier(self, classifier_type):
         """
@@ -582,13 +632,13 @@ class Classifier:
             custom_order = None
 
         # Initialize accumulators for outer-repetition averaged metrics.
-        outer_accuracy = []
-        outer_balanced_accuracy = []
-        outer_weighted_accuracy = []
-        outer_precision = []
-        outer_recall = []
-        outer_f1 = []
-        outer_cm = []
+        eval_accuracy = []
+        eval_balanced_accuracy = []
+        eval_weighted_accuracy = []
+        eval_precision = []
+        eval_recall = []
+        eval_f1 = []
+        eval_cm = []
 
         # Use a reproducible RNG.
         if random_seed is None:
@@ -604,10 +654,17 @@ class Classifier:
         # # sss = StratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=rng.integers(0, int(1e6)))
         # sss = ShuffleSplit(n_splits=1, test_size=test_size, random_state=rng.integers(0, int(1e6)))
         # train_idx, _ = next(sss.split(self.data, self.labels))
+
+        # train_idx, test_idx = shuffle_split_without_splitting_duplicates(
+        #     self.data, self.labels, test_size=test_size, random_state=rng.integers(0, int(1e6)),
+        #     group_duplicates=use_groups
+        # )
+
         train_idx, test_idx = shuffle_split_without_splitting_duplicates(
-            self.data, self.labels, test_size=test_size, random_state=rng.integers(0, int(1e6)),
+            self.data, self.labels, test_size=test_size, random_state=random_seed,
             group_duplicates=use_groups
         )
+
         X_train_full, X_test = self.data[train_idx], self.data[test_idx]
         if self.year_labels.size > 0 and np.any(self.year_labels != None):
             y_train_full, y_test = self.year_labels[train_idx], self.year_labels[test_idx]
@@ -630,7 +687,7 @@ class Classifier:
             if self.year_labels.size > 0 and np.any(self.year_labels != None):
                 self.classifier.fit(X_train_full, y_train_full)
             else:
-                self.classifier.fit(X_train_full, extract_category_labels(y_train_full))
+                self.classifier.fit(X_train_full, np.array(extract_category_labels(y_train_full)))
                 y_test = extract_category_labels(y_test)
             # self.classifier.fit(X_train_full, extract_category_labels(y_train_full))
             # y_test = extract_category_labels(y_test)
@@ -638,23 +695,23 @@ class Classifier:
             y_pred = self.classifier.predict(X_test)
 
 
-            outer_accuracy.append(accuracy_score(y_test, y_pred))
-            outer_balanced_accuracy.append(balanced_accuracy_score(y_test, y_pred))
-            outer_weighted_accuracy.append(
+            eval_accuracy.append(accuracy_score(y_test, y_pred))
+            eval_balanced_accuracy.append(balanced_accuracy_score(y_test, y_pred))
+            eval_weighted_accuracy.append(
                 np.average(y_pred == y_test, weights=compute_sample_weight('balanced', y_test)))
-            outer_precision.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
-            outer_recall.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
-            outer_f1.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
-            outer_cm.append(confusion_matrix(y_test, y_pred))
+            eval_precision.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
+            eval_recall.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
+            eval_f1.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
+            eval_cm.append(confusion_matrix(y_test, y_pred))
 
             if print_results:
                 print(f"  Test on discarded data metrics:")
-                print(f"    Accuracy: {outer_accuracy[-1]:.3f}")
-                print(f"    Balanced Accuracy: {outer_balanced_accuracy[-1]:.3f}")
-                print(f"    Weighted Accuracy: {outer_weighted_accuracy[-1]:.3f}")
-                print(f"    Precision: {outer_precision[-1]:.3f}")
-                print(f"    Recall: {outer_recall[-1]:.3f}")
-                print(f"    F1 Score: {outer_f1[-1]:.3f}")
+                print(f"    Accuracy: {eval_accuracy[-1]:.3f}")
+                print(f"    Balanced Accuracy: {eval_balanced_accuracy[-1]:.3f}")
+                print(f"    Weighted Accuracy: {eval_weighted_accuracy[-1]:.3f}")
+                print(f"    Precision: {eval_precision[-1]:.3f}")
+                print(f"    Recall: {eval_recall[-1]:.3f}")
+                print(f"    F1 Score: {eval_f1[-1]:.3f}")
 
         else:
             # cv = RepeatedLeaveOneFromEachClassCV(n_repeats=n_inner_repeats, shuffle=True, random_state=random_seed)
@@ -673,37 +730,37 @@ class Classifier:
 
             inner_acc, inner_bal_acc, inner_w_acc, inner_prec, inner_rec, inner_f1, inner_cm = zip(*results)
 
-            outer_accuracy.append(np.mean(inner_acc))
-            outer_balanced_accuracy.append(np.mean(inner_bal_acc))
-            outer_weighted_accuracy.append(np.mean(inner_w_acc))
-            outer_precision.append(np.mean(inner_prec))
-            outer_recall.append(np.mean(inner_rec))
-            outer_f1.append(np.mean(inner_f1))
-            outer_cm.append(np.mean(inner_cm, axis=0))
+            eval_accuracy.append(np.mean(inner_acc))
+            eval_balanced_accuracy.append(np.mean(inner_bal_acc))
+            eval_weighted_accuracy.append(np.mean(inner_w_acc))
+            eval_precision.append(np.mean(inner_prec))
+            eval_recall.append(np.mean(inner_rec))
+            eval_f1.append(np.mean(inner_f1))
+            eval_cm.append(np.mean(inner_cm, axis=0))
 
             if print_results:
                 print(f"  Inner CV Averages:")
-                print(f"    Accuracy: {outer_accuracy[-1]:.3f}")
-                print(f"    Balanced Accuracy: {outer_balanced_accuracy[-1]:.3f}")
-                print(f"    Weighted Accuracy: {outer_weighted_accuracy[-1]:.3f}")
-                print(f"    Precision: {outer_precision[-1]:.3f}")
-                print(f"    Recall: {outer_recall[-1]:.3f}")
-                print(f"    F1 Score: {outer_f1[-1]:.3f}")
+                print(f"    Accuracy: {eval_accuracy[-1]:.3f}")
+                print(f"    Balanced Accuracy: {eval_balanced_accuracy[-1]:.3f}")
+                print(f"    Weighted Accuracy: {eval_weighted_accuracy[-1]:.3f}")
+                print(f"    Precision: {eval_precision[-1]:.3f}")
+                print(f"    Recall: {eval_recall[-1]:.3f}")
+                print(f"    F1 Score: {eval_f1[-1]:.3f}")
 
         # Compute the averaged confusion matrix across all repetitions
-        overall_cm = np.mean(outer_cm, axis=0)
+        overall_cm = np.mean(eval_cm, axis=0)
 
         # Normalize confusion matrix row-wise (true label-wise)
         overall_cm_normalized = overall_cm.astype('float') / overall_cm.sum(axis=1, keepdims=True)
 
         overall_results = {
             'chance_accuracy': chance_accuracy,
-            'overall_accuracy': np.mean(outer_accuracy),
-            'overall_balanced_accuracy': np.mean(outer_balanced_accuracy),
-            'overall_weighted_accuracy': np.mean(outer_weighted_accuracy),
-            'overall_precision': np.mean(outer_precision),
-            'overall_recall': np.mean(outer_recall),
-            'overall_f1_score': np.mean(outer_f1),
+            'overall_accuracy': np.mean(eval_accuracy),
+            'overall_balanced_accuracy': np.mean(eval_balanced_accuracy),
+            'overall_weighted_accuracy': np.mean(eval_weighted_accuracy),
+            'overall_precision': np.mean(eval_precision),
+            'overall_recall': np.mean(eval_recall),
+            'overall_f1_score': np.mean(eval_f1),
             'overall_confusion_matrix': overall_cm,
             'overall_confusion_matrix_normalized': overall_cm_normalized,
         }
@@ -824,7 +881,7 @@ class Classifier:
 
                 for class_label in missing_classes:
                     candidate_keys = class_samples[class_label]
-                    additional_key = rng.choice(candidate_keys)
+                    additional_key = tuple(rng.choice(candidate_keys))
                     test_sample_keys.add(additional_key)
 
                 # Step 3: Translate keys into train/test indices
@@ -841,9 +898,6 @@ class Classifier:
                 train_indices = indices[num_test_samples:]
 
             return np.array(train_indices), np.array(test_indices)
-
-
-
 
         def extract_category_labels(composite_labels):
             """
@@ -889,10 +943,20 @@ class Classifier:
 
         self.classifier.fit(X_train_full, y_train_full)
 
-        if self.dataset_origins is not None:
-            unique_origins = np.unique(self.dataset_origins)
-        else:
+        # if self.dataset_origins is not None:
+        #     unique_origins = np.unique(self.dataset_origins)
+        # else:
+        #     unique_origins = [None]
+
+        # Use all samples as one group if no origins or if only one origin exists
+        if self.dataset_origins is None:
             unique_origins = [None]
+            dataset_origins_test = None  # No filtering
+        else:
+            unique_origins = np.unique(self.dataset_origins)
+            if len(unique_origins) == 1:
+                # Ensure it's a proper list so the loop runs
+                unique_origins = list(unique_origins)
 
         for origin in unique_origins:
             if dataset_origins_test is not None:
@@ -934,6 +998,637 @@ class Classifier:
                 print(f"  Confusion Matrix:\n{cm}")
 
         return results_by_origin
+
+    def train_and_evaluate_balanced_target_origin(self, n_inner_repeats=50, random_seed=42,
+                                                 test_size=0.2, normalize=False, scaler_type='standard',
+                                                 use_pca=False, vthresh=0.97, region=None, print_results=True,
+                                                 n_jobs=-1,
+                                                 test_on_discarded=False, target_origin=None,
+                                                 pre_split_indices=None):
+        """
+        Train and evaluate the classifier, reporting metrics per dataset origin.
+        Supports both inner CV and test-on-discarded strategies.
+
+        Parameters
+        ----------
+        target_origin : str or None
+            If specified, restrict evaluation to this dataset origin only.
+        """
+        from sklearn.metrics import balanced_accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+        from sklearn.decomposition import PCA
+        from sklearn.utils.class_weight import compute_sample_weight
+        from sklearn.model_selection import BaseCrossValidator
+        from collections import defaultdict, Counter
+        import numpy as np
+        import re
+
+
+        ############# FUNCTIONS #############
+        class RepeatedLeaveOneSamplePerClassCV(BaseCrossValidator):
+            def __init__(self, n_repeats=50, shuffle=True, random_state=None, use_groups=True):
+                self.n_repeats = n_repeats
+                self.shuffle = shuffle
+                self.random_state = random_state
+                self.use_groups = use_groups
+
+            def get_n_splits(self, X, y, groups=None):
+                return self.n_repeats
+
+            def split(self, X, y):
+                def get_category(label):
+                    match = re.match(r'([A-C])\d+', label)
+                    return match.group(1) if match else label
+
+                rng = np.random.default_rng(self.random_state)
+
+                if self.use_groups:
+                    indices_by_sample = {}
+                    for idx, label in enumerate(y):
+                        indices_by_sample.setdefault(label, []).append(idx)
+
+                    for _ in range(self.n_repeats):
+                        test_indices = []
+                        for category in set(map(get_category, y)):
+                            class_samples = [label for label in indices_by_sample if get_category(label) == category]
+                            chosen_sample = rng.choice(class_samples, size=1, replace=False)[0] if self.shuffle else \
+                            class_samples[0]
+                            test_indices.extend(indices_by_sample[chosen_sample])
+
+                        test_indices = np.array(test_indices)
+                        train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+                        yield train_indices, test_indices
+                else:
+                    indices_by_category = defaultdict(list)
+                    for idx, label in enumerate(y):
+                        category = get_category(label)
+                        indices_by_category[category].append(idx)
+
+                    for _ in range(self.n_repeats):
+                        test_indices = []
+                        for category, indices in indices_by_category.items():
+                            chosen = rng.choice(indices, size=1, replace=False) if self.shuffle else [indices[0]]
+                            test_indices.extend(chosen)
+
+                        test_indices = np.array(test_indices)
+                        train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+                        yield train_indices, test_indices
+
+
+        def extract_category_labels(labels):
+            return [re.match(r'([A-C])', lbl).group(1) if re.match(r'([A-C])', lbl) else lbl for lbl in labels]
+
+        def process_fold(inner_train_idx, inner_val_idx, X_train_full, y_train_full, val_origins_full):
+            X_train = X_train_full[inner_train_idx]
+            X_val = X_train_full[inner_val_idx]
+            y_train = extract_category_labels(y_train_full[inner_train_idx])
+            y_val = extract_category_labels(y_train_full[inner_val_idx])
+            val_origins = val_origins_full[inner_val_idx]
+
+            if target_origin is not None:
+                origin_mask = val_origins == target_origin
+                X_val = X_val[origin_mask]
+                y_val = np.array(y_val)[origin_mask]
+
+            if len(y_val) == 0:
+                return None
+
+            if normalize:
+                X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+                X_val = scaler.transform(X_val)
+            if use_pca:
+                pca = PCA(n_components=None, svd_solver='randomized')
+                pca.fit(X_train)
+                cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+                n_components = np.searchsorted(cumulative_variance, vthresh) + 1
+                n_components = min(n_components, len(np.unique(y_train)))
+                pca = PCA(n_components=n_components, svd_solver='randomized')
+                X_train = pca.fit_transform(X_train)
+                X_val = pca.transform(X_val)
+
+            self.classifier.fit(X_train, y_train)
+            y_pred = self.classifier.predict(X_val)
+
+            acc = np.mean(y_pred == y_val)
+            bal_acc = balanced_accuracy_score(y_val, y_pred)
+            w_acc = np.average(y_pred == y_val, weights=compute_sample_weight('balanced', y_val))
+            prec = precision_score(y_val, y_pred, average='weighted', zero_division=0)
+            rec = recall_score(y_val, y_pred, average='weighted', zero_division=0)
+            f1 = f1_score(y_val, y_pred, average='weighted', zero_division=0)
+            # cm = confusion_matrix(y_val, y_pred)
+            cm = confusion_matrix(y_val, y_pred, labels=['A', 'B', 'C'])  # adjust to your full class set
+
+
+            return {
+                target_origin: {
+                    'accuracy': acc,
+                    'balanced_accuracy': bal_acc,
+                    'weighted_accuracy': w_acc,
+                    'precision': prec,
+                    'recall': rec,
+                    'f1_score': f1,
+                    'confusion_matrix': cm,
+                }
+            }
+        ############# END FUNCTIONS #############
+
+        category_labels = extract_category_labels(self.labels)
+        use_groups = self.wine_kind == "press"
+
+        if pre_split_indices is not None:
+            train_idx, test_idx = pre_split_indices
+        else:
+            train_idx, test_idx = self.shuffle_split_without_splitting_duplicates(
+                self.data, self.labels, test_size=test_size, random_state=random_seed, group_duplicates=True
+            )
+
+        X_train_full, X_test = self.data[train_idx], self.data[test_idx]
+        y_train_full, y_test = self.labels[train_idx], self.labels[test_idx]
+        origins_train = self.dataset_origins[train_idx] if self.dataset_origins is not None else None
+        origins_test = self.dataset_origins[test_idx] if self.dataset_origins is not None else None
+
+        if test_on_discarded:
+            if normalize:
+                X_train_full, scaler = normalize_data(X_train_full, scaler=scaler_type)
+                X_test = scaler.transform(X_test)
+            if use_pca:
+                pca = PCA(n_components=None, svd_solver='randomized')
+                pca.fit(X_train_full)
+                X_train_full = pca.transform(X_train_full)
+                X_test = pca.transform(X_test)
+
+            self.classifier.fit(X_train_full, extract_category_labels(y_train_full))
+            y_test_cat = extract_category_labels(y_test)
+            y_pred = self.classifier.predict(X_test)
+
+            results = {}
+            for origin in np.unique(origins_test):
+                if target_origin is not None and origin != target_origin:
+                    continue
+                mask = origins_test == origin
+                y_true = np.array(y_test_cat)[mask]
+                y_hat = np.array(y_pred)[mask]
+                results[origin] = {
+                    'accuracy': np.mean(y_hat == y_true),
+                    'balanced_accuracy': balanced_accuracy_score(y_true, y_hat),
+                    'weighted_accuracy': np.average(y_hat == y_true, weights=compute_sample_weight('balanced', y_true)),
+                    'precision': precision_score(y_true, y_hat, average='weighted', zero_division=0),
+                    'recall': recall_score(y_true, y_hat, average='weighted', zero_division=0),
+                    'f1_score': f1_score(y_true, y_hat, average='weighted', zero_division=0),
+                    'confusion_matrix': confusion_matrix(y_true, y_hat),
+                }
+            return results
+
+        else:
+            # Initialize the cross-validation strategy
+            cv = RepeatedLeaveOneSamplePerClassCV(
+                n_repeats=n_inner_repeats,
+                shuffle=True,
+                random_state=random_seed,
+                use_groups=use_groups  # keep replicates together if applicable
+            )
+
+            # Run CV in parallel: each fold calls `process_fold()` on train/val split
+            split_results = Parallel(n_jobs=n_jobs, backend='loky')(
+                delayed(process_fold)(train_idx, val_idx, X_train_full, y_train_full, origins_train)
+                for train_idx, val_idx in cv.split(X_train_full, y_train_full)
+            )
+
+            # Merge metrics by origin: structure = {origin: {metric_name: [list of values across folds]}}
+            merged = defaultdict(lambda: defaultdict(list))
+            for res in split_results:
+                if res is None:  # Some folds may not contain target_origin at all
+                    continue
+                for origin, metrics in res.items():
+                    if target_origin is not None and origin != target_origin:
+                        continue  # Skip irrelevant origins if a target is specified
+                    for metric, val in metrics.items():
+                        merged[origin][metric].append(val)  # Accumulate metric values
+
+            # Compute averages across folds for each origin
+            averaged_results = {}
+            for origin, metrics in merged.items():
+                averaged_results[origin] = {
+                    metric: np.mean(values) if isinstance(values[0], (float, int)) else np.mean(values, axis=0)
+                    for metric, values in metrics.items()
+                }
+
+            # Optionally print results per origin
+            if print_results:
+                for origin, metrics in averaged_results.items():
+                    print(f"Results for {origin}:")
+                    for key, val in metrics.items():
+                        if isinstance(val, float):
+                            print(f"  {key.replace('_', ' ').capitalize()}: {val:.3f}")
+
+            # Return per-origin averaged results
+            return averaged_results
+
+    # def train_and_evaluate_balanced_diff_origins(self, n_inner_repeats=50, random_seed=42,
+    #                                 test_size=0.2, normalize=False, scaler_type='standard',
+    #                                 use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+    #                                 test_on_discarded=False,
+    #                                 target_origin=None):
+    #
+    #     class RepeatedLeaveOneSamplePerClassCV(BaseCrossValidator):
+    #         """
+    #         Custom cross-validator that randomly selects one sample per class as the test set,
+    #         ensuring that all replicates of the same sample stay together, or selects individual
+    #         samples if standard mode is chosen. Uses composite labels to preserve replicate information.
+    #
+    #         Parameters
+    #         ----------
+    #         n_repeats : int, optional (default=50)
+    #             Number of repetitions.
+    #         shuffle : bool, optional (default=True)
+    #             Whether to shuffle the samples before splitting.
+    #         random_state : int, optional (default=None)
+    #             Seed for reproducibility.
+    #         use_groups : bool, optional (default=True)
+    #             If True, replicates of the same sample stay together (group-like behavior).
+    #             If False, selects individual samples without considering replicates.
+    #
+    #         Attributes
+    #         ----------
+    #         n_repeats : int
+    #             Number of repetitions.
+    #         shuffle : bool
+    #             Whether to shuffle samples.
+    #         random_state : int
+    #             Random seed.
+    #         use_groups : bool
+    #             Determines whether to use group-like splitting or standard splitting.
+    #         """
+    #
+    #         def __init__(self, n_repeats=50, shuffle=True, random_state=None, use_groups=True):
+    #             self.n_repeats = n_repeats
+    #             self.shuffle = shuffle
+    #             self.random_state = random_state
+    #             self.use_groups = use_groups
+    #
+    #         def get_n_splits(self, X, y, groups=None):
+    #             """Returns the number of splits."""
+    #             return self.n_repeats
+    #
+    #         def split(self, X, y):
+    #             """
+    #             Splits the dataset into training and test sets using either:
+    #             - Group-like splitting (all replicates of the same sample stay together).
+    #             - Standard splitting (individual samples are selected without considering replicates).
+    #
+    #             Parameters
+    #             ----------
+    #             X : array-like, shape (n_samples, n_features)
+    #                 Feature matrix or sample labels.
+    #             y : array-like, shape (n_samples,)
+    #                 Composite labels (e.g., 'A1', 'B9') that preserve replicate information.
+    #
+    #             Yields
+    #             ------
+    #             train_indices : ndarray
+    #                 Training indices.
+    #             test_indices : ndarray
+    #                 Test indices.
+    #             """
+    #
+    #             # Step 1: Extract category from composite labels (e.g., 'A1' -> 'A')
+    #             def get_category(label):
+    #                 """Extracts the category (A, B, or C) from the composite label."""
+    #                 match = re.match(r'([A-C])\d+', label)
+    #                 return match.group(1) if match else label  # Fallback if no match
+    #
+    #             rng = np.random.default_rng(self.random_state)
+    #
+    #             # ✅ OPTION 1: Group-Like Splitting (use_groups=True)
+    #             if self.use_groups:
+    #                 # Group indices by composite labels
+    #                 indices_by_sample = {}
+    #                 for idx, label in enumerate(y):
+    #                     indices_by_sample.setdefault(label, []).append(idx)
+    #
+    #                 # Generate splits
+    #                 for _ in range(self.n_repeats):
+    #                     test_indices = []
+    #                     for category in set(map(get_category, y)):
+    #                         # Select all samples that belong to the current category
+    #                         class_samples = [label for label in indices_by_sample.keys() if
+    #                                          get_category(label) == category]
+    #
+    #                         # Randomly choose one sample
+    #                         chosen_sample = rng.choice(class_samples, size=1, replace=False)[0] if self.shuffle else \
+    #                         class_samples[0]
+    #
+    #                         # Add all indices of the chosen sample to the test set
+    #                         test_indices.extend(indices_by_sample[chosen_sample])
+    #
+    #                     test_indices = np.array(test_indices)
+    #                     train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+    #
+    #                     yield train_indices, test_indices
+    #
+    #             # ✅ OPTION 2: Standard Splitting (use_groups=False)
+    #             else:
+    #                 # Collect indices by category
+    #                 indices_by_category = {}
+    #                 for idx, label in enumerate(y):
+    #                     category = get_category(label)
+    #                     indices_by_category.setdefault(category, []).append(idx)
+    #
+    #                 # Generate splits
+    #                 for _ in range(self.n_repeats):
+    #                     test_indices = []
+    #                     for category, indices in indices_by_category.items():
+    #                         chosen = rng.choice(indices, size=1, replace=False) if self.shuffle else [indices[0]]
+    #                         test_indices.extend(chosen)
+    #
+    #                     test_indices = np.array(test_indices)
+    #                     train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
+    #
+    #                     yield train_indices, test_indices
+    #
+    #     # def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None, group_duplicates=True):
+    #     #     """
+    #     #         Perform ShuffleSplit on samples while ensuring that:
+    #     #         - Duplicates of the same sample are kept together (if enabled).
+    #     #         - Each class is represented in the test set.
+    #     #
+    #     #     Args:
+    #     #         X (array-like): Feature matrix or sample labels.
+    #     #         y (array-like): Composite labels (e.g., ['A1', 'A1', 'B2', 'B2']).
+    #     #         test_size (float): Fraction of samples to include in the test set.
+    #     #         random_state (int): Random seed for reproducibility.
+    #     #         group_duplicates (bool): If True, duplicates of the same sample are kept together.
+    #     #                                  If False, duplicates are treated independently.
+    #     #
+    #     #     Returns:
+    #     #         tuple: train_indices, test_indices (numpy arrays)
+    #     #     """
+    #     #     import numpy as np
+    #     #
+    #     #     rng = np.random.default_rng(random_state)
+    #     #
+    #     #     if group_duplicates:
+    #     #         unique_samples = {}  # {sample_label: [indices]}
+    #     #         class_samples = defaultdict(list)  # {class_label: [sample_label1, sample_label2, ...]}
+    #     #
+    #     #         for idx, label in enumerate(y):
+    #     #             unique_samples.setdefault(label, []).append(idx)
+    #     #             class_samples[label[0]].append(label)  # Assuming class is the first character (e.g., 'A1' -> 'A')
+    #     #
+    #     #         sample_labels = list(unique_samples.keys())
+    #     #         rng.shuffle(sample_labels)
+    #     #
+    #     #         # Step 1: Randomly select test samples
+    #     #         num_test_samples = int(len(sample_labels) * test_size)
+    #     #         test_sample_labels = set(sample_labels[:num_test_samples])
+    #     #
+    #     #         # Step 2: Ensure each class is represented in the test set
+    #     #         test_classes = {label[0] for label in test_sample_labels}
+    #     #         missing_classes = [c for c in class_samples if c not in test_classes]
+    #     #
+    #     #         # Step 3: Force at least one sample from missing classes
+    #     #         for class_label in missing_classes:
+    #     #             additional_sample = rng.choice(class_samples[class_label])
+    #     #             test_sample_labels.add(additional_sample)
+    #     #
+    #     #         # Step 4: Convert sample labels to index lists
+    #     #         test_indices = [idx for label in test_sample_labels for idx in unique_samples[label]]
+    #     #         train_indices = [idx for label in sample_labels if label not in test_sample_labels for idx in
+    #     #                          unique_samples[label]]
+    #     #
+    #     #     else:
+    #     #         # Treat each instance independently
+    #     #         indices = np.arange(len(y))
+    #     #         rng.shuffle(indices)
+    #     #
+    #     #         # Calculate the number of test samples
+    #     #         num_test_samples = int(len(indices) * test_size)
+    #     #
+    #     #         # Split into train and test sets
+    #     #         test_indices = indices[:num_test_samples]
+    #     #         train_indices = indices[num_test_samples:]
+    #     #
+    #     #     return np.array(train_indices), np.array(test_indices)
+    #
+    #     def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None,
+    #                                                    group_duplicates=True):
+    #         """
+    #         Perform ShuffleSplit on samples while ensuring:
+    #         - Duplicates of the same sample (including dataset origin) are kept together (if enabled).
+    #         - Each class is represented in the test set.
+    #         """
+    #         rng = np.random.default_rng(random_state)
+    #
+    #         if group_duplicates:
+    #             unique_samples = {}  # {(origin, label): [indices]}
+    #             class_samples = defaultdict(list)  # {class_label: [(origin, label), ...]}
+    #
+    #             for idx, label in enumerate(y):
+    #                 origin = self.dataset_origins[idx]
+    #                 key = (origin, label)
+    #                 unique_samples.setdefault(key, []).append(idx)
+    #                 class_label = label[0]  # e.g. 'A' from 'A1'
+    #                 class_samples[class_label].append(key)
+    #
+    #             sample_keys = list(unique_samples.keys())
+    #             rng.shuffle(sample_keys)
+    #
+    #             # Step 1: Randomly select test samples
+    #             num_test_samples = int(len(sample_keys) * test_size)
+    #             test_sample_keys = set(sample_keys[:num_test_samples])
+    #
+    #             # Step 2: Ensure all class labels are represented
+    #             test_classes = {key[1][0] for key in test_sample_keys}  # e.g. 'A' from ('merlot', 'A1')
+    #             missing_classes = [cls for cls in class_samples if cls not in test_classes]
+    #
+    #             for class_label in missing_classes:
+    #                 candidate_keys = class_samples[class_label]
+    #                 additional_key = tuple(rng.choice(candidate_keys))
+    #                 test_sample_keys.add(additional_key)
+    #
+    #             # Step 3: Translate keys into train/test indices
+    #             test_indices = [idx for key in test_sample_keys for idx in unique_samples[key]]
+    #             train_indices = [idx for key in sample_keys if key not in test_sample_keys for idx in
+    #                              unique_samples[key]]
+    #
+    #         else:
+    #             # Fallback: treat each instance independently
+    #             indices = np.arange(len(y))
+    #             rng.shuffle(indices)
+    #             num_test_samples = int(len(indices) * test_size)
+    #             test_indices = indices[:num_test_samples]
+    #             train_indices = indices[num_test_samples:]
+    #
+    #         return np.array(train_indices), np.array(test_indices)
+    #
+    #
+    #     def process_fold(inner_train_idx, inner_val_idx, X_train_full, y_train_full, normalize, scaler_type, use_pca,
+    #                      vthresh, custom_order=None):
+    #         X_train = X_train_full[inner_train_idx]
+    #         y_train = extract_category_labels(y_train_full[inner_train_idx])
+    #         X_val = X_train_full[inner_val_idx]
+    #         y_val = extract_category_labels(y_train_full[inner_val_idx])
+    #
+    #         if normalize:
+    #             X_train, scaler = normalize_data(X_train, scaler=scaler_type)
+    #             X_val = scaler.transform(X_val)
+    #
+    #         if use_pca:
+    #             pca = PCA(n_components=None, svd_solver='randomized')
+    #             pca.fit(X_train)
+    #             cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+    #             n_components = np.searchsorted(cumulative_variance, vthresh) + 1
+    #             n_components = min(n_components, len(np.unique(y_train)))
+    #             pca = PCA(n_components=n_components, svd_solver='randomized')
+    #             X_train = pca.fit_transform(X_train)
+    #             X_val = pca.transform(X_val)
+    #
+    #         self.classifier.fit(X_train, y_train)
+    #         y_pred = self.classifier.predict(X_val)
+    #
+    #         acc = self.classifier.score(X_val, y_val)
+    #         bal_acc = balanced_accuracy_score(y_val, y_pred)
+    #         sw = compute_sample_weight(class_weight='balanced', y=y_val)
+    #         w_acc = np.average(y_pred == y_val, weights=sw)
+    #         prec = precision_score(y_val, y_pred, average='weighted', zero_division=0)
+    #         rec = recall_score(y_val, y_pred, average='weighted', zero_division=0)
+    #         f1 = f1_score(y_val, y_pred, average='weighted', zero_division=0)
+    #         cm = confusion_matrix(y_val, y_pred, labels=custom_order if custom_order else None)
+    #
+    #         return acc, bal_acc, w_acc, prec, rec, f1, cm
+    #
+    #
+    #     def extract_category_labels(composite_labels):
+    #         """
+    #         Convert composite labels (e.g., 'A1', 'B9', 'C2') to category labels ('A', 'B', 'C').
+    #
+    #         Args:
+    #             composite_labels (array-like): List or array of composite labels.
+    #
+    #         Returns:
+    #             list: List of category labels.
+    #         """
+    #         return [re.match(r'([A-C])', label).group(1) if re.match(r'([A-C])', label) else label
+    #                 for label in composite_labels]
+    #
+    #
+    #     if target_origin is None:
+    #         raise ValueError("You must specify a target_origin if evaluating a single origin (e.g. 'merlot_2022).")
+    #
+    #     category_labels = extract_category_labels(self.labels)
+    #
+    #     # Compute Correct Chance Accuracy
+    #     class_counts = Counter(category_labels)
+    #     total_samples = sum(class_counts.values())
+    #     class_probabilities = np.array([count / total_samples for count in class_counts.values()])
+    #     chance_accuracy = np.sum(class_probabilities ** 2)  # Sum of squared class probabilities
+    #
+    #     results_by_origin = {}
+    #
+    #     # Split the dataset into training (80%) and test (20%) without separating duplicates
+    #     train_idx, test_idx = shuffle_split_without_splitting_duplicates(
+    #         self.data, self.labels, test_size=test_size, random_state=random_seed, group_duplicates=True
+    #     )
+    #
+    #     X_train_full, X_test_full = self.data[train_idx], self.data[test_idx]
+    #     y_train_full, y_test_full = np.array(category_labels)[train_idx], np.array(category_labels)[test_idx]
+    #     dataset_origins_train = self.dataset_origins[train_idx]
+    #     dataset_origins_test = self.dataset_origins[test_idx]
+    #
+    #     # Loop through each origin separately
+    #     unique_origins = np.unique(dataset_origins_train)
+    #     results_by_origin = {}
+    #
+    #     origin = target_origin
+    #     print(f"\nEvaluating origin: {origin}")
+    #
+    #     origin_train_mask = dataset_origins_train == origin
+    #     origin_test_mask = dataset_origins_test == origin
+    #
+    #     X_train_origin = X_train_full[origin_train_mask]
+    #     y_train_origin = y_train_full[origin_train_mask]
+    #
+    #     X_test_origin = X_test_full[origin_test_mask]
+    #     y_test_origin = y_test_full[origin_test_mask]
+    #
+    #     if test_on_discarded:
+    #         # Single-train/test evaluation (existing behavior)
+    #         if normalize:
+    #             X_train_origin, scaler = normalize_data(X_train_origin, scaler=scaler_type)
+    #             X_test_origin = scaler.transform(X_test_origin)
+    #
+    #         if use_pca:
+    #             pca = PCA(n_components=None, svd_solver='randomized')
+    #             pca.fit(X_train_origin)
+    #             X_train_origin = pca.transform(X_train_origin)
+    #             X_test_origin = pca.transform(X_test_origin)
+    #
+    #         self.classifier.fit(X_train_origin, y_train_origin)
+    #         y_pred = self.classifier.predict(X_test_origin)
+    #
+    #         # Calculate metrics
+    #         acc = accuracy_score(y_test_origin, y_pred)
+    #         bal_acc = balanced_accuracy_score(y_test_origin, y_pred)
+    #         prec = precision_score(y_test_origin, y_pred, average='weighted', zero_division=0)
+    #         rec = recall_score(y_test_origin, y_pred, average='weighted', zero_division=0)
+    #         f1 = f1_score(y_test_origin, y_pred, average='weighted', zero_division=0)
+    #         cm = confusion_matrix(y_test_origin, y_pred)
+    #
+    #         results_by_origin[origin] = {
+    #             'accuracy': acc,
+    #             'balanced_accuracy': bal_acc,
+    #             'precision': prec,
+    #             'recall': rec,
+    #             'f1_score': f1,
+    #             'confusion_matrix': cm,
+    #         }
+    #
+    #         if print_results:
+    #             print(f"  Accuracy: {acc:.3f}")
+    #             print(f"  Balanced Accuracy: {bal_acc:.3f}")
+    #             print(f"  Precision: {prec:.3f}")
+    #             print(f"  Recall: {rec:.3f}")
+    #             print(f"  F1 Score: {f1:.3f}")
+    #
+    #     else:
+    #         # Perform repeated cross-validation evaluation per origin
+    #         cv = RepeatedLeaveOneSamplePerClassCV(
+    #             n_repeats=n_inner_repeats,
+    #             shuffle=True,
+    #             random_state=random_seed,
+    #             use_groups=True  # assuming you want group behavior here
+    #         )
+    #
+    #         results = Parallel(n_jobs=n_jobs, backend='loky')(
+    #             delayed(process_fold)(
+    #                 inner_train_idx, inner_val_idx, X_train_origin, y_train_origin, normalize,
+    #                 scaler_type, use_pca, vthresh
+    #             )
+    #             for inner_train_idx, inner_val_idx in cv.split(X_train_origin, y_train_origin)
+    #         )
+    #
+    #         inner_acc, inner_bal_acc, inner_w_acc, inner_prec, inner_rec, inner_f1, inner_cm = zip(*results)
+    #
+    #         # Store the averaged results
+    #         results_by_origin[origin] = {
+    #             'accuracy': np.mean(inner_acc),
+    #             'balanced_accuracy': np.mean(inner_bal_acc),
+    #             'weighted_accuracy': np.mean(inner_w_acc),
+    #             'precision': np.mean(inner_prec),
+    #             'recall': np.mean(inner_rec),
+    #             'f1_score': np.mean(inner_f1),
+    #             'confusion_matrix': np.mean(inner_cm, axis=0),
+    #         }
+    #
+    #         if print_results:
+    #             print(f"  Inner CV Averages for origin {origin}:")
+    #             print(f"    Accuracy: {results_by_origin[origin]['accuracy']:.3f}")
+    #             print(f"    Balanced Accuracy: {results_by_origin[origin]['balanced_accuracy']:.3f}")
+    #             print(f"    Precision: {results_by_origin[origin]['precision']:.3f}")
+    #             print(f"    Recall: {results_by_origin[origin]['recall']:.3f}")
+    #             print(f"    F1 Score: {results_by_origin[origin]['f1_score']:.3f}")
+    #
+    #     return results_by_origin
+
 
 
     def train_and_evaluate_balanced_tic_tis(self, tics, tiss, n_inner_repeats=50, random_seed=42,
@@ -1929,7 +2624,7 @@ class Classifier:
         return mean_test_accuracies, std_test_accuracies
 
 
-    def train_and_evaluate_greedy_remove_diff_origins(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
+    def train_and_evaluate_greedy_remove_diff_origins(self, num_repeats=10, n_inner_repeats=50,
                                          random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
                                          use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
                                          feature_type="concatenated",
@@ -1950,6 +2645,8 @@ class Classifier:
         all_test_accuracies = []
         final_channel_distributions = []  # Track channels left in last 5 steps
 
+
+        ############### FUNCTIONS ################
         def compute_features(channels):
             """ Compute features based on chosen feature type. """
             if feature_type == "concatenated":
@@ -1968,43 +2665,9 @@ class Classifier:
                 raise ValueError("Invalid feature_type. Use 'concatenated' or 'tic_tis'.")
 
         # Evaluate the accuracy of removing each channel
-        def evaluate_channel(ch_idx):
-            print(f'Step {step}; Channel = {ch_idx}')
-            temp_indices = [idx for idx in remaining_indices if idx != ch_idx]
-            if not temp_indices:  # If no channels remain, skip this iteration
-                print(f"⚠️ No remaining channels after removing {ch_idx}. Skipping evaluation.")
-                return ch_idx, None  # Return None to avoid breaking max() call later
 
-            feature_matrix = compute_features(temp_indices)
+        ############### END FUNCTIONS ################
 
-            if feature_matrix is None or feature_matrix.size == 0:  # Check if feature matrix is empty
-                print(f"⚠️ Feature matrix is empty after removing {ch_idx}. Skipping.")
-                return ch_idx, None
-
-            cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
-                             year_labels=self.year_labels,
-                             dataset_origins=dataset_origins)
-            results = cls.train_and_evaluate_balanced_diff_origins(
-                random_seed=random_seed + repeat_idx,
-                test_size=test_size,
-                normalize=normalize,
-                scaler_type=scaler_type,
-                use_pca=use_pca,
-                vthresh=vthresh,
-                region=region,
-                print_results=False,
-                n_jobs=n_jobs,
-                test_on_discarded=True
-            )
-            # Extract just the result for the target origin
-            origin_key = str(target_origin)
-            if origin_key not in results:
-                print(f"⚠️ Target origin '{origin_key}' not found in results. Skipping.")
-                return None  # Or continue safely
-
-            # Pull the accuracy for that specific dataset
-            accuracy = results[origin_key]["balanced_accuracy"]
-            return ch_idx, accuracy
 
         for repeat_idx in range(num_repeats):
             print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
@@ -2013,9 +2676,66 @@ class Classifier:
             num_samples, num_timepoints, num_channels = cls_data.shape
             labels = self.labels
 
+            train_idx, test_idx = self.shuffle_split_without_splitting_duplicates(
+                self.data, self.labels,
+                test_size=test_size,
+                random_state=random_seed + repeat_idx,
+                group_duplicates=True,
+                dataset_origins=dataset_origins
+            )
+
             # Start with all channels
             remaining_indices = list(range(num_channels))
             incremental_accuracies = [None]  # Store accuracy before removing any channels
+
+            def evaluate_channel(ch_idx):
+                print(f'Step {step}; Channel = {ch_idx}')
+                temp_indices = [idx for idx in remaining_indices if idx != ch_idx]
+                if not temp_indices:  # If no channels remain, skip this iteration
+                    print(f"⚠️ No remaining channels after removing {ch_idx}. Skipping evaluation.")
+                    return ch_idx, None  # Return None to avoid breaking max() call later
+
+                # Data with currently selected channels
+                feature_matrix = compute_features(temp_indices)
+
+                if feature_matrix is None or feature_matrix.size == 0:  # Check if feature matrix is empty
+                    print(f"⚠️ Feature matrix is empty after removing {ch_idx}. Skipping.")
+                    return ch_idx, None
+
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels,
+                                 dataset_origins=dataset_origins)
+                # results = cls.train_and_evaluate_balanced_diff_origins(
+                results = cls.train_and_evaluate_balanced_target_origin(
+                    n_inner_repeats=n_inner_repeats,
+                    random_seed=random_seed + repeat_idx,
+                    test_size=test_size,
+                    normalize=normalize,
+                    scaler_type=scaler_type,
+                    use_pca=use_pca,
+                    vthresh=vthresh,
+                    region=region,
+                    print_results=False,
+                    n_jobs=n_inner_repeats,
+                    test_on_discarded=False,
+                    target_origin=target_origin,
+                    pre_split_indices=(train_idx, test_idx)
+                )
+                # Extract just the result for the target origin
+                origin_key = str(target_origin)
+
+                # If target origin is missing but only one key exists, use that one
+                if origin_key not in results:
+                    if len(results) == 1:
+                        origin_key = list(results.keys())[0]  # use the only available key
+                        print(f"⚠️ Using fallback origin key: {origin_key}")
+                    else:
+                        print(f"❌ Target origin '{origin_key}' not found in results. Skipping.")
+                        return None
+
+                # Pull the accuracy for that specific dataset
+                accuracy = results[origin_key]["balanced_accuracy"]
+                return ch_idx, accuracy
 
             for step in range(min(num_channels, 137 + 1)):  # Limit number of removals for efficiency
 
@@ -2028,7 +2748,9 @@ class Classifier:
                 cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
                                  year_labels=self.year_labels,
                                  dataset_origins=dataset_origins)
-                results = cls.train_and_evaluate_balanced_diff_origins(
+                # results = cls.train_and_evaluate_balanced_diff_origins(
+                results = cls.train_and_evaluate_balanced_target_origin(
+                    # n_inner_repeats=n_inner_repeats,
                     random_seed=random_seed + repeat_idx,
                     test_size=test_size,
                     normalize=normalize,
@@ -2037,8 +2759,10 @@ class Classifier:
                     vthresh=vthresh,
                     region=region,
                     print_results=False,
-                    n_jobs=n_jobs,
-                    test_on_discarded=True
+                    # n_jobs=1,
+                    test_on_discarded=True,
+                    target_origin=target_origin,
+                    pre_split_indices=(train_idx, test_idx)
                 )
                 # Extract just the result for the target origin
                 origin_key = str(target_origin)
@@ -2047,8 +2771,10 @@ class Classifier:
                     return None  # Or continue safely
 
                 # Parallel execution to test removing each channel
-                validation_accuracies = Parallel(n_jobs=n_jobs, backend='loky')(
+                validation_accuracies = Parallel(n_jobs=10, backend='loky')(
                     delayed(evaluate_channel)(ch_idx) for ch_idx in remaining_indices)
+
+                # validation_accuracies = [evaluate_channel(ch_idx) for ch_idx in remaining_indices]
 
                 # Store accuracy at current step (before removal)
                 if incremental_accuracies[0] is None:
@@ -2087,7 +2813,9 @@ class Classifier:
 
             plt.xlabel("Number of Channels Removed")
             plt.ylabel("Mean Balanced Accuracy")
-            plt.title(f"Performance Trend with Greedy Remove ({feature_type}; {repeat_idx + 1} / {num_repeats})")
+            plt.ylim(0.5, 1.1)
+            title_origin = f"{target_origin}" if target_origin else ""
+            plt.title(f"Acc. Trend with Greedy Remove({title_origin}); {feature_type}; {repeat_idx + 1} / {num_repeats}")
             plt.grid(True)
             plt.legend()
             if repeat_idx == num_repeats - 1:
@@ -2103,7 +2831,7 @@ class Classifier:
 
 
         # Save histogram data to file
-        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_remove_wine_type.csv", 'w', newline='') as file:
+        with open(f"/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_remove_JM22CS22({title_origin}).csv", 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["Channel Index"])
             writer.writerows([[ch] for ch in final_channel_distributions])

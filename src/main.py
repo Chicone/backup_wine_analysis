@@ -156,18 +156,16 @@ if __name__ == "__main__":
 
         elif CHANNEL_METHOD == "greedy_remove":
             cls.train_and_evaluate_greedy_remove(
-                num_repeats=200, num_outer_repeats=1, n_inner_repeats=20,
+                num_repeats=200, num_outer_repeats=1, n_inner_repeats=50,
                 random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=20, feature_type=FEATURE_TYPE
+                n_jobs=50, feature_type=FEATURE_TYPE
             )
         elif CHANNEL_METHOD == "greedy_remove_diff_origins":
             cls.train_and_evaluate_greedy_remove_diff_origins(
-                num_repeats=200, num_outer_repeats=1, n_inner_repeats=20,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
-                use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=20, feature_type=FEATURE_TYPE,
-                dataset_origins=dataset_origins, target_origin="cab_sauv_2022"
+                num_repeats=50, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=True,
+                scaler_type='standard', use_pca=False, region=None, print_results=True, n_jobs=10,
+                feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="cab_sauv_2022"
             )
 
         elif CHANNEL_METHOD == "greedy_remove_batch":
