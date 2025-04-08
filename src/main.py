@@ -93,6 +93,13 @@ if __name__ == "__main__":
 
         if DATA_TYPE == "TIC-TIS":
             chromatograms_tic, chromatograms_tis = chromatograms_result
+
+            # Align TICs if enabled
+            if SYNC_STATE:
+                print("Aligning TICs for TIC-TIS data")
+                tics, aligned_dict = cl.align_tics(chromatograms_tic, gcms, chrom_cap=CHROM_CAP)
+                chromatograms_tic = tics  # Replace with aligned TICs
+
             data_tic = np.array(list(chromatograms_tic.values()))
             data_tis = np.array(list(chromatograms_tis.values()))
             labels = np.array(list(chromatograms_tic.keys()))
@@ -103,13 +110,19 @@ if __name__ == "__main__":
             # Ensure chromatograms is available for label processing
             chromatograms = chromatograms_tic  # Use TIC dictionary since keys are identical
 
+
         elif DATA_TYPE in ["TIC", "TIS"]:
-            chromatograms = chromatograms_result
-            data = np.array(list(chromatograms.values()))
+            chromatograms = chromatograms_result  # This is already a dict
             labels = np.array(list(chromatograms.keys()))
+
+            # Align TICs if enabled (only makes sense if you're working with TICs)
+            if SYNC_STATE and DATA_TYPE == "TIC":
+                print("Aligning TICs for TIC data")
+                tics, _ = cl.align_tics(chromatograms, gcms, chrom_cap=CHROM_CAP)
+                chromatograms = tics  # Update the TICs with the aligned versions
+            data = np.array(list(chromatograms.values()))
         else:
             raise ValueError("Invalid 'DATA_TYPE'. Must be 'TIC', 'TIS', or 'TIC-TIS'.")
-
 
     region = REGION if wine_kind == "pinot_noir" else "bordeaux_chateaux"
     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, VINTAGE, CLASS_BY_YEAR, chromatograms)
@@ -165,7 +178,7 @@ if __name__ == "__main__":
             cls.train_and_evaluate_greedy_remove_diff_origins(
                 num_repeats=50, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=True,
                 scaler_type='standard', use_pca=False, region=None, print_results=True, n_jobs=10,
-                feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="cab_sauv_2022"
+                feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="pinot_noir_isvv_lle"
             )
 
         elif CHANNEL_METHOD == "greedy_remove_batch":

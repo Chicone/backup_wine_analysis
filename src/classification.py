@@ -752,6 +752,7 @@ class Classifier:
 
         # Normalize confusion matrix row-wise (true label-wise)
         overall_cm_normalized = overall_cm.astype('float') / overall_cm.sum(axis=1, keepdims=True)
+        overall_cm_normalized[np.isnan(overall_cm_normalized)] = 0
 
         overall_results = {
             'chance_accuracy': chance_accuracy,
@@ -2680,7 +2681,8 @@ class Classifier:
                 self.data, self.labels,
                 test_size=test_size,
                 random_state=random_seed + repeat_idx,
-                group_duplicates=True,
+                # group_duplicates=True,
+                group_duplicates=False,
                 dataset_origins=dataset_origins
             )
 
@@ -2771,7 +2773,8 @@ class Classifier:
                     return None  # Or continue safely
 
                 # Parallel execution to test removing each channel
-                validation_accuracies = Parallel(n_jobs=10, backend='loky')(
+                # validation_accuracies = Parallel(n_jobs=10, backend='loky')(
+                validation_accuracies = Parallel(n_jobs=5, backend='loky')(
                     delayed(evaluate_channel)(ch_idx) for ch_idx in remaining_indices)
 
                 # validation_accuracies = [evaluate_channel(ch_idx) for ch_idx in remaining_indices]

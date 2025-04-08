@@ -189,8 +189,12 @@ class ChromatogramAnalysis:
         tics = gcms.compute_tics()
         mean_tic = self.calculate_mean_chromatogram(tics)
         closest_to_mean = self.closest_to_mean_chromatogram(tics, mean_tic)
+        # synced_tics, synced_gcms = self.sync_individual_chromatograms(
+        #     closest_to_mean[1], data_dict[closest_to_mean[0]], tics, data_dict,
+        #     np.linspace(0.980, 1.020, 80), initial_lag=25
+        # )
         synced_tics, synced_gcms = self.sync_individual_chromatograms(
-            closest_to_mean[1], data_dict[closest_to_mean[0]], tics, data_dict,
+            closest_to_mean[1], gcms.data[closest_to_mean[0]], tics, gcms.data,
             np.linspace(0.980, 1.020, 80), initial_lag=25
         )
         if chrom_cap:
@@ -2018,7 +2022,7 @@ class SyncChromatograms:
         mean_c2s = np.mean(np.array(list(self.c2s.values())), axis=0)
 
         # Start first adjustment based on scaling of retention times between main peaks
-        for prox in [40]:
+        for prox in [40 // self.ndec]:
             self.lag_res = self.lag_profile_from_peaks(
                 self.c1, corrected_c2, alignment_tolerance=prox, num_segments=5, apply_global_alignment=True,
                 only_shift=True
@@ -2032,7 +2036,7 @@ class SyncChromatograms:
 
         self.lag_res = self.lag_profile_from_ms_data(
             gaussian_filter(self.c1,5), gaussian_filter(offset_corrected_c2, 5), self.ref_ms, self.target_ms,
-            100 // self.ndec, 20 // self.ndec, show_corrections=False
+            100 // self.ndec, 100 // self.ndec, show_corrections=False
         )
         # Ensure the first and last lags are consistent
         self.lag_res = list(self.lag_res)
@@ -2526,25 +2530,30 @@ def process_labels_by_wine_kind(labels, wine_kind, region, vintage, class_by_yea
            ValueError: If an invalid wine kind or region is specified.
        """
     if wine_kind == "bordeaux":
-        return process_labels(labels, vintage=vintage)
+        processed_labels = process_labels(labels, vintage=vintage)
+        return processed_labels, None
+
     elif wine_kind == "pinot_noir":
         if region == 'continent':
-            return assign_continent_to_pinot_noir(labels)
+            processed_labels = assign_continent_to_pinot_noir(labels)
         elif region == 'country':
-            return assign_country_to_pinot_noir(labels)
+            processed_labels = assign_country_to_pinot_noir(labels)
         elif region == 'origin':
-            return assign_origin_to_pinot_noir(labels)
+            processed_labels = assign_origin_to_pinot_noir(labels)
         elif region == 'winery':
-            return assign_winery_to_pinot_noir(labels)
+            processed_labels = assign_winery_to_pinot_noir(labels)
         elif region == 'year':
-            return assign_year_to_pinot_noir(labels)
+            processed_labels = assign_year_to_pinot_noir(labels)
         elif region == 'beaume':
-            return assign_north_south_to_beaune(labels)
+            processed_labels = assign_north_south_to_beaune(labels)
         else:
             raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
+        return processed_labels, None
+
     elif wine_kind == "press":
         year_labels = extract_year_from_samples(chromatograms.keys()) if class_by_year else None
         return assign_composite_label_to_press_wine(labels), year_labels
+
     else:
         raise ValueError("Invalid wine kind")
 
@@ -2558,6 +2567,7 @@ def process_chromatograms(gcms, data_type, sync_state, chrom_cap):
 
     Args:
         gcms (GCMSDataProcessor): An instance containing preloaded GC-MS data.
+        cl (ChromatogramAnalysis): An instance of this class.
         data_type (str): Type of chromatographic signal to process. Must be one of:
                          "TIC", "TIS", or "TIC-TIS".
         sync_state (bool): If True and data_type is "TIC-TIS", perform TIC alignment using cl.align_tics.

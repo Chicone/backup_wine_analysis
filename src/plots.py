@@ -397,32 +397,32 @@ def plot_histogram_correlation(file1, file2, wine1="Wine 1", wine2="Wine 2", thr
         axes[2].legend()
         axes[2].grid(True)
 
-        # Plot regression line
-        x_vals = np.linspace(hist1.min(), hist1.max(), 100).reshape(-1, 1)
-        y_fit = reg.predict(x_vals)
-        axes[2].plot(x_vals, y_fit, 'g-', label='Linear Fit')
+        # # Plot regression line
+        # x_vals = np.linspace(hist1.min(), hist1.max(), 100).reshape(-1, 1)
+        # y_fit = reg.predict(x_vals)
+        # axes[2].plot(x_vals, y_fit, 'g-', label='Linear Fit')
 
     # Compute and print Pearson correlation coefficient
     correlation = np.corrcoef(hist1, hist2)[0, 1]
 
     if show_plots:
         print(f"Pearson Correlation Between {wine1} and {wine2}: {correlation:.3f}")
-        axes[2].text(0.65 * max(hist1), 0.9 * max(hist2),  # Position it near the top-left of the plot
+        axes[2].text(0.05 * max(hist1), 0.9 * max(hist2),  # Position it near the top-left of the plot
                      f"Pearson: {correlation:.3f}", fontsize=16, color='r',
                      bbox=dict(facecolor='white', alpha=0.7))  # Background box for visibility
         plt.tight_layout()
         plt.show()
 
-        a = reg.coef_[0]
-        b = reg.intercept_
-        axes[2].text(
-            0.05 * max(hist1), 0.90 * max(hist2),
-            f"$y = {a:.2f}x + {b:.2f}$\n$R = {r_squared**0.5:.3f}$",
-            fontsize=14, color='g',
-            bbox=dict(facecolor='white', alpha=0.7)
-        )
-
-        plt.tight_layout()
-        plt.show()
+        # a = reg.coef_[0]
+        # b = reg.intercept_
+        # axes[2].text(
+        #     0.05 * max(hist1), 0.80 * max(hist2),
+        #     f"$y = {a:.2f}x + {b:.2f}$\n$R = {r_squared**0.5:.3f}$",
+        #     fontsize=14, color='g',
+        #     bbox=dict(facecolor='white', alpha=0.7)
+        # )
+        #
+        # plt.tight_layout()
+        # plt.show()
 
     return correlation

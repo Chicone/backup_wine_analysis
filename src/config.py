@@ -2,11 +2,13 @@
 
 # Data Handling Parameters
 # ##### PINOT NOIR #####
-# DATASET_DIRECTORIES = {
-#     "pinot_noir_isvv_lle": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/LLE_SCAN/",
-#     "pinot_noir_isvv_dllme": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/DLLME_SCAN/",
-#     "pinot_noir_changins": "/home/luiscamara/Documents/datasets/3D_data/220322_Pinot_Noir_Tom_CDF/",
-#    }
+DATASET_DIRECTORIES = {
+    "pinot_noir_isvv_lle": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/",
+    "pinot_noir_isvv_dllme": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/",
+    # "pinot_noir_isvv_lle_sim": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SIM/",
+    # "pinot_noir_isvv_dllme_sim": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SIM/",
+    "pinot_noir_changins": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom_CDF/",
+   }
 
  ##### BORDEAUX #####
 # DATASET_DIRECTORIES = {
@@ -14,30 +16,30 @@
 # }
 
  ##### PRESS WINES #####
-DATASET_DIRECTORIES = {
-    "merlot_2021": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/MERLOT/",
-    "merlot_2022": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/MERLOT/",
-    "merlot_2023": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/MERLOT/",
-    "cab_sauv_2021": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/",
-    "cab_sauv_2022": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/",
-    "cab_sauv_2023": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/"
-   }
-SELECTED_DATASETS = ["merlot_2022", "cab_sauv_2022"]
+# DATASET_DIRECTORIES = {
+#     "merlot_2021": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/MERLOT/",
+#     "merlot_2022": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/MERLOT/",
+#     "merlot_2023": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/MERLOT/",
+#     "cab_sauv_2021": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/",
+#     "cab_sauv_2022": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/",
+#     "cab_sauv_2023": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/"
+#    }
+SELECTED_DATASETS = ["pinot_noir_isvv_lle"]
 
 ROW_START = 1
 NUM_SPLITS = 500
-N_DECIMATION = 5  # Decimation factor for 3D data
+N_DECIMATION = 2  # Decimation factor for 3D data
 CHROM_CAP = 29000 // N_DECIMATION  # Limit for chromatogram size
 VINTAGE = False  # Include vintage data in analysis
 WINDOW = 1000
 STRIDE = 200
 
 # Analysis parameters
-DATA_TYPE = "GCMS"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
+DATA_TYPE = "TIC"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
 CH_TREAT = 'concatenated'  # 'independent',  'concatenated'
 CHANNEL_METHOD = 'greedy_remove_diff_origins' # all_channels, greedy_add_ranked, greedy_add, greedy_remove_ranked, greedy_remove, greedy_remove_batch, random_subset
-FEATURE_TYPE = 'tic_tis'  # concatenated tic_tis
-SYNC_STATE = False  # Use retention time alignment
+FEATURE_TYPE = 'concatenated'  # concatenated tic_tis
+SYNC_STATE = True  # Use retention time alignment
 CONCATENATE_TICS = False
 CNN_DIM = None  # 1, 2, None
 gcms_options = ["RT_DIRECTION", "MS_DIRECTION"]
