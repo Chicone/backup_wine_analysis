@@ -1136,8 +1136,11 @@ class SyncChromatograms:
     #
     #     return np.array(locations), np.array(index_differences)
 
+
+
     def lag_profile_from_ms_data(self, reference_chromatogram, target_chromatogram,
-                                 reference_matrix, target_matrix, num_segments, sep_thresh, show_corrections=False):
+                                 reference_matrix, target_matrix, num_segments, sep_thresh, show_corrections=False,
+                                 min_corr = 0.8):
         """
         Compute the lag profile between two chromatograms using MS data.
 
@@ -1263,11 +1266,16 @@ class SyncChromatograms:
                 target_row = utils.normalize_amplitude_zscore(target_row)
 
                 # Calculate Pearson correlation
+                if np.any(np.isnan(reference_row)) or np.any(np.isnan(target_row)) \
+                        or np.any(np.isinf(reference_row)) or np.any(np.isinf(target_row)):
+                    continue  # Skip invalid rows
                 correlation, _ = pearsonr(reference_row, target_row)
 
                 # Choose the best match with correlation > 0.98 and increasing index order
-                if correlation > 0.98 and correlation > max_correlation and is_larger_than_last(target_index,
-                                                                                                locations):
+                if (
+                        correlation > min_corr
+                        and correlation > max_correlation
+                        and is_larger_than_last(target_index, locations)):
                     max_correlation = correlation
                     best_match_index = target_index
 
@@ -1282,6 +1290,104 @@ class SyncChromatograms:
 
         return np.array(locations), np.array(index_differences)
 
+
+    # def lag_profile_from_ms_data(self, reference_chromatogram, target_chromatogram,
+    #                              reference_matrix, target_matrix, num_segments, sep_thresh,
+    #                              min_correlation=0.80, show_corrections=False,
+    #                              allow_backward_shift=False, similarity_metric='cosine'):
+    #     """
+    #     Compute the lag profile between two chromatograms using MS data.
+    #
+    #     Parameters
+    #     ----------
+    #     reference_chromatogram : array-like
+    #         The reference chromatogram used as baseline for alignment.
+    #     target_chromatogram : array-like
+    #         The target chromatogram to be aligned with the reference.
+    #     reference_matrix : 2D array-like
+    #         Mass spectrometry matrix for the reference chromatogram (rows: RT, columns: m/z).
+    #     target_matrix : 2D array-like
+    #         MS matrix for the target chromatogram.
+    #     num_segments : int
+    #         Number of segments to divide the chromatogram into for peak detection.
+    #     sep_thresh : int
+    #         Max allowed retention index difference for matching peaks.
+    #     min_correlation : float, optional
+    #         Minimum correlation threshold to accept a match (default = 0.98).
+    #     show_corrections : bool, optional
+    #         If True, prints matching info.
+    #     allow_backward_shift : bool, optional
+    #         If False, prevents matching peaks in reverse RT order.
+    #     similarity_metric : str, optional
+    #         Metric for spectral similarity ('pearson' or 'cosine').
+    #
+    #     Returns
+    #     -------
+    #     locations : np.ndarray
+    #         Indices of matched peaks in the target chromatogram.
+    #     index_differences : np.ndarray
+    #         Lag differences (reference index - target index) for each matched peak.
+    #     """
+    #
+    #     from scipy.spatial.distance import cosine
+    #
+    #     def score_rows(ref, tgt):
+    #         if similarity_metric == 'pearson':
+    #             return pearsonr(ref, tgt)[0]
+    #         elif similarity_metric == 'cosine':
+    #             return 1 - cosine(ref, tgt)
+    #         else:
+    #             raise ValueError("Unsupported similarity metric: use 'pearson' or 'cosine'")
+    #
+    #     # Helper function to extract valid peaks per segment
+    #     reference_peaks, _ = find_peaks(reference_chromatogram)
+    #     reference_peaks, valid = self.ensure_peaks_in_segments(
+    #         reference_chromatogram, reference_peaks, num_segments=num_segments
+    #     )
+    #     if not valid:
+    #         raise ValueError("Some reference segments lack peaks. Adjust segmentation.")
+    #
+    #     target_peaks, _ = find_peaks(target_chromatogram)
+    #     target_peaks, valid = self.ensure_peaks_in_segments(
+    #         target_chromatogram, target_peaks, num_segments=3 * num_segments
+    #     )
+    #     if not valid:
+    #         raise ValueError("Some target segments lack peaks. Adjust segmentation.")
+    #
+    #     locations = []
+    #     index_differences = []
+    #     last_matched_index = -np.inf
+    #
+    #     for ref_idx in reference_peaks:
+    #         ref_row = utils.normalize_amplitude_zscore(reference_matrix[ref_idx])
+    #         best_score = -np.inf
+    #         best_match = None
+    #
+    #         # Candidate peaks within sep_thresh
+    #         candidates = [idx for idx in target_peaks if abs(idx - ref_idx) <= sep_thresh]
+    #
+    #         for tgt_idx in candidates:
+    #             if not allow_backward_shift and tgt_idx <= last_matched_index:
+    #                 continue
+    #
+    #             tgt_row = utils.normalize_amplitude_zscore(target_matrix[tgt_idx])
+    #             # tgt_row = target_matrix[tgt_idx]
+    #             score = score_rows(ref_row, tgt_row)
+    #
+    #             if score > min_correlation and score > best_score:
+    #                 best_score = score
+    #                 best_match = tgt_idx
+    #
+    #         if best_match is not None:
+    #             lag = ref_idx - best_match
+    #             locations.append(best_match)
+    #             index_differences.append(lag)
+    #             last_matched_index = best_match
+    #
+    #             if show_corrections:
+    #                 print(f"Ref peak @ {ref_idx} → Target peak @ {best_match} (Δ: {lag}, r: {best_score:.3f})")
+    #
+    #     return np.array(locations), np.array(index_differences)
 
 
     def lag_profile_from_peaks(self, reference_chromatogram, target_chromatogram, alignment_tolerance, num_segments,
@@ -2036,7 +2142,8 @@ class SyncChromatograms:
 
         self.lag_res = self.lag_profile_from_ms_data(
             gaussian_filter(self.c1,5), gaussian_filter(offset_corrected_c2, 5), self.ref_ms, self.target_ms,
-            100 // self.ndec, 100 // self.ndec, show_corrections=False
+            # 50 // self.ndec, 150 // self.ndec, show_corrections=False, min_corr=0.80
+            5, 150 // self.ndec, show_corrections=False, min_corr=0.80
         )
         # Ensure the first and last lags are consistent
         self.lag_res = list(self.lag_res)
@@ -2045,7 +2152,10 @@ class SyncChromatograms:
             self.lag_res[1] = np.concatenate(([self.lag_res[1][0]], self.lag_res[1], [self.lag_res[1][-1]]))
         self.lag_res = tuple(self.lag_res)
 
-        spline = UnivariateSpline(self.lag_res[0], self.lag_res[1], s=0, k=1)
+        if len(self.lag_res[0]) < 2:
+            print(f"⚠️ Not enough points to fit a spline. Skipping sample: {self.lag_res}")
+            return self.c2  # Or return offset_corrected_c2, or np.copy(self.c2)
+        spline = UnivariateSpline(self.lag_res[0], self.lag_res[1], s=1, k=1)
         # Correct the MS matrix using the spline
         t = np.arange(self.target_ms.shape[0])
         self.target_ms = correct_with_spline_matrix(self.target_ms, t, spline)

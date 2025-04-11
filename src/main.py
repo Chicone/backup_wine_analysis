@@ -26,6 +26,7 @@ if __name__ == "__main__":
     #    "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/MERLOT/")
     # plot_accuracy_vs_decimation('merlot')
     # plot_accuracy_vs_decimation('cabernet_sauvignon')
+    # plot_accuracy_vs_decimation('pinot_noir')
     # plot_press_wines_accuracies()
     # utils.rename_directories("/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/011222/")
     # plot_histogram_correlation(
@@ -113,6 +114,7 @@ if __name__ == "__main__":
 
         elif DATA_TYPE in ["TIC", "TIS"]:
             chromatograms = chromatograms_result  # This is already a dict
+            # utils.compute_pairwise_pearson(chromatograms)
             labels = np.array(list(chromatograms.keys()))
 
             # Align TICs if enabled (only makes sense if you're working with TICs)
@@ -120,6 +122,7 @@ if __name__ == "__main__":
                 print("Aligning TICs for TIC data")
                 tics, _ = cl.align_tics(chromatograms, gcms, chrom_cap=CHROM_CAP)
                 chromatograms = tics  # Update the TICs with the aligned versions
+                # utils.compute_pairwise_pearson(tics)
             data = np.array(list(chromatograms.values()))
         else:
             raise ValueError("Invalid 'DATA_TYPE'. Must be 'TIC', 'TIS', or 'TIC-TIS'.")
@@ -137,16 +140,16 @@ if __name__ == "__main__":
     if DATA_TYPE == "GCMS":
         if CHANNEL_METHOD == "all_channels":
             cls.train_and_evaluate_all_channels(
-                num_repeats=50, num_outer_repeats=1,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                num_repeats=200, num_outer_repeats=1,
+                random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=50
+                n_jobs=20, feature_type=FEATURE_TYPE
             )
 
         elif CHANNEL_METHOD == "greedy_add_ranked":
             cls.train_and_evaluate_greedy_add_ranked(
                 num_repeats=200, num_outer_repeats=1, n_inner_repeats=20,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
                 n_jobs=20, num_top_channels=139, feature_type=FEATURE_TYPE
             )
@@ -154,7 +157,7 @@ if __name__ == "__main__":
         elif CHANNEL_METHOD == "greedy_remove_ranked":
             cls.train_and_evaluate_greedy_remove_ranked(
                 num_repeats=200, n_inner_repeats=20,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
                 n_jobs=20, feature_type=FEATURE_TYPE
             )
@@ -162,7 +165,7 @@ if __name__ == "__main__":
         elif CHANNEL_METHOD == "greedy_add":
             cls.train_and_evaluate_greedy_add(
                 num_repeats=200, num_outer_repeats=1, n_inner_repeats=20,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
                 n_jobs=20, feature_type=FEATURE_TYPE
             )
@@ -170,13 +173,13 @@ if __name__ == "__main__":
         elif CHANNEL_METHOD == "greedy_remove":
             cls.train_and_evaluate_greedy_remove(
                 num_repeats=200, num_outer_repeats=1, n_inner_repeats=50,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
                 n_jobs=50, feature_type=FEATURE_TYPE
             )
         elif CHANNEL_METHOD == "greedy_remove_diff_origins":
             cls.train_and_evaluate_greedy_remove_diff_origins(
-                num_repeats=50, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=True,
+                num_repeats=50, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=NORMALIZE,
                 scaler_type='standard', use_pca=False, region=None, print_results=True, n_jobs=10,
                 feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="pinot_noir_isvv_lle"
             )
@@ -184,7 +187,7 @@ if __name__ == "__main__":
         elif CHANNEL_METHOD == "greedy_remove_batch":
             cls.train_and_evaluate_greedy_remove_batch(
                 num_repeats=50, num_outer_repeats=1, n_inner_repeats=50,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
                 n_jobs=50, feature_type=FEATURE_TYPE,
                 batch_size=1, selection_mode='correlation'
@@ -193,32 +196,31 @@ if __name__ == "__main__":
         elif CHANNEL_METHOD == "random_subset":
             cls.train_and_evaluate_random_channel_subsets(
                 num_repeats=200, n_inner_repeats=20,
-                random_seed=42, test_size=0.2, normalize=True, scaler_type='standard',
+                random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
                 n_jobs=20, feature_type=FEATURE_TYPE
             )
 
-
-
-
-
-    # elif CH_TREAT == 'independent':
-    #     cls.train_and_evaluate_balanced_with_best_alpha2(
-    #         n_splits=NUM_SPLITS, test_size=0.25, normalize=False,
-    #         scaler_type='standard', use_pca=False, region=REGION, vthresh=0.97,
-    #         best_alpha=alpha
-    #     )
+        elif CHANNEL_METHOD == 'independent':
+            cls.train_and_evaluate_balanced_with_best_alpha2(
+                n_splits=NUM_SPLITS, test_size=0.2, normalize=NORMALIZE,
+                scaler_type='standard', use_pca=False, region=REGION, vthresh=0.97,
+                best_alpha=alpha
+            )
 
     elif DATA_TYPE in "TIC":
-        cls.train_and_evaluate_tic(num_repeats=NUM_SPLITS, random_seed=42, test_size=0.2, normalize=True,
-                                   scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True,
-                                   n_jobs=10)
+        classifiers = ["DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"]
+        classifiers = [classifiers[8]]
+        for classifier in classifiers:
+            cls.train_and_evaluate_tic(num_repeats=NUM_SPLITS, random_seed=42, test_size=0.2, normalize=NORMALIZE,
+                                       scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True,
+                                       n_jobs=10, classifier = classifier)
 
     elif DATA_TYPE == "TIC-TIS":
         tic_data, tis_data = chromatograms_tic.values(), chromatograms_tis.values()
         cls.train_and_evaluate_tic_tis(np.array(list(tic_data)), np.array(list(tis_data)),
                                        num_repeats=NUM_SPLITS, num_outer_repeats=1, random_seed=42, test_size=0.2,
-                                       normalize=True, scaler_type='standard', use_pca=False, vthresh=0.97,
+                                       normalize=NORMALIZE, scaler_type='standard', use_pca=False, vthresh=0.97,
                                        region=None, print_results=True,
                                        )
 

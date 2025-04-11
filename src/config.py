@@ -24,22 +24,25 @@ DATASET_DIRECTORIES = {
 #     "cab_sauv_2022": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/",
 #     "cab_sauv_2023": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/"
 #    }
-SELECTED_DATASETS = ["pinot_noir_isvv_lle"]
+SELECTED_DATASETS = ["pinot_noir_changins"]
 
-ROW_START = 1
-NUM_SPLITS = 500
-N_DECIMATION = 2  # Decimation factor for 3D data
+ROW_START = 50
+NUM_SPLITS = 200
+N_DECIMATION = 10  # Decimation factor for 3D data
 CHROM_CAP = 29000 // N_DECIMATION  # Limit for chromatogram size
 VINTAGE = False  # Include vintage data in analysis
 WINDOW = 1000
 STRIDE = 200
 
 # Analysis parameters
-DATA_TYPE = "TIC"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
+DATA_TYPE = "GCMS"  # Options: "TIC", "TIS", "TIC-TIS", "GCMS"
 CH_TREAT = 'concatenated'  # 'independent',  'concatenated'
-CHANNEL_METHOD = 'greedy_remove_diff_origins' # all_channels, greedy_add_ranked, greedy_add, greedy_remove_ranked, greedy_remove, greedy_remove_batch, random_subset
-FEATURE_TYPE = 'concatenated'  # concatenated tic_tis
-SYNC_STATE = True  # Use retention time alignment
+
+# independent, all_channels, greedy_add_ranked, greedy_add, greedy_remove_ranked, greedy_remove, greedy_remove_batch, random_subset
+CHANNEL_METHOD = 'all_channels'
+FEATURE_TYPE = 'concatenated'  # concatenated tic_tis tic tis
+SYNC_STATE = False  # Use retention time alignment
+NORMALIZE = True
 CONCATENATE_TICS = False
 CNN_DIM = None  # 1, 2, None
 gcms_options = ["RT_DIRECTION", "MS_DIRECTION"]

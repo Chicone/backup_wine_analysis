@@ -780,6 +780,8 @@ class Classifier:
 
         return overall_results
 
+
+
     def train_and_evaluate_balanced_diff_origins(self, n_inner_repeats=50, random_seed=42,
                                     test_size=0.2, normalize=False, scaler_type='standard',
                                     use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
@@ -2013,9 +2015,11 @@ class Classifier:
             print(f"Computing features for channels: {channels}")
 
             if feature_type == "concatenated":
+                # Flatten each selected channel across time and concatenate them
                 concatenated_data = np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
                 return concatenated_data
             elif feature_type == "tic_tis":
+                # Compute TIC (sum over m/z) and TIS (sum over time)
                 tic = np.sum(cls_data[:, :, channels], axis=2)
                 tis = np.sum(cls_data[:, :, channels], axis=1)
                 return np.hstack([tic, tis])
@@ -2060,7 +2064,7 @@ class Classifier:
                 print(f'Channel = {ch_idx}')
                 mean_accuracies.append(results['overall_balanced_accuracy'])
 
-            # Step 2: Sort Channels by Accuracy
+            # Step 2: Rank channels by accuracy, shuffling ties
             unique_accuracies = np.unique(mean_accuracies)
             sorted_indices = []
             rng = np.random.default_rng(random_seed + repeat_idx)
@@ -2069,7 +2073,7 @@ class Classifier:
                 rng.shuffle(tied_channels)  # Shuffle tied channels randomly
                 sorted_indices.extend(tied_channels)
 
-            # Step 3: Incrementally Add Top Channels and Evaluate
+            # Step 3: Add channels incrementally and evaluate performance
             incremental_accuracies = []
             selected_indices = []
             for n in range(1, min(num_top_channels, len(sorted_indices)) + 1):
@@ -3138,7 +3142,7 @@ class Classifier:
     def train_and_evaluate_tic(
             self, num_repeats=10, random_seed=42, test_size=0.2, normalize=False,
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
-            dataset_origins=None
+            dataset_origins=None, classifier="RGC"
     ):
         cls_data = self.data.copy()
         labels = self.labels
@@ -3147,7 +3151,8 @@ class Classifier:
         for repeat_idx in range(num_repeats):
             print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
 
-            cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind,year_labels=self.year_labels)
+            # DTC GNB KNN LDA LR PAC PER RGC RFC SGD SVM
+            cls = Classifier(cls_data, labels, classifier_type=classifier, wine_kind=self.wine_kind,year_labels=self.year_labels)
             results = cls.train_and_evaluate_balanced(
                 random_seed=random_seed + repeat_idx,
                 test_size=test_size,
@@ -3289,16 +3294,44 @@ class Classifier:
 
     def train_and_evaluate_all_channels(
             self, num_repeats=10, num_outer_repeats=1, random_seed=42, test_size=0.2, normalize=False,
-            scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1
+            scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+            feature_type="concatenated"
     ):
         cls_data = self.data.copy()
         labels = self.labels
+        num_samples, num_timepoints, num_channels = cls_data.shape
+        accuracies = []
         accuracies = []
         confusion_matrices = []  # Store confusion matrices
+
+        # --- Feature extraction helper ---
+        def compute_features(channels):
+            """Compute features based on the chosen feature type."""
+            print(f"Computing features for channels: {channels}")
+            if feature_type == "concatenated":
+                # Flatten each selected channel across time and concatenate them
+                return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+            elif feature_type == "tic":
+                tic = np.sum(cls_data[:, :, channels], axis=2)
+                return tic
+            elif feature_type == "tis":
+                tis = np.sum(cls_data[:, :, channels], axis=1)
+                return  tis
+            elif feature_type == "tic_tis":
+                tic = np.sum(cls_data[:, :, channels], axis=2)
+                tis = np.sum(cls_data[:, :, channels], axis=1)
+                return np.hstack([tic, tis])
+            else:
+                raise ValueError("Invalid feature_type. Use 'concatenated' or 'tic_tis'.")
+
+         # --- Use all channels by default ---
+        feature_matrix = compute_features(list(range(num_channels)))
+
         for repeat_idx in range(num_repeats):
             print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
-
-            cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind)
+            # classifiers = ["DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"]
+            cls = Classifier(feature_matrix, labels, classifier_type="SVM", wine_kind=self.wine_kind,
+                             year_labels=self.year_labels)
             results = cls.train_and_evaluate_balanced(
                 random_seed=random_seed + repeat_idx,
                 test_size=test_size,
@@ -3312,18 +3345,19 @@ class Classifier:
                 test_on_discarded=True
             )
             accuracies.append(results['overall_balanced_accuracy'])
+            if confusion_matrices and results['overall_confusion_matrix_normalized'].shape != confusion_matrices[0].shape:
+                print("⚠️ Skipping confusion matrix with different shape.")
+                continue
+
             confusion_matrices.append(results['overall_confusion_matrix_normalized'])  # Collect confusion matrices
 
         # Compute average performance across repeats
         mean_test_accuracy = np.mean(accuracies, axis=0)
         std_test_accuracy = np.std(accuracies, axis=0)
-        print("\n##################################")
-        print(f"Mean Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")
-
-        # Compute the averaged confusion matrix across all repetitions
         mean_confusion_matrix = np.mean(confusion_matrices, axis=0)
 
-        # Print final normalized confusion matrix
+        print("\n##################################")
+        print(f"Mean Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")
         print("\nFinal Averaged Normalized Confusion Matrix:")
         print(mean_confusion_matrix)
         print("##################################")
@@ -3694,7 +3728,21 @@ class Classifier:
 
         # Cross-validation loop
         for i in range(n_splits):
-            # Perform stratified split at the sample level
+            # # Perform stratified split at the sample level
+            # train_idx, test_idx = train_test_split(
+            #     np.arange(len(sample_labels)),
+            #     test_size=test_size,
+            #     stratify=sample_labels,
+            #     random_state=i
+            # )
+            #
+            # # Prepare train and test data while keeping channels grouped by sample
+            # X_train = sample_data[train_idx].transpose(0, 2, 1).reshape(-1, sample_data.shape[1])  # Flatten channels
+            # X_test = sample_data[test_idx].transpose(0, 2, 1).reshape(-1, sample_data.shape[1])
+            # y_train = np.repeat(sample_labels[train_idx], sample_data.shape[2])  # Repeat labels for all channels
+            # y_test = np.repeat(sample_labels[test_idx], sample_data.shape[2])
+
+            # Perform stratified split at the sample level (not per channel!)
             train_idx, test_idx = train_test_split(
                 np.arange(len(sample_labels)),
                 test_size=test_size,
@@ -3702,11 +3750,17 @@ class Classifier:
                 random_state=i
             )
 
-            # Prepare train and test data while keeping channels grouped by sample
-            X_train = sample_data[train_idx].transpose(0, 2, 1).reshape(-1, sample_data.shape[1])  # Flatten channels
-            X_test = sample_data[test_idx].transpose(0, 2, 1).reshape(-1, sample_data.shape[1])
-            y_train = np.repeat(sample_labels[train_idx], sample_data.shape[2])  # Repeat labels for all channels
-            y_test = np.repeat(sample_labels[test_idx], sample_data.shape[2])
+            # Select samples
+            X_train_raw = sample_data[train_idx]
+            X_test_raw = sample_data[test_idx]
+            y_train_raw = sample_labels[train_idx]
+            y_test_raw = sample_labels[test_idx]
+
+            # Flatten only after grouping is done — this ensures no leakage
+            X_train = X_train_raw.transpose(0, 2, 1).reshape(-1, sample_data.shape[1])
+            X_test = X_test_raw.transpose(0, 2, 1).reshape(-1, sample_data.shape[1])
+            y_train = np.repeat(y_train_raw, sample_data.shape[2])
+            y_test = np.repeat(y_test_raw, sample_data.shape[2])
 
             # Normalize data if required
             if normalize:

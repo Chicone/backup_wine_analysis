@@ -13,6 +13,8 @@ from collections import Counter
 from scipy.ndimage import gaussian_filter1d
 from sklearn.model_selection import train_test_split
 import shutil
+from scipy.stats import pearsonr
+from itertools import combinations
 
 
 def collapse_lists(d):
@@ -1723,3 +1725,41 @@ def join_datasets(selected_datasets, data_directories, n_decimation):
                 merged_data[key] = np.vstack((merged_data[key], dataset_dict['data'][key]))
 
     return merged_data, merged_origins
+
+
+def compute_pairwise_pearson(chrom_dict):
+    """
+    Compute pairwise Pearson correlation coefficients between chromatograms.
+
+    Parameters
+    ----------
+    chrom_dict : dict
+        Dictionary with keys as sample names and values as 1D NumPy arrays (chromatograms).
+
+    Returns
+    -------
+    pairwise_results : list of tuples
+        Each tuple contains (sample1, sample2, correlation).
+    mean_corr : float
+        Mean Pearson correlation coefficient across all unique pairs.
+    std_corr : float
+        Standard deviation of the Pearson correlation coefficients.
+    """
+
+    pairwise_results = []
+    correlations = []
+
+    # Iterate through all unique pairs of samples
+    for (s1, c1), (s2, c2) in combinations(chrom_dict.items(), 2):
+        # Ensure they are the same length
+        if len(c1) != len(c2):
+            raise ValueError(f"Chromatograms {s1} and {s2} have different lengths.")
+
+        corr, _ = pearsonr(c1, c2)
+        pairwise_results.append((s1, s2, corr))
+        correlations.append(corr)
+
+    mean_corr = np.mean(correlations)
+    std_corr = np.std(correlations)
+
+    return pairwise_results, mean_corr, std_corr
