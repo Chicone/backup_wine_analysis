@@ -3290,6 +3290,125 @@ class Classifier:
 
         return mean_test_accuracy, std_test_accuracy
 
+    def train_and_evaluate_individual_channels(
+            self, num_repeats=10, random_seed=42, test_size=0.2,
+            normalize=False, scaler_type='standard', use_pca=False,
+            vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+            classifier_type="RGC", dataset='dataset'
+    ):
+        """
+        Evaluate classification accuracy using each m/z channel independently.
+
+        For each channel, the function:
+        - Trains a model using only the data from that channel
+        - Repeats the training multiple times (with different random seeds)
+        - Computes average and standard deviation of accuracy across repetitions
+        - Displays a histogram of channel-wise performance
+        - Prints the best-performing channel and its accuracy
+
+        Parameters
+        ----------
+        num_repeats : int
+            Number of repetitions to average the results.
+        random_seed : int
+            Base random seed used for reproducibility.
+        test_size : float
+            Proportion of the dataset to include in the test split.
+        normalize : bool
+            Whether to normalize the data before training.
+        scaler_type : str
+            Type of scaler to use for normalization (e.g., 'standard', 'minmax').
+        use_pca : bool
+            Whether to apply PCA to reduce dimensionality before training.
+        vthresh : float
+            Variance threshold used when applying PCA.
+        region : str or None
+            If provided, filters samples by region.
+        print_results : bool
+            Whether to print accuracy and confusion matrix per repeat.
+        n_jobs : int
+            Number of parallel jobs for classifiers that support it.
+        classifier_type : str
+            Type of classifier to use (e.g., 'RGC', 'SGD', 'LR').
+
+        Returns
+        -------
+        mean_accuracies : np.ndarray
+            Mean accuracy per channel across all repetitions.
+        std_accuracies : np.ndarray
+            Standard deviation of accuracy per channel.
+        best_channel : int
+            Index of the channel with the highest mean accuracy.
+        """
+
+        cls_data = self.data.copy()
+        labels = self.labels
+        num_samples, num_timepoints, num_channels = cls_data.shape
+
+        # Initialize list to store accuracies per channel
+        channel_accuracies = [[] for _ in range(num_channels)]
+
+        # Repeat the evaluation to compute average accuracy
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+            rng = np.random.default_rng(seed=random_seed + repeat_idx)
+
+            for ch in range(num_channels):
+                # Prepare feature vector using a single channel
+                feature_matrix = cls_data[:, :, ch].reshape(num_samples, -1)
+
+                # Initialize classifier
+                cls = Classifier(feature_matrix, labels, classifier_type=classifier_type,
+                                 wine_kind=self.wine_kind, year_labels=self.year_labels)
+
+                # Evaluate
+                results = cls.train_and_evaluate_balanced(
+                    random_seed=random_seed + repeat_idx,
+                    test_size=test_size,
+                    normalize=normalize,
+                    scaler_type=scaler_type,
+                    use_pca=use_pca,
+                    vthresh=vthresh,
+                    region=region,
+                    print_results=False,
+                    n_jobs=n_jobs,
+                    test_on_discarded=True
+                )
+
+                acc = results['overall_balanced_accuracy']
+                channel_accuracies[ch].append(acc)
+
+        # --- Compute mean and std ---
+        mean_accuracies = np.array([np.mean(accs) for accs in channel_accuracies])
+        std_accuracies = np.array([np.std(accs) for accs in channel_accuracies])
+
+        # --- Plot histogram ---
+        plt.figure(figsize=(10, 6))
+        plt.bar(range(num_channels), mean_accuracies, yerr=std_accuracies, alpha=0.7, capsize=2)
+        plt.xlabel("Channel index", fontsize=26)
+        plt.ylabel("Mean Accuracy", fontsize=26)
+        plt.title(f"Average Accuracy per Channel over {num_repeats} Repeats ({classifier_type})", fontsize=30)
+        plt.xticks(ticks=range(0, num_channels, 10), fontsize=14)
+        plt.yticks(fontsize=22)
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+        # --- Report best channel ---
+        best_channel = int(np.argmax(mean_accuracies))
+        best_acc = mean_accuracies[best_channel]
+        print("\n##################################")
+        print(f"Best channel: {best_channel} with accuracy: {best_acc:.3f}")
+        print("##################################")
+
+        # Save accuracies
+
+        out_path = f"channel_accuracy_histogram_{dataset[0]}_{classifier_type}.csv"
+        np.savetxt(out_path, mean_accuracies, delimiter=",")
+        print(f"Saved mean channel accuracies to: {out_path}")
+
+        return mean_accuracies, std_accuracies, best_channel
+
 
 
     def train_and_evaluate_all_channels(
@@ -3330,7 +3449,7 @@ class Classifier:
         for repeat_idx in range(num_repeats):
             print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
             # classifiers = ["DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"]
-            cls = Classifier(feature_matrix, labels, classifier_type="SVM", wine_kind=self.wine_kind,
+            cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
                              year_labels=self.year_labels)
             results = cls.train_and_evaluate_balanced(
                 random_seed=random_seed + repeat_idx,

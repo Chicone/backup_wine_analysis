@@ -1,5 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from scipy.stats import pearsonr
 import re
 import matplotlib
 matplotlib.use('TkAgg')
@@ -434,5 +437,89 @@ def plot_histogram_correlation(file1, file2, wine1="Wine 1", wine2="Wine 2", thr
         #
         # plt.tight_layout()
         # plt.show()
+
+    return correlation
+
+
+def plot_accuracy_histogram_correlation(file1, file2, label1="Dataset 1", label2="Dataset 2", show_plots=True):
+    """
+    Compare two accuracy histograms by plotting them vertically and showing their correlation on the side.
+
+    Parameters
+    ----------
+    file1 : str
+        Path to the first CSV file (e.g., mean accuracies per channel).
+    file2 : str
+        Path to the second CSV file (same format as file1).
+    label1 : str
+        Name to use for the first dataset in plots.
+    label2 : str
+        Name to use for the second dataset in plots.
+    show_plots : bool
+        Whether to display the plots.
+
+    Returns
+    -------
+    correlation : float
+        Pearson correlation coefficient between the two histograms.
+    """
+
+    # Load data
+    acc1 = pd.read_csv(file1, header=None).squeeze().values
+    acc2 = pd.read_csv(file2, header=None).squeeze().values
+
+    if len(acc1) != len(acc2):
+        raise ValueError("The two input files must have the same number of channels.")
+
+    num_channels = len(acc1)
+    channels = np.arange(num_channels)
+
+    # Pearson correlation
+    correlation, _ = pearsonr(acc1, acc2)
+
+    # Linear regression
+    model = LinearRegression()
+    model.fit(acc1.reshape(-1, 1), acc2)
+    acc2_pred = model.predict(acc1.reshape(-1, 1))
+    r2 = model.score(acc1.reshape(-1, 1), acc2)
+
+    if show_plots:
+        fig = plt.figure(figsize=(14, 8))
+        gs = fig.add_gridspec(2, 2, width_ratios=[2, 1])
+
+        ax1 = fig.add_subplot(gs[0, 0])
+        ax2 = fig.add_subplot(gs[1, 0], sharex=ax1)
+        ax3 = fig.add_subplot(gs[:, 1])  # Right side full-height
+
+        # Histogram for Dataset 1
+        ax1.bar(channels, acc1, color='#4C72B0', alpha=0.8)
+        ax1.set_title(f"{label1}", fontsize=14)
+        ax1.set_ylabel("Accuracy", fontsize=12)
+        ax1.grid(True)
+
+        # Histogram for Dataset 2
+        ax2.bar(channels, acc2, color='#C44E52', alpha=0.8)
+        ax2.set_title(f"{label2}", fontsize=14)
+        ax2.set_xlabel("Channel Index", fontsize=12)
+        ax2.set_ylabel("Accuracy", fontsize=12)
+        ax2.grid(True)
+
+        # Scatter + Regression Plot
+        ax3.scatter(acc1, acc2, alpha=0.7, edgecolor='black', color='#8172B3')
+        ax3.plot(acc1, acc2_pred, 'g--', label=f"$R^2$ = {r2:.3f}")
+        ax3.plot([acc1.min(), acc1.max()], [acc1.min(), acc1.max()], 'r:', label="y = x")
+        ax3.set_xlabel(f"{label1} Accuracy", fontsize=12)
+        ax3.set_ylabel(f"{label2} Accuracy", fontsize=12)
+        ax3.set_title("Accuracy Correlation", fontsize=14)
+        ax3.legend()
+        ax3.grid(True)
+        ax3.text(0.05, 0.95, f"Pearson r = {correlation:.3f}",
+                 transform=ax3.transAxes,
+                 fontsize=13,
+                 verticalalignment='top',
+                 bbox=dict(facecolor='white', alpha=0.7))
+
+        plt.tight_layout()
+        plt.show()
 
     return correlation

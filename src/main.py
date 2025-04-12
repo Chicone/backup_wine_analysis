@@ -41,6 +41,10 @@ if __name__ == "__main__":
     #     wine1="hist_5ch_greedy_add_ranked_cab_sauv",
     #     wine2="hist_5ch_greedy_remove_ranked_cab_sauv"
     # )
+    # plot_accuracy_histogram_correlation(
+    #     "channel_accuracy_histogram_pinot_noir_isvv_lle_RGC.csv",
+    #     "channel_accuracy_histogram_pinot_noir_changins_lle_RGC.csv",
+    #     label1="ISVV", label2="Changins")
     ###########################
 
     cl = ChromatogramAnalysis()
@@ -138,7 +142,19 @@ if __name__ == "__main__":
         alpha, num_total_channels = optimize_bayesian_params(data, labels, NUM_SPLITS_BAYES, CH_TREAT)
 
     if DATA_TYPE == "GCMS":
-        if CHANNEL_METHOD == "all_channels":
+        if CHANNEL_METHOD == 'independent':
+            cls.train_and_evaluate_balanced_with_best_alpha2(
+                n_splits=NUM_SPLITS, test_size=0.2, normalize=NORMALIZE,
+                scaler_type='standard', use_pca=False, region=REGION, vthresh=0.97,
+                best_alpha=alpha
+            )
+        elif CHANNEL_METHOD == "individual":
+            cls.train_and_evaluate_individual_channels(
+                num_repeats=200, random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
+                use_pca=False, vthresh=0.97, region=None, print_results=True,
+                n_jobs=20, dataset=SELECTED_DATASETS
+            )
+        elif CHANNEL_METHOD == "all_channels":
             cls.train_and_evaluate_all_channels(
                 num_repeats=200, num_outer_repeats=1,
                 random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
@@ -199,13 +215,6 @@ if __name__ == "__main__":
                 random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
                 n_jobs=20, feature_type=FEATURE_TYPE
-            )
-
-        elif CHANNEL_METHOD == 'independent':
-            cls.train_and_evaluate_balanced_with_best_alpha2(
-                n_splits=NUM_SPLITS, test_size=0.2, normalize=NORMALIZE,
-                scaler_type='standard', use_pca=False, region=REGION, vthresh=0.97,
-                best_alpha=alpha
             )
 
     elif DATA_TYPE in "TIC":
