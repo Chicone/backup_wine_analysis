@@ -43,7 +43,8 @@ if __name__ == "__main__":
     # )
     # plot_accuracy_histogram_correlation(
     #     "channel_accuracy_histogram_pinot_noir_isvv_lle_RGC.csv",
-    #     "channel_accuracy_histogram_pinot_noir_changins_lle_RGC.csv",
+    #     # "channel_accuracy_histogram_pinot_noir_changins_lle_RGC.csv",
+    #     "channel_accuracy_histogram_pinot_noir_changins_LDA.csv",
     #     label1="ISVV", label2="Changins")
     ###########################
 
@@ -61,6 +62,7 @@ if __name__ == "__main__":
     # Optionally select specific or random m/z channels
     selected_channels = None # [4, 5, 9, 12, 16, 21, 24, 26, 27] # [19, 27]# [2, 19, 24, 27, 28] # [14, 21, 27]    # or set to None  [14, 16, 19, 27, 31]
     # selected_channels = [7, 18, 24, 25, 31]  # or set to None
+    # selected_channels = list(range(26))
     num_random_channels = None  # e.g. 10
 
     # Determine number of channels
@@ -152,14 +154,14 @@ if __name__ == "__main__":
             cls.train_and_evaluate_individual_channels(
                 num_repeats=200, random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=20, dataset=SELECTED_DATASETS
+                n_jobs=20, dataset=SELECTED_DATASETS, classifier_type=CLASSIFIER
             )
         elif CHANNEL_METHOD == "all_channels":
             cls.train_and_evaluate_all_channels(
-                num_repeats=200, num_outer_repeats=1,
+                num_repeats=NUM_SPLITS, num_outer_repeats=1,
                 random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=20, feature_type=FEATURE_TYPE
+                n_jobs=20, feature_type=FEATURE_TYPE, classifier_type=CLASSIFIER
             )
 
         elif CHANNEL_METHOD == "greedy_add_ranked":
@@ -195,9 +197,18 @@ if __name__ == "__main__":
             )
         elif CHANNEL_METHOD == "greedy_remove_diff_origins":
             cls.train_and_evaluate_greedy_remove_diff_origins(
-                num_repeats=50, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=NORMALIZE,
+                num_repeats=NUM_SPLITS, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=NORMALIZE,
                 scaler_type='standard', use_pca=False, region=None, print_results=True, n_jobs=10,
-                feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="pinot_noir_isvv_lle"
+                feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="pinot_noir_changins",
+                classifier_type=CLASSIFIER
+            )
+        elif CHANNEL_METHOD == "greedy_remove_diff_stochastic":
+            cls.train_and_evaluate_greedy_remove_stochastic(
+                num_repeats=NUM_SPLITS, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=NORMALIZE,
+                scaler_type='standard', use_pca=False, region=None, print_results=True, n_jobs=10,
+                feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="pinot_noir_changins",
+                classifier_type=CLASSIFIER,
+                sample_size=20
             )
 
         elif CHANNEL_METHOD == "greedy_remove_batch":
@@ -218,19 +229,19 @@ if __name__ == "__main__":
             )
 
     elif DATA_TYPE in "TIC":
-        classifiers = ["DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"]
-        classifiers = [classifiers[8]]
-        for classifier in classifiers:
-            cls.train_and_evaluate_tic(num_repeats=NUM_SPLITS, random_seed=42, test_size=0.2, normalize=NORMALIZE,
-                                       scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True,
-                                       n_jobs=10, classifier = classifier)
+        # classifiers = ["DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"]
+        # classifiers = [classifiers[0]]
+        # for classifier in classifiers:
+        cls.train_and_evaluate_tic(num_repeats=NUM_SPLITS, random_seed=42, test_size=0.2, normalize=NORMALIZE,
+                                   scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True,
+                                   n_jobs=10, classifier = CLASSIFIER)
 
     elif DATA_TYPE == "TIC-TIS":
         tic_data, tis_data = chromatograms_tic.values(), chromatograms_tis.values()
         cls.train_and_evaluate_tic_tis(np.array(list(tic_data)), np.array(list(tis_data)),
                                        num_repeats=NUM_SPLITS, num_outer_repeats=1, random_seed=42, test_size=0.2,
                                        normalize=NORMALIZE, scaler_type='standard', use_pca=False, vthresh=0.97,
-                                       region=None, print_results=True,
+                                       region=None, print_results=True, classifier = CLASSIFIER
                                        )
 
     # cl.stacked_2D_plots_3D(synced_chromatograms)

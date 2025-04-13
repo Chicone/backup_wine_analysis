@@ -684,11 +684,29 @@ class Classifier:
                 X_train_full = pca.transform(X_train_full)
                 X_test = pca.transform(X_test)
 
-            if self.year_labels.size > 0 and np.any(self.year_labels != None):
-                self.classifier.fit(X_train_full, y_train_full)
-            else:
-                self.classifier.fit(X_train_full, np.array(extract_category_labels(y_train_full)))
-                y_test = extract_category_labels(y_test)
+            # if self.year_labels.size > 0 and np.any(self.year_labels != None):
+            #     self.classifier.fit(X_train_full, y_train_full)
+            # else:
+            #     self.classifier.fit(X_train_full, np.array(extract_category_labels(y_train_full)))
+            #     y_test = extract_category_labels(y_test)
+
+            try:
+                if self.year_labels.size > 0 and np.any(self.year_labels != None):
+                    self.classifier.fit(X_train_full, y_train_full)
+                else:
+                    self.classifier.fit(X_train_full, np.array(extract_category_labels(y_train_full)))
+            except np.linalg.LinAlgError:
+                print(
+                    "⚠️ Skipping evaluation due to SVD convergence error (likely caused by LDA on low-variance or singular data).")
+                return {
+                    'overall_accuracy': np.nan,
+                    'overall_balanced_accuracy': np.nan,
+                    'overall_weighted_accuracy': np.nan,
+                    'overall_precision': np.nan,
+                    'overall_recall': np.nan,
+                    'overall_f1_score': np.nan,
+                    'confusion_matrix': None,
+                }
             # self.classifier.fit(X_train_full, extract_category_labels(y_train_full))
             # y_test = extract_category_labels(y_test)
 
@@ -2634,7 +2652,8 @@ class Classifier:
                                          use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
                                          feature_type="concatenated",
                                          dataset_origins=None,
-                                         target_origin=None):
+                                         target_origin=None,
+                                         classifier_type='RGC'):
         """
         Perform greedy channel removal with an option to use either:
           - "concatenated": Raw m/z channels concatenated as features.
@@ -2708,7 +2727,7 @@ class Classifier:
                     print(f"⚠️ Feature matrix is empty after removing {ch_idx}. Skipping.")
                     return ch_idx, None
 
-                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                cls = Classifier(feature_matrix, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
                                  year_labels=self.year_labels,
                                  dataset_origins=dataset_origins)
                 # results = cls.train_and_evaluate_balanced_diff_origins(
@@ -2743,7 +2762,7 @@ class Classifier:
                 accuracy = results[origin_key]["balanced_accuracy"]
                 return ch_idx, accuracy
 
-            for step in range(min(num_channels, 137 + 1)):  # Limit number of removals for efficiency
+            for step in range(min(num_channels, 180 + 1)):  # Limit number of removals for efficiency
 
                 if not remaining_indices:  # Prevent issues when all channels are removed
                     print("⚠️ No more channels left to remove. Stopping early.")
@@ -2857,7 +2876,158 @@ class Classifier:
 
         return mean_test_accuracies, std_test_accuracies
 
+    def train_and_evaluate_greedy_remove_stochastic(
+            self, num_repeats=10, n_inner_repeats=50,
+            random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
+            use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+            feature_type="concatenated", dataset_origins=None, target_origin=None,
+            classifier_type='RGC', sample_size=20):
+        """
+        Greedy channel removal using stochastic sampling:
+        evaluates only a random subset of channels at each step for faster execution.
+        """
+        all_test_accuracies = []
+        final_channel_distributions = []
 
+        def compute_features(channels):
+            if feature_type == "concatenated":
+                return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+            elif feature_type == "tic_tis":
+                tic = np.sum(cls_data[:, :, channels], axis=2)
+                tis = np.sum(cls_data[:, :, channels], axis=1)
+                return np.hstack([tic, tis])
+            else:
+                raise ValueError("Invalid feature_type. Use 'concatenated' or 'tic_tis'.")
+
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+
+            cls_data = self.data.copy()
+            num_samples, num_timepoints, num_channels = cls_data.shape
+            labels = self.labels
+
+            train_idx, test_idx = self.shuffle_split_without_splitting_duplicates(
+                self.data, self.labels, test_size=test_size,
+                random_state=random_seed + repeat_idx,
+                group_duplicates=False, dataset_origins=dataset_origins)
+
+            remaining_indices = list(range(num_channels))
+            incremental_accuracies = [None]
+
+            def evaluate_channel(ch_idx):
+                temp_indices = [idx for idx in remaining_indices if idx != ch_idx]
+                feature_matrix = compute_features(temp_indices)
+                cls = Classifier(feature_matrix, labels, classifier_type=classifier_type,
+                                 wine_kind=self.wine_kind, year_labels=self.year_labels,
+                                 dataset_origins=dataset_origins)
+                results = cls.train_and_evaluate_balanced_target_origin(
+                    n_inner_repeats=n_inner_repeats,
+                    random_seed=random_seed + repeat_idx,
+                    test_size=test_size, normalize=normalize,
+                    scaler_type=scaler_type, use_pca=use_pca,
+                    vthresh=vthresh, region=region,
+                    print_results=False, n_jobs=n_jobs,
+                    test_on_discarded=False, target_origin=target_origin,
+                    pre_split_indices=(train_idx, test_idx))
+
+                origin_key = str(target_origin)
+                if origin_key not in results:
+                    if len(results) == 1:
+                        origin_key = list(results.keys())[0]
+                    else:
+                        return ch_idx, -1
+                accuracy = results[origin_key]["balanced_accuracy"]
+                return ch_idx, accuracy
+
+            for step in range(min(num_channels, 180 + 1)):
+                if not remaining_indices:
+                    break
+
+                feature_matrix = compute_features(remaining_indices)
+                cls = Classifier(feature_matrix, labels, classifier_type="RGC",
+                                 wine_kind=self.wine_kind, year_labels=self.year_labels,
+                                 dataset_origins=dataset_origins)
+                results = cls.train_and_evaluate_balanced_target_origin(
+                    random_seed=random_seed + repeat_idx,
+                    test_size=test_size, normalize=normalize,
+                    scaler_type=scaler_type, use_pca=use_pca,
+                    vthresh=vthresh, region=region,
+                    print_results=False, test_on_discarded=True,
+                    target_origin=target_origin,
+                    pre_split_indices=(train_idx, test_idx))
+
+                origin_key = str(target_origin)
+                if origin_key not in results:
+                    continue
+                if incremental_accuracies[0] is None:
+                    incremental_accuracies[0] = results[origin_key]['balanced_accuracy']
+                else:
+                    incremental_accuracies.append(results[origin_key]['balanced_accuracy'])
+
+                # --- Stochastic sampling of candidates ---
+                candidates_to_test = random.sample(remaining_indices, min(sample_size, len(remaining_indices)))
+                validation_accuracies = Parallel(n_jobs=n_jobs, backend='loky')(
+                    delayed(evaluate_channel)(ch_idx) for ch_idx in candidates_to_test)
+
+                max_accuracy = max(validation_accuracies, key=lambda x: x[1])[1]
+                candidates = [ch for ch, acc in validation_accuracies if acc == max_accuracy]
+                best_channel_to_remove = random.choice(candidates)
+                remaining_indices.remove(best_channel_to_remove)
+
+                if len(remaining_indices) == 5:
+                    final_channel_distributions.append(list(remaining_indices))
+
+                if print_results:
+                    print(
+                        f"After removing {step + 1} channel(s): Test Accuracy = {results[origin_key]['balanced_accuracy']:.3f}")
+
+            all_test_accuracies.append(incremental_accuracies)
+
+            # Plot accuracy trend live
+            plt.ion()
+            plt.clf()
+            mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
+            std_test_accuracies = np.std(all_test_accuracies, axis=0)
+            x = range(len(mean_test_accuracies))
+            plt.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
+            plt.fill_between(x, mean_test_accuracies - std_test_accuracies,
+                             mean_test_accuracies + std_test_accuracies, alpha=0.3, label='± 1 Std Dev')
+            plt.xlabel("Number of Channels Removed")
+            plt.ylabel("Mean Balanced Accuracy")
+            plt.title(f"Stochastic Greedy Remove: {repeat_idx + 1} / {num_repeats}")
+            plt.grid(True)
+            plt.legend()
+            plt.pause(1)
+
+        print("\nDistribution of Remaining Channels in the Last 5 Steps:")
+        unique_channels, counts = np.unique(final_channel_distributions, return_counts=True)
+        for ch, count in zip(unique_channels, counts):
+            print(f"Channel {ch}: {count} occurrences")
+
+        # Save histogram data to CSV file
+        histogram_path = f"hist_5ch_greedy_remove_stochastic_{target_origin}.csv"
+        with open(histogram_path, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Channel Index"])
+            writer.writerows([[ch] for ch in final_channel_distributions])
+
+            for row in final_channel_distributions:
+                writer.writerows([[ch] for ch in row])
+        print(f"Histogram data saved to {histogram_path}")
+
+        plt.figure(figsize=(10, 6))
+        plt.show(block=True)
+        # plt.hist(final_channel_distributions,
+        #          bins=np.arange(min(final_channel_distributions), max(final_channel_distributions) + 2) - 0.5,
+        #          edgecolor='black')
+        # plt.xlabel("Channel Index")
+        # plt.ylabel("Number of Repeats")
+        # plt.title("Histogram of Channels Remaining in the Last 5 Steps")
+        # plt.grid(axis='y', linestyle='--', alpha=0.7)
+        # plt.show(block=True)
+
+        print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
+        return mean_test_accuracies, std_test_accuracies
 
     def train_and_evaluate_greedy_remove_batch(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
                                                random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
@@ -3246,7 +3416,7 @@ class Classifier:
 
     def train_and_evaluate_tic_tis(
             self, tics, tiss, num_repeats=10, num_outer_repeats=1, random_seed=42, test_size=0.2, normalize=False,
-            scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True
+            scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, classifier = 'RGC'
     ):
         cls_data = self.data.copy()
         labels = self.labels
@@ -3255,7 +3425,7 @@ class Classifier:
         for repeat_idx in range(num_repeats):
             print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
 
-            cls = Classifier(cls_data, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+            cls = Classifier(cls_data, labels, classifier_type=classifier, wine_kind=self.wine_kind,
                              alpha=1)
             results = cls.train_and_evaluate_balanced_tic_tis(
                 tics, tiss,
@@ -3414,7 +3584,7 @@ class Classifier:
     def train_and_evaluate_all_channels(
             self, num_repeats=10, num_outer_repeats=1, random_seed=42, test_size=0.2, normalize=False,
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
-            feature_type="concatenated"
+            feature_type="concatenated", classifier_type="RGC"
     ):
         cls_data = self.data.copy()
         labels = self.labels
@@ -3449,7 +3619,7 @@ class Classifier:
         for repeat_idx in range(num_repeats):
             print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
             # classifiers = ["DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"]
-            cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+            cls = Classifier(feature_matrix, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
                              year_labels=self.year_labels)
             results = cls.train_and_evaluate_balanced(
                 random_seed=random_seed + repeat_idx,

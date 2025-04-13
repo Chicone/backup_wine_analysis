@@ -27,7 +27,7 @@ DATASET_DIRECTORIES = {
 SELECTED_DATASETS = ["pinot_noir_changins"]
 
 ROW_START = 50
-NUM_SPLITS = 200
+NUM_SPLITS = 50
 N_DECIMATION = 10  # Decimation factor for 3D data
 CHROM_CAP = 29000 // N_DECIMATION  # Limit for chromatogram size
 VINTAGE = False  # Include vintage data in analysis
@@ -40,8 +40,9 @@ CH_TREAT = 'concatenated'  # 'independent',  'concatenated'
 
 # independent, individual, all_channels, greedy_add_ranked, greedy_add, greedy_remove_ranked, greedy_remove,
 # greedy_remove_batch, random_subset
-CHANNEL_METHOD = 'individual'
-FEATURE_TYPE = 'concatenated'  # concatenated tic_tis tic tis
+CHANNEL_METHOD = 'greedy_remove_diff_stochastic'
+FEATURE_TYPE = 'tic_tis'  # concatenated tic tis tic_tis
+CLASSIFIER='RGC' # "DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"
 SYNC_STATE = False  # Use retention time alignment
 NORMALIZE = True
 CONCATENATE_TICS = False

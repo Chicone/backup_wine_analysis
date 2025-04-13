@@ -477,11 +477,20 @@ def plot_accuracy_histogram_correlation(file1, file2, label1="Dataset 1", label2
     # Pearson correlation
     correlation, _ = pearsonr(acc1, acc2)
 
-    # Linear regression
-    model = LinearRegression()
-    model.fit(acc1.reshape(-1, 1), acc2)
-    acc2_pred = model.predict(acc1.reshape(-1, 1))
-    r2 = model.score(acc1.reshape(-1, 1), acc2)
+    # Fit regression model
+    reg = LinearRegression().fit(acc1.reshape(-1, 1), acc2)
+    acc2_pred = reg.predict(acc1.reshape(-1, 1))
+    r2 = reg.score(acc1.reshape(-1, 1), acc2)
+    a = reg.coef_[0]
+    b = reg.intercept_
+
+    # Format regression equation
+    sign = "+" if b >= 0 else "-"
+    equation_text = (
+        f"Pearson $r$ = {correlation:.3f}\n"
+        f"$R^2$ = {r2:.3f}\n"
+        f"$y = {a:.2f}x {sign} {abs(b):.2f}$"
+    )
 
     if show_plots:
         fig = plt.figure(figsize=(14, 8))
@@ -493,29 +502,45 @@ def plot_accuracy_histogram_correlation(file1, file2, label1="Dataset 1", label2
 
         # Histogram for Dataset 1
         ax1.bar(channels, acc1, color='#4C72B0', alpha=0.8)
-        ax1.set_title(f"{label1}", fontsize=14)
-        ax1.set_ylabel("Accuracy", fontsize=12)
+        ax1.set_title(f"{label1}", fontsize=24)
+        ax1.set_ylabel("Accuracy", fontsize=20)
         ax1.grid(True)
+        ax1.tick_params(axis='both', labelsize=14)
+
 
         # Histogram for Dataset 2
         ax2.bar(channels, acc2, color='#C44E52', alpha=0.8)
-        ax2.set_title(f"{label2}", fontsize=14)
-        ax2.set_xlabel("Channel Index", fontsize=12)
-        ax2.set_ylabel("Accuracy", fontsize=12)
+        ax2.set_title(f"{label2}", fontsize=24)
+        ax2.set_xlabel("Channel Index", fontsize=18)
+        ax2.set_ylabel("Accuracy", fontsize=18)
         ax2.grid(True)
+        ax2.tick_params(axis='both', labelsize=14)
+
 
         # Scatter + Regression Plot
-        ax3.scatter(acc1, acc2, alpha=0.7, edgecolor='black', color='#8172B3')
-        ax3.plot(acc1, acc2_pred, 'g--', label=f"$R^2$ = {r2:.3f}")
+        ax3.scatter(acc1, acc2, alpha=0.7, edgecolor='black', color='#8172B3', label="Channels")
+        ax3.plot(acc1, acc2_pred, 'g--', label='Linear fit')
         ax3.plot([acc1.min(), acc1.max()], [acc1.min(), acc1.max()], 'r:', label="y = x")
-        ax3.set_xlabel(f"{label1} Accuracy", fontsize=12)
-        ax3.set_ylabel(f"{label2} Accuracy", fontsize=12)
-        ax3.set_title("Accuracy Correlation", fontsize=14)
-        ax3.legend()
+
+        # Equalize axes range
+        acc_min = min(acc1.min(), acc2.min())
+        acc_max = max(acc1.max(), acc2.max())
+        ax3.set_xlim(acc_min, acc_max)
+        ax3.set_ylim(acc_min, acc_max)
+
+        ax3.set_xlabel(f"{label1} Accuracy", fontsize=18)
+        ax3.set_ylabel(f"{label2} Accuracy", fontsize=18)
+        ax3.set_title("Channel-wise accuracy correlation", fontsize=24)
+        ax3.legend(fontsize=16)
+
         ax3.grid(True)
-        ax3.text(0.05, 0.95, f"Pearson r = {correlation:.3f}",
+        ax3.tick_params(axis='both', labelsize=14)
+
+
+        # Annotate with metrics
+        ax3.text(0.05, 0.95, equation_text,
                  transform=ax3.transAxes,
-                 fontsize=13,
+                 fontsize=18,
                  verticalalignment='top',
                  bbox=dict(facecolor='white', alpha=0.7))
 
@@ -523,3 +548,4 @@ def plot_accuracy_histogram_correlation(file1, file2, label1="Dataset 1", label2
         plt.show()
 
     return correlation
+
