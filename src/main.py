@@ -138,7 +138,7 @@ if __name__ == "__main__":
 
     cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type='RGC', wine_kind=wine_kind, 
                      window_size=WINDOW, stride=STRIDE, year_labels=np.array(year_labels))
-    cls_type, alpha = 'RGC', 1
+    alpha = 1
 
     if BAYES_OPTIMIZE:
         alpha, num_total_channels = optimize_bayesian_params(data, labels, NUM_SPLITS_BAYES, CH_TREAT)
@@ -156,11 +156,109 @@ if __name__ == "__main__":
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
                 n_jobs=20, dataset=SELECTED_DATASETS, classifier_type=CLASSIFIER
             )
+
+
+            # def load_ms_csv_data_from_directories(directory, columns, row_start, row_end):
+            #     """
+            #     Reads CSV files from all .D directories in the specified directory and extracts specific columns and row ranges.
+            #
+            #     Args:
+            #         directory (str): The path to the main directory containing .D directories.
+            #         columns (list of int): A list of column indices to extract from each CSV file.
+            #         row_start (int): The starting row index to extract (inclusive).
+            #         row_end (int): The ending row index to extract (exclusive).
+            #
+            #     Returns:
+            #         dict of numpy arrays: A dictionary where each key is a .D directory name (without the .D suffix),
+            #                               and each value is a numpy array containing the extracted data from each CSV file.
+            #     """
+            #     data_dict = {}
+            #
+            #     # Loop through all .D directories in the specified directory
+            #     for subdir in sorted(os.listdir(directory)):
+            #         if subdir.endswith('.D'):
+            #             # Extract the directory name without the '.D' suffix
+            #             dir_name = subdir[:-2]
+            #
+            #             # Construct the path to the CSV file that matches the directory name
+            #             csv_file_path = os.path.join(directory, subdir, f"{dir_name}.csv")
+            #
+            #             # Check if the CSV file exists
+            #             if os.path.isfile(csv_file_path):
+            #                 try:
+            #                     # Read the CSV file using pandas
+            #                     df = pd.read_csv(csv_file_path)
+            #
+            #                     # Extract the specified columns and row range
+            #                     extracted_data = df.iloc[row_start:row_end, columns].to_numpy()
+            #
+            #                     # Store the extracted data in the dictionary using the directory name as the key
+            #                     data_dict[dir_name] = extracted_data
+            #
+            #                     print(f"Loaded data from {csv_file_path}")
+            #
+            #                 except Exception as e:
+            #                     print(f"Error processing file {csv_file_path}: {e}")
+            #             else:
+            #                 print(f"No matching CSV file found in {subdir}.")
+            #
+            #     return data_dict
+
+
+            def load_ms_csv_data_from_directories(directory, columns, row_start, row_end):
+                """
+                Reads CSV files from all .D directories in the specified directory and extracts specific columns and row ranges.
+                Uses .npy caching to speed up repeated loading.
+
+                Args:
+                    directory (str): The path to the main directory containing .D directories.
+                    columns (list of int): A list of column indices to extract from each CSV file.
+                    row_start (int): The starting row index to extract (inclusive).
+                    row_end (int): The ending row index to extract (exclusive).
+
+                Returns:
+                    dict of numpy arrays: A dictionary where each key is a .D directory name (without the .D suffix),
+                                          and each value is a numpy array containing the extracted data from each CSV file.
+                """
+                import os
+                import numpy as np
+                import pandas as pd
+
+                data_dict = {}
+
+                # Loop through all .D directories in the specified directory
+                for subdir in sorted(os.listdir(directory)):
+                    if subdir.endswith('.D'):
+                        dir_name = subdir[:-2]  # without '.D'
+                        csv_file_path = os.path.join(directory, subdir, f"{dir_name}.csv")
+                        cache_file_path = os.path.join(directory, subdir, f"{dir_name}_cached.npy")
+
+                        if os.path.isfile(cache_file_path):
+                            try:
+                                extracted_data = np.load(cache_file_path)
+                                data_dict[dir_name] = extracted_data
+                                print(f"Loaded cached data from {cache_file_path}")
+                            except Exception as e:
+                                print(f"Error loading cache for {dir_name}: {e}")
+                        elif os.path.isfile(csv_file_path):
+                            try:
+                                df = pd.read_csv(csv_file_path)
+                                extracted_data = df.iloc[row_start:row_end, columns].to_numpy()
+                                np.save(cache_file_path, extracted_data)
+                                data_dict[dir_name] = extracted_data
+                                print(f"Processed and cached data from {csv_file_path}")
+                            except Exception as e:
+                                print(f"Error processing file {csv_file_path}: {e}")
+                        else:
+                            print(f"No matching CSV file found in {subdir}.")
+
+                return data_dict
+
         elif CHANNEL_METHOD == "all_channels":
             cls.train_and_evaluate_all_channels(
                 num_repeats=NUM_SPLITS, num_outer_repeats=1,
                 random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
-                use_pca=False, vthresh=0.97, region=None, print_results=True,
+                use_pca=False, vthresh=0.97, region=region, print_results=True,
                 n_jobs=20, feature_type=FEATURE_TYPE, classifier_type=CLASSIFIER
             )
 
@@ -174,10 +272,17 @@ if __name__ == "__main__":
 
         elif CHANNEL_METHOD == "greedy_remove_ranked":
             cls.train_and_evaluate_greedy_remove_ranked(
-                num_repeats=200, n_inner_repeats=20,
+                num_repeats=NUM_SPLITS, n_inner_repeats=10,
                 random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
                 use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=20, feature_type=FEATURE_TYPE
+                n_jobs=5, feature_type=FEATURE_TYPE, classifier_type=CLASSIFIER
+            )
+        elif CHANNEL_METHOD == "greedy_remove_ranked_bin_profiles":
+            cls.train_and_evaluate_greedy_remove_ranked_bin_profiles(bin_size=50,
+                num_repeats=NUM_SPLITS, n_inner_repeats=10,
+                random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
+                use_pca=False, vthresh=0.97, region=None, print_results=True,
+                n_jobs=5, pool_method='mean', classifier_type=CLASSIFIER, combine_method='sum'
             )
 
         elif CHANNEL_METHOD == "greedy_add":
@@ -188,13 +293,13 @@ if __name__ == "__main__":
                 n_jobs=20, feature_type=FEATURE_TYPE
             )
 
-        elif CHANNEL_METHOD == "greedy_remove":
-            cls.train_and_evaluate_greedy_remove(
-                num_repeats=200, num_outer_repeats=1, n_inner_repeats=50,
-                random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
-                use_pca=False, vthresh=0.97, region=None, print_results=True,
-                n_jobs=50, feature_type=FEATURE_TYPE
-            )
+        # elif CHANNEL_METHOD == "greedy_remove":
+        #     cls.train_and_evaluate_greedy_remove(
+        #         num_repeats=200, num_outer_repeats=1, n_inner_repeats=50,
+        #         random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
+        #         use_pca=False, vthresh=0.97, region=None, print_results=True,
+        #         n_jobs=50, feature_type=FEATURE_TYPE
+        #     )
         elif CHANNEL_METHOD == "greedy_remove_diff_origins":
             cls.train_and_evaluate_greedy_remove_diff_origins(
                 num_repeats=NUM_SPLITS, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=NORMALIZE,
@@ -202,6 +307,15 @@ if __name__ == "__main__":
                 feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="pinot_noir_changins",
                 classifier_type=CLASSIFIER
             )
+        elif CHANNEL_METHOD == "greedy_remove_bin_profiles":
+            cls.train_and_evaluate_greedy_remove_bin_profiles(
+                  bin_size=40, num_repeats=10, n_inner_repeats=10,
+                  random_seed=42, test_size=0.2, normalize=False,
+                  scaler_type='standard',
+                  use_pca=False, vthresh=0.97, region=None,
+                  print_results=True, n_jobs=1,
+                  pool_method='mean', combine_method='concat',
+                  classifier_type='RGC')
         elif CHANNEL_METHOD == "greedy_remove_diff_stochastic":
             cls.train_and_evaluate_greedy_remove_stochastic(
                 num_repeats=NUM_SPLITS, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=NORMALIZE,

@@ -720,7 +720,7 @@ class Classifier:
             eval_precision.append(precision_score(y_test, y_pred, average='weighted', zero_division=0))
             eval_recall.append(recall_score(y_test, y_pred, average='weighted', zero_division=0))
             eval_f1.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
-            eval_cm.append(confusion_matrix(y_test, y_pred))
+            eval_cm.append(confusion_matrix(y_test, y_pred, labels=custom_order))
 
             if print_results:
                 print(f"  Test on discarded data metrics:")
@@ -769,8 +769,9 @@ class Classifier:
         overall_cm = np.mean(eval_cm, axis=0)
 
         # Normalize confusion matrix row-wise (true label-wise)
-        overall_cm_normalized = overall_cm.astype('float') / overall_cm.sum(axis=1, keepdims=True)
-        overall_cm_normalized[np.isnan(overall_cm_normalized)] = 0
+        with np.errstate(invalid='ignore', divide='ignore'):
+            overall_cm_normalized = overall_cm.astype('float') / overall_cm.sum(axis=1, keepdims=True)
+            overall_cm_normalized[np.isnan(overall_cm_normalized)] = 0
 
         overall_results = {
             'chance_accuracy': chance_accuracy,
@@ -2142,7 +2143,7 @@ class Classifier:
             ax.grid(True)
             ax.legend()
 
-            plt.pause(0.5)  # Pause to update the figure
+            plt.pause(1)  # Pause to update the figure
 
         # Keep the final plot open after all repeats
         plt.ioff()  # Disable interactive mode
@@ -2176,7 +2177,8 @@ class Classifier:
                                                 random_seed=42, test_size=0.2, normalize=False,
                                                 scaler_type='standard', use_pca=False, vthresh=0.97,
                                                 region=None, print_results=True, n_jobs=-1,
-                                                num_min_channels=1, feature_type="concatenated"):
+                                                num_min_channels=1, feature_type="concatenated",
+                                                classifier_type='RGC'):
         """
         Perform greedy ranked channel removal starting from all channels.
 
@@ -2205,6 +2207,12 @@ class Classifier:
         def compute_features(channels):
             if feature_type == "concatenated":
                 return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+            elif feature_type == "tic":
+                tic = np.sum(cls_data[:, :, channels], axis=2)
+                return tic
+            elif feature_type == "tis":
+                tis = np.sum(cls_data[:, :, channels], axis=1)
+                return tis
             elif feature_type == "tic_tis":
                 tic = np.sum(cls_data[:, :, channels], axis=2)
                 tis = np.sum(cls_data[:, :, channels], axis=1)
@@ -2218,17 +2226,36 @@ class Classifier:
         for repeat_idx in range(num_repeats):
             print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
             rng = np.random.default_rng(random_seed + repeat_idx)
-            mean_accuracies = []
-            for ch_idx in range(num_channels):
+
+            # --- Parallel evaluation of individual channels ---
+            def evaluate_single_channel(ch_idx):
                 feature_matrix = compute_features([ch_idx])
-                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
-                                 year_labels=self.year_labels
-                                 )
+                cls = Classifier(feature_matrix, labels, classifier_type=classifier_type,
+                                 wine_kind=self.wine_kind, year_labels=self.year_labels)
                 results = cls.train_and_evaluate_balanced(
                     n_inner_repeats=n_inner_repeats, random_seed=random_seed + repeat_idx,
                     test_size=test_size, normalize=normalize, scaler_type=scaler_type, use_pca=use_pca,
-                    vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs, test_on_discarded=False)
-                mean_accuracies.append(results['overall_balanced_accuracy'])
+                    vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs,
+                    test_on_discarded=False)
+                return results['overall_balanced_accuracy']
+
+            mean_accuracies = Parallel(n_jobs=n_jobs)(
+                delayed(evaluate_single_channel)(ch_idx) for ch_idx in range(num_channels)
+            )
+
+            # mean_accuracies = []
+            #
+            # # Initial evaluation of individual channel performance
+            # for ch_idx in range(num_channels):
+            #     feature_matrix = compute_features([ch_idx])
+            #     cls = Classifier(feature_matrix, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
+            #                      year_labels=self.year_labels
+            #                      )
+            #     results = cls.train_and_evaluate_balanced(
+            #         n_inner_repeats=n_inner_repeats, random_seed=random_seed + repeat_idx,
+            #         test_size=test_size, normalize=normalize, scaler_type=scaler_type, use_pca=use_pca,
+            #         vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs, test_on_discarded=False)
+            #     mean_accuracies.append(results['overall_balanced_accuracy'])
 
             unique_accuracies = np.unique(mean_accuracies)
             sorted_indices = []
@@ -2241,10 +2268,10 @@ class Classifier:
             incremental_accuracies = []
             removed_channels = []
 
-
+            # Channel removal procedure
             for n in range(num_channels, num_min_channels - 1, -1):
                 feature_matrix = compute_features(selected_indices)
-                cls = Classifier(feature_matrix, labels, classifier_type="RGC", wine_kind=self.wine_kind,
+                cls = Classifier(feature_matrix, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
                                  year_labels=self.year_labels
                                  )
                 results = cls.train_and_evaluate_balanced(
@@ -2275,9 +2302,9 @@ class Classifier:
             ax.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
             ax.fill_between(x, mean_test_accuracies - std_test_accuracies,
                             mean_test_accuracies + std_test_accuracies, alpha=0.3, label='± 1 Std Dev')
-            ax.set_xlabel("Number of Worst Channels Removed")
+            ax.set_xlabel("Number of worst channels removed")
             ax.set_ylabel("Mean Balanced Accuracy")
-            ax.set_title(f"Performance Trend with Greedy Ranked Remove ({feature_type}); Repeat {repeat_idx + 1}/{num_repeats}")
+            ax.set_title(f"Performance trend with Greedy ranked remove ({feature_type}); Repeat {repeat_idx + 1}/{num_repeats}")
             ax.grid(True)
             ax.legend()
             plt.pause(0.5)
@@ -2286,7 +2313,7 @@ class Classifier:
         plt.show(block=True)
 
         # Save histogram data to CSV
-        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/hist_5ch_greedy_remove_ranked_merlot.csv",
+        with open("/home/luiscamara/PycharmProjects/wine_analysis/data/pinot_noir/hist_5ch_greedy_remove_ranked_wine_type.csv",
                   'w', newline=''
                   ) as file:
             writer = csv.writer(file)
@@ -2313,6 +2340,133 @@ class Classifier:
 
         return mean_test_accuracies, std_test_accuracies
 
+
+    def train_and_evaluate_greedy_remove_ranked_bin_profiles(
+            self, bin_size=100, num_repeats=10, n_inner_repeats=50,
+            random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
+            use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+            num_min_profiles=1, pool_method='mean', classifier_type='RGC', combine_method='concat'):
+        """
+        Perform greedy ranked removal of retention time profiles (binned RT direction).
+
+        Each profile is a vector across channels computed by averaging or max-pooling over a RT window.
+        """
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from joblib import Parallel, delayed
+        import csv
+
+        cls_data = self.data.copy()  # shape: (samples, timepoints, channels)
+        num_samples, num_timepoints, num_channels = cls_data.shape
+        labels = self.labels
+
+        # 1. Bin the RT axis into profiles
+        num_profiles = num_timepoints // bin_size
+
+        def compute_profiles(data):
+            # Result: shape (samples, num_profiles, channels)
+            if pool_method == 'mean':
+                return np.stack([
+                    np.mean(data[:, i * bin_size:(i + 1) * bin_size, :], axis=1)
+                    for i in range(num_profiles)
+                ], axis=1)
+            elif pool_method == 'max':
+                return np.stack([
+                    np.max(data[:, i * bin_size:(i + 1) * bin_size, :], axis=1)
+                    for i in range(num_profiles)
+                ], axis=1)
+            else:
+                raise ValueError("Invalid pooling method. Use 'mean' or 'max'.")
+
+        profile_matrix = compute_profiles(cls_data)  # shape: (samples, profiles, channels)
+
+        all_test_accuracies = []
+        final_remaining_profiles = []
+
+        plt.ion()
+        fig, ax = plt.subplots()
+
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+            rng = np.random.default_rng(random_seed + repeat_idx)
+
+            def evaluate_single_profile(p_idx):
+                X = profile_matrix[:, p_idx, :]  # shape: (samples, channels)
+                cls = Classifier(X, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels)
+                results = cls.train_and_evaluate_balanced(
+                    n_inner_repeats=n_inner_repeats, random_seed=random_seed + repeat_idx,
+                    test_size=test_size, normalize=normalize, scaler_type=scaler_type, use_pca=use_pca,
+                    vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs, test_on_discarded=False)
+                return results['overall_balanced_accuracy']
+
+            mean_accuracies = Parallel(n_jobs=n_jobs)(
+                delayed(evaluate_single_profile)(p_idx) for p_idx in range(num_profiles)
+            )
+
+            # Sort profile indices by performance (lowest first)
+            unique_accuracies = np.unique(mean_accuracies)
+            sorted_indices = []
+            for acc in sorted(unique_accuracies):
+                tied = [i for i, a in enumerate(mean_accuracies) if a == acc]
+                rng.shuffle(tied)
+                sorted_indices.extend(tied)
+
+            selected_indices = list(sorted_indices)
+            incremental_accuracies = []
+
+            for n in range(num_profiles, num_min_profiles - 1, -1):
+                if combine_method == 'concat':
+                    X = np.concatenate([profile_matrix[:, i, :] for i in selected_indices], axis=1)
+                elif combine_method == 'sum':
+                    X = np.sum([profile_matrix[:, i, :] for i in selected_indices], axis=0)
+                else:
+                    raise ValueError("Invalid combine_method. Use 'concat' or 'sum'.")
+                cls = Classifier(X, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels)
+                results = cls.train_and_evaluate_balanced(
+                    n_inner_repeats=n_inner_repeats, random_seed=random_seed + repeat_idx,
+                    test_size=test_size, normalize=normalize, scaler_type=scaler_type, use_pca=use_pca,
+                    vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs, test_on_discarded=True)
+                incremental_accuracies.append(results['overall_balanced_accuracy'])
+
+                if print_results:
+                    print(f"Remaining {n} profiles: Accuracy = {results['overall_balanced_accuracy']:.3f}")
+
+                if len(selected_indices) == 5:
+                    final_remaining_profiles.append(selected_indices.copy())
+
+                if n > num_min_profiles:
+                    selected_indices.pop(0)
+
+            all_test_accuracies.append(incremental_accuracies)
+
+            # Dynamic plot update
+            ax.clear()
+            x = range(0, num_profiles - num_min_profiles + 1)
+            mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
+            std_test_accuracies = np.std(all_test_accuracies, axis=0)
+            ax.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
+            ax.fill_between(x, mean_test_accuracies - std_test_accuracies,
+                            mean_test_accuracies + std_test_accuracies, alpha=0.3, label='± 1 Std Dev')
+            ax.set_xlabel("Number of worst profiles removed")
+            ax.set_ylabel("Mean Balanced Accuracy")
+            ax.set_title(
+                f"Greedy Ranked Remove on Profiles | Repeat {repeat_idx + 1}/{num_repeats}\n"
+                f"Bin size: {bin_size}, Pool: {pool_method}, Combine: {combine_method}"
+            )
+            ax.grid(True)
+            ax.legend()
+            plt.pause(0.5)
+
+        plt.ioff()
+        plt.show(block=True)
+
+        print("\nFinal remaining profiles in some repeats:")
+        for profile_list in final_remaining_profiles:
+            print(profile_list)
+
+        return mean_test_accuracies, std_test_accuracies
 
 
     def train_and_evaluate_greedy_add(self, num_repeats=10, num_outer_repeats=1, n_inner_repeats=50,
@@ -2680,6 +2834,14 @@ class Classifier:
                 except Exception as e:
                     print(f"An error occurred while plotting: {e}")
                 return concatenated_data
+            elif feature_type == "tic":
+                # Compute TIC (sum over m/z)
+                tic = np.sum(cls_data[:, :, channels], axis=2)  # (num_samples, num_timepoints)
+                return tic
+            elif feature_type == "tis":
+                # Compute  TIS (sum over time)
+                tis = np.sum(cls_data[:, :, channels], axis=1)  # (num_samples, num_channels)
+                return tis
             elif feature_type == "tic_tis":
                 # Compute TIC (sum over m/z) and TIS (sum over time)
                 tic = np.sum(cls_data[:, :, channels], axis=2)  # (num_samples, num_timepoints)
@@ -2875,6 +3037,148 @@ class Classifier:
         print(f"Final Mean Accuracy: {np.mean(mean_test_accuracies):.3f} ± {np.mean(std_test_accuracies):.3f}")
 
         return mean_test_accuracies, std_test_accuracies
+
+    def train_and_evaluate_greedy_remove_bin_profiles(
+            self, bin_size=100, num_repeats=10, n_inner_repeats=50,
+            random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
+            use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
+            num_min_profiles=1, pool_method='mean', classifier_type='RGC', combine_method='concat'):
+        """
+        Perform true greedy removal of retention time profiles (binned RT direction).
+        Each profile is a vector across channels computed by averaging or max-pooling over a RT window.
+        """
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from joblib import Parallel, delayed
+
+        cls_data = self.data.copy()  # shape: (samples, timepoints, channels)
+        num_samples, num_timepoints, num_channels = cls_data.shape
+        labels = self.labels
+
+        # Bin the RT axis into profiles
+        num_profiles = num_timepoints // bin_size
+
+        def compute_profiles(data):
+            if pool_method == 'mean':
+                return np.stack([
+                    np.mean(data[:, i * bin_size:(i + 1) * bin_size, :], axis=1)
+                    for i in range(num_profiles)
+                ], axis=1)
+            elif pool_method == 'max':
+                return np.stack([
+                    np.max(data[:, i * bin_size:(i + 1) * bin_size, :], axis=1)
+                    for i in range(num_profiles)
+                ], axis=1)
+            else:
+                raise ValueError("Invalid pooling method. Use 'mean' or 'max'.")
+
+        profile_matrix = compute_profiles(cls_data)  # shape: (samples, profiles, channels)
+
+        def compute_features(indices):
+            if len(indices) == 0:
+                return None
+            if combine_method == 'concat':
+                return np.concatenate([profile_matrix[:, i, :] for i in indices], axis=1)
+            elif combine_method == 'sum':
+                return np.sum(np.stack([profile_matrix[:, i, :] for i in indices], axis=0), axis=0)
+            else:
+                raise ValueError("Invalid combine_method. Use 'concat' or 'sum'.")
+
+        all_test_accuracies = []
+        final_remaining_profiles = []
+
+        plt.ion()
+        fig, ax = plt.subplots()
+
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+            rng = np.random.default_rng(random_seed + repeat_idx)
+
+            remaining_indices = list(range(num_profiles))
+            incremental_accuracies = []
+
+            for n in range(num_profiles, num_min_profiles - 1, -1):
+                if len(remaining_indices) <= num_min_profiles:
+                    break
+
+                # Evaluate removal of each remaining profile
+                def evaluate_removal(p_idx):
+                    temp_indices = [i for i in remaining_indices if i != p_idx]
+                    if len(temp_indices) == 0:
+                        return p_idx, -1
+                    X = compute_features(temp_indices)
+                    if X is None:
+                        return p_idx, -1
+                    cls = Classifier(X, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
+                                     year_labels=self.year_labels)
+                    results = cls.train_and_evaluate_balanced(
+                        n_inner_repeats=n_inner_repeats, random_seed=random_seed + repeat_idx,
+                        test_size=test_size, normalize=normalize, scaler_type=scaler_type, use_pca=use_pca,
+                        vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs, test_on_discarded=False)
+                    return p_idx, results['overall_balanced_accuracy']
+
+                val_accs = Parallel(n_jobs=n_jobs)(
+                    delayed(evaluate_removal)(p_idx) for p_idx in remaining_indices
+                )
+
+                # Select profile whose removal gives the best accuracy
+                best_acc = max(val_accs, key=lambda x: x[1])[1]
+                candidates = [p for p, acc in val_accs if acc == best_acc]
+                profile_to_remove = rng.choice(candidates)
+                remaining_indices.remove(profile_to_remove)
+
+                # Evaluate current subset (after removal)
+                X = compute_features(remaining_indices)
+                if X is None:
+                    break
+
+                cls = Classifier(X, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
+                                 year_labels=self.year_labels)
+                results = cls.train_and_evaluate_balanced(
+                    n_inner_repeats=n_inner_repeats, random_seed=random_seed + repeat_idx,
+                    test_size=test_size, normalize=normalize, scaler_type=scaler_type, use_pca=use_pca,
+                    vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs, test_on_discarded=True)
+                acc = results['overall_balanced_accuracy']
+                incremental_accuracies.append(acc)
+
+                if print_results:
+                    print(f"Remaining {n - 1} profiles: Accuracy = {acc:.3f}")
+
+                if len(remaining_indices) == 5:
+                    final_remaining_profiles.append(remaining_indices.copy())
+
+            all_test_accuracies.append(incremental_accuracies)
+
+            # Plot
+            ax.clear()
+            x = range(0, len(incremental_accuracies))
+            mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
+            std_test_accuracies = np.std(all_test_accuracies, axis=0)
+            ax.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
+            ax.fill_between(x, mean_test_accuracies - std_test_accuracies,
+                            mean_test_accuracies + std_test_accuracies, alpha=0.3, label='± 1 Std Dev')
+            ax.set_xlabel("Number of worst profiles removed")
+            ax.set_ylabel("Mean Balanced Accuracy")
+            ax.set_title(
+                f"Greedy Remove (True) on Profiles | Repeat {repeat_idx + 1}/{num_repeats}\n"
+                f"Bin size: {bin_size}, Pool: {pool_method}, Combine: {combine_method}"
+            )
+            ax.grid(True)
+            ax.legend()
+            plt.pause(0.5)
+
+        plt.ioff()
+        plt.show(block=True)
+
+        print("\nFinal remaining profiles in some repeats:")
+        for profile_list in final_remaining_profiles:
+            print(profile_list)
+
+        mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
+        std_test_accuracies = np.std(all_test_accuracies, axis=0)
+
+        return mean_test_accuracies, std_test_accuracies
+
 
     def train_and_evaluate_greedy_remove_stochastic(
             self, num_repeats=10, n_inner_repeats=50,
@@ -3589,7 +3893,7 @@ class Classifier:
         cls_data = self.data.copy()
         labels = self.labels
         num_samples, num_timepoints, num_channels = cls_data.shape
-        accuracies = []
+        # Initialize lists
         accuracies = []
         confusion_matrices = []  # Store confusion matrices
 
@@ -3634,16 +3938,19 @@ class Classifier:
                 test_on_discarded=True
             )
             accuracies.append(results['overall_balanced_accuracy'])
-            if confusion_matrices and results['overall_confusion_matrix_normalized'].shape != confusion_matrices[0].shape:
-                print("⚠️ Skipping confusion matrix with different shape.")
-                continue
+
+            if len(confusion_matrices) > 0:
+                if confusion_matrices and results['overall_confusion_matrix_normalized'].shape != confusion_matrices[0].shape:
+                    print("⚠️ Skipping confusion matrix with different shape.")
+                    continue
 
             confusion_matrices.append(results['overall_confusion_matrix_normalized'])  # Collect confusion matrices
 
         # Compute average performance across repeats
         mean_test_accuracy = np.mean(accuracies, axis=0)
         std_test_accuracy = np.std(accuracies, axis=0)
-        mean_confusion_matrix = np.mean(confusion_matrices, axis=0)
+        mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
+        # mean_confusion_matrix = np.mean(confusion_matrices, axis=0)
 
         print("\n##################################")
         print(f"Mean Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")

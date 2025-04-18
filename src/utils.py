@@ -738,6 +738,7 @@ def calculate_chance_accuracy_with_priors(labels):
 def load_ms_csv_data_from_directories(directory, columns, row_start, row_end):
     """
     Reads CSV files from all .D directories in the specified directory and extracts specific columns and row ranges.
+    Uses .npy caching to speed up repeated loading.
 
     Args:
         directory (str): The path to the main directory containing .D directories.
@@ -749,38 +750,39 @@ def load_ms_csv_data_from_directories(directory, columns, row_start, row_end):
         dict of numpy arrays: A dictionary where each key is a .D directory name (without the .D suffix),
                               and each value is a numpy array containing the extracted data from each CSV file.
     """
+    import os
+    import numpy as np
+    import pandas as pd
+
     data_dict = {}
 
     # Loop through all .D directories in the specified directory
     for subdir in sorted(os.listdir(directory)):
         if subdir.endswith('.D'):
-            # Extract the directory name without the '.D' suffix
-            dir_name = subdir[:-2]
-
-            # Construct the path to the CSV file that matches the directory name
+            dir_name = subdir[:-2]  # without '.D'
             csv_file_path = os.path.join(directory, subdir, f"{dir_name}.csv")
+            cache_file_path = os.path.join(directory, subdir, f"{dir_name}_cached.npy")
 
-            # Check if the CSV file exists
-            if os.path.isfile(csv_file_path):
+            if os.path.isfile(cache_file_path):
                 try:
-                    # Read the CSV file using pandas
-                    df = pd.read_csv(csv_file_path)
-
-                    # Extract the specified columns and row range
-                    extracted_data = df.iloc[row_start:row_end, columns].to_numpy()
-
-                    # Store the extracted data in the dictionary using the directory name as the key
+                    extracted_data = np.load(cache_file_path)
                     data_dict[dir_name] = extracted_data
-
-                    print(f"Loaded data from {csv_file_path}")
-
+                    print(f"Loaded cached data from {cache_file_path}")
+                except Exception as e:
+                    print(f"Error loading cache for {dir_name}: {e}")
+            elif os.path.isfile(csv_file_path):
+                try:
+                    df = pd.read_csv(csv_file_path)
+                    extracted_data = df.iloc[row_start:row_end, columns].to_numpy()
+                    np.save(cache_file_path, extracted_data)
+                    data_dict[dir_name] = extracted_data
+                    print(f"Processed and cached data from {csv_file_path}")
                 except Exception as e:
                     print(f"Error processing file {csv_file_path}: {e}")
             else:
                 print(f"No matching CSV file found in {subdir}.")
 
     return data_dict
-
 
 def find_data_margins_in_csv(directory):
     """
@@ -859,31 +861,70 @@ def sum_data_in_data_dict(data_dict, axis=1):
     return sum_dict
 
 
-# def string_to_latex_confusion_matrix(data_str, headers):
-#     # Convert string to numpy array
-#     data_str = re.sub(r'\s+', ' ', data_str.replace('\n', ' '))  # Clean up whitespace
-#     data = np.array([list(map(float, row.split())) for row in data_str[2:-2].split('] [')])
-#
-#     # Multiply by 100 and convert to integer
-#     data = np.round(data * 100).astype(int)
-#
-#     # Begin LaTeX table string
-#     latex_string = "\\begin{table}[h!]\n\\centering\n\\begin{tabular}{|c|" + "c|" * len(headers) + "}\n    \\hline\n"
-#
-#     # Add column headers with rotated labels
-#     latex_string += "    & " + " & ".join(f"\\rotatebox{{90}}{{{header}}}" for header in headers) + " \\\\\\hline\n"
-#
-#     # Populate rows with cell color and no display value
-#     for i, row in enumerate(data):
-#         row_name = headers[i]
-#         row_cells = " & ".join(f"\\cellcolorval{{{value}}}" for value in row)
-#         latex_string += f"    {row_name} & {row_cells} \\\\\\hline\n"
-#
-#     # Complete LaTeX table
-#     latex_string += "\\end{tabular}\n\\caption{Confusion Matrix in LaTeX}\n\\end{table}"
-#
-#     # Print without escape characters
-#     print(latex_string)
+def string_to_latex_confusion_matrix(data_str, headers):
+    # Convert string to numpy array
+    data_str = re.sub(r'\s+', ' ', data_str.replace('\n', ' '))  # Clean up whitespace
+    data = np.array([list(map(float, row.split())) for row in data_str[2:-2].split('] [')])
+
+    # Multiply by 100 and convert to integer
+    data = np.round(data * 100).astype(int)
+
+    # Begin LaTeX table string
+    latex_string = "\\begin{table}[h!]\n\\centering\n\\begin{tabular}{|c|" + "c|" * len(headers) + "}\n    \\hline\n"
+
+    # Add column headers with rotated labels
+    latex_string += "    & " + " & ".join(f"\\rotatebox{{90}}{{{header}}}" for header in headers) + " \\\\\\hline\n"
+
+    # Populate rows with cell color and no display value
+    for i, row in enumerate(data):
+        row_name = headers[i]
+        row_cells = " & ".join(f"\\cellcolorval{{{value}}}" for value in row)
+        latex_string += f"    {row_name} & {row_cells} \\\\\\hline\n"
+
+    # Complete LaTeX table
+    latex_string += "\\end{tabular}\n\\caption{Confusion Matrix in LaTeX}\n\\end{table}"
+
+    # Print without escape characters
+    print(latex_string)
+
+
+def string_to_latex_confusion_matrix_modified(data_str, headers):
+    """Header labels at the bottom"""
+    # Clean up and convert string to numpy array
+    data_str = re.sub(r'\s+', ' ', data_str.replace('\n', ' '))  # Clean up whitespace
+    data = np.array([list(map(float, row.split())) for row in data_str[2:-2].split('] [')])
+    data = np.round(data * 100).astype(int)  # Scale to percentages
+
+    n = len(headers)
+
+    latex = []
+    latex.append("\\begin{table}[h!]")
+    latex.append("    \\centering")
+    latex.append("    \\setlength{\\tabcolsep}{3pt}")
+    latex.append(f"    \\begin{{tabular}}{{l{'|c' * n}|}}")
+    latex.append("        \\hline")
+
+    # Add data rows
+    for i, row in enumerate(data):
+        row_cells = " & ".join(f"\\cellcolorval{{{val}}}" for val in row)
+        latex.append(f"        {headers[i]} & {row_cells} \\\\\\hline")
+
+    # Space before bottom headers
+    latex.append("        \\\\[-3.8ex]")
+    latex.append(f"        \\multicolumn{{{n + 1}}}{{c}}{{}} \\\\[-1.9ex]")
+
+    # Bottom column headers
+    header_row = " & " + " & ".join(f"\\rotatebox{{90}}{{{label}}}" for label in headers) + " \\\\"
+    latex.append(f"        {header_row}")
+
+    # Close tabular and table
+    latex.append("    \\end{tabular}")
+    latex.append(
+        "    \\caption{Normalized confusion matrix with RGC classifier and TIC+TIS feature vectors for the Changins dataset. Rows represent the true labels, columns the predicted labels. Cell values are percentage of samples assigned to each predicted label. Darker blue = stronger prediction confidence.}")
+    latex.append("\\end{table}")
+
+    print("\n".join(latex))
+
 
 def string_to_latex_correlation_matrix(data_str, headers):
     """
@@ -1763,3 +1804,40 @@ def compute_pairwise_pearson(chrom_dict):
     std_corr = np.std(correlations)
 
     return pairwise_results, mean_corr, std_corr
+
+
+def average_confusion_matrices_ignore_empty_rows(confusion_matrices):
+    """
+    Averages a list of confusion matrices row-wise, ignoring zero-sum rows in each matrix.
+
+    Parameters:
+    -----------
+    confusion_matrices : list of np.ndarray
+        List of raw (unnormalized) confusion matrices of the same shape.
+
+    Returns:
+    --------
+    np.ndarray
+        A row-normalized confusion matrix where each row is averaged over non-zero rows only.
+    """
+    confusion_matrices = np.array(confusion_matrices)
+    num_classes = confusion_matrices.shape[1]
+    mean_cm = np.zeros((num_classes, num_classes), dtype=float)
+    counts = np.zeros(num_classes, dtype=int)
+
+    for cm in confusion_matrices:
+        for i in range(num_classes):
+            row_sum = np.sum(cm[i])
+            if row_sum > 0:
+                mean_cm[i] += cm[i]
+                counts[i] += 1
+
+    # Avoid division by zero by skipping zero-count rows
+    for i in range(num_classes):
+        if counts[i] > 0:
+            mean_cm[i] /= counts[i]
+
+    # Normalize row-wise
+    row_sums = mean_cm.sum(axis=1, keepdims=True)
+    normalized_mean_cm = np.divide(mean_cm, row_sums, where=row_sums != 0)
+    return normalized_mean_cm
