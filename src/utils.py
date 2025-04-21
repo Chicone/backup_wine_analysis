@@ -786,47 +786,44 @@ def load_ms_csv_data_from_directories(directory, columns, row_start, row_end):
 
 def find_data_margins_in_csv(directory):
     """
-       Finds the first CSV file in a .D directory within the specified directory,
-       returns the number of rows, and identifies the indices of the first and last columns
-       with integer headers.
+    Finds the first CSV file in a .D directory within the specified directory,
+    returns the number of rows, and identifies the indices of the first and last columns
+    with integer headers, or handles the special case of 2-column files.
 
-       Args:
-           directory (str): Path to the main directory containing .D directories.
+    Args:
+        directory (str): Path to the main directory containing .D directories.
 
-       Returns:
-           tuple: (int, int, int) where:
-               - The first element is the row count in the CSV,
-               - The second element is the index of the first integer-named column,
-               - The third element is the index of the last integer-named column.
-           Returns (None, None, None) if no valid CSV file is found.
-       """
-    # Traverse through each .D subdirectory
+    Returns:
+        tuple: (int, int, int) where:
+            - The first element is the row count in the CSV,
+            - The second element is the index of the first relevant column,
+            - The third element is the index of the last relevant column.
+        Returns (None, None, None) if no valid CSV file is found.
+    """
     for subdir in sorted(os.listdir(directory)):
         if subdir.endswith('.D'):
             dir_name = subdir[:-2]
             csv_file_path = os.path.join(directory, subdir, f"{dir_name}.csv")
 
-            # Check if the expected CSV file exists
             if os.path.isfile(csv_file_path):
                 try:
-                    # Load the entire CSV to get an accurate row count and column information
-                    df = pd.read_csv(csv_file_path)
+                    # Load the CSV to get row count
+                    df_full = pd.read_csv(csv_file_path)
+                    row_count = len(df_full) + 1  # +1 includes header row
 
-                    # Row count, excluding the header row
-                    row_count = len(df)
-
-                    # Load only the header to get column names
+                    # Load a few rows to inspect the columns
                     df = pd.read_csv(csv_file_path, nrows=5)
+                    col_names = df.columns
 
-                    # Identify columns with integer names
-                    integer_columns = [i for i, col in enumerate(df.columns) if col.isdigit()]
+                    if len(col_names) == 2:
+                        # Special case: only 2 columns (e.g., Ret. Time, TIC)
+                        return row_count, 1, 1
+
+                    # General case: look for integer-named columns
+                    integer_columns = [i for i, col in enumerate(col_names) if col.isdigit()]
 
                     if integer_columns:
-                        # Get the first and last indices
-                        first_integer_col = integer_columns[0]
-                        last_integer_col = integer_columns[-1]
-
-                        return row_count + 1, first_integer_col, last_integer_col
+                        return row_count, integer_columns[0], integer_columns[-1]
 
                 except Exception as e:
                     print(f"Error processing file {csv_file_path}: {e}")
@@ -1568,6 +1565,34 @@ def copy_files_to_matching_directories(source_dir, mother_dir):
             print(f"Copied: {file_name} -> {destination_folder}")
 
 
+# def remove_zero_variance_channels(data_dict):
+#     """
+#     Removes channels with zero variance across all samples in the dataset.
+#
+#     Parameters:
+#         data_dict (dict): Dictionary where keys are sample IDs and values are NumPy arrays
+#                           of shape (timepoints, num_channels).
+#
+#     Returns:
+#         filtered_data_dict (dict): Dictionary with zero-variance channels removed.
+#         valid_channels (list): Indices of retained channels.
+#     """
+#     # Stack all sample arrays along a new axis: shape (num_samples, timepoints, num_channels)
+#     all_samples = np.array(list(data_dict.values()))  # Shape: (num_samples, timepoints, num_channels)
+#
+#     # Compute variance for each channel across all timepoints and samples
+#     channel_variances = np.var(all_samples, axis=(0, 1))  # Shape: (num_channels,)
+#
+#     # Identify valid channels (non-zero variance)
+#     valid_channels = np.where(channel_variances > 1e-8)[0]  # Indices of channels to keep
+#
+#     # Remove zero-variance channels from each sample
+#     filtered_data_dict = {
+#         sample_id: data[:, valid_channels] for sample_id, data in data_dict.items()
+#     }
+#
+#     return filtered_data_dict, valid_channels
+
 def remove_zero_variance_channels(data_dict):
     """
     Removes channels with zero variance across all samples in the dataset.
@@ -1580,16 +1605,22 @@ def remove_zero_variance_channels(data_dict):
         filtered_data_dict (dict): Dictionary with zero-variance channels removed.
         valid_channels (list): Indices of retained channels.
     """
-    # Stack all sample arrays along a new axis: shape (num_samples, timepoints, num_channels)
-    all_samples = np.array(list(data_dict.values()))  # Shape: (num_samples, timepoints, num_channels)
+    sample_shapes = [v.shape for v in data_dict.values()]
+    num_channels = sample_shapes[0][1] if sample_shapes else 0
 
-    # Compute variance for each channel across all timepoints and samples
-    channel_variances = np.var(all_samples, axis=(0, 1))  # Shape: (num_channels,)
+    if num_channels <= 1:
+        print("⚠️ Only one channel found (or data is not multi-channel). Skipping variance filtering.")
+        return data_dict, list(range(num_channels))
 
-    # Identify valid channels (non-zero variance)
-    valid_channels = np.where(channel_variances > 1e-8)[0]  # Indices of channels to keep
+    # Stack all samples: (num_samples, timepoints, num_channels)
+    all_samples = np.array(list(data_dict.values()))
 
-    # Remove zero-variance channels from each sample
+    # Compute variance for each channel
+    channel_variances = np.var(all_samples, axis=(0, 1))
+
+    # Keep channels with variance > threshold
+    valid_channels = np.where(channel_variances > 1e-8)[0]
+
     filtered_data_dict = {
         sample_id: data[:, valid_channels] for sample_id, data in data_dict.items()
     }
@@ -1841,3 +1872,42 @@ def average_confusion_matrices_ignore_empty_rows(confusion_matrices):
     row_sums = mean_cm.sum(axis=1, keepdims=True)
     normalized_mean_cm = np.divide(mean_cm, row_sums, where=row_sums != 0)
     return normalized_mean_cm
+
+def create_dir_of_samples_from_champagnes(input_csv_path, output_root=".", use_cache=True):
+    print(f"📄 Reading raw CSV: {input_csv_path}")
+    raw_df = pd.read_csv(input_csv_path, header=None)
+
+    # Use second row as header (row index 1), and keep the rest as data
+    sample_names = raw_df.iloc[1]  # row 1 has names
+    df = raw_df.iloc[2:].copy()    # skip rows 0 and 1
+    df.columns = sample_names
+
+    sample_counts = {}
+
+    # Process columns in pairs (Ret. Time, TIC)
+    col_names = list(df.columns)
+    for i in range(0, len(col_names), 2):
+        sample_name = col_names[i].strip()
+        rt_col = col_names[i]
+        tic_col = col_names[i + 1]
+
+        # Update count for suffix
+        sample_counts[sample_name] = sample_counts.get(sample_name, 0) + 1
+        suffix = sample_counts[sample_name]
+
+        full_sample_name = f"{sample_name}-{suffix}"
+        dir_name = f"{full_sample_name}.D"
+        dir_path = os.path.join(os.path.split(input_csv_path)[0], dir_name)
+        os.makedirs(dir_path, exist_ok=True)
+
+        # Extract and rename
+        sub_df = df.iloc[:, [i, i + 1]].copy()
+        sub_df.columns = ["Ret. Time", "TIC"]
+
+        # Save
+        output_csv_path = os.path.join(dir_path, f"{full_sample_name}.csv")
+        sub_df.to_csv(output_csv_path, index=False)
+
+        print(f"✅ Saved: {output_csv_path}")
+
+    print("✔️ All samples extracted.")

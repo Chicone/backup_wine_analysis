@@ -2415,6 +2415,25 @@ class Classifier:
             selected_indices = list(sorted_indices)
             incremental_accuracies = []
 
+            # Evaluate performance with all profiles (before removal)
+            if combine_method == 'concat':
+                X = np.concatenate([profile_matrix[:, i, :] for i in selected_indices], axis=1)
+            elif combine_method == 'sum':
+                X = np.sum([profile_matrix[:, i, :] for i in selected_indices], axis=0)
+            else:
+                raise ValueError("Invalid combine_method. Use 'concat' or 'sum'.")
+
+            cls = Classifier(X, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
+                             year_labels=self.year_labels)
+            results = cls.train_and_evaluate_balanced(
+                n_inner_repeats=n_inner_repeats, random_seed=random_seed + repeat_idx,
+                test_size=test_size, normalize=normalize, scaler_type=scaler_type, use_pca=use_pca,
+                vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs, test_on_discarded=True)
+            incremental_accuracies.append(results['overall_balanced_accuracy'])
+
+            if print_results:
+                print(f"Initial (all profiles): Accuracy = {results['overall_balanced_accuracy']:.3f}")
+
             for n in range(num_profiles, num_min_profiles - 1, -1):
                 if combine_method == 'concat':
                     X = np.concatenate([profile_matrix[:, i, :] for i in selected_indices], axis=1)
@@ -2443,14 +2462,15 @@ class Classifier:
 
             # Dynamic plot update
             ax.clear()
-            x = range(0, num_profiles - num_min_profiles + 1)
+            # x = range(0, num_profiles - num_min_profiles + 1)
+            x = range(len(incremental_accuracies))
             mean_test_accuracies = np.mean(all_test_accuracies, axis=0)
             std_test_accuracies = np.std(all_test_accuracies, axis=0)
             ax.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
             ax.fill_between(x, mean_test_accuracies - std_test_accuracies,
                             mean_test_accuracies + std_test_accuracies, alpha=0.3, label='± 1 Std Dev')
-            ax.set_xlabel("Number of worst profiles removed")
-            ax.set_ylabel("Mean Balanced Accuracy")
+            ax.set_xlabel("Profiles removed")
+            ax.set_ylabel("Mean balanced ascreccuracy")
             ax.set_title(
                 f"Greedy Ranked Remove on Profiles | Repeat {repeat_idx + 1}/{num_repeats}\n"
                 f"Bin size: {bin_size}, Pool: {pool_method}, Combine: {combine_method}"
@@ -3038,7 +3058,7 @@ class Classifier:
 
         return mean_test_accuracies, std_test_accuracies
 
-    def train_and_evaluate_greedy_remove_bin_profiles(
+    def train_and_evaluate_greedy_remove_true_bin_profiles(
             self, bin_size=100, num_repeats=10, n_inner_repeats=50,
             random_seed=42, test_size=0.2, normalize=False, scaler_type='standard',
             use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
@@ -3069,8 +3089,18 @@ class Classifier:
                     np.max(data[:, i * bin_size:(i + 1) * bin_size, :], axis=1)
                     for i in range(num_profiles)
                 ], axis=1)
+            elif pool_method == 'both':
+                mean_profiles = np.stack([
+                    np.mean(data[:, i * bin_size:(i + 1) * bin_size, :], axis=1)
+                    for i in range(num_profiles)
+                ], axis=1)
+                max_profiles = np.stack([
+                    np.max(data[:, i * bin_size:(i + 1) * bin_size, :], axis=1)
+                    for i in range(num_profiles)
+                ], axis=1)
+                return np.concatenate([mean_profiles, max_profiles], axis=1)  # double profile dimension
             else:
-                raise ValueError("Invalid pooling method. Use 'mean' or 'max'.")
+                raise ValueError("Invalid pooling method. Use 'mean', 'max', or 'both'.")
 
         profile_matrix = compute_profiles(cls_data)  # shape: (samples, profiles, channels)
 
@@ -3096,6 +3126,20 @@ class Classifier:
 
             remaining_indices = list(range(num_profiles))
             incremental_accuracies = []
+
+            # Initial full feature evaluation before any removal
+            X_full = compute_features(remaining_indices)
+            cls = Classifier(X_full, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
+                             year_labels=self.year_labels)
+            results = cls.train_and_evaluate_balanced(
+                n_inner_repeats=n_inner_repeats, random_seed=random_seed + repeat_idx,
+                test_size=test_size, normalize=normalize, scaler_type=scaler_type, use_pca=use_pca,
+                vthresh=vthresh, region=region, print_results=False, n_jobs=n_jobs, test_on_discarded=True)
+            acc = results['overall_balanced_accuracy']
+            incremental_accuracies.append(acc)
+
+            if print_results:
+                print(f"Initial (no profiles removed): Accuracy = {acc:.3f}")
 
             for n in range(num_profiles, num_min_profiles - 1, -1):
                 if len(remaining_indices) <= num_min_profiles:
@@ -3157,8 +3201,8 @@ class Classifier:
             ax.plot(x, mean_test_accuracies, '-o', label='Mean Accuracy')
             ax.fill_between(x, mean_test_accuracies - std_test_accuracies,
                             mean_test_accuracies + std_test_accuracies, alpha=0.3, label='± 1 Std Dev')
-            ax.set_xlabel("Number of worst profiles removed")
-            ax.set_ylabel("Mean Balanced Accuracy")
+            ax.set_xlabel("Profiles removed")
+            ax.set_ylabel("Mean balanced accuracy")
             ax.set_title(
                 f"Greedy Remove (True) on Profiles | Repeat {repeat_idx + 1}/{num_repeats}\n"
                 f"Bin size: {bin_size}, Pool: {pool_method}, Combine: {combine_method}"
