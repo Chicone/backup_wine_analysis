@@ -230,7 +230,7 @@ if __name__ == "__main__":
         cls.train_and_evaluate_greedy_remove_diff_origins(
             num_repeats=NUM_SPLITS, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=NORMALIZE,
             scaler_type='standard', use_pca=False, region=None, print_results=True, n_jobs=10,
-            feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="pinot_noir_changins",
+            feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="pinot_noir_isvv_lle",
             classifier_type=CLASSIFIER
         )
     elif CHANNEL_METHOD == "greedy_remove_true_bin_profiles":
