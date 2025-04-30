@@ -340,36 +340,48 @@ class Classifier:
     def train_and_evaluate_balanced(self, n_inner_repeats=50, random_seed=42,
                                     test_size=0.2, normalize=False, scaler_type='standard',
                                     use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
-                                    test_on_discarded=False):
+                                    test_on_discarded=False, LOOPC=True):
         """
-        Train and evaluate the classifier using repeated outer stratified splits. For each outer repetition,
-        the training set is further split using RepeatedLeaveOneFromEachClassCV and validation metrics are computed.
-        The outer test set is ignored; only the training set is used for inner CV.
+        Train and evaluate the classifier using a train/test split followed by cross-validation on the training set.
+        Evaluation metrics are averaged across multiple inner cross-validation repetitions.
+
+        Depending on the value of `test_on_discarded`, either the inner validation set or the held-out test set
+        is used to compute final metrics. Supports normalization, PCA, and custom confusion matrix ordering.
 
         Parameters
         ----------
-        n_inner_repeats : int
-            Number of inner CV repeats (passed to RepeatedLeaveOneFromEachClassCV).
-        random_seed : int, optional
+        n_inner_repeats : int, optional (default=50)
+            Number of inner cross-validation folds or repetitions.
+        random_seed : int, optional (default=42)
             Seed for reproducibility.
-        test_size : float, optional
-            Fraction of data to hold out (unused in metric computations).
-        normalize : bool, optional
-            Whether to normalize the data.
-        scaler_type : str, optional
-            Which scaler to use ('standard' or 'minmax').
-        use_pca : bool, optional
-            Whether to apply PCA.
-        vthresh : float, optional
-            Variance threshold for PCA.
-        region : str, optional
-            Determines custom ordering for confusion matrix.
-        batch_size, num_epochs, learning_rate : not used in this snippet.
+        test_size : float, optional (default=0.2)
+            Fraction of data to hold out as a test set (only used when test_on_discarded=True).
+        normalize : bool, optional (default=False)
+            Whether to apply feature normalization (e.g., standard scaling).
+        scaler_type : str, optional (default='standard')
+            Type of scaler to use if normalization is enabled ('standard', 'minmax', etc.).
+        use_pca : bool, optional (default=False)
+            Whether to apply PCA for dimensionality reduction.
+        vthresh : float, optional (default=0.97)
+            Proportion of variance to retain when applying PCA.
+        region : str or None, optional (default=None)
+            Custom region ordering for confusion matrix labels.
+        print_results : bool, optional (default=True)
+            Whether to print performance metrics to the console.
+        n_jobs : int, optional (default=-1)
+            Number of parallel jobs to use for cross-validation.
+        test_on_discarded : bool, optional (default=False)
+            If True, final evaluation is done on the held-out test set (outside CV).
+            If False, metrics are computed on the inner cross-validation folds.
+        LOOPC : bool, optional (default=True)
+            If True, use Leave-One-Out-Per-Class strategy for cross-validation (i.e., select one full sample per class).
+            If False, use standard cross-validation with grouped or stratified shuffle splits.
 
         Returns
         -------
         dict
-            A dictionary with the average inner validation metrics across all outer repeats.
+            Dictionary containing average accuracy, precision, recall, F1-score, and normalized confusion matrix
+            across all evaluation folds or test splits.
         """
         from sklearn.model_selection import StratifiedShuffleSplit
         from sklearn.metrics import balanced_accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
@@ -491,6 +503,110 @@ class Classifier:
                         train_indices = np.setdiff1d(np.arange(len(y)), test_indices)
 
                         yield train_indices, test_indices
+
+        def leave_one_sample_per_class_split(X, y, random_state=None, is_composite_labels=True):
+            """
+            Split dataset by selecting one sample per class (plus its duplicates if composite labels) for the test set.
+
+            Parameters
+            ----------
+            X : array-like
+                Feature matrix (not used, kept for compatibility).
+            y : array-like
+                Labels (composite labels or simple class labels).
+            random_state : int, optional
+                Random seed for reproducibility.
+            is_composite_labels : bool, optional
+                Whether y are composite labels like 'A1', 'B2'. If False, assumes simple class labels.
+
+            Returns
+            -------
+            train_indices : np.ndarray
+                Indices for training set.
+            test_indices : np.ndarray
+                Indices for test set.
+            """
+            import numpy as np
+            from collections import defaultdict
+            import re
+
+            rng = np.random.default_rng(random_state)
+
+            if is_composite_labels:
+                # Group indices by full sample labels (for composite cases)
+                sample_to_indices = defaultdict(list)
+                for idx, label in enumerate(y):
+                    sample_to_indices[label].append(idx)
+
+                # Group sample labels by class (A, B, C)
+                class_to_samples = defaultdict(list)
+
+                def get_class_from_label(label):
+                    """Extract the class (first letter) from composite label like 'A1'."""
+                    match = re.match(r'([A-Z])', label)
+                    return match.group(1) if match else label
+
+                for label in sample_to_indices.keys():
+                    class_label = get_class_from_label(label)
+                    class_to_samples[class_label].append(label)
+
+                # Choose one sample label per class
+                test_sample_labels = []
+                for class_label, samples in class_to_samples.items():
+                    chosen_sample = rng.choice(samples)
+                    test_sample_labels.append(chosen_sample)
+
+                # Expand into indices
+                test_indices = []
+                for label in test_sample_labels:
+                    test_indices.extend(sample_to_indices[label])
+
+            else:
+                # Simple class labels (e.g., 'Beaune', 'Alsace', 'C', 'D')
+                class_to_indices = defaultdict(list)
+                for idx, label in enumerate(y):
+                    class_to_indices[label].append(idx)
+
+                # Pick one random index per class
+                test_indices = []
+                for class_label, indices in class_to_indices.items():
+                    chosen_idx = rng.choice(indices)
+                    test_indices.append(chosen_idx)
+
+            test_indices = np.array(test_indices)
+            all_indices = np.arange(len(y))
+            train_indices = np.setdiff1d(all_indices, test_indices)
+
+            return train_indices, test_indices
+
+
+            def get_class_from_label(label):
+                """Extract the class letter from a composite label like 'A1'."""
+                match = re.match(r'([A-Z])', label)
+                return match.group(1) if match else label
+
+            for label in sample_to_indices.keys():
+                class_label = get_class_from_label(label)
+                class_to_samples[class_label].append(label)
+
+            # Select one sample label per class for test set
+            test_sample_labels = []
+            for class_label, samples in class_to_samples.items():
+                chosen_sample = rng.choice(samples)
+                test_sample_labels.append(chosen_sample)
+
+            # Expand to indices (all replicates of selected samples)
+            test_indices = []
+            for label in test_sample_labels:
+                test_indices.extend(sample_to_indices[label])
+
+            test_indices = np.array(test_indices)
+
+            # Train indices are all others
+            all_indices = np.arange(len(y))
+            train_indices = np.setdiff1d(all_indices, test_indices)
+
+            return train_indices, test_indices
 
 
         def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None, group_duplicates=True):
@@ -660,10 +776,14 @@ class Classifier:
         #     group_duplicates=use_groups
         # )
 
-        train_idx, test_idx = shuffle_split_without_splitting_duplicates(
-            self.data, self.labels, test_size=test_size, random_state=random_seed,
-            group_duplicates=use_groups
-        )
+        if LOOPC:
+            train_idx, test_idx = leave_one_sample_per_class_split(self.data, self.labels, random_state=random_seed,
+                                                                   is_composite_labels=False)
+        else:
+            train_idx, test_idx = shuffle_split_without_splitting_duplicates(
+                self.data, self.labels, test_size=test_size, random_state=random_seed,
+                group_duplicates=use_groups
+            )
 
         X_train_full, X_test = self.data[train_idx], self.data[test_idx]
         if self.year_labels.size > 0 and np.any(self.year_labels != None):
@@ -3932,8 +4052,57 @@ class Classifier:
     def train_and_evaluate_all_channels(
             self, num_repeats=10, num_outer_repeats=1, random_seed=42, test_size=0.2, normalize=False,
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
-            feature_type="concatenated", classifier_type="RGC"
+            feature_type="concatenated", classifier_type="RGC", LOOPC=True
     ):
+        """
+        Trains and evaluates a classifier using all available channels in the dataset,
+        repeating the evaluation multiple times to assess performance stability.
+
+        Feature extraction is flexible, allowing for different representations (e.g., concatenated raw data, TIC, TIS, or both).
+        At each repeat, the data is randomly split into training and testing sets.
+
+        Parameters:
+        ----------
+        num_repeats : int, optional (default=10)
+            Number of times to repeat the training and evaluation process (with different random seeds).
+        num_outer_repeats : int, optional (default=1)
+            Currently unused. Reserved for compatibility with outer loop evaluations.
+        random_seed : int, optional (default=42)
+            Base random seed for reproducibility. A different seed is used at each repeat.
+        test_size : float, optional (default=0.2)
+            Fraction of the data used for testing in each train/test split.
+        normalize : bool, optional (default=False)
+            Whether to apply feature normalization (e.g., standard scaling) before training.
+        scaler_type : str, optional (default='standard')
+            Type of scaler to use if normalization is enabled. Options: 'standard', 'minmax', etc.
+        use_pca : bool, optional (default=False)
+            Whether to apply PCA for dimensionality reduction before training.
+        vthresh : float, optional (default=0.97)
+            Variance threshold to retain during PCA (if use_pca=True).
+        region : str or None, optional (default=None)
+            If specified, restricts training/testing to samples from a given region.
+        print_results : bool, optional (default=True)
+            Whether to print detailed results after evaluation.
+        n_jobs : int, optional (default=-1)
+            Number of CPU cores to use for training (if supported by the classifier).
+        feature_type : str, optional (default='concatenated')
+            Feature extraction mode: 'concatenated', 'tic', 'tis', or 'tic_tis'.
+        classifier_type : str, optional (default='RGC')
+            Type of classifier to use.
+
+        Returns:
+        -------
+        mean_test_accuracy : float
+            Average balanced accuracy over all repeats.
+        std_test_accuracy : float
+            Standard deviation of balanced accuracy over all repeats.
+
+        Notes:
+        -----
+        - The method internally computes features according to the selected `feature_type`.
+        - Results are averaged across all repeats to provide a robust estimate of performance.
+        - Normalized confusion matrices are averaged across repeats if dimensions match.
+        """
         cls_data = self.data.copy()
         labels = self.labels
         num_samples, num_timepoints, num_channels = cls_data.shape
@@ -3979,7 +4148,8 @@ class Classifier:
                 region=region,
                 print_results=False,
                 n_jobs=n_jobs,
-                test_on_discarded=True
+                test_on_discarded=True,
+                LOOPC=LOOPC
             )
             accuracies.append(results['overall_balanced_accuracy'])
 
@@ -3993,8 +4163,8 @@ class Classifier:
         # Compute average performance across repeats
         mean_test_accuracy = np.mean(accuracies, axis=0)
         std_test_accuracy = np.std(accuracies, axis=0)
-        mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
-        # mean_confusion_matrix = np.mean(confusion_matrices, axis=0)
+        # mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
+        mean_confusion_matrix = np.mean(confusion_matrices, axis=0)
 
         print("\n##################################")
         print(f"Mean Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")

@@ -46,10 +46,10 @@ pandas, numpy, matplotlib, scikit-learn, umap-learn
 
 
 # --- Parameters ---
-label_column = 'ageing'  # <-- CHANGE THIS to 'prod area', 'variety',  'cave', 'age', 'ageing', etc.
-plot_3d = True  # <-- Toggle this to switch between 2D and 3D plots
+label_column = 'age'  # <-- CHANGE THIS to 'prod area', 'variety',  'cave', 'age', 'ageing', etc.
+plot_3d = False  # <-- Toggle this to switch between 2D and 3D plots
 do_kmeans = False  # Set to True to enable KMeans clustering after PCA
-show_point_labels = False  # Set to False to hide text labels on plot points
+show_point_labels = True  # Set to False to hide text labels on plot points
 
 # --- Load CSV and preprocess ---
 df = pd.read_csv("/home/luiscamara/Documents/datasets/Champagnes/test.csv", skiprows=1)
@@ -181,7 +181,7 @@ else:
     scatter = plt.scatter(X_umap[:, 0], X_umap[:, 1], c=label_ids, cmap='tab20', s=60)
     if show_point_labels:
         for i, label in enumerate(wine_labels):
-            plt.annotate(label, (X_umap[i, 0], X_umap[i, 1]), fontsize=11, alpha=1)
+            plt.annotate(label, (X_umap[i, 0], X_umap[i, 1]), fontsize=9, alpha=1)
     plt.xlabel("UMAP 1")
     plt.ylabel("UMAP 2")
 

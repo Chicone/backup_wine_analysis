@@ -21,7 +21,7 @@ import matplotlib.colors as mcolors
 
 
 # --- Parameters ---
-label_column = 'variety'  # Change this to 'prod area', 'variety',  'cave', 'age', 'ageing', etc..
+label_column = 'age'  # Change this to 'prod area', 'variety',  'cave', 'age', 'ageing', etc..
 csv_path = "/home/luiscamara/Documents/datasets/Champagnes/test.csv"
 n_splits = 10               # Inner cross-validation folds
 n_repeats = 50             # How many times to repeat the CV loop
@@ -54,6 +54,53 @@ all_accuracies = []
 all_true = []
 all_pred = []
 
+# # --- Print LaTeX tables for sample counts ---
+#
+# # Clean metadata (load again just for counting purposes)
+# metadata = pd.read_csv(csv_path, skiprows=1)
+# metadata = metadata.iloc[1:]
+# metadata.columns = [col.strip().lower() for col in metadata.columns]
+#
+# # List of properties (columns) to process
+# properties = ['taster', 'variety', 'cave', 'prod area', 'age']
+#
+# # Make a cleaned dataframe for counting
+# counting_df = df[['code vin', 'taster', 'variety', 'cave', 'prod area', 'age']].dropna()
+# counting_df = counting_df.drop_duplicates(subset=['code vin', 'taster'])
+#
+# properties = ['taster', 'variety', 'cave', 'prod area', 'age']
+#
+# # After collapsing replicates:
+# counting_df = df[['code vin', 'taster', 'variety', 'cave', 'prod area', 'age']].dropna()
+# counting_df = counting_df.drop_duplicates(subset=['code vin', 'taster'])
+#
+# for prop in properties:
+#     counts = counting_df[prop].value_counts().sort_index()
+#
+#     print(f"\n% --- LaTeX table for {prop} ---\n")
+#     print("\\begin{table}[H]")
+#     print("    \\centering")
+#     print("    \\setlength{\\tabcolsep}{8pt}")
+#     print("    \\renewcommand{\\arraystretch}{1.2}")
+#     print("    \\begin{tabular}{" + "c " * len(counts) + "}")
+#     print("        \\toprule")
+#
+#     # Header: categories (bold)
+#     header_row = " & ".join(f"\\textbf{{{str(label)}}}" for label in counts.index)
+#     print(f"        {header_row} \\\\")
+#
+#     print("        \\midrule")
+#
+#     # Row: corresponding counts
+#     count_row = " & ".join(str(count) for count in counts.values)
+#     print(f"        {count_row} \\\\")
+#
+#     print("        \\bottomrule")
+#     print("    \\end{tabular}")
+#     print(f"    \\caption{{Number of samples per {prop} (after collapsing duplicates)}}")
+#     print(f"    \\label{{tab:{prop.replace(' ', '_')}_counts}}")
+#     print("\\end{table}\n")
+
 print(f"Running Ridge Classifier with {n_splits}-fold CV repeated {n_repeats} times...\n")
 
 for repeat in tqdm(range(n_repeats)):
@@ -68,7 +115,8 @@ for repeat in tqdm(range(n_repeats)):
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
-        clf = RidgeClassifier()
+        # clf = RidgeClassifier(class_weight='balanced')
+        clf = RidgeClassifier(class_weight='balanced')
         clf.fit(X_train_scaled, y_train)
         y_pred = clf.predict(X_test_scaled)
 

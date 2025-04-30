@@ -7,6 +7,8 @@ from sklearn.model_selection import train_test_split
 import utils  # Your custom module
 from collections import defaultdict
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
 
 
 # --- Parameters ---
@@ -93,6 +95,7 @@ all_mae = []
 all_rmse = []
 taster_mae_summary = defaultdict(list)
 last_y_test, last_y_pred, last_sample_ids, last_taster_ids = None, None, None, None
+saved_model_coefs = []
 
 for repeat in range(N_REPEATS):
     X_train, X_test, y_train, y_test, t_train, t_test, s_train, s_test = train_test_split(
@@ -105,6 +108,7 @@ for repeat in range(N_REPEATS):
     model = Ridge()
     model.fit(X_train_scaled, y_train)
     y_pred = model.predict(X_test_scaled)
+    saved_model_coefs.append(model.coef_.copy())
 
     mae = mean_absolute_error(y_test, y_pred, multioutput='raw_values')
     rmse = np.sqrt(mean_squared_error(y_test, y_pred, multioutput='raw_values'))
@@ -121,7 +125,17 @@ for repeat in range(N_REPEATS):
 
 mean_mae = np.mean(all_mae, axis=0)
 mean_rmse = np.mean(all_rmse, axis=0)
-rmse_pct = 100 * mean_rmse / 100
+rmse_pct = mean_rmse
+
+mean_coef = np.mean(saved_model_coefs, axis=0)  # shape (n_outputs, n_features)
+
+# Separate chromatogram and taster weights
+n_chromatogram_features = X_raw.shape[1]
+n_taster_features = taster_onehot.shape[1]
+
+chromatogram_weights = mean_coef[:, :n_chromatogram_features]
+taster_weights = mean_coef[:, n_chromatogram_features:]
+
 
 print("\nPer-attribute average errors over multiple splits:")
 for i, col in enumerate(sensory_cols):
@@ -162,7 +176,8 @@ def plot_profiles_for_taster(y_true, y_pred, sample_ids, taster_ids, taster, n_s
 
     plt.suptitle(f"Taster {taster}: true in black, predicted in red", fontsize=12)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.show()
+    plt.show(block=False)
+
 
 unique_tasters = sorted(set(last_taster_ids))
 
@@ -176,7 +191,6 @@ for taster in unique_tasters:
         taster=taster,
         n_samples=50  # or use len(...) if you want to show all
     )
-
 # plot_profiles_for_taster(last_y_test, last_y_pred, last_sample_ids, last_taster_ids, taster='D1', n_samples=50)
 
 def plot_single_wine(y_true, y_pred, sample_ids, wine_code):
@@ -202,6 +216,7 @@ def plot_single_wine(y_true, y_pred, sample_ids, wine_code):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.show()
-plot_single_wine(last_y_test, last_y_pred, last_sample_ids, wine_code='141T-N-27')
+    plt.show(block=False)
+# plot_single_wine(last_y_test, last_y_pred, last_sample_ids, wine_code='141T-N-27')
 
+plt.show()

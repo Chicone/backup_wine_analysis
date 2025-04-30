@@ -182,7 +182,7 @@ if __name__ == "__main__":
             num_repeats=NUM_SPLITS, num_outer_repeats=1,
             random_seed=42, test_size=0.2, normalize=NORMALIZE, scaler_type='standard',
             use_pca=False, vthresh=0.97, region=region, print_results=True,
-            n_jobs=20, feature_type=FEATURE_TYPE, classifier_type=CLASSIFIER
+            n_jobs=20, feature_type=FEATURE_TYPE, classifier_type=CLASSIFIER, LOOPC=True
         )
 
     elif CHANNEL_METHOD == "greedy_add_ranked":
