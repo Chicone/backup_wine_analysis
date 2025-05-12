@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>dimensionality_reduction module &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=4f649999" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=cb25574f" />
+    <script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-dimensionality_reduction">
+<span id="dimensionality-reduction-module"></span><h1>dimensionality_reduction module<a class="headerlink" href="#module-dimensionality_reduction" title="Link to this heading">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="dimensionality_reduction.DimensionalityReducer">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dimensionality_reduction.</span></span><span class="sig-name descname"><span class="pre">DimensionalityReducer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dimensionality_reduction.DimensionalityReducer" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>The DimensionalityReducer class provides tools for performing dimensionality reduction on datasets.</p>
+<p>This class offers various methods for reducing the dimensionality of data, making it easier to visualize and
+analyze complex datasets. It supports popular techniques such as PCA (Principal Component Analysis), t-SNE,
+and UMAP, and includes functionality for cumulative variance analysis and cross-validation of PCA for
+classification tasks. The class is designed to handle high-dimensional data efficiently and helps in
+identifying the most important features or components.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="dimensionality_reduction.DimensionalityReducer.data">
+<span class="sig-name descname"><span class="pre">data</span></span><a class="headerlink" href="#dimensionality_reduction.DimensionalityReducer.data" title="Link to this definition">¶</a></dt>
+<dd><p>The dataset to be reduced in dimensionality.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dimensionality_reduction.DimensionalityReducer.pca">
+<span class="sig-name descname"><span class="pre">pca</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.pca"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dimensionality_reduction.DimensionalityReducer.pca" title="Link to this definition">¶</a></dt>
+<dd><p>Performs Principal Component Analysis (PCA) to reduce the dataset to the specified number of components.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dimensionality_reduction.DimensionalityReducer.tsne">
+<span class="sig-name descname"><span class="pre">tsne</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">perplexity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.tsne"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dimensionality_reduction.DimensionalityReducer.tsne" title="Link to this definition">¶</a></dt>
+<dd><p>Performs t-SNE to reduce the dataset to the specified number of components.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dimensionality_reduction.DimensionalityReducer.umap">
+<span class="sig-name descname"><span class="pre">umap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.umap"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dimensionality_reduction.DimensionalityReducer.umap" title="Link to this definition">¶</a></dt>
+<dd><p>Performs UMAP to reduce the dataset to the specified number of components.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dimensionality_reduction.DimensionalityReducer.perform_pca_on_dict">
+<span class="sig-name descname"><span class="pre">perform_pca_on_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.perform_pca_on_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dimensionality_reduction.DimensionalityReducer.perform_pca_on_dict" title="Link to this definition">¶</a></dt>
+<dd><p>Applies PCA to the data and returns a dictionary with transformed values.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dimensionality_reduction.DimensionalityReducer.cumulative_variance">
+<span class="sig-name descname"><span class="pre">cumulative_variance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variance_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.95</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.cumulative_variance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dimensionality_reduction.DimensionalityReducer.cumulative_variance" title="Link to this definition">¶</a></dt>
+<dd><p>Performs PCA and calculates the cumulative variance explained by the components, optionally plotting the results.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dimensionality_reduction.DimensionalityReducer.cross_validate_pca_classification">
+<span class="sig-name descname"><span class="pre">cross_validate_pca_classification</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">processed_labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_splits</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vthresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.97</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.cross_validate_pca_classification"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dimensionality_reduction.DimensionalityReducer.cross_validate_pca_classification" title="Link to this definition">¶</a></dt>
+<dd><p>Performs cross-validation of a PCA-based classification model, reporting the average accuracy.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">cross_validate_pca_classification</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cls</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_splits</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vthresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.97</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.cross_validate_pca_classification"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id0" title="Link to this definition">¶</a></dt>
+<dd><p>Perform cross-validation on a PCA-based classification model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cls</strong> (<em>classifier instance</em>) – The labels associated with the dataset, used for classification.</p></li>
+<li><p><strong>n_splits</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of cross-validation splits. Default is 50.</p></li>
+<li><p><strong>vthresh</strong> (<em>float</em><em>, </em><em>optional</em>) – The variance threshold to be explained by the PCA components. Default is 0.97.</p></li>
+<li><p><strong>test_size</strong> (<em>float</em><em>, </em><em>optional</em>) – The proportion of the dataset to include in the test split. If None, one sample per label is used. Default is None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The average accuracy of the model across the cross-validation splits.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">cumulative_variance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variance_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.95</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.cumulative_variance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id1" title="Link to this definition">¶</a></dt>
+<dd><p>Perform PCA and calculate the cumulative variance explained by the components.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>labels</strong> (<em>list</em>) – A list of labels corresponding to the rows in the dataset.</p></li>
+<li><p><strong>variance_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – The threshold of cumulative variance to be explained by the principal components. Default is 0.95.</p></li>
+<li><p><strong>plot</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to plot the cumulative variance explained by the components. Default is False.</p></li>
+<li><p><strong>dataset_name</strong> (<em>str</em><em>, </em><em>optional</em>) – The name of the dataset, used for titling the plot. Default is None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>dict</em> – A dictionary where keys are the labels and values are the transformed data in the reduced space.</p></li>
+<li><p><em>numpy.ndarray</em> – The cumulative variance explained by each component.</p></li>
+<li><p><em>int</em> – The number of components that explain at least the specified variance threshold.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">pca</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.pca"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id2" title="Link to this definition">¶</a></dt>
+<dd><p>Perform Principal Component Analysis (PCA) on the dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>components</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of principal components to keep. Default is 2.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The dataset transformed into the specified number of principal components.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">perform_pca_on_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.perform_pca_on_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id3" title="Link to this definition">¶</a></dt>
+<dd><p>Perform PCA on the dataset and return a dictionary of the transformed data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>labels</strong> (<em>list</em>) – A list of labels corresponding to the rows in the dataset.</p></li>
+<li><p><strong>n_components</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of principal components to keep. If None, all components are kept. Default is None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary where keys are the labels and values are the transformed data in the reduced space.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">tsne</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">perplexity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.tsne"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id4" title="Link to this definition">¶</a></dt>
+<dd><p>Perform t-SNE (t-distributed Stochastic Neighbor Embedding) on the dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>components</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of dimensions to reduce the dataset to. Default is 2.</p></li>
+<li><p><strong>perplexity</strong> (<em>float</em><em>, </em><em>optional</em>) – The perplexity parameter for t-SNE, which affects the number of nearest neighbors considered. Default is 30.</p></li>
+<li><p><strong>random_state</strong> (<em>int</em><em>, </em><em>optional</em>) – The random seed for reproducibility. Default is 8.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The dataset transformed into the specified number of dimensions using t-SNE.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">umap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#DimensionalityReducer.umap"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id5" title="Link to this definition">¶</a></dt>
+<dd><p>Perform UMAP (Uniform Manifold Approximation and Projection) on the dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>components</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of dimensions to reduce the dataset to. Default is 2.</p></li>
+<li><p><strong>n_neighbors</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of neighboring points used in local approximations of the manifold structure. Default is 60.</p></li>
+<li><p><strong>random_state</strong> (<em>int</em><em>, </em><em>optional</em>) – The random seed for reproducibility. Default is 8.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The dataset transformed into the specified number of dimensions using UMAP.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="dimensionality_reduction.run_tsne_and_evaluate">
+<span class="sig-prename descclassname"><span class="pre">dimensionality_reduction.</span></span><span class="sig-name descname"><span class="pre">run_tsne_and_evaluate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">analysis</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chem_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">perplexity_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">range(30,</span> <span class="pre">100,</span> <span class="pre">5)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_states</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">range(0,</span> <span class="pre">100,</span> <span class="pre">4)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#run_tsne_and_evaluate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dimensionality_reduction.run_tsne_and_evaluate" title="Link to this definition">¶</a></dt>
+<dd><p>Run t-SNE on the dataset and evaluate the results using the Silhouette Score.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>analysis</strong> (<em>object</em>) – The analysis object containing the dataset to be reduced.</p></li>
+<li><p><strong>labels</strong> (<em>list</em>) – The labels corresponding to the data points in the dataset.</p></li>
+<li><p><strong>chem_name</strong> (<em>str</em>) – The name of the chemical or dataset being analyzed (used for plot titles).</p></li>
+<li><p><strong>neigh_range</strong> (<em>range</em><em>, </em><em>optional</em>) – The range of neighbor values to explore for t-SNE. Default is range(30, 100, 5).</p></li>
+<li><p><strong>random_states</strong> (<em>range</em><em>, </em><em>optional</em>) – The range of random state values to explore for t-SNE. Default is range(0, 100, 4).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the best number of neighbors, the best random state, and the best Silhouette Score.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="dimensionality_reduction.run_umap_and_evaluate">
+<span class="sig-prename descclassname"><span class="pre">dimensionality_reduction.</span></span><span class="sig-name descname"><span class="pre">run_umap_and_evaluate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">analysis</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chem_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neigh_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">range(30,</span> <span class="pre">100,</span> <span class="pre">5)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_states</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">range(0,</span> <span class="pre">100,</span> <span class="pre">4)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dimensionality_reduction.html#run_umap_and_evaluate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dimensionality_reduction.run_umap_and_evaluate" title="Link to this definition">¶</a></dt>
+<dd><p>Run UMAP on the dataset and evaluate the results using a combined score of Silhouette, Calinski-Harabasz, and
+Adjusted Rand Index.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>analysis</strong> (<em>object</em>) – The analysis object containing the dataset to be reduced.</p></li>
+<li><p><strong>labels</strong> (<em>list</em>) – The labels corresponding to the data points in the dataset.</p></li>
+<li><p><strong>chem_name</strong> (<em>str</em>) – The name of the chemical or dataset being analyzed (used for plot titles).</p></li>
+<li><p><strong>neigh_range</strong> (<em>range</em><em>, </em><em>optional</em>) – The range of neighbor values to explore for UMAP. Default is range(30, 100, 5).</p></li>
+<li><p><strong>random_states</strong> (<em>range</em><em>, </em><em>optional</em>) – The range of random state values to explore for UMAP. Default is range(0, 100, 4).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the best number of neighbors, the best random state, and the best combined score.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Wine Analysis Library</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2025, Luis Gomez Camara.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/dimensionality_reduction.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

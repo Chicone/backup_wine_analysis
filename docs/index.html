@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Welcome to Wine Analysis Library’s documentation! &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=4f649999" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=cb25574f" />
+    <script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="welcome-to-wine-analysis-library-s-documentation">
+<h1>Welcome to Wine Analysis Library’s documentation!<a class="headerlink" href="#welcome-to-wine-analysis-library-s-documentation" title="Link to this heading">¶</a></h1>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+<section id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading">¶</a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+<blockquote>
+<div><p>📦 <strong>Note:</strong> You are on the <code class="docutils literal notranslate"><span class="pre">wine-analysis-package</span></code> branch, which contains the most accessible and minimal version of the GC-MS Wine Analysis tools. It is intended for testing and basic usage.
+Other branches may contain experimental or extended versions</p>
+</div></blockquote>
+<section id="wine-analysis-library-documentation">
+<h2>Wine Analysis Library Documentation<a class="headerlink" href="#wine-analysis-library-documentation" title="Link to this heading">¶</a></h2>
+<p>Welcome to the <strong>Wine Analysis Library</strong> documentation!</p>
+<section id="overview">
+<h3>Overview<a class="headerlink" href="#overview" title="Link to this heading">¶</a></h3>
+<p>The Wine Analysis Library is a comprehensive toolkit designed for analyzing and processing wine-related data.
+The library provides various modules to facilitate data loading, preprocessing, dimensionality reduction,
+classification, and visualization of wine chromatograms and related datasets.</p>
+<section id="key-features">
+<h4>Key Features<a class="headerlink" href="#key-features" title="Link to this heading">¶</a></h4>
+<ul class="simple">
+<li><p><strong>Data Loading &amp; Preprocessing</strong>: Load and preprocess wine datasets efficiently using custom utilities.</p></li>
+<li><p><strong>Dimensionality Reduction</strong>: Apply various dimensionality reduction techniques like PCA (Principal Component Analysis) to simplify complex datasets.</p></li>
+<li><p><strong>Classification</strong>: Use machine learning classifiers to categorize wine samples based on their chemical compositions or other features.</p></li>
+<li><p><strong>Visualization</strong>: Generate informative visualizations, including chromatograms and scatter plots, to explore and present the data effectively.</p></li>
+<li><p><strong>Analysis</strong>: Perform detailed analysis on wine data, including peak detection and alignment across samples.</p></li>
+</ul>
+</section>
+</section>
+<section id="installation">
+<h3>Installation<a class="headerlink" href="#installation" title="Link to this heading">¶</a></h3>
+<p>This repository contains multiple development branches for different use cases and experimental pipelines.
+The wine-analysis-package branch is the simplest and most stable version, specifically intended for basic GC-MS data analysis workflows. It includes the core functionalities for chromatogram preprocessing, alignment, classification, and visualization, and is ideal for most users working with wine or chemical analysis datasets.</p>
+<p>To use this version, make sure to clone and switch to this branch:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clone the repository and switch to the correct branch</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pougetlab/wine_analysis.git
+<span class="nb">cd</span><span class="w"> </span>wine_analysis
+git<span class="w"> </span>checkout<span class="w"> </span>wine-analysis-package
+
+<span class="c1"># (Optional) Create and activate a virtual environment</span>
+python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">  </span><span class="c1"># On Windows: .venv\Scripts\activate</span>
+
+<span class="c1"># Install the package in editable mode</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+
+<span class="c1"># Install dependencies</span>
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+</pre></div>
+</div>
+<p>Some modules in this library may require extra dependencies that are not automatically listed in requirements.txt.
+If you encounter import errors when running scripts, make sure to install the following commonly used packages:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>torch<span class="w"> </span>torchvision<span class="w"> </span>pynndescent<span class="w"> </span>netCDF4<span class="w"> </span>seaborn<span class="w"> </span>umap-learn<span class="w"> </span>tqdm<span class="w"> </span>scikit-optimize
+</pre></div>
+</div>
+</section>
+<section id="preparing-the-gc-ms-data">
+<h3>Preparing the GC-MS Data<a class="headerlink" href="#preparing-the-gc-ms-data" title="Link to this heading">¶</a></h3>
+<p>Before running the analysis scripts, your GC-MS data must be prepared in a specific directory structure.</p>
+<section id="required-format">
+<h4>Required Format<a class="headerlink" href="#required-format" title="Link to this heading">¶</a></h4>
+<p>Each sample must be stored in its own <code class="docutils literal notranslate"><span class="pre">.D</span></code> folder (as typically exported by Agilent ChemStation or similar software).
+For example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>datasets/
+├── PINOT_NOIR/
+│ ├── Sample1.D/
+│ ├── Sample2.D/
+│ └── ...
+└──  ...
+</pre></div>
+</div>
+<p>Then, within each sample there should be a csv file with the name of the sample and looking like
+<img alt="img.png" src="_images/img.png" />
+where the first column is the retention time and the next columns are the intensity signals of each m/z channel
+(starting at 40 in this example).</p>
+</section>
+</section>
+<section id="running-scripts">
+<h3>Running Scripts<a class="headerlink" href="#running-scripts" title="Link to this heading">¶</a></h3>
+<p>To execute one of the analysis scripts, navigate to the root of the project (where the scripts/ directory is located) and
+run the script using Python. For example, to run the Pinot Noir classification pipeline:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/pinot_noir/train_test_pinot_noir.py
+</pre></div>
+</div>
+<section id="final-step-classification-and-evaluation">
+<h4>Final Step: Classification and Evaluation<a class="headerlink" href="#final-step-classification-and-evaluation" title="Link to this heading">¶</a></h4>
+<p>With the chromatograms from both datasets now synchronized to a common reference, the script proceeds to train a
+classification model using the synchronized chromatograms from the 2018 oak dataset. This model is then tested on the
+synchronized chromatograms from the 2022 oak dataset to evaluate cross-dataset accuracy.</p>
+<ul class="simple">
+<li><p><strong>Model Training</strong>:</p>
+<ul>
+<li><p>The classifier (LDA) is trained on the synchronized chromatograms from the 2018 oak dataset. The features used for
+classification are the intensities at specific retention times.</p></li>
+</ul>
+</li>
+<li><p><strong>Model Testing</strong>:</p>
+<ul>
+<li><p>The trained classifier is then applied to the synchronized chromatograms from the 2022 oak dataset to predict the
+labels.</p></li>
+</ul>
+</li>
+<li><p><strong>Evaluation</strong>:</p>
+<ul>
+<li><p>The script calculates the accuracy of the model by comparing the predicted labels to the actual labels in the 2022
+oak dataset. This accuracy indicates how well the model generalizes from one dataset to another, reflecting the
+robustness of the synchronization and classification process.</p></li>
+</ul>
+</li>
+</ul>
+<p>This workflow ensures that the features used for classification are consistent across datasets, leading to more reliable
+and generalizable models when analyzing chromatograms from different sources.</p>
+</section>
+</section>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">Wine Analysis Library</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2025, Luis Gomez Camara.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

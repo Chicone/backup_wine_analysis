@@ -15,6 +15,9 @@ release = '0.1.0'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",  # Optional: for Google-style docstrings
+    "sphinx.ext.viewcode",  # Optional: adds links to source code
     'myst_parser',
     # ... other extensions
 ]
@@ -31,5 +34,6 @@ html_static_path = ['_static']
 
 import os
 import sys
+sys.path.insert(0, os.path.abspath('../../gcmswine'))
 sys.path.insert(0, os.path.abspath('../..'))  # go up twice from source/ to repo root
 
