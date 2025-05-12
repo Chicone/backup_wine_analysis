@@ -69,6 +69,7 @@ The wine-analysis-package branch is the simplest and most stable version, specif
 git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pougetlab/wine_analysis.git
 <span class="nb">cd</span><span class="w"> </span>wine_analysis
 git<span class="w"> </span>checkout<span class="w"> </span>wine-analysis-package
+
 <span class="c1"># (Optional) Create and activate a virtual environment</span>
 python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
 <span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">  </span><span class="c1"># On Windows: .venv\Scripts\activate</span>
@@ -78,6 +79,11 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 
 <span class="c1"># Install dependencies</span>
 pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+</pre></div>
+</div>
+<p>Some modules in this library may require extra dependencies that are not automatically listed in requirements.txt.
+If you encounter import errors when running scripts, make sure to install the following commonly used packages:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>torch<span class="w"> </span>torchvision<span class="w"> </span>pynndescent<span class="w"> </span>netCDF4<span class="w"> </span>seaborn<span class="w"> </span>umap-learn<span class="w"> </span>tqdm<span class="w"> </span>scikit-optimize
 </pre></div>
 </div>
 </section>

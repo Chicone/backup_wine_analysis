@@ -39,6 +39,12 @@ pip install -e .
 pip install -r requirements.txt
 ```
 
+Some modules in this library may require extra dependencies that are not automatically listed in requirements.txt. 
+If you encounter import errors when running scripts, make sure to install the following commonly used packages:
+```bash
+pip install torch torchvision pynndescent netCDF4 seaborn umap-learn tqdm scikit-optimize
+```
+
 
 ## Overview of the cross-dataset classification pipeline 
 

@@ -27,6 +27,7 @@ To use this version, make sure to clone and switch to this branch:
 git clone https://github.com/pougetlab/wine_analysis.git
 cd wine_analysis
 git checkout wine-analysis-package
+
 # (Optional) Create and activate a virtual environment
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
@@ -36,6 +37,12 @@ pip install -e .
 
 # Install dependencies
 pip install -r requirements.txt
+```
+
+Some modules in this library may require extra dependencies that are not automatically listed in requirements.txt. 
+If you encounter import errors when running scripts, make sure to install the following commonly used packages:
+```bash
+pip install torch torchvision pynndescent netCDF4 seaborn umap-learn tqdm scikit-optimize
 ```
 
 

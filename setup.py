@@ -7,7 +7,6 @@ setup(
     author="Luis Gomez Camara",
     packages=find_packages(),
     install_requires=[
-        "gcmswine",
         "numpy",
         "pandas",
         "scikit-learn",
