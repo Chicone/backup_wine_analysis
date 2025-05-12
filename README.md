@@ -4,16 +4,14 @@ This branch contains a simplified and ready-to-use version of the GC-MS wine ana
 
 ## 📄 Documentation
 
-The full documentation is generated using **Sphinx** and is available locally in the following folder:
-docs/build
+The full documentation is generated using Sphinx and is available online:
 
-To view it:
+👉 [View the documentation](https://chicone.github.io/backup_wine_analysis/)
 
-Open the file `docs/build/index.html` in your browser.
-
-For example:
+If you prefer to build and view the documentation locally:
 
 ```bash
+sphinx-build -b html docs/source docs/build
 xdg-open docs/build/index.html   # Linux
 open docs/build/index.html       # macOS
 start docs/build/index.html      # Windows
