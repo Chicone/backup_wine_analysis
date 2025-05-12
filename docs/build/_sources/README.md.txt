@@ -18,11 +18,15 @@ classification, and visualization of wine chromatograms and related datasets.
 
 ## Installation
 
-To use the Wine Analysis Library, clone the repository and install the required dependencies:
+This repository contains multiple development branches for different use cases and experimental pipelines.
+The wine-analysis-package branch is the simplest and most stable version, specifically intended for basic GC-MS data analysis workflows. It includes the core functionalities for chromatogram preprocessing, alignment, classification, and visualization, and is ideal for most users working with wine or chemical analysis datasets.
 
+To use this version, make sure to clone and switch to this branch:
 ```bash
-git clone https://github.com/Chicone/wine-analysis.git
-cd wine-analysis
+git clone https://github.com/pougetlab/wine_analysis.git
+cd wine_analysis
+git checkout wine-analysis-package
+pip install -e .
 pip install -r requirements.txt
 ```
 
