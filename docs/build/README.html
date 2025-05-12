@@ -53,10 +53,18 @@ classification, and visualization of wine chromatograms and related datasets.</p
 <p>This repository contains multiple development branches for different use cases and experimental pipelines.
 The wine-analysis-package branch is the simplest and most stable version, specifically intended for basic GC-MS data analysis workflows. It includes the core functionalities for chromatogram preprocessing, alignment, classification, and visualization, and is ideal for most users working with wine or chemical analysis datasets.</p>
 <p>To use this version, make sure to clone and switch to this branch:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pougetlab/wine_analysis.git
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clone the repository and switch to the correct branch</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/pougetlab/wine_analysis.git
 <span class="nb">cd</span><span class="w"> </span>wine_analysis
 git<span class="w"> </span>checkout<span class="w"> </span>wine-analysis-package
+<span class="c1"># (Optional) Create and activate a virtual environment</span>
+python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">  </span><span class="c1"># On Windows: .venv\Scripts\activate</span>
+
+<span class="c1"># Install the package in editable mode</span>
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+
+<span class="c1"># Install dependencies</span>
 pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
 </pre></div>
 </div>

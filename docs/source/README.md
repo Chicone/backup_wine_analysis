@@ -23,10 +23,19 @@ The wine-analysis-package branch is the simplest and most stable version, specif
 
 To use this version, make sure to clone and switch to this branch:
 ```bash
+# Clone the repository and switch to the correct branch
 git clone https://github.com/pougetlab/wine_analysis.git
 cd wine_analysis
 git checkout wine-analysis-package
+
+# (Optional) Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install the package in editable mode
 pip install -e .
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
