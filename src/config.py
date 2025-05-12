@@ -47,9 +47,10 @@ CH_TREAT = 'concatenated'  # 'independent',  'concatenated'
 
 # independent, individual, all_channels, greedy_add_ranked, greedy_add, greedy_remove_ranked, greedy_remove,
 # greedy_remove_batch, random_subset
-CHANNEL_METHOD = 'all_channels'
-FEATURE_TYPE = 'tic_tis'  # concatenated tic tis tic_tis
-CLASSIFIER='RGC' # "DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"
+CHANNEL_METHOD = 'greedy_remove_diff_origins'
+FEATURE_TYPE = 'tis'  # concatenated tic tis tic_tis
+classifiers = ["DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"]
+CLASSIFIER=classifiers[8] # "DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"
 SYNC_STATE = False  # Use retention time alignment
 NORMALIZE = True
 CONCATENATE_TICS = False

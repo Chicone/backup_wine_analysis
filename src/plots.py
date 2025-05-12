@@ -240,9 +240,17 @@ def plot_accuracy_vs_decimation(wine_type):
         decimation_factors = np.array([   1,     2,     3,     4,     5,    10,    20,    30,    40,    50,   100,   500,  1000])
         # accuracy_isvv =      np.array([0.481, 0.482, 0.478, 0.482, 0.481, 0.480, 0.466, 0.452, 0.457, 0.474, 0.403, 0.319, 0.288])
         # accuracy_changins =  np.array([0.696, 0.696, 0.694, 0.697, 0.695, 0.691, 0.713, 0.714, 0.698, 0.646, 0.621, 0.468, 0.364])
-        accuracy_rgc =      np.array([0.754, 0.768, 0.771, 0.782, 0.780, 0.783, 0.786, 0.811, 0.779, 0.750, 0.705, 0.497, 0.425])
-        accuracy_pac =      np.array([0.463, 0.496, 0.522, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000])
-        accuracy_lda =      np.array([0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000])
+        accuracy_dtc =      np.array([0.305, 0.320, 0.311, 0.314, 0.302, 0.318, 0.308, 0.330, 0.316, 0.306, 0.291, 0.210, 0.187])
+        accuracy_gnb =      np.array([0.255, 0.255, 0.255, 0.257, 0.257, 0.256, 0.257, 0.256, 0.249, 0.249, 0.264, 0.218, 0.228])
+        accuracy_knn =      np.array([0.234, 0.234, 0.233, 0.236, 0.237, 0.239, 0.239, 0.243, 0.245, 0.242, 0.267, 0.174, 0.168])
+        accuracy_lda =      np.array([0.683, 0.680, 0.681, 0.683, 0.688, 0.682, 0.684, 0.681, 0.697, 0.667, 0.666, 0.474, 0.427])
+        accuracy_lr =       np.array([0.650, 0.656, 0.653, 0.658, 0.667, 0.652, 0.647, 0.639, 0.627, 0.613, 0.607, 0.499, 0.421])
+        accuracy_pac =      np.array([0.455, 0.486, 0.512, 0.518, 0.545, 0.660, 0.704, 0.711, 0.694, 0.658, 0.646, 0.469, 0.338])
+        accuracy_per =      np.array([0.338, 0.344, 0.352, 0.376, 0.368, 0.417, 0.513, 0.532, 0.523, 0.511, 0.493, 0.438, 0.334])
+        accuracy_rfc =      np.array([0.415, 0.411, 0.411, 0.404, 0.393, 0.390, 0.378, 0.376, 0.381, 0.355, 0.369, 0.292, 0.274])
+        accuracy_rgc =      np.array([0.738, 0.735, 0.734, 0.742, 0.738, 0.736, 0.754, 0.754, 0.735, 0.685, 0.639, 0.487, 0.380])
+        accuracy_sgd =      np.array([0.383, 0.403, 0.423, 0.487, 0.521, 0.529, 0.489, 0.476, 0.497, 0.471, 0.473, 0.439, 0.336])
+        accuracy_svm =      np.array([0.163, 0.163, 0.164, 0.163, 0.163, 0.164, 0.165, 0.162, 0.162, 0.160, 0.176, 0.164, 0.182])
         title = "Accuracy vs. Decimation Factor"
 
     else:
@@ -250,15 +258,34 @@ def plot_accuracy_vs_decimation(wine_type):
 
     # Plot
     if wine_type == "pinot_noir":
-        plt.plot(decimation_factors, accuracy_rgc, marker='o', linestyle='-', label="ISVV - TIC", linewidth=2)
-        plt.plot(decimation_factors, accuracy_pac, marker='s', linestyle='--', label="Changins - TIC", linewidth=2)
+        plt.plot(decimation_factors, accuracy_dtc, marker='^', linestyle='-.', color='tab:blue', label="DTC - TIC",
+                 linewidth=2)
+        plt.plot(decimation_factors, accuracy_gnb, marker='v', linestyle='--', color='tab:orange', label="GNB - TIC",
+                 linewidth=2)
+        plt.plot(decimation_factors, accuracy_knn, marker='s', linestyle=':', color='tab:green', label="KNN - TIC",
+                 linewidth=2)
+        plt.plot(decimation_factors, accuracy_lda, marker='D', linestyle='-', color='tab:red', label="LDA - TIC",
+                 linewidth=2)
+        plt.plot(decimation_factors, accuracy_lr, marker='o', linestyle='-.', color='tab:purple', label="LR - TIC",
+                 linewidth=2)
+        plt.plot(decimation_factors, accuracy_pac, marker='X', linestyle='--', color='tab:brown', label="PAC - TIC",
+                 linewidth=2)
+        plt.plot(decimation_factors, accuracy_per, marker='P', linestyle=':', color='tab:pink', label="PER - TIC",
+                 linewidth=2)
+        plt.plot(decimation_factors, accuracy_rfc, marker='*', linestyle='-', color='tab:gray', label="RFC - TIC",
+                 linewidth=2)
+        plt.plot(decimation_factors, accuracy_rgc, marker='H', linestyle='-.', color='tab:olive', label="RGC - TIC",
+                 linewidth=2)
+        plt.plot(decimation_factors, accuracy_sgd, marker='<', linestyle='--', color='tab:cyan', label="SGD - TIC",
+                 linewidth=2)
+        plt.plot(decimation_factors, accuracy_svm, marker='>', linestyle=':', color='black', label="SVM - TIC",
+                 linewidth=2)
     else:
         plt.figure(figsize=(8, 6))
         plt.plot(decimation_factors, accuracy_tic, marker='o', linestyle='-', label="TIC", linewidth=2)
         plt.plot(decimation_factors, accuracy_tis, marker='s', linestyle='--', label="TIS", linewidth=2)
         plt.plot(decimation_factors, accuracy_tic_tis, marker='^', linestyle='-.', label="TIC-TIS", linewidth=2)
         plt.plot(decimation_factors, accuracy_concat, marker='d', linestyle=':', label="All m/z", linewidth=2)  # Changed marker for differentiation
-
     # Labels and formatting
     plt.xlabel("Decimation Factor ($d$)", fontsize=12)
     plt.ylabel("Accuracy", fontsize=12)

@@ -116,10 +116,10 @@ if __name__ == "__main__":
         alpha, num_total_channels = optimize_bayesian_params(data, labels, NUM_SPLITS_BAYES, CH_TREAT)
 
     if CHANNEL_METHOD == 'independent':
-        cls.train_and_evaluate_balanced_with_best_alpha2(
+        cls.train_and_evaluate_balanced_independent(
             n_splits=NUM_SPLITS, test_size=0.2, normalize=NORMALIZE,
             scaler_type='standard', use_pca=False, region=REGION, vthresh=0.97,
-            best_alpha=alpha
+            best_alpha=alpha, LOOPC=True, classifier_type=CLASSIFIER
         )
     elif CHANNEL_METHOD == "individual":
         cls.train_and_evaluate_individual_channels(
@@ -230,7 +230,7 @@ if __name__ == "__main__":
         cls.train_and_evaluate_greedy_remove_diff_origins(
             num_repeats=NUM_SPLITS, n_inner_repeats=10, random_seed=42, test_size=0.2, normalize=NORMALIZE,
             scaler_type='standard', use_pca=False, region=None, print_results=True, n_jobs=10,
-            feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="pinot_noir_isvv_lle",
+            feature_type=FEATURE_TYPE, dataset_origins=dataset_origins, target_origin="pinot_noir_changins",
             classifier_type=CLASSIFIER
         )
     elif CHANNEL_METHOD == "greedy_remove_true_bin_profiles":

@@ -2,14 +2,14 @@ from classification import Classifier
 import utils
 import numpy as np
 from wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
-from utils import string_to_latex_confusion_matrix
+from utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
 
-# # use this function to convert the printed confusion matrix to a latex confusion matrix
+# # Use this function to convert the printed confusion matrix to a latex confusion matrix
 # # copy the matrix into data_str using """ """
 # headers = ['Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot', 'Les Petits Monts',
 #             'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach', 'Brunner', 'Vin des Croisés',
 #             'Villard et Fils', 'République', 'Maladaires', 'Marimar', 'Drouhin']
-# string_to_latex_confusion_matrix(data_str, headers)
+# string_to_latex_confusion_matrix_modified(data_str, headers)
 
 DATASET_DIRECTORIES = {
     "pinot_noir_isvv_lle": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/",
@@ -59,6 +59,6 @@ cls.train_and_evaluate_all_channels(
     n_jobs=20,
     feature_type=FEATURE_TYPE,
     classifier_type=CLASSIFIER,
-    LOOPC=False
+    LOOPC=True
 )
 

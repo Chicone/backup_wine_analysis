@@ -864,7 +864,8 @@ def string_to_latex_confusion_matrix(data_str, headers):
     data = np.array([list(map(float, row.split())) for row in data_str[2:-2].split('] [')])
 
     # Multiply by 100 and convert to integer
-    data = np.round(data * 100).astype(int)
+    # data = np.round(data * 100).astype(int)
+    data = np.ceil(data * 100).astype(int)
 
     # Begin LaTeX table string
     latex_string = "\\begin{table}[h!]\n\\centering\n\\begin{tabular}{|c|" + "c|" * len(headers) + "}\n    \\hline\n"
@@ -887,11 +888,24 @@ def string_to_latex_confusion_matrix(data_str, headers):
 
 def string_to_latex_confusion_matrix_modified(data_str, headers):
     """Header labels at the bottom"""
+
+    def round_row_to_100_percent(row):
+        """Round a row of probabilities to integers summing to 100."""
+        scaled = row * 100
+        floored = np.floor(scaled).astype(int)
+        remainder = int(100 - floored.sum())
+
+        # Distribute the remaining +1s to the highest decimals
+        decimal_parts = scaled - floored
+        top_indices = np.argsort(-decimal_parts)[:remainder]
+        floored[top_indices] += 1
+        return floored
+
     # Clean up and convert string to numpy array
     data_str = re.sub(r'\s+', ' ', data_str.replace('\n', ' '))  # Clean up whitespace
     data = np.array([list(map(float, row.split())) for row in data_str[2:-2].split('] [')])
-    data = np.round(data * 100).astype(int)  # Scale to percentages
-
+    # data = np.round(data * 100).astype(int)  # Scale to percentages
+    data = np.array([round_row_to_100_percent(row) for row in data])
     n = len(headers)
 
     latex = []
