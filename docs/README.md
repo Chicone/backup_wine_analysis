@@ -1,3 +1,16 @@
+## ⚠️ Note on Repository Branches
+
+This repository contains multiple branches related to different experimental setups and development stages.
+
+If you are looking for a **ready-to-use version of the package** for basic GC-MS wine data analysis, including full documentation and examples:
+
+➡️ **Please switch to the `wine-analysis-package` branch**.
+
+You can do so by running:
+
+```bash
+git clone -b wine-analysis-package https://github.com/pougetlab/wine_analysis.git
+
 # Wine Analysis Library Documentation
 
 Welcome to the **Wine Analysis Library** documentation!
