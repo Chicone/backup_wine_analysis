@@ -13,6 +13,7 @@
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Pinot Noir Classification" href="pinot_noir.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -32,6 +33,16 @@
   <section id="welcome-to-wine-analysis-library-s-documentation">
 <h1>Welcome to Wine Analysis Library’s documentation!<a class="headerlink" href="#welcome-to-wine-analysis-library-s-documentation" title="Link to this heading">¶</a></h1>
 <div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="pinot_noir.html">Pinot Noir Classification</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="pinot_noir.html#script-overview">Script Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pinot_noir.html#confusion-matrix-export">Confusion Matrix Export</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pinot_noir.html#requirements">Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pinot_noir.html#usage">Usage</a></li>
+</ul>
+</li>
+</ul>
 </div>
 </section>
 <section id="indices-and-tables">
@@ -106,9 +117,9 @@ For example:</p>
 └──  ...
 </pre></div>
 </div>
-<p>Then, within each sample there should be a csv file with the name of the sample and looking like
+<p>Then, within each sample there should be a CSV file like this:
 <img alt="img.png" src="_images/img.png" />
-where the first column is the retention time and the next columns are the intensity signals of each m/z channel
+, where the first column is the retention time and the next columns are the intensity signals of each m/z channel
 (starting at 40 in this example).</p>
 </section>
 </section>
@@ -119,35 +130,7 @@ run the script using Python. For example, to run the Pinot Noir classification p
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/pinot_noir/train_test_pinot_noir.py
 </pre></div>
 </div>
-<section id="final-step-classification-and-evaluation">
-<h4>Final Step: Classification and Evaluation<a class="headerlink" href="#final-step-classification-and-evaluation" title="Link to this heading">¶</a></h4>
-<p>With the chromatograms from both datasets now synchronized to a common reference, the script proceeds to train a
-classification model using the synchronized chromatograms from the 2018 oak dataset. This model is then tested on the
-synchronized chromatograms from the 2022 oak dataset to evaluate cross-dataset accuracy.</p>
-<ul class="simple">
-<li><p><strong>Model Training</strong>:</p>
-<ul>
-<li><p>The classifier (LDA) is trained on the synchronized chromatograms from the 2018 oak dataset. The features used for
-classification are the intensities at specific retention times.</p></li>
-</ul>
-</li>
-<li><p><strong>Model Testing</strong>:</p>
-<ul>
-<li><p>The trained classifier is then applied to the synchronized chromatograms from the 2022 oak dataset to predict the
-labels.</p></li>
-</ul>
-</li>
-<li><p><strong>Evaluation</strong>:</p>
-<ul>
-<li><p>The script calculates the accuracy of the model by comparing the predicted labels to the actual labels in the 2022
-oak dataset. This accuracy indicates how well the model generalizes from one dataset to another, reflecting the
-robustness of the synchronization and classification process.</p></li>
-</ul>
-</li>
-</ul>
-<p>This workflow ensures that the features used for classification are consistent across datasets, leading to more reliable
-and generalizable models when analyzing chromatograms from different sources.</p>
-</section>
+<p>Note: Each script is documented in detail in the corresponding section of the online documentation.</p>
 </section>
 </section>
 </section>
@@ -169,11 +152,16 @@ and generalizable models when analyzing chromatograms from different sources.</p
 
 
 <h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="pinot_noir.html">Pinot Noir Classification</a></li>
+</ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="#">Documentation overview</a><ul>
+      <li>Next: <a href="pinot_noir.html" title="next chapter">Pinot Noir Classification</a></li>
   </ul></li>
 </ul>
 </div>

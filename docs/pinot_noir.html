@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Pinot Noir Classification &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=4f649999" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=cb25574f" />
+    <script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Welcome to Wine Analysis Library’s documentation!" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="pinot-noir-classification">
+<h1>Pinot Noir Classification<a class="headerlink" href="#pinot-noir-classification" title="Link to this heading">¶</a></h1>
+<p>This script demonstrates a full pipeline for classifying Pinot Noir wine samples using GC-MS data. It covers dataset loading, preprocessing, and classification using a selected model.</p>
+<section id="script-overview">
+<h2>Script Overview<a class="headerlink" href="#script-overview" title="Link to this heading">¶</a></h2>
+<p>The script <cite>scripts/pinot_noir/train_test_pinot_noir.py</cite> performs the following key steps:</p>
+<ol class="arabic">
+<li><p><strong>Import Required Modules</strong>
+Core tools from the <cite>gcmswine</cite> package are used to handle data processing, chromatogram alignment, and classification.</p></li>
+<li><p><strong>Specify Dataset Paths</strong>
+Three datasets are defined:
+- <cite>pinot_noir_isvv_lle</cite>
+- <cite>pinot_noir_isvv_dllme</cite>
+- <cite>pinot_noir_changins</cite></p>
+<p>These datasets are expected to follow the folder structure explained in the README, with each sample in its own <cite>.D</cite> directory.</p>
+</li>
+<li><p><strong>Parameter Configuration</strong>
+Important configuration options include:
+- <cite>FEATURE_TYPE</cite>: Defines how features are extracted (<cite>‘tic’</cite>, <cite>‘tis’</cite>, or <cite>‘tic_tis’</cite>)
+- <cite>CLASSIFIER</cite>: The machine learning classifier used (e.g., <cite>‘RGC’</cite>)
+- <cite>NUM_SPLITS</cite>: Number of random train/test splits
+- <cite>N_DECIMATION</cite>: Downsampling factor to reduce signal length
+- <cite>REGION</cite> and <cite>WINE_KIND</cite>: Used to parse and group labels</p></li>
+<li><p><strong>Data Loading</strong>
+The datasets are loaded and concatenated using <cite>utils.join_datasets()</cite> and filtered to remove channels with no variance.</p></li>
+<li><p><strong>Optional Alignment</strong>
+If <cite>SYNC_STATE</cite> is set to <cite>True</cite>, chromatograms are aligned using <cite>align_tics()</cite>. This is skipped by default in this script.</p></li>
+<li><p><strong>Label Processing</strong>
+Labels are parsed to extract sample metadata (e.g., winery, year) for grouping and evaluation.</p></li>
+<li><p><strong>Classification</strong>
+A <cite>Classifier</cite> object is instantiated and evaluated using:
+- Stratified train/test splits
+- Standard scaling
+- Repeated evaluation
+- Optionally applying PCA or custom feature aggregations (based on <cite>FEATURE_TYPE</cite>)</p></li>
+<li><p><strong>Output</strong>
+Classification accuracy and metrics are printed to the console. If enabled, confusion matrices can be converted to LaTeX using the utility functions.</p></li>
+</ol>
+</section>
+<section id="confusion-matrix-export">
+<h2>Confusion Matrix Export<a class="headerlink" href="#confusion-matrix-export" title="Link to this heading">¶</a></h2>
+<p>To convert the printed confusion matrix to LaTeX format, you can use:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">headers</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Clos Des Mouches&#39;</span><span class="p">,</span> <span class="s1">&#39;Vigne Enfant J.&#39;</span><span class="p">,</span> <span class="s1">&#39;Les Cailles&#39;</span><span class="p">,</span> <span class="s1">&#39;Bressandes Jadot&#39;</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<span class="n">string_to_latex_confusion_matrix_modified</span><span class="p">(</span><span class="n">data_str</span><span class="p">,</span> <span class="n">headers</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Replace <cite>data_str</cite> with the string version of the confusion matrix printed by the script.</p>
+</section>
+<section id="requirements">
+<h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Properly structured GC-MS data directories</p></li>
+<li><p>Required dependencies installed (see <cite>README.md</cite>)</p></li>
+<li><p>Adjust paths in <cite>DATASET_DIRECTORIES</cite> to match your local setup</p></li>
+</ul>
+</section>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h2>
+<p>From the root of the repository, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/pinot_noir/train_test_pinot_noir.py
+</pre></div>
+</div>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Wine Analysis Library</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Pinot Noir Classification</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#script-overview">Script Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confusion-matrix-export">Confusion Matrix Export</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#requirements">Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#usage">Usage</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Welcome to Wine Analysis Library’s documentation!</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2025, Luis Gomez Camara.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/pinot_noir.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

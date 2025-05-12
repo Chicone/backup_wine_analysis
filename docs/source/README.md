@@ -64,10 +64,11 @@ datasets/
 │ └── ...
 └──  ...
 ```
-Then, within each sample there should be a csv file with the name of the sample and looking like
+Then, within each sample there should be a CSV file like this:
 ![img.png](img.png)
-where the first column is the retention time and the next columns are the intensity signals of each m/z channel 
+, where the first column is the retention time and the next columns are the intensity signals of each m/z channel 
 (starting at 40 in this example).
+
 ## Running Scripts
 To execute one of the analysis scripts, navigate to the root of the project (where the scripts/ directory is located) and 
 run the script using Python. For example, to run the Pinot Noir classification pipeline:
@@ -75,24 +76,4 @@ run the script using Python. For example, to run the Pinot Noir classification p
 python scripts/pinot_noir/train_test_pinot_noir.py
 ```
 
-### Final Step: Classification and Evaluation
-
-With the chromatograms from both datasets now synchronized to a common reference, the script proceeds to train a 
-classification model using the synchronized chromatograms from the 2018 oak dataset. This model is then tested on the 
-synchronized chromatograms from the 2022 oak dataset to evaluate cross-dataset accuracy.
-
-- **Model Training**:
-  - The classifier (LDA) is trained on the synchronized chromatograms from the 2018 oak dataset. The features used for 
-  classification are the intensities at specific retention times.
-
-- **Model Testing**:
-  - The trained classifier is then applied to the synchronized chromatograms from the 2022 oak dataset to predict the 
-  labels.
-
-- **Evaluation**:
-  - The script calculates the accuracy of the model by comparing the predicted labels to the actual labels in the 2022 
-  oak dataset. This accuracy indicates how well the model generalizes from one dataset to another, reflecting the 
-  robustness of the synchronization and classification process.
-
-This workflow ensures that the features used for classification are consistent across datasets, leading to more reliable
-and generalizable models when analyzing chromatograms from different sources.
+Note: Each script is documented in detail in the corresponding section of the online documentation.

@@ -10,6 +10,7 @@ Welcome to Wine Analysis Library's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   pinot_noir
 
 
 Indices and tables
