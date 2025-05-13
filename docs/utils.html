@@ -300,6 +300,23 @@ with integer headers, or handles the special case of 2-column files.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="utils.get_custom_order_for_pinot_noir_region">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">get_custom_order_for_pinot_noir_region</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">region</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#get_custom_order_for_pinot_noir_region"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.get_custom_order_for_pinot_noir_region" title="Link to this definition">¶</a></dt>
+<dd><p>Returns a custom label order for confusion matrix based on the specified region level.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>region</strong> (<em>str</em>) – One of ‘winery’, ‘origin’, ‘country’, ‘continent’</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Custom ordering of labels, or None if no custom order is needed.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="utils.join_datasets">
 <span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">join_datasets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">selected_datasets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_directories</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_decimation</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#join_datasets"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.join_datasets" title="Link to this definition">¶</a></dt>
 <dd><p>Joins multiple datasets based on the given indices.</p>
@@ -885,6 +902,10 @@ Depending on the axis parameter, each value is a list of either row sums or colu
 
 
 <h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="pinot_noir.html">Pinot Noir Classification</a></li>
+</ul>
 
 <div class="relations">
 <h3>Related Topics</h3>

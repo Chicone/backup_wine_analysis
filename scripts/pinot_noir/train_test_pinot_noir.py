@@ -1,64 +1,72 @@
-from gcmswine.classification import Classifier
 import numpy as np
+import os
+import yaml
+from gcmswine.classification import Classifier
 from gcmswine import utils
 from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
 from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
 
 # # Use this function to convert the printed confusion matrix to a latex confusion matrix
-# # copy the matrix into data_str using """ """
+# # Copy the matrix into data_str using """ """ and create the list of headers, then call the function
 # headers = ['Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot', 'Les Petits Monts',
 #             'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach', 'Brunner', 'Vin des Croisés',
 #             'Villard et Fils', 'République', 'Maladaires', 'Marimar', 'Drouhin']
 # string_to_latex_confusion_matrix_modified(data_str, headers)
 
-DATASET_DIRECTORIES = {
-    "pinot_noir_isvv_lle": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/",
-    "pinot_noir_isvv_dllme": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/",
-    "pinot_noir_changins": "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom_CDF/",
-   }
-SELECTED_DATASETS = ["pinot_noir_changins"]
-FEATURE_TYPE = 'tic_tis' # 'tic', 'tis', 'tic_tis'
-CLASSIFIER = 'RGC'
-NUM_SPLITS = 200
-NORMALIZE = True
-N_DECIMATION = 10
-SYNC_STATE = False
-REGION = 'winery'
-WINE_KIND = 'pinot_noir'
+# Load dataset paths from config.yaml
+config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
+config_path = os.path.abspath(config_path)
+with open(config_path, "r") as f:
+    config = yaml.safe_load(f)
 
+# Parameters from config file
+dataset_directories = config["datasets"]
+selected_datasets = config["selected_datasets"]
+feature_type = config["feature_type"]
+classifier = config["classifier"]
+num_splits = config["num_splits"]
+normalize = config["normalize"]
+n_decimation = config["n_decimation"]
+sync_state = config["sync_state"]
+region = config["region"]
+wine_kind = config["wine_kind"]
+
+# Create ChromatogramAnalysis instance for optional alignment
 cl = ChromatogramAnalysis()
 
-# Load dataset
-selected_paths = {name: DATASET_DIRECTORIES[name] for name in SELECTED_DATASETS}
-data_dict, dataset_origins = utils.join_datasets(SELECTED_DATASETS, DATASET_DIRECTORIES, N_DECIMATION)
+# Load dataset, removing zero-variance channels
+selected_paths = {name: dataset_directories[name] for name in selected_datasets}
+data_dict, dataset_origins = utils.join_datasets(selected_datasets, dataset_directories, n_decimation)
 data_dict, _ = utils.remove_zero_variance_channels(data_dict)
-
 chrom_length = len(list(data_dict.values())[0])
+
 gcms = GCMSDataProcessor(data_dict)
 
-if SYNC_STATE:
+if sync_state:
     tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=30000)
 
+# Extract data matrix (samples × channels) and associated labels
 data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
-labels, year_labels = process_labels_by_wine_kind(labels, WINE_KIND, REGION, None, None, None)
+labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None, None)
 
-cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=CLASSIFIER, wine_kind=WINE_KIND, year_labels=np.array(year_labels))
+# Instantiate classifier with data and labels
+cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
+                 year_labels=np.array(year_labels))
 
-# Train and evaluate on all channels. FEATURE_TYPE decides how to aggregate channels
+# Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
 cls.train_and_evaluate_all_channels(
-    num_repeats=NUM_SPLITS,
-    num_outer_repeats=1,
+    num_repeats=num_splits,
     random_seed=42,
     test_size=0.2,
-    normalize=NORMALIZE,
+    normalize=normalize,
     scaler_type='standard',
     use_pca=False,
     vthresh=0.97,
-    region=REGION,
+    region=region,
     print_results=True,
     n_jobs=20,
-    feature_type=FEATURE_TYPE,
-    classifier_type=CLASSIFIER,
-    LOOPC=True
+    feature_type=feature_type,
+    classifier_type=classifier,
+    LOOPC=True  # whether to use stratified splitting (False) or Leave One Out Per Class (True)
 )
 

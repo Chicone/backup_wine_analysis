@@ -1,0 +1,16 @@
+datasets:
+  pinot_noir_isvv_lle: "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/"
+  pinot_noir_isvv_dllme: "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/"
+  pinot_noir_changins: "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom_CDF/"
+
+selected_datasets:  # Choose the dataset to be used
+  - pinot_noir_changins
+
+feature_type: tic_tis       # Options: tic, tis, tic_tis
+classifier: RGC # Available classifiers: "DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"
+num_splits: 200
+normalize: true
+n_decimation: 10
+sync_state: false
+region: winery #  options: winery, origin, country, continent
+wine_kind: pinot_noir

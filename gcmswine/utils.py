@@ -1925,3 +1925,25 @@ def create_dir_of_samples_from_champagnes(input_csv_path, output_root=".", use_c
         print(f"✅ Saved: {output_csv_path}")
 
     print("✔️ All samples extracted.")
+
+
+def get_custom_order_for_pinot_noir_region(region):
+    """
+    Returns a custom label order for confusion matrix based on the specified region level.
+
+    Parameters:
+        region (str): One of 'winery', 'origin', 'country', 'continent'
+
+    Returns:
+        list or None: Custom ordering of labels, or None if no custom order is needed.
+    """
+    if region == 'winery':
+        return ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+    elif region == 'origin':
+        return ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+    elif region == 'country':
+        return ['France', 'Switzerland', 'US']
+    elif region == 'continent':
+        return ['Europe', 'America']
+    else:
+        return None

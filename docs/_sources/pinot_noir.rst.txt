@@ -1,62 +1,109 @@
 Pinot Noir Classification
 =========================
 
-This script demonstrates a full pipeline for classifying Pinot Noir wine samples using GC-MS data. It covers dataset loading, preprocessing, and classification using a selected model.
+This script demonstrates a full pipeline for classifying Pinot Noir wine samples into their wineries using GC-MS data.
+It covers dataset loading, preprocessing, and classification using a selected model.
+Wineries are summarized in the following table:
+
+.. image:: _static/wineries.png
+   :alt: Wineries
+   :width: 600px
+   :align: center
+
+
+Configuration Parameters
+------------------------
+
+The script reads analysis parameters from a configuration file (`config.yaml`) located at the root of the repository.
+Below is a description of the key parameters:
+
+- **dataset**: Each dataset must be specified with a name and its corresponding path on your local machine.
+The paths should point to directories containing `.D` folders for each sample.
+
+- **selected_datasets**: Selects the datasets to be used. You can join more than one but must be compatible in terms of m/z channels
+
+- **feature_type**: Determines how the chromatogram channels are aggregated for classification.
+
+  - ``tic``: Use the Total Ion Chromatogram only.
+  - ``tis``: Use individual Total Ion Spectrum channels.
+  - ``tic_tis``: Combines TIC and TIS features by concatenation.
+
+- **classifier**: Specifies the classification model used for training. Available options include:
+
+  - ``DTC``: Decision Tree Classifier
+  - ``GNB``: Gaussian Naive Bayes
+  - ``KNN``: K-Nearest Neighbors
+  - ``LDA``: Linear Discriminant Analysis
+  - ``LR``: Logistic Regression
+  - ``PAC``: Passive-Aggressive Classifier
+  - ``PER``: Perceptron
+  - ``RFC``: Random Forest Classifier
+  - ``RGC``: Ridge Classifier
+  - ``SGD``: Stochastic Gradient Descent
+  - ``SVM``: Support Vector Machine
+
+- **num_splits**: Number of random train/test splits to evaluate model stability. Higher values improve statistical confidence.
+
+- **normalize**: Whether to apply feature scaling (standard normalization) before classification. It is learned on training splits and applied to test split, so no leakage
+
+- **n_decimation**: Factor by which chromatograms are downsampled along the retention time axis to reduce dimensionality.
+
+- **sync_state**: Enables or disables retention time synchronization between samples using peak alignment algorithms.
+
+- **region**: Indicates the classification granularity, such as:
+
+  - ``winery``: Group samples by producer.
+  - ``origin``: Group samples by geographical origin or region of production.
+  - ``country``: Group samples by country.
+  - ``continent``: Group samples by continent.
+
+- **wine_kind**: Label used to distinguish wine variety for organizing datasets and selecting parsing logic
+(e.g., ``pinot_noir``, ``champagne``).
+
+These parameters allow users to flexibly configure the pipeline without modifying the script itself.
 
 Script Overview
 ---------------
 
-The script `scripts/pinot_noir/train_test_pinot_noir.py` performs the following key steps:
+The script performs classification of Pinot Noir wine samples using GC-MS data and a configurable machine learning pipeline.
+It loads all key parameters and dataset paths from a separate configuration file. To modify the experiment and the
+location of your dataset, simply edit ``config.yaml`` according to your needs.
 
-1. **Import Required Modules**
-   Core tools from the `gcmswine` package are used to handle data processing, chromatogram alignment, and classification.
 
-2. **Specify Dataset Paths**
-   Three datasets are defined:
-   - `pinot_noir_isvv_lle`
-   - `pinot_noir_isvv_dllme`
-   - `pinot_noir_changins`
+The main steps include:
 
-   These datasets are expected to follow the folder structure explained in the README, with each sample in its own `.D` directory.
+1. **Configuration loading**:
 
-3. **Parameter Configuration**
-   Important configuration options include:
-   - `FEATURE_TYPE`: Defines how features are extracted (`'tic'`, `'tis'`, or `'tic_tis'`)
-   - `CLASSIFIER`: The machine learning classifier used (e.g., `'RGC'`)
-   - `NUM_SPLITS`: Number of random train/test splits
-   - `N_DECIMATION`: Downsampling factor to reduce signal length
-   - `REGION` and `WINE_KIND`: Used to parse and group labels
+   - Loads experiment settings from ``config.yaml``.
+   - This includes paths to the datasets, the number of evaluation splits, the classifier type, and other parameters.
 
-4. **Data Loading**
-   The datasets are loaded and concatenated using `utils.join_datasets()` and filtered to remove channels with no variance.
+2. **Data Loading and Preprocessing**:
 
-5. **Optional Alignment**
-   If `SYNC_STATE` is set to `True`, chromatograms are aligned using `align_tics()`. This is skipped by default in this script.
+   - GC-MS chromatograms are loaded using `GCMSDataProcessor`.
+   - Datasets are joined and decimated according to the defined factor.
+   - Channels with zero variance are removed.
+   - Optionally, retention time alignment (synchronization) is performed if `sync_state` is enabled in the config.
+   - Optionally, data normalization (recommended), using training-set statistics only to avoid leakage.
 
-6. **Label Processing**
-   Labels are parsed to extract sample metadata (e.g., winery, year) for grouping and evaluation.
+3. **Label Processing**:
 
-7. **Classification**
-   A `Classifier` object is instantiated and evaluated using:
-   - Stratified train/test splits
-   - Standard scaling
-   - Repeated evaluation
-   - Optionally applying PCA or custom feature aggregations (based on `FEATURE_TYPE`)
+   - Sample labels are extracted and grouped according to the selected `region` (e.g., winery, origin, country or continent).
+   - These labels are prepared for supervised classification.
 
-8. **Output**
-   Classification accuracy and metrics are printed to the console. If enabled, confusion matrices can be converted to LaTeX using the utility functions.
+4. **Classification**:
 
-Confusion Matrix Export
------------------------
+   - The `Classifier` class is used to train a machine learning model on the processed data.
+   - The `train_and_evaluate_all_channels()` method evaluates model performance across multiple splits.
+   - Classification features are aggregated as specified by the `feature_type` parameter (e.g., TIC, TIS, or both).
 
-To convert the printed confusion matrix to LaTeX format, you can use:
+5. **Evaluation**:
 
-.. code-block:: python
+   - Accuracy results are printed.
+   - Optionally, confusion matrices can be converted to LaTeX using provided helper functions for reporting.
 
-   headers = ['Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot', ...]
-   string_to_latex_confusion_matrix_modified(data_str, headers)
+This script provides a complete, reproducible workflow to test classification accuracy of Pinot Noir wines using chemical
+profiles extracted from GC-MS data.
 
-Replace `data_str` with the string version of the confusion matrix printed by the script.
 
 Requirements
 ------------

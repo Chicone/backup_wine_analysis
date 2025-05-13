@@ -553,35 +553,6 @@
             <span class="k">return</span> <span class="n">train_indices</span><span class="p">,</span> <span class="n">test_indices</span>
 
 
-            <span class="k">def</span> <span class="nf">get_class_from_label</span><span class="p">(</span><span class="n">label</span><span class="p">):</span>
-<span class="w">                </span><span class="sd">&quot;&quot;&quot;Extract the class letter from a composite label like &#39;A1&#39;.&quot;&quot;&quot;</span>
-                <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;([A-Z])&#39;</span><span class="p">,</span> <span class="n">label</span><span class="p">)</span>
-                <span class="k">return</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">match</span> <span class="k">else</span> <span class="n">label</span>
-
-            <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">sample_to_indices</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-                <span class="n">class_label</span> <span class="o">=</span> <span class="n">get_class_from_label</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
-                <span class="n">class_to_samples</span><span class="p">[</span><span class="n">class_label</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
-
-            <span class="c1"># Select one sample label per class for test set</span>
-            <span class="n">test_sample_labels</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">class_label</span><span class="p">,</span> <span class="n">samples</span> <span class="ow">in</span> <span class="n">class_to_samples</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">chosen_sample</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
-                <span class="n">test_sample_labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">chosen_sample</span><span class="p">)</span>
-
-            <span class="c1"># Expand to indices (all replicates of selected samples)</span>
-            <span class="n">test_indices</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">test_sample_labels</span><span class="p">:</span>
-                <span class="n">test_indices</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sample_to_indices</span><span class="p">[</span><span class="n">label</span><span class="p">])</span>
-
-            <span class="n">test_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">test_indices</span><span class="p">)</span>
-
-            <span class="c1"># Train indices are all others</span>
-            <span class="n">all_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">))</span>
-            <span class="n">train_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">setdiff1d</span><span class="p">(</span><span class="n">all_indices</span><span class="p">,</span> <span class="n">test_indices</span><span class="p">)</span>
-
-            <span class="k">return</span> <span class="n">train_indices</span><span class="p">,</span> <span class="n">test_indices</span>
-
-
         <span class="k">def</span> <span class="nf">shuffle_split_without_splitting_duplicates</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">group_duplicates</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">                Perform ShuffleSplit on samples while ensuring that:</span>
@@ -696,7 +667,10 @@
             <span class="k">return</span> <span class="n">acc</span><span class="p">,</span> <span class="n">bal_acc</span><span class="p">,</span> <span class="n">w_acc</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">rec</span><span class="p">,</span> <span class="n">f1</span><span class="p">,</span> <span class="n">cm</span>
 
 
-        <span class="n">category_labels</span> <span class="o">=</span> <span class="n">extract_category_labels</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">region</span> <span class="o">==</span> <span class="s2">&quot;winery&quot;</span><span class="p">:</span>
+            <span class="n">category_labels</span> <span class="o">=</span> <span class="n">extract_category_labels</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">category_labels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span>
 
         <span class="c1"># Compute class distribution</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">year_labels</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">year_labels</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">):</span>
@@ -713,12 +687,7 @@
 
 
         <span class="c1"># Set up a custom order for the confusion matrix if a region is specified.</span>
-        <span class="k">if</span> <span class="n">region</span> <span class="o">==</span> <span class="s1">&#39;winery&#39;</span><span class="p">:</span>
-            <span class="n">custom_order</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;E&#39;</span><span class="p">,</span> <span class="s1">&#39;Q&#39;</span><span class="p">,</span> <span class="s1">&#39;P&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s1">&#39;Z&#39;</span><span class="p">,</span> <span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="s1">&#39;W&#39;</span><span class="p">,</span> <span class="s1">&#39;Y&#39;</span><span class="p">,</span> <span class="s1">&#39;M&#39;</span><span class="p">,</span> <span class="s1">&#39;N&#39;</span><span class="p">,</span> <span class="s1">&#39;J&#39;</span><span class="p">,</span> <span class="s1">&#39;L&#39;</span><span class="p">,</span> <span class="s1">&#39;H&#39;</span><span class="p">,</span> <span class="s1">&#39;U&#39;</span><span class="p">,</span> <span class="s1">&#39;X&#39;</span><span class="p">]</span>
-        <span class="k">elif</span> <span class="n">region</span> <span class="o">==</span> <span class="s1">&#39;origin&#39;</span><span class="p">:</span>
-            <span class="n">custom_order</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Beaune&#39;</span><span class="p">,</span> <span class="s1">&#39;Alsace&#39;</span><span class="p">,</span> <span class="s1">&#39;Neuchatel&#39;</span><span class="p">,</span> <span class="s1">&#39;Genève&#39;</span><span class="p">,</span> <span class="s1">&#39;Valais&#39;</span><span class="p">,</span> <span class="s1">&#39;Californie&#39;</span><span class="p">,</span> <span class="s1">&#39;Oregon&#39;</span><span class="p">]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">custom_order</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">custom_order</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">get_custom_order_for_pinot_noir_region</span><span class="p">(</span><span class="n">region</span><span class="p">)</span>
 
         <span class="c1"># Initialize accumulators for outer-repetition averaged metrics.</span>
         <span class="n">eval_accuracy</span> <span class="o">=</span> <span class="p">[]</span>
@@ -787,7 +756,11 @@
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">year_labels</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">year_labels</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">):</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_full</span><span class="p">,</span> <span class="n">y_train_full</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_full</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">extract_category_labels</span><span class="p">(</span><span class="n">y_train_full</span><span class="p">)))</span>
+                    <span class="k">if</span> <span class="n">region</span> <span class="o">==</span> <span class="s2">&quot;winery&quot;</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_full</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">extract_category_labels</span><span class="p">(</span><span class="n">y_train_full</span><span class="p">)))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_full</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">y_train_full</span><span class="p">))</span>
+
             <span class="k">except</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
                 <span class="nb">print</span><span class="p">(</span>
                     <span class="s2">&quot;⚠️ Skipping evaluation due to SVD convergence error (likely caused by LDA on low-variance or singular data).&quot;</span><span class="p">)</span>
@@ -1286,7 +1259,7 @@
 <div class="viewcode-block" id="Classifier.train_and_evaluate_all_channels">
 <a class="viewcode-back" href="../classification.html#classification.Classifier.train_and_evaluate_all_channels">[docs]</a>
     <span class="k">def</span> <span class="nf">train_and_evaluate_all_channels</span><span class="p">(</span>
-            <span class="bp">self</span><span class="p">,</span> <span class="n">num_repeats</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">num_outer_repeats</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">num_repeats</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
             <span class="n">scaler_type</span><span class="o">=</span><span class="s1">&#39;standard&#39;</span><span class="p">,</span> <span class="n">use_pca</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">vthresh</span><span class="o">=</span><span class="mf">0.97</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">print_results</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
             <span class="n">feature_type</span><span class="o">=</span><span class="s2">&quot;concatenated&quot;</span><span class="p">,</span> <span class="n">classifier_type</span><span class="o">=</span><span class="s2">&quot;RGC&quot;</span><span class="p">,</span> <span class="n">LOOPC</span><span class="o">=</span><span class="kc">True</span>
     <span class="p">):</span>
@@ -1343,7 +1316,7 @@
         <span class="n">labels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span>
         <span class="n">num_samples</span><span class="p">,</span> <span class="n">num_timepoints</span><span class="p">,</span> <span class="n">num_channels</span> <span class="o">=</span> <span class="n">cls_data</span><span class="o">.</span><span class="n">shape</span>
         <span class="c1"># Initialize lists</span>
-        <span class="n">accuracies</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">balanced_accuracies</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">confusion_matrices</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># Store confusion matrices</span>
 
         <span class="c1"># --- Feature extraction helper ---</span>
@@ -1389,7 +1362,7 @@
                     <span class="n">LOOPC</span><span class="o">=</span><span class="n">LOOPC</span>
                 <span class="p">)</span>
                 <span class="k">if</span> <span class="s1">&#39;overall_balanced_accuracy&#39;</span> <span class="ow">in</span> <span class="n">results</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;overall_balanced_accuracy&#39;</span><span class="p">]):</span>
-                    <span class="n">accuracies</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;overall_balanced_accuracy&#39;</span><span class="p">])</span>
+                    <span class="n">balanced_accuracies</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;overall_balanced_accuracy&#39;</span><span class="p">])</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;⚠️ No valid accuracy returned in repeat </span><span class="si">{</span><span class="n">repeat_idx</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
@@ -1406,13 +1379,19 @@
                 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;⚠️ Skipping repeat </span><span class="si">{</span><span class="n">repeat_idx</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> due to error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
         <span class="c1"># Compute average performance across repeats</span>
-        <span class="n">mean_test_accuracy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">accuracies</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-        <span class="n">std_test_accuracy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">accuracies</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">mean_test_accuracy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">balanced_accuracies</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">std_test_accuracy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">balanced_accuracies</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
         <span class="n">mean_confusion_matrix</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">average_confusion_matrices_ignore_empty_rows</span><span class="p">(</span><span class="n">confusion_matrices</span><span class="p">)</span>
         <span class="c1"># mean_confusion_matrix = np.mean(confusion_matrices, axis=0)</span>
+        <span class="n">custom_order</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">get_custom_order_for_pinot_noir_region</span><span class="p">(</span><span class="n">region</span><span class="p">)</span>
 
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">##################################&quot;</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mean Accuracy: </span><span class="si">{</span><span class="n">mean_test_accuracy</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> ± </span><span class="si">{</span><span class="n">std_test_accuracy</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mean Balanced Accuracy: </span><span class="si">{</span><span class="n">mean_test_accuracy</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> ± </span><span class="si">{</span><span class="n">std_test_accuracy</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># Print label order used in confusion matrix</span>
+        <span class="k">if</span> <span class="n">custom_order</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Label order (custom):&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">custom_order</span><span class="p">))</span>
+
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Final Averaged Normalized Confusion Matrix:&quot;</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="n">mean_confusion_matrix</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;##################################&quot;</span><span class="p">)</span>
@@ -1929,6 +1908,10 @@
 
 
 <h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../pinot_noir.html">Pinot Noir Classification</a></li>
+</ul>
 
 <div class="relations">
 <h3>Related Topics</h3>

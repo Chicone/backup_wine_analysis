@@ -509,35 +509,6 @@ class Classifier:
             return train_indices, test_indices
 
 
-            def get_class_from_label(label):
-                """Extract the class letter from a composite label like 'A1'."""
-                match = re.match(r'([A-Z])', label)
-                return match.group(1) if match else label
-
-            for label in sample_to_indices.keys():
-                class_label = get_class_from_label(label)
-                class_to_samples[class_label].append(label)
-
-            # Select one sample label per class for test set
-            test_sample_labels = []
-            for class_label, samples in class_to_samples.items():
-                chosen_sample = rng.choice(samples)
-                test_sample_labels.append(chosen_sample)
-
-            # Expand to indices (all replicates of selected samples)
-            test_indices = []
-            for label in test_sample_labels:
-                test_indices.extend(sample_to_indices[label])
-
-            test_indices = np.array(test_indices)
-
-            # Train indices are all others
-            all_indices = np.arange(len(y))
-            train_indices = np.setdiff1d(all_indices, test_indices)
-
-            return train_indices, test_indices
-
-
         def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None, group_duplicates=True):
             """
                 Perform ShuffleSplit on samples while ensuring that:
@@ -652,7 +623,10 @@ class Classifier:
             return acc, bal_acc, w_acc, prec, rec, f1, cm
 
 
-        category_labels = extract_category_labels(self.labels)
+        if region == "winery":
+            category_labels = extract_category_labels(self.labels)
+        else:
+            category_labels = self.labels
 
         # Compute class distribution
         if self.year_labels.size > 0 and np.any(self.year_labels != None):
@@ -669,12 +643,7 @@ class Classifier:
 
 
         # Set up a custom order for the confusion matrix if a region is specified.
-        if region == 'winery':
-            custom_order = ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
-        elif region == 'origin':
-            custom_order = ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
-        else:
-            custom_order = None
+        custom_order = utils.get_custom_order_for_pinot_noir_region(region)
 
         # Initialize accumulators for outer-repetition averaged metrics.
         eval_accuracy = []
@@ -743,7 +712,11 @@ class Classifier:
                 if self.year_labels.size > 0 and np.any(self.year_labels != None):
                     self.classifier.fit(X_train_full, y_train_full)
                 else:
-                    self.classifier.fit(X_train_full, np.array(extract_category_labels(y_train_full)))
+                    if region == "winery":
+                        self.classifier.fit(X_train_full, np.array(extract_category_labels(y_train_full)))
+                    else:
+                        self.classifier.fit(X_train_full, np.array(y_train_full))
+
             except np.linalg.LinAlgError:
                 print(
                     "⚠️ Skipping evaluation due to SVD convergence error (likely caused by LDA on low-variance or singular data).")
@@ -1233,7 +1206,7 @@ class Classifier:
 
 
     def train_and_evaluate_all_channels(
-            self, num_repeats=10, num_outer_repeats=1, random_seed=42, test_size=0.2, normalize=False,
+            self, num_repeats=10, random_seed=42, test_size=0.2, normalize=False,
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
             feature_type="concatenated", classifier_type="RGC", LOOPC=True
     ):
@@ -1290,7 +1263,7 @@ class Classifier:
         labels = self.labels
         num_samples, num_timepoints, num_channels = cls_data.shape
         # Initialize lists
-        accuracies = []
+        balanced_accuracies = []
         confusion_matrices = []  # Store confusion matrices
 
         # --- Feature extraction helper ---
@@ -1336,7 +1309,7 @@ class Classifier:
                     LOOPC=LOOPC
                 )
                 if 'overall_balanced_accuracy' in results and not np.isnan(results['overall_balanced_accuracy']):
-                    accuracies.append(results['overall_balanced_accuracy'])
+                    balanced_accuracies.append(results['overall_balanced_accuracy'])
                 else:
                     print(f"⚠️ No valid accuracy returned in repeat {repeat_idx + 1}")
 
@@ -1353,13 +1326,19 @@ class Classifier:
                 print(f"⚠️ Skipping repeat {repeat_idx + 1} due to error: {e}")
 
         # Compute average performance across repeats
-        mean_test_accuracy = np.mean(accuracies, axis=0)
-        std_test_accuracy = np.std(accuracies, axis=0)
+        mean_test_accuracy = np.mean(balanced_accuracies, axis=0)
+        std_test_accuracy = np.std(balanced_accuracies, axis=0)
         mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
         # mean_confusion_matrix = np.mean(confusion_matrices, axis=0)
+        custom_order = utils.get_custom_order_for_pinot_noir_region(region)
 
         print("\n##################################")
-        print(f"Mean Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")
+        print(f"Mean Balanced Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")
+        # Print label order used in confusion matrix
+        if custom_order is not None:
+            print("\nLabel order (custom):")
+            print(", ".join(custom_order))
+
         print("\nFinal Averaged Normalized Confusion Matrix:")
         print(mean_confusion_matrix)
         print("##################################")
