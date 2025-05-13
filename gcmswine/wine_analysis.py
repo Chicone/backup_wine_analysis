@@ -2311,7 +2311,7 @@ def process_labels_by_wine_kind(labels, wine_kind, region, vintage, class_by_yea
         elif region == 'beaume':
             processed_labels = assign_north_south_to_beaune(labels)
         else:
-            raise ValueError("Invalid region. Options are 'continent', 'country', 'origin', 'winery', or 'year'")
+            raise ValueError("Invalid region. Options are 'winery', 'origin', 'country' or 'continent'")
         return processed_labels, None
 
     elif wine_kind == "press":

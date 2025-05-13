@@ -1,4 +1,5 @@
 import numpy as np
+np.set_printoptions(linewidth=200)  # or higher if needed
 from pynndescent.optimal_transport import total_cost
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, Perceptron, RidgeClassifier, PassiveAggressiveClassifier, SGDClassifier

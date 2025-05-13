@@ -1,0 +1,5 @@
+# Ignore raw data and outputs
+src/
+wine_analysis/
+logs/
+__pycache__/
