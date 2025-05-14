@@ -777,8 +777,9 @@ class Classifier:
         # )
 
         if LOOPC:
+            icl = True if len(self.labels[0]) > 1 else False
             train_idx, test_idx = leave_one_sample_per_class_split(self.data, self.labels, random_state=random_seed,
-                                                                   is_composite_labels=False)
+                                                                   is_composite_labels=icl)
         else:
             train_idx, test_idx = shuffle_split_without_splitting_duplicates(
                 self.data, self.labels, test_size=test_size, random_state=random_seed,
@@ -815,6 +816,7 @@ class Classifier:
                     self.classifier.fit(X_train_full, y_train_full)
                 else:
                     self.classifier.fit(X_train_full, np.array(extract_category_labels(y_train_full)))
+                    y_test = extract_category_labels(y_test)
             except np.linalg.LinAlgError:
                 print(
                     "⚠️ Skipping evaluation due to SVD convergence error (likely caused by LDA on low-variance or singular data).")
