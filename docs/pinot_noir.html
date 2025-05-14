@@ -33,9 +33,11 @@
   <section id="pinot-noir-classification">
 <h1>Pinot Noir Classification<a class="headerlink" href="#pinot-noir-classification" title="Link to this heading">¶</a></h1>
 <p>This script demonstrates a full pipeline for classifying Pinot Noir wine samples into their wineries using GC-MS data.
-It covers dataset loading, preprocessing, and classification using a selected model.
-Wineries are summarized in the following table:</p>
+Alternatively, it can also be configured to classify the origin, country, or even continent.
+The pipeline includes dataset loading, preprocessing, and classification using a selected model.</p>
+<p>A total of 16 wineries are considered, as shown in the following table:</p>
 <a class="reference internal image-reference" href="_images/wineries.png"><img alt="Wineries" class="align-center" src="_images/wineries.png" style="width: 600px;" /></a>
+<p>The goal is to evaluate the model’s accuracy in correctly predicting the winery from which each wine sample originates.</p>
 <section id="configuration-parameters">
 <h2>Configuration Parameters<a class="headerlink" href="#configuration-parameters" title="Link to this heading">¶</a></h2>
 <p>The script reads analysis parameters from a configuration file (<cite>config.yaml</cite>) located at the root of the repository.

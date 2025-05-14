@@ -2,14 +2,17 @@ Pinot Noir Classification
 =========================
 
 This script demonstrates a full pipeline for classifying Pinot Noir wine samples into their wineries using GC-MS data.
-It covers dataset loading, preprocessing, and classification using a selected model.
-Wineries are summarized in the following table:
+Alternatively, it can also be configured to classify the origin, country, or even continent.
+The pipeline includes dataset loading, preprocessing, and classification using a selected model.
+
+A total of 16 wineries are considered, as shown in the following table:
 
 .. image:: _static/wineries.png
    :alt: Wineries
    :width: 600px
    :align: center
 
+The goal is to evaluate the model's accuracy in correctly predicting the winery from which each wine sample originates.
 
 Configuration Parameters
 ------------------------

@@ -22,6 +22,14 @@ with open(config_path, "r") as f:
 # Parameters from config file
 dataset_directories = config["datasets"]
 selected_datasets = config["selected_datasets"]
+
+# Check if any selected dataset contains "pinot"
+if not any("pinot" in name.lower() for name in selected_datasets):
+    raise ValueError(
+        "The datasets selected in the config.yaml file do not seem to be compatible with this script. "
+        "Please select at least one Pinot Noir dataset."
+    )
+
 feature_type = config["feature_type"]
 classifier = config["classifier"]
 num_splits = config["num_splits"]
