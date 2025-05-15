@@ -1,0 +1,7 @@
+Ridge Global Script
+===================
+
+.. automodule:: gcmswine.ridge_global
+   :members:
+   :undoc-members:
+   :show-inheritance:

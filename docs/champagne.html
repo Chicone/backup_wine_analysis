@@ -123,6 +123,65 @@ whether sensory profiles group according to the chosen label (e.g., ageing style
 of clustering to identify potential new categories or sensory trends.</p>
 </section>
 </section>
+<section id="predicting-champagne-sensory-profiles">
+<h2>Predicting Champagne Sensory Profiles<a class="headerlink" href="#predicting-champagne-sensory-profiles" title="Link to this heading">¶</a></h2>
+<p>This script implements a regression pipeline to predict detailed sensory scores for Champagne wines
+based on chemical information from GC-MS chromatograms and taster identity. It combines signal
+processing, metadata handling, and machine learning in a reproducible way.</p>
+<section id="use-case">
+<h3>Use case:<a class="headerlink" href="#use-case" title="Link to this heading">¶</a></h3>
+<p>Designed to assess the predictive power of GC-MS data (flattened chromatograms) in modeling
+human sensory perception, taking into account taster-specific biases via one-hot encoding.</p>
+</section>
+<section id="key-features">
+<h3>Key Features:<a class="headerlink" href="#key-features" title="Link to this heading">¶</a></h3>
+<ol class="arabic simple">
+<li><p><strong>GC-MS Data Loading</strong>:
+- Reads chromatographic signals from <cite>.csv</cite> files using a custom utility (<cite>utils.py</cite>).
+- Chromatograms are decimated (downsampled) along the retention time axis.</p></li>
+<li><p><strong>Sensory Metadata Preprocessing</strong>:
+- Loads a structured sensory dataset (<cite>test.csv</cite>) with wine codes, tasters, and 100+ attributes.
+- Cleans and averages duplicate ratings by (wine, taster) pairs.</p></li>
+<li><p><strong>Feature Construction</strong>:
+- Each sample’s feature vector is the mean chromatogram + one-hot encoded taster ID.
+- Targets are sensory attribute vectors (e.g., fruity, toasted, acid, etc.).</p></li>
+<li><p><strong>Model Training &amp; Evaluation</strong>:
+- Runs <cite>N_REPEATS</cite> Ridge regression fits using randomized train/test splits (80/20).
+- Evaluates with MAE and RMSE for each sensory attribute.
+- Aggregates performance statistics and prints per-taster error summaries.</p></li>
+<li><p><strong>Interpretability</strong>:
+- Separates the model weights into chromatogram vs. taster contributions.
+- Identifies which tasters introduce the most prediction error.</p></li>
+<li><p><strong>Visualization</strong>:
+- For each taster, plots the predicted vs. true sensory profiles across test wines.
+- Optional single-wine plot function available for inspection.</p></li>
+</ol>
+</section>
+<section id="parameters-to-adjust">
+<h3>Parameters to Adjust:<a class="headerlink" href="#parameters-to-adjust" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><cite>directory</cite>: Path to chromatogram files.</p></li>
+<li><p><cite>N_DECIMATION</cite>: Decimation factor (to reduce RT dimensionality).</p></li>
+<li><p><cite>N_REPEATS</cite>: Number of random train/test splits.</p></li>
+<li><p><cite>TEST_SIZE</cite>: Test proportion (e.g., 0.2 = 20%).</p></li>
+</ul>
+</section>
+<section id="dependencies">
+<h3>Dependencies:<a class="headerlink" href="#dependencies" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>pandas, numpy, scikit-learn, matplotlib</p></li>
+<li><p>Custom <cite>utils.py</cite> for chromatogram loading</p></li>
+</ul>
+</section>
+<section id="example-output">
+<h3>Example Output:<a class="headerlink" href="#example-output" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Per-attribute MAE and RMSE scores</p></li>
+<li><p>Per-taster mean absolute errors</p></li>
+<li><p>Prediction plots showing model quality for each taster</p></li>
+</ul>
+</section>
+</section>
 </section>
 
 
@@ -148,6 +207,7 @@ of clustering to identify potential new categories or sensory trends.</p>
 <li class="toctree-l1"><a class="reference internal" href="press_wines.html">Press Wines Classification</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Champagne Classification</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#sensory-data-visualization">Sensory Data Visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#predicting-champagne-sensory-profiles">Predicting Champagne Sensory Profiles</a></li>
 </ul>
 </li>
 </ul>

@@ -1,0 +1,4 @@
+.. automodule:: scripts.champagnes.champagne_projection
+   :members:
+   :undoc-members:
+   :show-inheritance:

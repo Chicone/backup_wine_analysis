@@ -14,6 +14,8 @@ release = '0.1.0'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
+master_doc = "index"
+
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",  # Optional: for Google-style docstrings

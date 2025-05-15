@@ -7,14 +7,17 @@
 Welcome to Wine Analysis Library's documentation!
 =================================================
 
+This documentation provides tools to analyze GC-MS data for different types of wine.
+
+
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
-   pinot_noir
-   press_wines
-   champagne
 
+   pinot_noir/index
+   press_wines/index
+   champagne/index
 
 Indices and tables
 ==================
@@ -23,6 +26,3 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
-
-.. include:: README.md
-   :parser: myst_parser.sphinx_

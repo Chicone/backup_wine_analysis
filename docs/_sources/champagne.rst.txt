@@ -90,3 +90,61 @@ Output
 The script generates plots showing how wines are distributed in reduced feature space, helping to visually assess
 whether sensory profiles group according to the chosen label (e.g., ageing style). It also enables exploratory use
 of clustering to identify potential new categories or sensory trends.
+
+
+Predicting Champagne Sensory Profiles
+-------------------------------------
+
+This script implements a regression pipeline to predict detailed sensory scores for Champagne wines
+based on chemical information from GC-MS chromatograms and taster identity. It combines signal
+processing, metadata handling, and machine learning in a reproducible way.
+
+Use case:
+~~~~~~~~~
+Designed to assess the predictive power of GC-MS data (flattened chromatograms) in modeling
+human sensory perception, taking into account taster-specific biases via one-hot encoding.
+
+Key Features:
+~~~~~~~~~~~~~
+1. **GC-MS Data Loading**:
+   - Reads chromatographic signals from `.csv` files using a custom utility (`utils.py`).
+   - Chromatograms are decimated (downsampled) along the retention time axis.
+
+2. **Sensory Metadata Preprocessing**:
+   - Loads a structured sensory dataset (`test.csv`) with wine codes, tasters, and 100+ attributes.
+   - Cleans and averages duplicate ratings by (wine, taster) pairs.
+
+3. **Feature Construction**:
+   - Each sample’s feature vector is the mean chromatogram + one-hot encoded taster ID.
+   - Targets are sensory attribute vectors (e.g., fruity, toasted, acid, etc.).
+
+4. **Model Training & Evaluation**:
+   - Runs `N_REPEATS` Ridge regression fits using randomized train/test splits (80/20).
+   - Evaluates with MAE and RMSE for each sensory attribute.
+   - Aggregates performance statistics and prints per-taster error summaries.
+
+5. **Interpretability**:
+   - Separates the model weights into chromatogram vs. taster contributions.
+   - Identifies which tasters introduce the most prediction error.
+
+6. **Visualization**:
+   - For each taster, plots the predicted vs. true sensory profiles across test wines.
+   - Optional single-wine plot function available for inspection.
+
+Parameters to Adjust:
+~~~~~~~~~~~~~~~~~~~~~
+- `directory`: Path to chromatogram files.
+- `N_DECIMATION`: Decimation factor (to reduce RT dimensionality).
+- `N_REPEATS`: Number of random train/test splits.
+- `TEST_SIZE`: Test proportion (e.g., 0.2 = 20%).
+
+Dependencies:
+~~~~~~~~~~~~~
+- pandas, numpy, scikit-learn, matplotlib
+- Custom `utils.py` for chromatogram loading
+
+Example Output:
+~~~~~~~~~~~~~~
+- Per-attribute MAE and RMSE scores
+- Per-taster mean absolute errors
+- Prediction plots showing model quality for each taster
