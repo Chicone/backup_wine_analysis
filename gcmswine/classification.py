@@ -645,7 +645,10 @@ class Classifier:
 
         # Set up a custom order for the confusion matrix if a region is specified.
         if self.wine_kind == "press":
-            custom_order = ["A", "B", "C"]
+            if self.year_labels.size > 0:
+                custom_order = ['2021', '2022', '2023']
+            else:
+                custom_order = ["A", "B", "C"]
         else:
             custom_order = utils.get_custom_order_for_pinot_noir_region(region)
 
@@ -720,7 +723,7 @@ class Classifier:
                         self.classifier.fit(X_train_full, np.array(extract_category_labels(y_train_full)))
                     else:
                         self.classifier.fit(X_train_full, np.array(y_train_full))
-                y_test = extract_category_labels(y_test)
+                    y_test = extract_category_labels(y_test)
 
             except np.linalg.LinAlgError:
                 print(

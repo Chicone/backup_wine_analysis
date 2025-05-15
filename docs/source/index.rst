@@ -1,3 +1,4 @@
+.. sphinx-build -b html docs/source/ docs
 .. Wine Analysis Library documentation master file, created by
    sphinx-quickstart on Mon May 12 11:41:34 2025.
    You can adapt this file completely to your liking, but it should at least
@@ -12,6 +13,7 @@ Welcome to Wine Analysis Library's documentation!
 
    pinot_noir
    press_wines
+   champagne
 
 
 Indices and tables

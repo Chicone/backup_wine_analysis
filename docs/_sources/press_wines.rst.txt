@@ -2,13 +2,13 @@ Press Wines Classification
 =========================
 
 In this section, we address the classification of press wine samples using the script **train_test_press_wines.py**. The
-objective is to predict class membership (e.g., A, B, or C) based on GC-MS data collected from Merlot and
+goal is to predict wine press class membership (e.g., A, B, or C) based on GC-MS data collected from Merlot and
 Cabernet Sauvignon wines across multiple vintages. The script implements a full processing pipeline including
 data loading, preprocessing, feature extraction, and classification.
 
 Special care is taken to ensure that replicate samples are kept together during cross-validation, so that no
 replicate of the same sample appears in both training and test sets. This avoids inflated performance
-estimates and provides a more realistic measure of generalization.
+estimates due to duplicates present in train and trest sets and provides a more realistic measure of generalization.
 
 
 Configuration Parameters

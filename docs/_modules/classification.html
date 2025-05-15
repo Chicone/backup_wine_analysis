@@ -689,7 +689,10 @@
 
         <span class="c1"># Set up a custom order for the confusion matrix if a region is specified.</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">wine_kind</span> <span class="o">==</span> <span class="s2">&quot;press&quot;</span><span class="p">:</span>
-            <span class="n">custom_order</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="s2">&quot;B&quot;</span><span class="p">,</span> <span class="s2">&quot;C&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">year_labels</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">custom_order</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;2021&#39;</span><span class="p">,</span> <span class="s1">&#39;2022&#39;</span><span class="p">,</span> <span class="s1">&#39;2023&#39;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">custom_order</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="s2">&quot;B&quot;</span><span class="p">,</span> <span class="s2">&quot;C&quot;</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">custom_order</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">get_custom_order_for_pinot_noir_region</span><span class="p">(</span><span class="n">region</span><span class="p">)</span>
 
@@ -721,9 +724,8 @@
         <span class="c1">#     self.data, self.labels, test_size=test_size, random_state=rng.integers(0, int(1e6)),</span>
         <span class="c1">#     group_duplicates=use_groups</span>
         <span class="c1"># )</span>
-
         <span class="k">if</span> <span class="n">LOOPC</span><span class="p">:</span>
-            <span class="n">icl</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="kc">False</span>
+            <span class="n">icl</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">wine_kind</span> <span class="o">==</span> <span class="s2">&quot;press&quot;</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="kc">False</span>
             <span class="n">train_idx</span><span class="p">,</span> <span class="n">test_idx</span> <span class="o">=</span> <span class="n">leave_one_sample_per_class_split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">random_seed</span><span class="p">,</span>
                                                                    <span class="n">is_composite_labels</span><span class="o">=</span><span class="n">icl</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -765,7 +767,7 @@
                         <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_full</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">extract_category_labels</span><span class="p">(</span><span class="n">y_train_full</span><span class="p">)))</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_full</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">y_train_full</span><span class="p">))</span>
-                <span class="n">y_test</span> <span class="o">=</span> <span class="n">extract_category_labels</span><span class="p">(</span><span class="n">y_test</span><span class="p">)</span>
+                    <span class="n">y_test</span> <span class="o">=</span> <span class="n">extract_category_labels</span><span class="p">(</span><span class="n">y_test</span><span class="p">)</span>
 
             <span class="k">except</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
                 <span class="nb">print</span><span class="p">(</span>
@@ -1921,6 +1923,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../pinot_noir.html">Pinot Noir Classification</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../press_wines.html">Press Wines Classification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../champagne.html">Champagne Classification</a></li>
 </ul>
 
 <div class="relations">

@@ -3,7 +3,7 @@ datasets:
   pinot_noir_isvv_lle: "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/"
   pinot_noir_isvv_dllme: "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/"
   pinot_noir_changins: "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom_CDF/"
-  # Press winss
+  # Press wines
   "merlot_2021": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/MERLOT/"
   "merlot_2022": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/MERLOT/"
   "merlot_2023": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/MERLOT/"
@@ -12,6 +12,8 @@ datasets:
   "cab_sauv_2023": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/"
 
 selected_datasets:  # Choose the dataset to be used
+  - merlot_2021
+  - merlot_2022
   - merlot_2023
 
 feature_type: tic_tis      # Options: tic, tis, tic_tis
@@ -22,3 +24,4 @@ n_decimation: 10
 sync_state: false
 region: winery #  options: winery, origin, country, continent
 # wine_kind: champagne # pinot_noir, press, champagne
+class_by_year: true

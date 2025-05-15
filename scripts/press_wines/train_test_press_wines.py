@@ -6,7 +6,6 @@ from gcmswine import utils
 from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
 from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
 
-
 # Load dataset paths from config.yaml
 config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
 config_path = os.path.abspath(config_path)
@@ -38,6 +37,7 @@ n_decimation = config["n_decimation"]
 sync_state = config["sync_state"]
 region = config["region"]
 # wine_kind = config["wine_kind"]
+class_by_year = config['class_by_year']
 
 # Create ChromatogramAnalysis instance for optional alignment
 cl = ChromatogramAnalysis(ndec=n_decimation)
@@ -55,7 +55,10 @@ if sync_state:
 
 # Extract data matrix (samples × channels) and associated labels
 data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
-labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None, None)
+if class_by_year:
+    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, class_by_year, data_dict)
+else:
+    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None, None)
 
 # Instantiate classifier with data and labels
 cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
