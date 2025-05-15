@@ -677,9 +677,8 @@ class Classifier:
         #     self.data, self.labels, test_size=test_size, random_state=rng.integers(0, int(1e6)),
         #     group_duplicates=use_groups
         # )
-
         if LOOPC:
-            icl = True if len(self.labels[0]) > 1 else False
+            icl = True if self.wine_kind == "press" and len(self.labels[0]) > 1 else False
             train_idx, test_idx = leave_one_sample_per_class_split(self.data, self.labels, random_state=random_seed,
                                                                    is_composite_labels=icl)
         else:
