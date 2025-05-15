@@ -645,7 +645,7 @@ class Classifier:
 
         # Set up a custom order for the confusion matrix if a region is specified.
         if self.wine_kind == "press":
-            if self.year_labels.size > 0:
+            if self.year_labels.size > 0 and np.any(self.year_labels != None):
                 custom_order = ['2021', '2022', '2023']
             else:
                 custom_order = ["A", "B", "C"]
