@@ -5,113 +5,88 @@ In this section, we focus on the classification of Champagne wine samples using 
 The dataset includes sensory profiles from 12 tasters across 50 wines of the same vintage, with each wine rated along
 187 sensory dimensions: fruity, citrus, mature, candied, toasted, nuts, spicy, petrol, undergrowth, bakery, honey,
 dairy, herbal, tobacco, texture, acid, and aging.
+
 There is no 3D GC-MS data for this dataset, meaning we have to deal directly with TICs as individual m/z channels are not available.
 
-Configuration Parameters
-------------------------
 
-The script reads analysis parameters from a configuration file (`config.yaml`) located at the root of the repository.
-Below is a description of the key parameters:
+Sensory Data Visualization
+--------------------------
 
-- **dataset**: Each dataset must be specified with a name and its corresponding path on your local machine. The paths should point to directories containing `.D` folders for each sample.
+The script **champagne_projection.py** provides a flexible tool to visualize sensory data for Champagne wine samples.
+It enables exploratory analysis of sensory descriptors using unsupervised methods to uncover latent patterns related to
+ageing, variety, production site, or taster.
 
-- **selected_datasets**: Selects the datasets to be used. You can join more than one but must be compatible in terms of m/z channels
+This script operates on a dataset of 50 wines, each evaluated across 187 sensory dimensions by 12 different tasters.
+Unlike other datasets in the project, this one does **not include full 3D GC-MS chromatograms**. Therefore, the
+analysis is performed directly on the available **Total Ion Current (TIC)** data aggregated at the sensory level.
 
-- **feature_type**: Determines how the chromatogram channels are aggregated for classification.
+The main steps of the script are as follows:
 
-  - ``tic``: Use the Total Ion Chromatogram only.
-  - ``tis``: Use individual Total Ion Spectrum channels.
-  - ``tic_tis``: Combines TIC and TIS features by concatenation.
+1. **Data Loading and Cleaning**:
 
-- **classifier**: Specifies the classification model used for training. Available options include:
+   - Loads a CSV file containing sensory ratings for Champagne wines.
+   - Cleans column headers, removes duplicated rows, and ensures numerical consistency.
+   - Averages replicate measurements for each wine and taster.
 
-  - ``DTC``: Decision Tree Classifier
-  - ``GNB``: Gaussian Naive Bayes
-  - ``KNN``: K-Nearest Neighbors
-  - ``LDA``: Linear Discriminant Analysis
-  - ``LR``: Logistic Regression
-  - ``PAC``: Passive-Aggressive Classifier
-  - ``PER``: Perceptron
-  - ``RFC``: Random Forest Classifier
-  - ``RGC``: Ridge Classifier
-  - ``SGD``: Stochastic Gradient Descent
-  - ``SVM``: Support Vector Machine
+2. **Label Handling**:
 
-- **num_splits**: Number of random train/test splits to evaluate model stability. Higher values improve statistical confidence.
+   - Allows the user to select a column (e.g., `age`, `variety`, `cave`, `taster`) to use as the target label for coloring or annotating the plots.
+   - Handles missing labels and ensures one label per wine-taster pair.
 
-- **normalize**: Whether to apply feature scaling (standard normalization) before classification. It is learned on training splits and applied to test split, so no leakage
+3. **Standardization and Dimensionality Reduction**:
 
-- **n_decimation**: Factor by which chromatograms are downsampled along the retention time axis to reduce dimensionality.
+   - Standardizes all sensory features using `StandardScaler`.
+   - Applies three different dimensionality reduction techniques:
 
-- **sync_state**: Enables or disables retention time synchronization between samples using peak alignment algorithms.
+     - **PCA** (Principal Component Analysis)
+     - **t-SNE** (t-Distributed Stochastic Neighbor Embedding)
+     - **UMAP** (Uniform Manifold Approximation and Projection)
 
-- **region**: Indicates the classification granularity, such as:
+4. **Clustering (Optional)**:
 
-  - ``winery``: Group samples by producer.
-  - ``origin``: Group samples by geographical origin or region of production.
-  - ``country``: Group samples by country.
-  - ``continent``: Group samples by continent.
+   - Optionally applies **KMeans clustering** to the PCA-reduced data.
+   - Evaluates silhouette scores to automatically determine the optimal number of clusters (k).
 
-- **wine_kind**: This parameter is used internally to distinguish the type of wine (e.g., ``pinot_noir``, ``press``, ``champagne``) and to apply appropriate label parsing and evaluation logic.
-  **This field is now automatically inferred from the dataset path and should not be set manually.**
+5. **Plotting and Visualization**:
 
-These parameters allow users to flexibly configure the pipeline without modifying the script itself.
+   - Generates 2D or 3D scatter plots based on the chosen dimensionality reduction method.
+   - Colors points either by cluster membership (if clustering is enabled) or by known labels (e.g., ageing).
+   - Optionally displays sample labels on the plot for better interpretability.
 
-Script Overview
----------------
+6. **Interactivity**:
 
-The script performs classification of Pinot Noir wine samples using GC-MS data and a configurable machine learning pipeline.
-It loads all key parameters and dataset paths from a separate configuration file. To modify the experiment and the
-location of your dataset, simply edit ``config.yaml`` according to your needs.
+   - Modifiable parameters at the top of the script allow for easy reconfiguration:
 
+     - `label_column`: determines what label to use for coloring
+     - `plot_3d`: toggles 3D vs 2D visualization
+     - `do_kmeans`: enables/disables clustering
+     - `show_point_labels`: controls whether labels are shown on points
 
-The main steps include:
+This visualization script is particularly useful for:
 
-1. **Configuration loading**:
-
-   - Loads experiment settings from ``config.yaml``.
-   - This includes paths to the datasets, the number of evaluation splits, the classifier type, and other parameters.
-
-2. **Data Loading and Preprocessing**:
-
-   - GC-MS chromatograms are loaded using `GCMSDataProcessor`.
-   - Datasets are joined and decimated according to the defined factor.
-   - Channels with zero variance are removed.
-   - Optionally, retention time alignment (synchronization) is performed if `sync_state` is enabled in the config.
-   - Optionally, data normalization (recommended), using training-set statistics only to avoid leakage.
-
-3. **Label Processing**:
-
-   - Sample labels are extracted and grouped according to the selected `region` (e.g., winery, origin, country or continent).
-   - These labels are prepared for supervised classification.
-
-4. **Classification**:
-
-   - The `Classifier` class is used to train a machine learning model on the processed data.
-   - The `train_and_evaluate_all_channels()` method evaluates model performance across multiple splits.
-   - Classification features are aggregated as specified by the `feature_type` parameter (e.g., TIC, TIS, or both).
-
-5. **Evaluation**:
-
-   - Accuracy results are printed.
-   - Optionally, confusion matrices can be converted to LaTeX using provided helper functions for reporting.
-
-This script provides a complete, reproducible workflow to test classification accuracy of Pinot Noir wines using chemical
-profiles extracted from GC-MS data.
-
-
-Requirements
-------------
-
-- Properly structured GC-MS data directories
-- Required dependencies installed (see `README.md`)
-- Adjust paths in `DATASET_DIRECTORIES` to match your local setup
+- Identifying latent structure in sensory data
+- Evaluating whether tasters are consistent
+- Comparing sensory signatures across caves, ageing conditions, or grape varieties
+- Exploring whether known labels correspond to natural clustering in the data
 
 Usage
------
+~~~~~
 
-From the root of the repository, run:
+To run the script:
 
 .. code-block:: bash
 
-   python scripts/pinot_noir/train_test_pinot_noir.py
+   python scripts/champagne/champagne_projection.py
+
+Before running, modify the top of the script to select the appropriate label column:
+
+.. code-block:: python
+
+   label_column = 'ageing'  # or 'variety', 'cave', 'taster', etc.
+
+Output
+~~~~~~
+
+The script generates plots showing how wines are distributed in reduced feature space, helping to visually assess
+whether sensory profiles group according to the chosen label (e.g., ageing style). It also enables exploratory use
+of clustering to identify potential new categories or sensory trends.

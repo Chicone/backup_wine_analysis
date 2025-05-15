@@ -33,112 +33,95 @@
   <section id="champagne-classification">
 <h1>Champagne Classification<a class="headerlink" href="#champagne-classification" title="Link to this heading">¶</a></h1>
 <p>In this section, we focus on the classification of Champagne wine samples using the script <strong>train_test_champagne.py</strong>.
-The goal is to predict the</p>
-<p>There is no 3D GC-MS data for this dataset, meaning we have to deal directly with TICs as individual m/z channels are not available.
-Configuration Parameters
-————————</p>
-<p>The script reads analysis parameters from a configuration file (<cite>config.yaml</cite>) located at the root of the repository.
-Below is a description of the key parameters:</p>
-<ul class="simple">
-<li><p><strong>dataset</strong>: Each dataset must be specified with a name and its corresponding path on your local machine. The paths should point to directories containing <cite>.D</cite> folders for each sample.</p></li>
-<li><p><strong>selected_datasets</strong>: Selects the datasets to be used. You can join more than one but must be compatible in terms of m/z channels</p></li>
-<li><p><strong>feature_type</strong>: Determines how the chromatogram channels are aggregated for classification.</p>
-<ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">tic</span></code>: Use the Total Ion Chromatogram only.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tis</span></code>: Use individual Total Ion Spectrum channels.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tic_tis</span></code>: Combines TIC and TIS features by concatenation.</p></li>
-</ul>
-</li>
-<li><p><strong>classifier</strong>: Specifies the classification model used for training. Available options include:</p>
-<ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">DTC</span></code>: Decision Tree Classifier</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">GNB</span></code>: Gaussian Naive Bayes</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">KNN</span></code>: K-Nearest Neighbors</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">LDA</span></code>: Linear Discriminant Analysis</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">LR</span></code>: Logistic Regression</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">PAC</span></code>: Passive-Aggressive Classifier</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">PER</span></code>: Perceptron</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">RFC</span></code>: Random Forest Classifier</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">RGC</span></code>: Ridge Classifier</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">SGD</span></code>: Stochastic Gradient Descent</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">SVM</span></code>: Support Vector Machine</p></li>
-</ul>
-</li>
-<li><p><strong>num_splits</strong>: Number of random train/test splits to evaluate model stability. Higher values improve statistical confidence.</p></li>
-<li><p><strong>normalize</strong>: Whether to apply feature scaling (standard normalization) before classification. It is learned on training splits and applied to test split, so no leakage</p></li>
-<li><p><strong>n_decimation</strong>: Factor by which chromatograms are downsampled along the retention time axis to reduce dimensionality.</p></li>
-<li><p><strong>sync_state</strong>: Enables or disables retention time synchronization between samples using peak alignment algorithms.</p></li>
-<li><p><strong>region</strong>: Indicates the classification granularity, such as:</p>
-<ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">winery</span></code>: Group samples by producer.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">origin</span></code>: Group samples by geographical origin or region of production.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">country</span></code>: Group samples by country.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">continent</span></code>: Group samples by continent.</p></li>
-</ul>
-</li>
-<li><p><strong>wine_kind</strong>: This parameter is used internally to distinguish the type of wine (e.g., <code class="docutils literal notranslate"><span class="pre">pinot_noir</span></code>, <code class="docutils literal notranslate"><span class="pre">press</span></code>, <code class="docutils literal notranslate"><span class="pre">champagne</span></code>) and to apply appropriate label parsing and evaluation logic.
-<strong>This field is now automatically inferred from the dataset path and should not be set manually.</strong></p></li>
-</ul>
-<p>These parameters allow users to flexibly configure the pipeline without modifying the script itself.</p>
-<section id="script-overview">
-<h2>Script Overview<a class="headerlink" href="#script-overview" title="Link to this heading">¶</a></h2>
-<p>The script performs classification of Pinot Noir wine samples using GC-MS data and a configurable machine learning pipeline.
-It loads all key parameters and dataset paths from a separate configuration file. To modify the experiment and the
-location of your dataset, simply edit <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code> according to your needs.</p>
-<p>The main steps include:</p>
+The dataset includes sensory profiles from 12 tasters across 50 wines of the same vintage, with each wine rated along
+187 sensory dimensions: fruity, citrus, mature, candied, toasted, nuts, spicy, petrol, undergrowth, bakery, honey,
+dairy, herbal, tobacco, texture, acid, and aging.</p>
+<p>There is no 3D GC-MS data for this dataset, meaning we have to deal directly with TICs as individual m/z channels are not available.</p>
+<section id="sensory-data-visualization">
+<h2>Sensory Data Visualization<a class="headerlink" href="#sensory-data-visualization" title="Link to this heading">¶</a></h2>
+<p>The script <strong>champagne_projection.py</strong> provides a flexible tool to visualize sensory data for Champagne wine samples.
+It enables exploratory analysis of sensory descriptors using unsupervised methods to uncover latent patterns related to
+ageing, variety, production site, or taster.</p>
+<p>This script operates on a dataset of 50 wines, each evaluated across 187 sensory dimensions by 12 different tasters.
+Unlike other datasets in the project, this one does <strong>not include full 3D GC-MS chromatograms</strong>. Therefore, the
+analysis is performed directly on the available <strong>Total Ion Current (TIC)</strong> data aggregated at the sensory level.</p>
+<p>The main steps of the script are as follows:</p>
 <ol class="arabic simple">
-<li><p><strong>Configuration loading</strong>:</p>
+<li><p><strong>Data Loading and Cleaning</strong>:</p>
 <ul class="simple">
-<li><p>Loads experiment settings from <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code>.</p></li>
-<li><p>This includes paths to the datasets, the number of evaluation splits, the classifier type, and other parameters.</p></li>
+<li><p>Loads a CSV file containing sensory ratings for Champagne wines.</p></li>
+<li><p>Cleans column headers, removes duplicated rows, and ensures numerical consistency.</p></li>
+<li><p>Averages replicate measurements for each wine and taster.</p></li>
 </ul>
 </li>
-<li><p><strong>Data Loading and Preprocessing</strong>:</p>
+<li><p><strong>Label Handling</strong>:</p>
 <ul class="simple">
-<li><p>GC-MS chromatograms are loaded using <cite>GCMSDataProcessor</cite>.</p></li>
-<li><p>Datasets are joined and decimated according to the defined factor.</p></li>
-<li><p>Channels with zero variance are removed.</p></li>
-<li><p>Optionally, retention time alignment (synchronization) is performed if <cite>sync_state</cite> is enabled in the config.</p></li>
-<li><p>Optionally, data normalization (recommended), using training-set statistics only to avoid leakage.</p></li>
+<li><p>Allows the user to select a column (e.g., <cite>age</cite>, <cite>variety</cite>, <cite>cave</cite>, <cite>taster</cite>) to use as the target label for coloring or annotating the plots.</p></li>
+<li><p>Handles missing labels and ensures one label per wine-taster pair.</p></li>
 </ul>
 </li>
-<li><p><strong>Label Processing</strong>:</p>
+<li><p><strong>Standardization and Dimensionality Reduction</strong>:</p>
 <ul class="simple">
-<li><p>Sample labels are extracted and grouped according to the selected <cite>region</cite> (e.g., winery, origin, country or continent).</p></li>
-<li><p>These labels are prepared for supervised classification.</p></li>
+<li><p>Standardizes all sensory features using <cite>StandardScaler</cite>.</p></li>
+<li><p>Applies three different dimensionality reduction techniques:</p>
+<ul>
+<li><p><strong>PCA</strong> (Principal Component Analysis)</p></li>
+<li><p><strong>t-SNE</strong> (t-Distributed Stochastic Neighbor Embedding)</p></li>
+<li><p><strong>UMAP</strong> (Uniform Manifold Approximation and Projection)</p></li>
 </ul>
 </li>
-<li><p><strong>Classification</strong>:</p>
-<ul class="simple">
-<li><p>The <cite>Classifier</cite> class is used to train a machine learning model on the processed data.</p></li>
-<li><p>The <cite>train_and_evaluate_all_channels()</cite> method evaluates model performance across multiple splits.</p></li>
-<li><p>Classification features are aggregated as specified by the <cite>feature_type</cite> parameter (e.g., TIC, TIS, or both).</p></li>
 </ul>
 </li>
-<li><p><strong>Evaluation</strong>:</p>
+<li><p><strong>Clustering (Optional)</strong>:</p>
 <ul class="simple">
-<li><p>Accuracy results are printed.</p></li>
-<li><p>Optionally, confusion matrices can be converted to LaTeX using provided helper functions for reporting.</p></li>
+<li><p>Optionally applies <strong>KMeans clustering</strong> to the PCA-reduced data.</p></li>
+<li><p>Evaluates silhouette scores to automatically determine the optimal number of clusters (k).</p></li>
+</ul>
+</li>
+<li><p><strong>Plotting and Visualization</strong>:</p>
+<ul class="simple">
+<li><p>Generates 2D or 3D scatter plots based on the chosen dimensionality reduction method.</p></li>
+<li><p>Colors points either by cluster membership (if clustering is enabled) or by known labels (e.g., ageing).</p></li>
+<li><p>Optionally displays sample labels on the plot for better interpretability.</p></li>
+</ul>
+</li>
+<li><p><strong>Interactivity</strong>:</p>
+<ul class="simple">
+<li><p>Modifiable parameters at the top of the script allow for easy reconfiguration:</p>
+<ul>
+<li><p><cite>label_column</cite>: determines what label to use for coloring</p></li>
+<li><p><cite>plot_3d</cite>: toggles 3D vs 2D visualization</p></li>
+<li><p><cite>do_kmeans</cite>: enables/disables clustering</p></li>
+<li><p><cite>show_point_labels</cite>: controls whether labels are shown on points</p></li>
+</ul>
+</li>
 </ul>
 </li>
 </ol>
-<p>This script provides a complete, reproducible workflow to test classification accuracy of Pinot Noir wines using chemical
-profiles extracted from GC-MS data.</p>
-</section>
-<section id="requirements">
-<h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading">¶</a></h2>
+<p>This visualization script is particularly useful for:</p>
 <ul class="simple">
-<li><p>Properly structured GC-MS data directories</p></li>
-<li><p>Required dependencies installed (see <cite>README.md</cite>)</p></li>
-<li><p>Adjust paths in <cite>DATASET_DIRECTORIES</cite> to match your local setup</p></li>
+<li><p>Identifying latent structure in sensory data</p></li>
+<li><p>Evaluating whether tasters are consistent</p></li>
+<li><p>Comparing sensory signatures across caves, ageing conditions, or grape varieties</p></li>
+<li><p>Exploring whether known labels correspond to natural clustering in the data</p></li>
 </ul>
-</section>
 <section id="usage">
-<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h2>
-<p>From the root of the repository, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/pinot_noir/train_test_pinot_noir.py
+<h3>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h3>
+<p>To run the script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/champagne/champagne_projection.py
 </pre></div>
 </div>
+<p>Before running, modify the top of the script to select the appropriate label column:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">label_column</span> <span class="o">=</span> <span class="s1">&#39;ageing&#39;</span>  <span class="c1"># or &#39;variety&#39;, &#39;cave&#39;, &#39;taster&#39;, etc.</span>
+</pre></div>
+</div>
+</section>
+<section id="output">
+<h3>Output<a class="headerlink" href="#output" title="Link to this heading">¶</a></h3>
+<p>The script generates plots showing how wines are distributed in reduced feature space, helping to visually assess
+whether sensory profiles group according to the chosen label (e.g., ageing style). It also enables exploratory use
+of clustering to identify potential new categories or sensory trends.</p>
+</section>
 </section>
 </section>
 
@@ -164,9 +147,7 @@ profiles extracted from GC-MS data.</p>
 <li class="toctree-l1"><a class="reference internal" href="pinot_noir.html">Pinot Noir Classification</a></li>
 <li class="toctree-l1"><a class="reference internal" href="press_wines.html">Press Wines Classification</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Champagne Classification</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#script-overview">Script Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#requirements">Requirements</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#usage">Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sensory-data-visualization">Sensory Data Visualization</a></li>
 </ul>
 </li>
 </ul>

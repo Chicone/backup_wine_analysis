@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from fontTools.unicodedata import block
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
@@ -46,7 +47,7 @@ pandas, numpy, matplotlib, scikit-learn, umap-learn
 
 
 # --- Parameters ---
-label_column = 'age'  # <-- CHANGE THIS to 'prod area', 'variety',  'cave', 'age', 'ageing', etc.
+label_column = 'taster'  # <-- CHANGE THIS to 'prod area', 'variety',  'cave', 'age', 'ageing', etc.
 plot_3d = False  # <-- Toggle this to switch between 2D and 3D plots
 do_kmeans = False  # Set to True to enable KMeans clustering after PCA
 show_point_labels = True  # Set to False to hide text labels on plot points
@@ -111,8 +112,8 @@ else:
     title_suffix = f"(Colored by {label_column})"
 
 # 3D or 2D PCA plot
+fig = plt.figure(figsize=(10, 8))
 if plot_3d:
-    fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
     scatter = ax.scatter(X_pca[:, 0], X_pca[:, 1], X_pca[:, 2], c=colors, cmap='tab20', s=60)
     if show_point_labels:
@@ -130,6 +131,7 @@ else:
     plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)")
     plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)")
     plt.title(f"PCA Projection – {title_suffix}")
+plt.show(block=False)
 
 # --- t-SNE Projection and Plot ---
 label_encoder = LabelEncoder()
@@ -160,7 +162,7 @@ plt.title(f"t-SNE of Champagne Sensory Data (Label: {label_column})")
 plt.grid(True)
 plt.colorbar(scatter, label=label_column)
 plt.tight_layout()
-plt.show()
+plt.show(block=False)
 
 # --- UMAP Projection and Plot ---
 reducer = umap.UMAP(n_components=3 if plot_3d else 2, random_state=42)
@@ -189,4 +191,4 @@ plt.title(f"UMAP of Champagne Sensory Data (Label: {label_column})")
 plt.colorbar(scatter, label=label_column)
 plt.grid(True)
 plt.tight_layout()
-plt.show()
+plt.show(block=True)
