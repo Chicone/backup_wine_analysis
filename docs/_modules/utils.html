@@ -2116,6 +2116,38 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
+
+
+<div class="viewcode-block" id="infer_wine_kind">
+<a class="viewcode-back" href="../utils.html#utils.infer_wine_kind">[docs]</a>
+<span class="k">def</span> <span class="nf">infer_wine_kind</span><span class="p">(</span><span class="n">selected_datasets</span><span class="p">,</span> <span class="n">dataset_directories</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Infers the wine kind (&#39;pinot_noir&#39;, &#39;press&#39;, or &#39;champagne&#39;) from the dataset paths.</span>
+<span class="sd">    Ensures all selected datasets belong to the same wine kind.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">wine_kind</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">selected_datasets</span><span class="p">:</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">dataset_directories</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="s2">&quot;pinot_noir&quot;</span> <span class="ow">in</span> <span class="n">path</span><span class="p">:</span>
+            <span class="n">kind</span> <span class="o">=</span> <span class="s2">&quot;pinot_noir&quot;</span>
+        <span class="k">elif</span> <span class="s2">&quot;press_wines&quot;</span> <span class="ow">in</span> <span class="n">path</span><span class="p">:</span>
+            <span class="n">kind</span> <span class="o">=</span> <span class="s2">&quot;press&quot;</span>
+        <span class="k">elif</span> <span class="s2">&quot;champagne&quot;</span> <span class="ow">in</span> <span class="n">path</span><span class="p">:</span>
+            <span class="n">kind</span> <span class="o">=</span> <span class="s2">&quot;champagne&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not determine wine_kind from dataset path: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">wine_kind</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">wine_kind</span> <span class="o">=</span> <span class="n">kind</span>
+        <span class="k">elif</span> <span class="n">wine_kind</span> <span class="o">!=</span> <span class="n">kind</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Selected datasets include mixed wine kinds (&#39;</span><span class="si">{</span><span class="n">wine_kind</span><span class="si">}</span><span class="s2">&#39; and &#39;</span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2">&#39;). &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Please use datasets from the same category.&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">wine_kind</span></div>
+
 </pre></div>
 
           </div>
@@ -2137,6 +2169,7 @@
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../pinot_noir.html">Pinot Noir Classification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../press_wines.html">Press Wines Classification</a></li>
 </ul>
 
 <div class="relations">

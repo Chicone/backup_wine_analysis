@@ -82,6 +82,7 @@
 <span class="c1"># from config import *</span>
 
 <span class="kn">from</span> <span class="nn">gcmswine.classification</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="c1"># from scripts.press_wines.train_test_press_wines import n_decimation</span>
 
 <div class="viewcode-block" id="WineAnalysis">
 <a class="viewcode-back" href="../wine_analysis.html#wine_analysis.WineAnalysis">[docs]</a>
@@ -108,7 +109,7 @@
                 <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The file </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">file_path</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">data_loader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_path</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="n">normalize</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_loader</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
-            <span class="c1"># self.data = self.data_loader.get_standardized_data()</span>
+            <span class="c1"># self.data = gcmswine.wine_analysisself.data_loader.get_standardized_data()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_loader</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="p">))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">chem_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_path</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
             <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_path</span><span class="p">)</span>
@@ -189,9 +190,10 @@
 
 <span class="sd">        &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file_path1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">file_path2</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file_path1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">file_path2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ndec</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">file_path1</span> <span class="o">=</span> <span class="n">file_path1</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">file_path2</span> <span class="o">=</span> <span class="n">file_path2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ndec</span> <span class="o">=</span> <span class="n">ndec</span>
 
 <div class="viewcode-block" id="ChromatogramAnalysis.align_tics">
 <a class="viewcode-back" href="../wine_analysis.html#wine_analysis.ChromatogramAnalysis.align_tics">[docs]</a>
@@ -222,7 +224,7 @@
         <span class="c1"># )</span>
         <span class="n">synced_tics</span><span class="p">,</span> <span class="n">synced_gcms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sync_individual_chromatograms</span><span class="p">(</span>
             <span class="n">closest_to_mean</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">gcms</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">closest_to_mean</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span> <span class="n">tics</span><span class="p">,</span> <span class="n">gcms</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
-            <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.980</span><span class="p">,</span> <span class="mf">1.020</span><span class="p">,</span> <span class="mi">80</span><span class="p">),</span> <span class="n">initial_lag</span><span class="o">=</span><span class="mi">25</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.980</span><span class="p">,</span> <span class="mf">1.020</span><span class="p">,</span> <span class="mi">80</span><span class="p">),</span> <span class="n">initial_lag</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">ndec</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ndec</span>
         <span class="p">)</span>
         <span class="k">if</span> <span class="n">chrom_cap</span><span class="p">:</span>
             <span class="n">synced_tics</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">value</span><span class="p">[:</span><span class="n">chrom_cap</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">synced_tics</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
@@ -427,7 +429,7 @@
 <div class="viewcode-block" id="ChromatogramAnalysis.sync_individual_chromatograms">
 <a class="viewcode-back" href="../wine_analysis.html#wine_analysis.ChromatogramAnalysis.sync_individual_chromatograms">[docs]</a>
     <span class="k">def</span> <span class="nf">sync_individual_chromatograms</span><span class="p">(</span>
-            <span class="bp">self</span><span class="p">,</span> <span class="n">reference_chromatogram</span><span class="p">,</span> <span class="n">reference_ms</span><span class="p">,</span> <span class="n">input_chromatograms</span><span class="p">,</span> <span class="n">all_ms</span><span class="p">,</span> <span class="n">scales</span><span class="p">,</span> <span class="n">initial_lag</span><span class="o">=</span><span class="mi">300</span><span class="p">):</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">reference_chromatogram</span><span class="p">,</span> <span class="n">reference_ms</span><span class="p">,</span> <span class="n">input_chromatograms</span><span class="p">,</span> <span class="n">all_ms</span><span class="p">,</span> <span class="n">scales</span><span class="p">,</span> <span class="n">initial_lag</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">ndec</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Synchronize individual chromatograms with a reference chromatogram.</span>
 
@@ -458,7 +460,7 @@
 
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="kn">from</span> <span class="nn">wine_analysis</span> <span class="kn">import</span> <span class="n">SyncChromatograms</span>
+        <span class="c1"># from gcmswine.wine_analysis import SyncChromatograms</span>
         <span class="k">def</span> <span class="nf">plot_average_profile_with_std</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">num_points</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Average Profile with Standard Deviation&#39;</span><span class="p">):</span>
 <span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">            Plots the average profile with standard deviation for a list of (x, y) tuples.</span>
@@ -510,7 +512,7 @@
             <span class="n">target_ms</span> <span class="o">=</span>  <span class="n">all_ms</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
             <span class="n">sync_chrom</span> <span class="o">=</span> <span class="n">SyncChromatograms</span><span class="p">(</span>
                 <span class="n">reference_chromatogram</span><span class="p">,</span> <span class="n">chrom</span><span class="p">,</span> <span class="n">input_chromatograms</span><span class="p">,</span> <span class="n">reference_ms</span><span class="p">,</span> <span class="n">target_ms</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">scales</span><span class="p">,</span>
-                <span class="mf">1E6</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">0.00</span><span class="p">,</span> <span class="n">max_sep_threshold</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">peak_prominence</span><span class="o">=</span><span class="mf">0.00</span><span class="p">,</span> <span class="n">ndec</span><span class="o">=</span><span class="n">N_DECIMATION</span>
+                <span class="mf">1E6</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">0.00</span><span class="p">,</span> <span class="n">max_sep_threshold</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">peak_prominence</span><span class="o">=</span><span class="mf">0.00</span><span class="p">,</span> <span class="n">ndec</span><span class="o">=</span><span class="n">ndec</span>
             <span class="p">)</span>
             <span class="n">optimized_chrom</span> <span class="o">=</span> <span class="n">sync_chrom</span><span class="o">.</span><span class="n">adjust_chromatogram</span><span class="p">()</span>
             <span class="n">lag_profiles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sync_chrom</span><span class="o">.</span><span class="n">lag_res</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">])</span>
@@ -2554,6 +2556,7 @@
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../pinot_noir.html">Pinot Noir Classification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../press_wines.html">Press Wines Classification</a></li>
 </ul>
 
 <div class="relations">

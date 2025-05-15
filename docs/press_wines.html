@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Pinot Noir Classification &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <title>Press Wines Classification &#8212; Wine Analysis Library 0.1.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=4f649999" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=cb25574f" />
     <script src="_static/documentation_options.js?v=01f34227"></script>
@@ -13,8 +13,7 @@
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Press Wines Classification" href="press_wines.html" />
-    <link rel="prev" title="Welcome to Wine Analysis Library’s documentation!" href="index.html" />
+    <link rel="prev" title="Pinot Noir Classification" href="pinot_noir.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -31,31 +30,31 @@
 
           <div class="body" role="main">
             
-  <section id="pinot-noir-classification">
-<h1>Pinot Noir Classification<a class="headerlink" href="#pinot-noir-classification" title="Link to this heading">¶</a></h1>
-<p>In this section, we focus on the classification of Pinot Noir wine samples using the script train_test_pinot_noir.py.
-The goal is to predict the winery, origin, country, or continent of each sample based on its GC-MS chemical
-profile. This script implements a full pipeline including dataset loading, preprocessing, feature extraction,
-and supervised classification using a configurable machine learning model.</p>
-<p>A total of 16 wineries are considered, as shown in the following table:</p>
-<a class="reference internal image-reference" href="_images/wineries.png"><img alt="Wineries" class="align-center" src="_images/wineries.png" style="width: 600px;" /></a>
-<p>The goal is to evaluate the model’s accuracy in correctly predicting the winery from which each wine sample originates.</p>
+  <section id="press-wines-classification">
+<h1>Press Wines Classification<a class="headerlink" href="#press-wines-classification" title="Link to this heading">¶</a></h1>
+<p>In this section, we address the classification of press wine samples using the script <strong>train_test_press_wines.py</strong>. The
+objective is to predict class membership (e.g., A, B, or C) based on GC-MS data collected from Merlot and
+Cabernet Sauvignon wines across multiple vintages. The script implements a full processing pipeline including
+data loading, preprocessing, feature extraction, and classification.</p>
+<p>Special care is taken to ensure that replicate samples are kept together during cross-validation, so that no
+replicate of the same sample appears in both training and test sets. This avoids inflated performance
+estimates and provides a more realistic measure of generalization.</p>
 <section id="configuration-parameters">
 <h2>Configuration Parameters<a class="headerlink" href="#configuration-parameters" title="Link to this heading">¶</a></h2>
 <p>The script reads analysis parameters from a configuration file (<cite>config.yaml</cite>) located at the root of the repository.
 Below is a description of the key parameters:</p>
-<ul class="simple">
+<ul>
 <li><p><strong>dataset</strong>: Each dataset must be specified with a name and its corresponding path on your local machine. The paths should point to directories containing <cite>.D</cite> folders for each sample.</p></li>
 <li><p><strong>selected_datasets</strong>: Selects the datasets to be used. You can join more than one but must be compatible in terms of m/z channels</p></li>
 <li><p><strong>feature_type</strong>: Determines how the chromatogram channels are aggregated for classification.</p>
-<ul>
+<ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">tic</span></code>: Use the Total Ion Chromatogram only.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tis</span></code>: Use individual Total Ion Spectrum channels.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tic_tis</span></code>: Combines TIC and TIS features by concatenation.</p></li>
 </ul>
 </li>
 <li><p><strong>classifier</strong>: Specifies the classification model used for training. Available options include:</p>
-<ul>
+<ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">DTC</span></code>: Decision Tree Classifier</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">GNB</span></code>: Gaussian Naive Bayes</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">KNN</span></code>: K-Nearest Neighbors</p></li>
@@ -73,13 +72,8 @@ Below is a description of the key parameters:</p>
 <li><p><strong>normalize</strong>: Whether to apply feature scaling (standard normalization) before classification. It is learned on training splits and applied to test split, so no leakage</p></li>
 <li><p><strong>n_decimation</strong>: Factor by which chromatograms are downsampled along the retention time axis to reduce dimensionality.</p></li>
 <li><p><strong>sync_state</strong>: Enables or disables retention time synchronization between samples using peak alignment algorithms.</p></li>
-<li><p><strong>region</strong>: Indicates the classification granularity, such as:</p>
-<ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">winery</span></code>: Group samples by producer.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">origin</span></code>: Group samples by geographical origin or region of production.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">country</span></code>: Group samples by country.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">continent</span></code>: Group samples by continent.</p></li>
-</ul>
+<li><p><strong>region</strong>: This parameter defines the classification granularity for <strong>Pinot Noir</strong> datasets, where samples can be grouped by winery, origin, country, or continent.</p>
+<p>This option is <strong>not applicable</strong> to press wine classification and can be ignored when using <cite>train_test_press_wines.py</cite>.</p>
 </li>
 <li><p><strong>wine_kind</strong>: This parameter is used internally to distinguish the type of wine (e.g., <code class="docutils literal notranslate"><span class="pre">pinot_noir</span></code>, <code class="docutils literal notranslate"><span class="pre">press</span></code>, <code class="docutils literal notranslate"><span class="pre">champagne</span></code>) and to apply appropriate label parsing and evaluation logic.
 <strong>This field is now automatically inferred from the dataset path and should not be set manually.</strong></p></li>
@@ -88,48 +82,54 @@ Below is a description of the key parameters:</p>
 </section>
 <section id="script-overview">
 <h2>Script Overview<a class="headerlink" href="#script-overview" title="Link to this heading">¶</a></h2>
-<p>The script performs classification of Pinot Noir wine samples using GC-MS data and a configurable machine learning pipeline.
-It loads all key parameters and dataset paths from a separate configuration file. To modify the experiment and the
-location of your dataset, simply edit <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code> according to your needs.</p>
+<p>This script performs classification of <strong>press wine samples</strong> using GC-MS data and a configurable machine learning pipeline.</p>
+<p>All key parameters (dataset paths, classifier settings, preprocessing options, etc.) are loaded from a <cite>config.yaml</cite> file,
+allowing users to customize experiments without editing the script.</p>
 <p>The main steps include:</p>
 <ol class="arabic simple">
-<li><p><strong>Configuration loading</strong>:</p>
+<li><p><strong>Configuration Loading</strong>:</p>
 <ul class="simple">
-<li><p>Loads experiment settings from <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code>.</p></li>
-<li><p>This includes paths to the datasets, the number of evaluation splits, the classifier type, and other parameters.</p></li>
+<li><p>Loads parameters from <cite>config.yaml</cite>, including dataset paths, number of evaluation splits, classifier type, and feature extraction settings.</p></li>
+<li><p>Automatically infers <cite>wine_kind</cite> based on the dataset path (e.g., <cite>press_wines</cite>), eliminating the need to set it manually.</p></li>
+<li><p>Verifies that all selected dataset paths are compatible with the script (must contain <cite>‘press_wines’</cite> in the path).</p></li>
 </ul>
 </li>
 <li><p><strong>Data Loading and Preprocessing</strong>:</p>
 <ul class="simple">
 <li><p>GC-MS chromatograms are loaded using <cite>GCMSDataProcessor</cite>.</p></li>
-<li><p>Datasets are joined and decimated according to the defined factor.</p></li>
-<li><p>Channels with zero variance are removed.</p></li>
-<li><p>Optionally, retention time alignment (synchronization) is performed if <cite>sync_state</cite> is enabled in the config.</p></li>
-<li><p>Optionally, data normalization (recommended), using training-set statistics only to avoid leakage.</p></li>
+<li><p>Datasets are joined and downsampled using the <cite>n_decimation</cite> factor.</p></li>
+<li><p>Channels with zero variance are automatically removed.</p></li>
+<li><p>If <cite>sync_state</cite> is enabled, chromatograms are aligned using peak-based retention time synchronization (although for press wines this is typically discouraged).</p></li>
 </ul>
 </li>
 <li><p><strong>Label Processing</strong>:</p>
 <ul class="simple">
-<li><p>Sample labels are extracted and grouped according to the selected <cite>region</cite> (e.g., winery, origin, country or continent).</p></li>
-<li><p>These labels are prepared for supervised classification.</p></li>
+<li><p>Sample labels are parsed using <cite>process_labels_by_wine_kind()</cite>, which groups samples by predefined categories (A, B, C) based on sample naming conventions.</p></li>
+<li><p>Label parsing logic is automatically adjusted according to the inferred <cite>wine_kind</cite>.</p></li>
 </ul>
 </li>
 <li><p><strong>Classification</strong>:</p>
 <ul class="simple">
-<li><p>The <cite>Classifier</cite> class is used to train a machine learning model on the processed data.</p></li>
-<li><p>The <cite>train_and_evaluate_all_channels()</cite> method evaluates model performance across multiple splits.</p></li>
-<li><p>Classification features are aggregated as specified by the <cite>feature_type</cite> parameter (e.g., TIC, TIS, or both).</p></li>
+<li><p>A <cite>Classifier</cite> object is initialized using the processed data and selected classifier type (e.g., <cite>RGC</cite>, <cite>SVM</cite>, etc.).</p></li>
+<li><p>The <cite>train_and_evaluate_all_channels()</cite> method extracts features (e.g., TIC, TIS, or both) and evaluates model performance across multiple splits.</p></li>
+</ul>
+</li>
+<li><p><strong>Cross-Validation and Replicate Handling</strong>:</p>
+<ul class="simple">
+<li><p>The script uses repeated train/test splits (default: 20% test) across <cite>num_splits</cite> repetitions.</p></li>
+<li><p>When <cite>LOOPC=True</cite>, test splits consist of a sample from each class with all their replicates (never split across train and test sets), ensuring a realistic and conservative accuracy estimate.</p></li>
+<li><p>When <cite>LOOPC=False</cite>, a <strong>stratified shuffle split</strong> is used with a test fraction of 0.2 (i.e., 80/20 split). Even in this case, <strong>replicates of the same sample are always grouped</strong>, ensuring that no replicate of a given sample appears in both training and test sets.</p></li>
 </ul>
 </li>
 <li><p><strong>Evaluation</strong>:</p>
 <ul class="simple">
-<li><p>Accuracy results are printed.</p></li>
-<li><p>Optionally, confusion matrices can be converted to LaTeX using provided helper functions for reporting.</p></li>
+<li><p>The script prints the mean and standard deviation of the balanced accuracy across all splits.</p></li>
+<li><p>A normalized confusion matrix is computed and printed.</p></li>
 </ul>
 </li>
 </ol>
-<p>This script provides a complete, reproducible workflow to test classification accuracy of Pinot Noir wines using chemical
-profiles extracted from GC-MS data.</p>
+<p>This script provides a robust, reproducible workflow to evaluate the classification accuracy of press wine samples
+based on their chemical fingerprints, while properly accounting for technical replicates and dataset structure.</p>
 </section>
 <section id="requirements">
 <h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading">¶</a></h2>
@@ -142,7 +142,7 @@ profiles extracted from GC-MS data.</p>
 <section id="usage">
 <h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h2>
 <p>From the root of the repository, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/pinot_noir/train_test_pinot_noir.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/pinot_noir/train_test_press_wines.py
 </pre></div>
 </div>
 </section>
@@ -167,22 +167,21 @@ profiles extracted from GC-MS data.</p>
 <h3>Navigation</h3>
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Pinot Noir Classification</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="pinot_noir.html">Pinot Noir Classification</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Press Wines Classification</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#configuration-parameters">Configuration Parameters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#script-overview">Script Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#requirements">Requirements</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#usage">Usage</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="press_wines.html">Press Wines Classification</a></li>
 </ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="index.html" title="previous chapter">Welcome to Wine Analysis Library’s documentation!</a></li>
-      <li>Next: <a href="press_wines.html" title="next chapter">Press Wines Classification</a></li>
+      <li>Previous: <a href="pinot_noir.html" title="previous chapter">Pinot Noir Classification</a></li>
   </ul></li>
 </ul>
 </div>
@@ -216,7 +215,7 @@ profiles extracted from GC-MS data.</p>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |
-      <a href="_sources/pinot_noir.rst.txt"
+      <a href="_sources/press_wines.rst.txt"
           rel="nofollow">Page source</a>
     </div>
 

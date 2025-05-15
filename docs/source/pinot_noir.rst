@@ -1,9 +1,10 @@
 Pinot Noir Classification
 =========================
 
-This script demonstrates a full pipeline for classifying Pinot Noir wine samples into their wineries using GC-MS data.
-Alternatively, it can also be configured to classify the origin, country, or even continent.
-The pipeline includes dataset loading, preprocessing, and classification using a selected model.
+In this section, we focus on the classification of Pinot Noir wine samples using the script train_test_pinot_noir.py.
+The goal is to predict the winery, origin, country, or continent of each sample based on its GC-MS chemical
+profile. This script implements a full pipeline including dataset loading, preprocessing, feature extraction,
+and supervised classification using a configurable machine learning model.
 
 A total of 16 wineries are considered, as shown in the following table:
 
@@ -20,8 +21,7 @@ Configuration Parameters
 The script reads analysis parameters from a configuration file (`config.yaml`) located at the root of the repository.
 Below is a description of the key parameters:
 
-- **dataset**: Each dataset must be specified with a name and its corresponding path on your local machine.
-The paths should point to directories containing `.D` folders for each sample.
+- **dataset**: Each dataset must be specified with a name and its corresponding path on your local machine. The paths should point to directories containing `.D` folders for each sample.
 
 - **selected_datasets**: Selects the datasets to be used. You can join more than one but must be compatible in terms of m/z channels
 
@@ -60,8 +60,8 @@ The paths should point to directories containing `.D` folders for each sample.
   - ``country``: Group samples by country.
   - ``continent``: Group samples by continent.
 
-- **wine_kind**: Label used to distinguish wine variety for organizing datasets and selecting parsing logic
-(e.g., ``pinot_noir``, ``champagne``).
+- **wine_kind**: This parameter is used internally to distinguish the type of wine (e.g., ``pinot_noir``, ``press``, ``champagne``) and to apply appropriate label parsing and evaluation logic.
+  **This field is now automatically inferred from the dataset path and should not be set manually.**
 
 These parameters allow users to flexibly configure the pipeline without modifying the script itself.
 

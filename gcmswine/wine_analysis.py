@@ -51,6 +51,7 @@ from scipy.ndimage import gaussian_filter
 # from config import *
 
 from gcmswine.classification import *
+# from scripts.press_wines.train_test_press_wines import n_decimation
 
 class WineAnalysis:
     """
@@ -75,7 +76,7 @@ class WineAnalysis:
                 raise FileNotFoundError(f"The file {self.file_path} does not exist.")
             self.data_loader = DataLoader(self.file_path, normalize=normalize)
             self.data = np.array(self.data_loader.df)
-            # self.data = self.data_loader.get_standardized_data()
+            # self.data = gcmswine.wine_analysisself.data_loader.get_standardized_data()
             self.labels = np.array(list(self.data_loader.df.index))
             self.chem_name = os.path.splitext(self.file_path)[0].split('/')[-1]
             print(self.file_path)
@@ -144,9 +145,10 @@ class ChromatogramAnalysis:
 
         """
 
-    def __init__(self, file_path1=None, file_path2=None):
+    def __init__(self, file_path1=None, file_path2=None, ndec=10):
         self.file_path1 = file_path1
         self.file_path2 = file_path2
+        self.ndec = ndec
 
     def align_tics(self, data_dict, gcms, chrom_cap=25000):
         """
@@ -175,7 +177,7 @@ class ChromatogramAnalysis:
         # )
         synced_tics, synced_gcms = self.sync_individual_chromatograms(
             closest_to_mean[1], gcms.data[closest_to_mean[0]], tics, gcms.data,
-            np.linspace(0.980, 1.020, 80), initial_lag=25
+            np.linspace(0.980, 1.020, 80), initial_lag=25, ndec=self.ndec
         )
         if chrom_cap:
             synced_tics = {key: value[:chrom_cap] for key, value in synced_tics.items()}
@@ -350,7 +352,7 @@ class ChromatogramAnalysis:
 #
 
     def sync_individual_chromatograms(
-            self, reference_chromatogram, reference_ms, input_chromatograms, all_ms, scales, initial_lag=300):
+            self, reference_chromatogram, reference_ms, input_chromatograms, all_ms, scales, initial_lag=300, ndec=10):
         """
         Synchronize individual chromatograms with a reference chromatogram.
 
@@ -381,7 +383,7 @@ class ChromatogramAnalysis:
 
         """
 
-        from wine_analysis import SyncChromatograms
+        # from gcmswine.wine_analysis import SyncChromatograms
         def plot_average_profile_with_std(data, num_points=500, title='Average Profile with Standard Deviation'):
             """
             Plots the average profile with standard deviation for a list of (x, y) tuples.
@@ -433,7 +435,7 @@ class ChromatogramAnalysis:
             target_ms =  all_ms[key]
             sync_chrom = SyncChromatograms(
                 reference_chromatogram, chrom, input_chromatograms, reference_ms, target_ms, 1, scales,
-                1E6, threshold=0.00, max_sep_threshold=50, peak_prominence=0.00, ndec=N_DECIMATION
+                1E6, threshold=0.00, max_sep_threshold=50, peak_prominence=0.00, ndec=ndec
             )
             optimized_chrom = sync_chrom.adjust_chromatogram()
             lag_profiles.append(sync_chrom.lag_res[0:2])

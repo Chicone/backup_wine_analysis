@@ -317,6 +317,13 @@ with integer headers, or handles the special case of 2-column files.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="utils.infer_wine_kind">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">infer_wine_kind</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">selected_datasets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataset_directories</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#infer_wine_kind"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.infer_wine_kind" title="Link to this definition">¶</a></dt>
+<dd><p>Infers the wine kind (‘pinot_noir’, ‘press’, or ‘champagne’) from the dataset paths.
+Ensures all selected datasets belong to the same wine kind.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="utils.join_datasets">
 <span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">join_datasets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">selected_datasets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_directories</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_decimation</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/utils.html#join_datasets"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.join_datasets" title="Link to this definition">¶</a></dt>
 <dd><p>Joins multiple datasets based on the given indices.</p>
@@ -905,6 +912,7 @@ Depending on the axis parameter, each value is a list of either row sums or colu
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="pinot_noir.html">Pinot Noir Classification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="press_wines.html">Press Wines Classification</a></li>
 </ul>
 
 <div class="relations">

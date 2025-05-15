@@ -6,12 +6,6 @@ from gcmswine import utils
 from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
 from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
 
-# # Use this function to convert the printed confusion matrix to a latex confusion matrix
-# # Copy the matrix into data_str using """ """ and create the list of headers, then call the function
-# headers = ['Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot', 'Les Petits Monts',
-#             'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach', 'Brunner', 'Vin des Croisés',
-#             'Villard et Fils', 'République', 'Maladaires', 'Marimar', 'Drouhin']
-# string_to_latex_confusion_matrix_modified(data_str, headers)
 
 # Load dataset paths from config.yaml
 config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
@@ -27,10 +21,10 @@ selected_datasets = config["selected_datasets"]
 selected_paths = [config["datasets"][name] for name in selected_datasets]
 
 # Check if all selected dataset contains "pinot"
-if not all("pinot_noir" in path.lower() for path in selected_paths):
+if not all("press_wines" in path.lower() for path in selected_paths):
     raise ValueError(
         "The datasets selected in the config.yaml file do not seem to be compatible with this script. "
-        "At least one of the selected paths does not contain 'pinot_noir'."
+        "At least one of the selected paths does not contain 'press_wines'."
     )
 
 # Infer wine_kind from selected dataset paths
@@ -83,4 +77,3 @@ cls.train_and_evaluate_all_channels(
     classifier_type=classifier,
     LOOPC=True  # whether to use stratified splitting (False) or Leave One Out Per Class (True)
 )
-

@@ -11,6 +11,7 @@ Welcome to Wine Analysis Library's documentation!
    :caption: Contents:
 
    pinot_noir
+   press_wines
 
 
 Indices and tables

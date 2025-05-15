@@ -624,7 +624,7 @@ class Classifier:
             return acc, bal_acc, w_acc, prec, rec, f1, cm
 
 
-        if region == "winery":
+        if region == "winery" or self.wine_kind == "press":
             category_labels = extract_category_labels(self.labels)
         else:
             category_labels = self.labels
@@ -644,7 +644,10 @@ class Classifier:
 
 
         # Set up a custom order for the confusion matrix if a region is specified.
-        custom_order = utils.get_custom_order_for_pinot_noir_region(region)
+        if self.wine_kind == "press":
+            custom_order = ["A", "B", "C"]
+        else:
+            custom_order = utils.get_custom_order_for_pinot_noir_region(region)
 
         # Initialize accumulators for outer-repetition averaged metrics.
         eval_accuracy = []
@@ -676,8 +679,9 @@ class Classifier:
         # )
 
         if LOOPC:
+            icl = True if len(self.labels[0]) > 1 else False
             train_idx, test_idx = leave_one_sample_per_class_split(self.data, self.labels, random_state=random_seed,
-                                                                   is_composite_labels=False)
+                                                                   is_composite_labels=icl)
         else:
             train_idx, test_idx = shuffle_split_without_splitting_duplicates(
                 self.data, self.labels, test_size=test_size, random_state=random_seed,
@@ -713,10 +717,11 @@ class Classifier:
                 if self.year_labels.size > 0 and np.any(self.year_labels != None):
                     self.classifier.fit(X_train_full, y_train_full)
                 else:
-                    if region == "winery":
+                    if region == "winery" or self.wine_kind == "press":
                         self.classifier.fit(X_train_full, np.array(extract_category_labels(y_train_full)))
                     else:
                         self.classifier.fit(X_train_full, np.array(y_train_full))
+                y_test = extract_category_labels(y_test)
 
             except np.linalg.LinAlgError:
                 print(
@@ -1331,7 +1336,10 @@ class Classifier:
         std_test_accuracy = np.std(balanced_accuracies, axis=0)
         mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
         # mean_confusion_matrix = np.mean(confusion_matrices, axis=0)
-        custom_order = utils.get_custom_order_for_pinot_noir_region(region)
+        if self.wine_kind == "press":
+            custom_order = ["A", "B", "C"]
+        else:
+            custom_order = utils.get_custom_order_for_pinot_noir_region(region)
 
         print("\n##################################")
         print(f"Mean Balanced Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")
