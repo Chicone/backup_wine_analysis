@@ -6,7 +6,7 @@ encodes the selected label, and trains a Ridge classifier using Stratified K-Fol
 cross-validation. The whole process is repeated multiple times to get
 a robust estimate of accuracy.
 
-Author: Luis (or your name)
+Author: Luis G Camara
 """
 if __name__ == "__main__":
     import pandas as pd

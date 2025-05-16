@@ -7,7 +7,7 @@ Each model uses only that taster's samples (chromatograms + sensory attributes).
 Cross-validation is used to estimate performance.
 Chromatogram feature weights are saved per taster for later comparison.
 
-Author: Luis (or your name)
+Author: Luis G Camara
 """
 if __name__ == "__main__":
     # --- Imports ---
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     from sklearn.model_selection import KFold
     import matplotlib.pyplot as plt
     from collections import defaultdict
-    import utils  # Your custom module
+    from gcmswine import utils
     import matplotlib.cm as cm
 
     # --- Parameters ---
