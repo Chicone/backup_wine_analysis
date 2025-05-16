@@ -1,15 +1,14 @@
-if __name__ == "__main__":
-    """
-    Ridge Classifier Evaluation with Cross-Validation
-    
-    This script loads the Champagne dataset, prepares chemical feature vectors,
-    encodes the selected label, and trains a Ridge classifier using Stratified K-Fold
-    cross-validation. The whole process is repeated multiple times to get
-    a robust estimate of accuracy.
-    
-    Author: Luis (or your name)
-    """
+"""
+Ridge Classifier Evaluation with Cross-Validation
 
+This script loads the Champagne dataset, prepares chemical feature vectors,
+encodes the selected label, and trains a Ridge classifier using Stratified K-Fold
+cross-validation. The whole process is repeated multiple times to get
+a robust estimate of accuracy.
+
+Author: Luis (or your name)
+"""
+if __name__ == "__main__":
     import pandas as pd
     import numpy as np
     from sklearn.linear_model import RidgeClassifier

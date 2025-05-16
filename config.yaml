@@ -12,7 +12,7 @@ datasets:
   "cab_sauv_2023": "/home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/"
 
 selected_datasets:  # Choose the dataset to be used
-  - merlot_2022
+  - pinot_noir_changins
 
 feature_type: tic_tis      # Options: tic, tis, tic_tis
 classifier: RGC # Available classifiers: "DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"

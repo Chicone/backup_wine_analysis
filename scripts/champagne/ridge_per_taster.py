@@ -1,16 +1,15 @@
-if __name__ == "__main__":
-    """
-    Ridge Regression - One Model Per Taster
-    ----------------------------------------
-    
-    This script trains one Ridge regression model per taster.
-    Each model uses only that taster's samples (chromatograms + sensory attributes).
-    Cross-validation is used to estimate performance.
-    Chromatogram feature weights are saved per taster for later comparison.
-    
-    Author: Luis (or your name)
-    """
+"""
+Ridge Regression - One Model Per Taster
+----------------------------------------
 
+This script trains one Ridge regression model per taster.
+Each model uses only that taster's samples (chromatograms + sensory attributes).
+Cross-validation is used to estimate performance.
+Chromatogram feature weights are saved per taster for later comparison.
+
+Author: Luis (or your name)
+"""
+if __name__ == "__main__":
     # --- Imports ---
     import numpy as np
     import pandas as pd

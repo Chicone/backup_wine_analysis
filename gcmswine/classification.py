@@ -1267,6 +1267,19 @@ class Classifier:
         - Results are averaged across all repeats to provide a robust estimate of performance.
         - Normalized confusion matrices are averaged across repeats if dimensions match.
         """
+        def extract_category_labels(composite_labels):
+            """
+            Convert composite labels (e.g., 'A1', 'B9', 'C2') to category labels ('A', 'B', 'C').
+
+            Args:
+                composite_labels (array-like): List or array of composite labels.
+
+            Returns:
+                list: List of category labels.
+            """
+            return [re.match(r'([A-C])', label).group(1) if re.match(r'([A-C])', label) else label
+                    for label in composite_labels]
+
         cls_data = self.data.copy()
         labels = self.labels
         num_samples, num_timepoints, num_channels = cls_data.shape
@@ -1346,9 +1359,21 @@ class Classifier:
         print("\n##################################")
         print(f"Mean Balanced Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")
         # Print label order used in confusion matrix
+
         if custom_order is not None:
+            if region == "winery" or self.wine_kind == "press":
+                category_labels = extract_category_labels(self.labels)
+            else:
+                category_labels = self.labels
+            # Compute counts
+            counts = Counter(category_labels)
+
+            # Print label order with counts, respecting custom_order
             print("\nLabel order (custom):")
-            print(", ".join(custom_order))
+            for label in custom_order:
+                print(f"{label} ({counts.get(label, 0)})")
+            # print("\nLabel order (custom):")
+            # print(", ".join(custom_order))
 
         print("\nFinal Averaged Normalized Confusion Matrix:")
         print(mean_confusion_matrix)

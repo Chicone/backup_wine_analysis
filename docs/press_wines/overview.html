@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Press Wines Overview &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <title>Overview &#8212; Wine Analysis Library 0.1.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=4f649999" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=cb25574f" />
     <script src="../_static/documentation_options.js?v=01f34227"></script>
@@ -31,9 +31,14 @@
 
           <div class="body" role="main">
             
-  <section id="press-wines-overview">
-<h1>Press Wines Overview<a class="headerlink" href="#press-wines-overview" title="Link to this heading">¶</a></h1>
-<p>This section focuses on the classification of press wines using GC-MS data.</p>
+  <section id="overview">
+<h1>Overview<a class="headerlink" href="#overview" title="Link to this heading">¶</a></h1>
+<p>In this section, we address the classification of press wine samples. The
+goal is to predict wine press class membership (e.g., A, B, or C) based on GC-MS data collected from Merlot and
+Cabernet Sauvignon wines across multiple vintages.</p>
+<p>Special care is taken to ensure that replicate samples are kept together during cross-validation, so that no
+replicate of the same sample appears in both training and test sets. This avoids inflated performance
+estimates due to duplicates present in train and trest sets and provides a more realistic measure of generalization.</p>
 </section>
 
 
@@ -55,7 +60,7 @@
 <h3>Navigation</h3>
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../README.html">Wine Analysis Library Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../README.html">General Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../pinot_noir/index.html">Pinot Noir</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Press Wines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../champagne/index.html">Champagne</a></li>

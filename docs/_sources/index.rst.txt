@@ -14,7 +14,7 @@ This documentation provides tools to analyze GC-MS data for different types of w
    :maxdepth: 1
    :caption: Contents:
 
-
+   README
    pinot_noir/index
    press_wines/index
    champagne/index

@@ -1,7 +1,8 @@
-> 📦 **Note:** You are on the `wine-analysis-package` branch, which contains the most accessible and minimal version of the GC-MS Wine Analysis tools. It is intended for testing and basic usage.  
+> 📦 **Note:** This documentation refers to the `wine-analysis-package` branch, which contains the most accessible and minimal version of the GC-MS Wine Analysis tools. 
+> It is intended for testing and basic usage.  
 > Other branches may contain experimental or extended versions
 
-# Wine Analysis Library Documentation
+# General Documentation
 
 Welcome to the **Wine Analysis Library** documentation!
 
