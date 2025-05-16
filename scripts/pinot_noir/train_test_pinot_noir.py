@@ -145,8 +145,7 @@ if __name__ == "__main__":
     # Check if all selected dataset contains "pinot"
     if not all("pinot_noir" in path.lower() for path in selected_paths):
         raise ValueError(
-            "The datasets selected in the config.yaml file do not seem to be compatible with this script. "
-            "At least one of the selected paths does not contain 'pinot_noir'."
+            "Please select a script for Pinot Noir. The datasets selected in the config.yaml file do not seem to be compatible with this script. "
         )
 
     # Infer wine_kind from selected dataset paths
