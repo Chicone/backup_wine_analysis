@@ -1372,7 +1372,7 @@ class Classifier:
 
             # Print label order with counts, respecting custom_order
             print("\nLabel order (custom):")
-            if self.year_labels is not None:
+            if self.year_labels.size > 0 and np.any(self.year_labels != None):
                 year_count = Counter(self.year_labels)
                 for year in year_count:
                     print(f"{year} ({year_count.get(year, 0)})")
