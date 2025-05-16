@@ -646,7 +646,8 @@ class Classifier:
         # Set up a custom order for the confusion matrix if a region is specified.
         if self.wine_kind == "press":
             if self.year_labels.size > 0 and np.any(self.year_labels != None):
-                custom_order = ['2021', '2022', '2023']
+                year_count = Counter(self.year_labels)
+                custom_order = list(year_count.keys())
             else:
                 custom_order = ["A", "B", "C"]
         else:
@@ -721,9 +722,10 @@ class Classifier:
                 else:
                     if region == "winery" or self.wine_kind == "press":
                         self.classifier.fit(X_train_full, np.array(extract_category_labels(y_train_full)))
+                        y_test = extract_category_labels(y_test)
                     else:
                         self.classifier.fit(X_train_full, np.array(y_train_full))
-                    y_test = extract_category_labels(y_test)
+
 
             except np.linalg.LinAlgError:
                 print(
@@ -1370,10 +1372,14 @@ class Classifier:
 
             # Print label order with counts, respecting custom_order
             print("\nLabel order (custom):")
-            for label in custom_order:
-                print(f"{label} ({counts.get(label, 0)})")
-            # print("\nLabel order (custom):")
-            # print(", ".join(custom_order))
+            if self.year_labels is not None:
+                year_count = Counter(self.year_labels)
+                for year in year_count:
+                    print(f"{year} ({year_count.get(year, 0)})")
+            else:
+                for label in custom_order:
+                    print(f"{label} ({counts.get(label, 0)})")
+
 
         print("\nFinal Averaged Normalized Confusion Matrix:")
         print(mean_confusion_matrix)
