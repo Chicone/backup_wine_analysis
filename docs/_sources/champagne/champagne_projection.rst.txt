@@ -1,5 +1,5 @@
-Champain Projection
-~~~~~~~~~~~~~~~~~~~
+Data Projection
+===============
 
 .. automodule:: scripts.champagne.champagne_projection
    :members:

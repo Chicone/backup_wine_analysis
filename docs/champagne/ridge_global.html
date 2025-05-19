@@ -13,7 +13,8 @@
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="prev" title="Champain Projection" href="champagne_projection.html" />
+    <link rel="next" title="Ridge per Taster Script" href="ridge_per_taster.html" />
+    <link rel="prev" title="Score-based Label Classification" href="train_test_labels.html" />
    
   <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
   
@@ -39,8 +40,14 @@ based on chemical information from GC-MS chromatograms and taster identity. It c
 processing, metadata handling, and machine learning in a reproducible way.</p>
 <section id="use-case">
 <h3>Use case:<a class="headerlink" href="#use-case" title="Link to this heading">¶</a></h3>
-<p>Designed to assess the predictive power of GC-MS data (flattened chromatograms) in modeling
+<p>Designed to assess the predictive power of GC-MS data (flattened chromatograms or TICs) in modeling
 human sensory perception, taking into account taster-specific biases via one-hot encoding.</p>
+</section>
+<section id="taster-modeling-approach">
+<h3>Taster Modeling Approach:<a class="headerlink" href="#taster-modeling-approach" title="Link to this heading">¶</a></h3>
+<p>A single Ridge regression model is trained across all tasters. Taster identity is provided as an input
+feature using one-hot encoding, allowing the model to learn both general chemical–sensory relationships
+and individual taster preferences. There is no separate model per taster.</p>
 </section>
 <section id="key-features">
 <h3>Key Features:<a class="headerlink" href="#key-features" title="Link to this heading">¶</a></h3>
@@ -112,10 +119,12 @@ human sensory perception, taking into account taster-specific biases via one-hot
 <h3>Navigation</h3>
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../README.html">Wine Analysis Library Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../README.html">General Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../pinot_noir/index.html">Pinot Noir</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../press_wines/index.html">Press Wines</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Champagne</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../bordeaux/index.html">Bordeaux</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../utilities/index.html">Utilities</a></li>
 </ul>
 
 <div class="relations">
@@ -123,7 +132,8 @@ human sensory perception, taking into account taster-specific biases via one-hot
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>
   <li><a href="index.html">Champagne</a><ul>
-      <li>Previous: <a href="champagne_projection.html" title="previous chapter">Champain Projection</a></li>
+      <li>Previous: <a href="train_test_labels.html" title="previous chapter">Score-based Label Classification</a></li>
+      <li>Next: <a href="ridge_per_taster.html" title="next chapter">Ridge per Taster Script</a></li>
   </ul></li>
   </ul></li>
 </ul>

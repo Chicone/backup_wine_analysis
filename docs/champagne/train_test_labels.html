@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Train Test Labels Script &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <title>Score-based Label Classification &#8212; Wine Analysis Library 0.1.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=4f649999" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=cb25574f" />
     <script src="../_static/documentation_options.js?v=01f34227"></script>
@@ -14,7 +14,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Ridge Global Script" href="ridge_global.html" />
-    <link rel="prev" title="Champain Projection" href="champagne_projection.html" />
+    <link rel="prev" title="Projection Visualization" href="projection_visualization.html" />
    
   <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
   
@@ -32,13 +32,16 @@
           <div class="body" role="main">
             
   <section id="module-scripts.champagne.train_test_labels">
-<span id="train-test-labels-script"></span><h1>Train Test Labels Script<a class="headerlink" href="#module-scripts.champagne.train_test_labels" title="Link to this heading">¶</a></h1>
-<p>Ridge Classifier Evaluation with Cross-Validation</p>
-<p>This script loads the Champagne dataset, prepares chemical feature vectors,
-encodes the selected label, and trains a Ridge classifier using Stratified K-Fold
-cross-validation. The whole process is repeated multiple times to get
-a robust estimate of accuracy.</p>
-<p>Author: Luis (or your name)</p>
+<span id="score-based-label-classification"></span><h1>Score-based Label Classification<a class="headerlink" href="#module-scripts.champagne.train_test_labels" title="Link to this heading">¶</a></h1>
+<p>Taster Score Classification using the script <strong>train_test_labels.py</strong></p>
+<p>This script trains and evaluates a Ridge classifier to predict categorical labels (e.g. taster identity, wine variety,
+cave, age) based on averaged sensory evaluation scores of Champagne wines.
+The features correspond to numerical scores given by tasters on different attributes (e.g. acid, balance),
+and the labels are drawn from associated metadata.</p>
+<p>Data is preprocessed by collapsing replicates per (wine, taster) pair and cleaning non-numeric values.
+Stratified K-Fold cross-validation is repeated multiple times to obtain a robust estimate of classification accuracy,
+and a normalized confusion matrix is plotted at the end for each classification target to visualize model performance
+across classes.</p>
 </section>
 
 
@@ -64,6 +67,8 @@ a robust estimate of accuracy.</p>
 <li class="toctree-l1"><a class="reference internal" href="../pinot_noir/index.html">Pinot Noir</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../press_wines/index.html">Press Wines</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Champagne</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../bordeaux/index.html">Bordeaux</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../utilities/index.html">Utilities</a></li>
 </ul>
 
 <div class="relations">
@@ -71,7 +76,7 @@ a robust estimate of accuracy.</p>
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>
   <li><a href="index.html">Champagne</a><ul>
-      <li>Previous: <a href="champagne_projection.html" title="previous chapter">Champain Projection</a></li>
+      <li>Previous: <a href="projection_visualization.html" title="previous chapter">Projection Visualization</a></li>
       <li>Next: <a href="ridge_global.html" title="next chapter">Ridge Global Script</a></li>
   </ul></li>
   </ul></li>

@@ -1,13 +1,18 @@
 """
-Ridge Classifier Evaluation with Cross-Validation
+Taster Score Classification using the script **train_test_labels.py**
 
-This script loads the Champagne dataset, prepares chemical feature vectors,
-encodes the selected label, and trains a Ridge classifier using Stratified K-Fold
-cross-validation. The whole process is repeated multiple times to get
-a robust estimate of accuracy.
+This script trains and evaluates a Ridge classifier to predict categorical labels (e.g. taster identity, wine variety,
+cave, age) based on averaged sensory evaluation scores of Champagne wines.
+The features correspond to numerical scores given by tasters on different attributes (e.g. acid, balance),
+and the labels are drawn from associated metadata.
 
-Author: Luis G Camara
+Data is preprocessed by collapsing replicates per (wine, taster) pair and cleaning non-numeric values.
+Stratified K-Fold cross-validation is repeated multiple times to obtain a robust estimate of classification accuracy,
+and a normalized confusion matrix is plotted at the end for each classification target to visualize model performance
+across classes.
+
 """
+
 if __name__ == "__main__":
     import pandas as pd
     import numpy as np
@@ -19,128 +24,106 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import matplotlib.colors as mcolors
 
-
     # --- Parameters ---
-    label_column = 'taster'  # Change this to 'prod area', 'variety',  'cave', 'age', 'ageing', etc..
+    label_columns = ['prod area', 'variety', 'cave', 'age']
     csv_path = "/home/luiscamara/Documents/datasets/Champagnes/test.csv"
-    n_splits = 10               # Inner cross-validation folds
-    n_repeats = 50             # How many times to repeat the CV loop
+    n_splits = 10
+    n_repeats = 20
     random_seed = 42
 
-    # --- Load and preprocess dataset ---
+    # --- Load and clean dataset ---
     df = pd.read_csv(csv_path, skiprows=1)
-    df = df.iloc[1:]
-    df.columns = [col.strip().lower() for col in df.columns]
+    df = df.iloc[1:]  # Skip redundant header row
+    df.columns = [col.strip().lower() for col in df.columns]  # Normalize column names
 
-    # Prepare feature matrix and labels
-    df_selected = df.loc[:, 'code vin':'acid']
+    # --- Prepare features ---
+    df_selected = df.loc[:, 'code vin':'ageing']
     df_selected['taster'] = df['taster']
     df_selected.iloc[:, 1:-1] = df_selected.iloc[:, 1:-1].apply(pd.to_numeric, errors='coerce')
-    df_grouped = df_selected.groupby(['code vin', 'taster']).mean().dropna()
+    df_selected = df_selected.dropna(axis=1, how='all')
+    df_grouped = df_selected.groupby(['code vin', 'taster']).mean().dropna().reset_index()
 
-    labels_df = df[['code vin', label_column, 'taster']].dropna()
-    labels_df = labels_df.drop_duplicates(subset=['code vin', 'taster'])
-    labels_df.columns = ['code vin', 'label', 'taster']
-    df_grouped = df_grouped.reset_index().merge(labels_df, on=['code vin', 'taster'])
-    wine_labels = df_grouped['label'].values
-    df_grouped = df_grouped.drop(columns=['code vin', 'taster', 'label'])
+    # --- Storage for results ---
+    conf_matrices = []
+    label_encoders = []
+    class_counts_per_label = []
 
-    X = StandardScaler().fit_transform(df_grouped)
-    le = LabelEncoder()
-    y = le.fit_transform(wine_labels)
+    # --- Loop through classification targets ---
+    for label_column in label_columns:
+        print(f"\nRunning Ridge Classifier for label: {label_column}\n")
 
-    # --- CV Loop: accuracy + confusion matrix ---
-    all_accuracies = []
-    all_true = []
-    all_pred = []
+        labels_df = df[['code vin', label_column, 'taster']].dropna()
+        labels_df = labels_df.drop_duplicates(subset=['code vin', 'taster'])
+        labels_df.columns = ['code vin', 'label', 'taster']
 
-    # # --- Print LaTeX tables for sample counts ---
-    #
-    # # Clean metadata (load again just for counting purposes)
-    # metadata = pd.read_csv(csv_path, skiprows=1)
-    # metadata = metadata.iloc[1:]
-    # metadata.columns = [col.strip().lower() for col in metadata.columns]
-    #
-    # # List of properties (columns) to process
-    # properties = ['taster', 'variety', 'cave', 'prod area', 'age']
-    #
-    # # Make a cleaned dataframe for counting
-    # counting_df = df[['code vin', 'taster', 'variety', 'cave', 'prod area', 'age']].dropna()
-    # counting_df = counting_df.drop_duplicates(subset=['code vin', 'taster'])
-    #
-    # properties = ['taster', 'variety', 'cave', 'prod area', 'age']
-    #
-    # # After collapsing replicates:
-    # counting_df = df[['code vin', 'taster', 'variety', 'cave', 'prod area', 'age']].dropna()
-    # counting_df = counting_df.drop_duplicates(subset=['code vin', 'taster'])
-    #
-    # for prop in properties:
-    #     counts = counting_df[prop].value_counts().sort_index()
-    #
-    #     print(f"\n% --- LaTeX table for {prop} ---\n")
-    #     print("\\begin{table}[H]")
-    #     print("    \\centering")
-    #     print("    \\setlength{\\tabcolsep}{8pt}")
-    #     print("    \\renewcommand{\\arraystretch}{1.2}")
-    #     print("    \\begin{tabular}{" + "c " * len(counts) + "}")
-    #     print("        \\toprule")
-    #
-    #     # Header: categories (bold)
-    #     header_row = " & ".join(f"\\textbf{{{str(label)}}}" for label in counts.index)
-    #     print(f"        {header_row} \\\\")
-    #
-    #     print("        \\midrule")
-    #
-    #     # Row: corresponding counts
-    #     count_row = " & ".join(str(count) for count in counts.values)
-    #     print(f"        {count_row} \\\\")
-    #
-    #     print("        \\bottomrule")
-    #     print("    \\end{tabular}")
-    #     print(f"    \\caption{{Number of samples per {prop} (after collapsing duplicates)}}")
-    #     print(f"    \\label{{tab:{prop.replace(' ', '_')}_counts}}")
-    #     print("\\end{table}\n")
+        merged_df = df_grouped.merge(labels_df, on=['code vin', 'taster'])
+        def balance_classes(df, label_col, max_samples_per_class=10, random_state=42):
+            return (
+                df.groupby(label_col, group_keys=False)
+                .apply(lambda x: x.sample(n=min(len(x), max_samples_per_class), random_state=random_state))
+                .reset_index(drop=True)
+            )
+        # merged_df = balance_classes(merged_df, label_col='label', max_samples_per_class=10)
+        wine_labels = merged_df['label'].values
+        feature_matrix = merged_df.drop(columns=['code vin', 'taster', 'label']).to_numpy()
 
-    print(f"Running Ridge Classifier with {n_splits}-fold CV repeated {n_repeats} times...\n")
+        le = LabelEncoder()
+        y = le.fit_transform(wine_labels)
+        sample_counts = np.bincount(y)
+        class_counts = dict(zip(le.classes_, sample_counts))
+        class_counts_per_label.append(class_counts)
 
-    for repeat in tqdm(range(n_repeats)):
-        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_seed + repeat)
-        repeat_accuracies = []
+        # Print sample counts per class
+        print("Samples per class:")
+        for cls, count in class_counts.items():
+            print(f"  {cls}: {count}")
 
-        for train_idx, test_idx in skf.split(X, y):
-            X_train, X_test = X[train_idx], X[test_idx]
-            y_train, y_test = y[train_idx], y[test_idx]
 
-            scaler = StandardScaler()
-            X_train_scaled = scaler.fit_transform(X_train)
-            X_test_scaled = scaler.transform(X_test)
+        all_true = []
+        all_pred = []
 
-            # clf = RidgeClassifier(class_weight='balanced')
-            clf = RidgeClassifier(class_weight='balanced')
-            clf.fit(X_train_scaled, y_train)
-            y_pred = clf.predict(X_test_scaled)
+        for repeat in tqdm(range(n_repeats)):
+            skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_seed + repeat)
 
-            acc = accuracy_score(y_test, y_pred)
-            repeat_accuracies.append(acc)
+            for train_idx, test_idx in skf.split(feature_matrix, y):
+                X_train, X_test = feature_matrix[train_idx], feature_matrix[test_idx]
+                y_train, y_test = y[train_idx], y[test_idx]
 
-            all_true.extend(y_test)
-            all_pred.extend(y_pred)
+                scaler = StandardScaler()
+                X_train_scaled = scaler.fit_transform(X_train)
+                X_test_scaled = scaler.transform(X_test)
 
-        all_accuracies.append(np.mean(repeat_accuracies))
+                # clf = RidgeClassifier(class_weight='balanced')
+                clf = RidgeClassifier(class_weight='balanced')
+                clf.fit(X_train_scaled, y_train)
+                y_pred = clf.predict(X_test_scaled)
 
-    # --- Accuracy Summary ---
-    mean_acc = np.mean(all_accuracies)
-    std_acc = np.std(all_accuracies)
-    print(f"\nFinal averaged accuracy over {n_repeats} runs: {mean_acc:.3f} ± {std_acc:.3f}")
+                all_true.extend(y_test)
+                all_pred.extend(y_pred)
+            pred_counts = np.bincount(all_pred, minlength=len(le.classes_))
+            true_counts = np.bincount(all_true, minlength=len(le.classes_))
+            # print("Predicted counts:")
+            # for cls, count in zip(le.classes_, pred_counts):
+            #     print(f"  {cls}: {count}")
+            # print("True counts:")
+            # for cls, count in zip(le.classes_, true_counts):
+            #     print(f"  {cls}: {count}")
 
-    white_to_blue = mcolors.LinearSegmentedColormap.from_list("white_to_blue", ["white", "blue"])
+        cm = confusion_matrix(all_true, all_pred, labels=np.arange(len(le.classes_)), normalize='true')
+        conf_matrices.append(cm)
+        label_encoders.append(le)
 
-    # --- Confusion Matrix (normalized per true class) ---
-    cm = confusion_matrix(all_true, all_pred, normalize='true')
+    # --- Plot all confusion matrices ---
+    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+    axes = axes.flatten()
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
-    disp.plot(cmap=white_to_blue, ax=ax, xticks_rotation=45, colorbar=True, values_format=".2f" )
-    plt.title(f"Normalized Confusion Matrix – {label_column}")
+    for i, (cm, le, title) in enumerate(zip(conf_matrices, label_encoders, label_columns)):
+        print(f"\nLabel column: {title}")
+        print("Label order (classes_):", list(le.classes_))
+        print("Class counts:", class_counts_per_label[i])
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
+        disp.plot(ax=axes[i], cmap="Blues", values_format=".2f", xticks_rotation=45, colorbar=False)
+        axes[i].set_title(f"Confusion Matrix – {title}")
+
     plt.tight_layout()
     plt.show()

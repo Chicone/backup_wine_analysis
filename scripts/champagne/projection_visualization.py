@@ -1,9 +1,8 @@
 """
-Champagne Classification
-=========================
-
+Projection Visualization
+========================
 In this section, we focus on the classification of Champagne wine samples using the script **train_test_champagne.py**.
-The dataset includes sensory profiles from 12 tasters across 50 wines of the same vintage, with each wine rated along
+The dataset includes sensory profiles from 10 tasters across 50 wines of the same vintage, with each wine rated along
 187 sensory dimensions: fruity, citrus, mature, candied, toasted, nuts, spicy, petrol, undergrowth, bakery, honey,
 dairy, herbal, tobacco, texture, acid, and aging.
 
@@ -12,7 +11,7 @@ There is no 3D GC-MS data for this dataset, meaning we have to deal directly wit
 Sensory Data Visualization
 --------------------------
 
-The script **champagne_projection.py** provides a flexible tool to visualize sensory data for Champagne wine samples.
+The script **projection_visualization.py** provides a flexible tool to visualize sensory data for Champagne wine samples.
 It enables exploratory analysis of sensory descriptors using unsupervised methods to uncover latent patterns related to
 ageing, variety, production site, or taster.
 
@@ -76,7 +75,7 @@ To run the script:
 
 .. code-block:: bash
 
-   python scripts/champagne/champagne_projection.py
+   python scripts/champagne/projection_visualization.py
 
 Before running, modify the top of the script to select the appropriate label column:
 

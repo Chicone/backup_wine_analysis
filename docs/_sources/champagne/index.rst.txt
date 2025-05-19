@@ -5,7 +5,7 @@ Champagne
    :maxdepth: 1
 
    overview
-   champagne_projection
+   projection_visualization
    train_test_labels
    ridge_global
    ridge_per_taster

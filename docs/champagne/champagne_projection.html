@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Champain Projection &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <title>Data Projection &#8212; Wine Analysis Library 0.1.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=4f649999" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=cb25574f" />
     <script src="../_static/documentation_options.js?v=01f34227"></script>
@@ -13,8 +13,8 @@
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Ridge Global Script" href="ridge_global.html" />
-    <link rel="prev" title="Champagne Overview" href="overview.html" />
+    <link rel="next" title="Train Test Labels Script" href="train_test_labels.html" />
+    <link rel="prev" title="Overview" href="overview.html" />
    
   <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
   
@@ -32,16 +32,14 @@
           <div class="body" role="main">
             
   <section id="module-scripts.champagne.champagne_projection">
-<span id="champain-projection"></span><h1>Champain Projection<a class="headerlink" href="#module-scripts.champagne.champagne_projection" title="Link to this heading">¶</a></h1>
-<section id="champagne-classification">
-<h2>Champagne Classification<a class="headerlink" href="#champagne-classification" title="Link to this heading">¶</a></h2>
+<span id="data-projection"></span><h1>Data Projection<a class="headerlink" href="#module-scripts.champagne.champagne_projection" title="Link to this heading">¶</a></h1>
 <p>In this section, we focus on the classification of Champagne wine samples using the script <strong>train_test_champagne.py</strong>.
-The dataset includes sensory profiles from 12 tasters across 50 wines of the same vintage, with each wine rated along
+The dataset includes sensory profiles from 10 tasters across 50 wines of the same vintage, with each wine rated along
 187 sensory dimensions: fruity, citrus, mature, candied, toasted, nuts, spicy, petrol, undergrowth, bakery, honey,
 dairy, herbal, tobacco, texture, acid, and aging.</p>
 <p>There is no 3D GC-MS data for this dataset, meaning we have to deal directly with TICs as individual m/z channels are not available.</p>
 <section id="sensory-data-visualization">
-<h3>Sensory Data Visualization<a class="headerlink" href="#sensory-data-visualization" title="Link to this heading">¶</a></h3>
+<h2>Sensory Data Visualization<a class="headerlink" href="#sensory-data-visualization" title="Link to this heading">¶</a></h2>
 <p>The script <strong>champagne_projection.py</strong> provides a flexible tool to visualize sensory data for Champagne wine samples.
 It enables exploratory analysis of sensory descriptors using unsupervised methods to uncover latent patterns related to
 ageing, variety, production site, or taster.</p>
@@ -109,7 +107,7 @@ analysis is performed directly on the available <strong>Total Ion Current (TIC)<
 <li><p>Exploring whether known labels correspond to natural clustering in the data</p></li>
 </ul>
 <section id="usage">
-<h4>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h4>
+<h3>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h3>
 <p>To run the script:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/champagne/champagne_projection.py
 </pre></div>
@@ -120,11 +118,10 @@ analysis is performed directly on the available <strong>Total Ion Current (TIC)<
 </div>
 </section>
 <section id="output">
-<h4>Output<a class="headerlink" href="#output" title="Link to this heading">¶</a></h4>
+<h3>Output<a class="headerlink" href="#output" title="Link to this heading">¶</a></h3>
 <p>The script generates plots showing how wines are distributed in reduced feature space, helping to visually assess
 whether sensory profiles group according to the chosen label (e.g., ageing style). It also enables exploratory use
 of clustering to identify potential new categories or sensory trends.</p>
-</section>
 </section>
 </section>
 </section>
@@ -148,10 +145,12 @@ of clustering to identify potential new categories or sensory trends.</p>
 <h3>Navigation</h3>
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../README.html">Wine Analysis Library Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../README.html">General Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../pinot_noir/index.html">Pinot Noir</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../press_wines/index.html">Press Wines</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Champagne</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../bordeaux/index.html">Bordeaux</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../utilities/index.html">Utilities</a></li>
 </ul>
 
 <div class="relations">
@@ -159,8 +158,8 @@ of clustering to identify potential new categories or sensory trends.</p>
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>
   <li><a href="index.html">Champagne</a><ul>
-      <li>Previous: <a href="overview.html" title="previous chapter">Champagne Overview</a></li>
-      <li>Next: <a href="ridge_global.html" title="next chapter">Ridge Global Script</a></li>
+      <li>Previous: <a href="overview.html" title="previous chapter">Overview</a></li>
+      <li>Next: <a href="train_test_labels.html" title="next chapter">Train Test Labels Script</a></li>
   </ul></li>
   </ul></li>
 </ul>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Projection Visualization &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=4f649999" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=cb25574f" />
+    <script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Classification based on labels" href="train_test_labels.html" />
+    <link rel="prev" title="Overview" href="overview.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-scripts.champagne.projection_visualization">
+<span id="projection-visualization"></span><h1>Projection Visualization<a class="headerlink" href="#module-scripts.champagne.projection_visualization" title="Link to this heading">¶</a></h1>
+<section id="id1">
+<h2>Projection Visualization<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h2>
+<p>In this section, we focus on the classification of Champagne wine samples using the script <strong>train_test_champagne.py</strong>.
+The dataset includes sensory profiles from 10 tasters across 50 wines of the same vintage, with each wine rated along
+187 sensory dimensions: fruity, citrus, mature, candied, toasted, nuts, spicy, petrol, undergrowth, bakery, honey,
+dairy, herbal, tobacco, texture, acid, and aging.</p>
+<p>There is no 3D GC-MS data for this dataset, meaning we have to deal directly with TICs as individual m/z channels are not available.</p>
+<section id="sensory-data-visualization">
+<h3>Sensory Data Visualization<a class="headerlink" href="#sensory-data-visualization" title="Link to this heading">¶</a></h3>
+<p>The script <strong>projection_visualization.py</strong> provides a flexible tool to visualize sensory data for Champagne wine samples.
+It enables exploratory analysis of sensory descriptors using unsupervised methods to uncover latent patterns related to
+ageing, variety, production site, or taster.</p>
+<p>This script operates on a dataset of 50 wines, each evaluated across 187 sensory dimensions by 12 different tasters.
+Unlike other datasets in the project, this one does <strong>not include full 3D GC-MS chromatograms</strong>. Therefore, the
+analysis is performed directly on the available <strong>Total Ion Current (TIC)</strong> data aggregated at the sensory level.</p>
+<p>The main steps of the script are as follows:</p>
+<ol class="arabic simple">
+<li><p><strong>Data Loading and Cleaning</strong>:</p>
+<ul class="simple">
+<li><p>Loads a CSV file containing sensory ratings for Champagne wines.</p></li>
+<li><p>Cleans column headers, removes duplicated rows, and ensures numerical consistency.</p></li>
+<li><p>Averages replicate measurements for each wine and taster.</p></li>
+</ul>
+</li>
+<li><p><strong>Label Handling</strong>:</p>
+<ul class="simple">
+<li><p>Allows the user to select a column (e.g., <cite>age</cite>, <cite>variety</cite>, <cite>cave</cite>, <cite>taster</cite>) to use as the target label for coloring or annotating the plots.</p></li>
+<li><p>Handles missing labels and ensures one label per wine-taster pair.</p></li>
+</ul>
+</li>
+<li><p><strong>Standardization and Dimensionality Reduction</strong>:</p>
+<ul class="simple">
+<li><p>Standardizes all sensory features using <cite>StandardScaler</cite>.</p></li>
+<li><p>Applies three different dimensionality reduction techniques:</p>
+<ul>
+<li><p><strong>PCA</strong> (Principal Component Analysis)</p></li>
+<li><p><strong>t-SNE</strong> (t-Distributed Stochastic Neighbor Embedding)</p></li>
+<li><p><strong>UMAP</strong> (Uniform Manifold Approximation and Projection)</p></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p><strong>Clustering (Optional)</strong>:</p>
+<ul class="simple">
+<li><p>Optionally applies <strong>KMeans clustering</strong> to the PCA-reduced data.</p></li>
+<li><p>Evaluates silhouette scores to automatically determine the optimal number of clusters (k).</p></li>
+</ul>
+</li>
+<li><p><strong>Plotting and Visualization</strong>:</p>
+<ul class="simple">
+<li><p>Generates 2D or 3D scatter plots based on the chosen dimensionality reduction method.</p></li>
+<li><p>Colors points either by cluster membership (if clustering is enabled) or by known labels (e.g., ageing).</p></li>
+<li><p>Optionally displays sample labels on the plot for better interpretability.</p></li>
+</ul>
+</li>
+<li><p><strong>Interactivity</strong>:</p>
+<ul class="simple">
+<li><p>Modifiable parameters at the top of the script allow for easy reconfiguration:</p>
+<ul>
+<li><p><cite>label_column</cite>: determines what label to use for coloring</p></li>
+<li><p><cite>plot_3d</cite>: toggles 3D vs 2D visualization</p></li>
+<li><p><cite>do_kmeans</cite>: enables/disables clustering</p></li>
+<li><p><cite>show_point_labels</cite>: controls whether labels are shown on points</p></li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<p>This visualization script is particularly useful for:</p>
+<ul class="simple">
+<li><p>Identifying latent structure in sensory data</p></li>
+<li><p>Evaluating whether tasters are consistent</p></li>
+<li><p>Comparing sensory signatures across caves, ageing conditions, or grape varieties</p></li>
+<li><p>Exploring whether known labels correspond to natural clustering in the data</p></li>
+</ul>
+<section id="usage">
+<h4>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h4>
+<p>To run the script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/champagne/projection_visualization.py
+</pre></div>
+</div>
+<p>Before running, modify the top of the script to select the appropriate label column:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">label_column</span> <span class="o">=</span> <span class="s1">&#39;ageing&#39;</span>  <span class="c1"># or &#39;variety&#39;, &#39;cave&#39;, &#39;taster&#39;, etc.</span>
+</pre></div>
+</div>
+</section>
+<section id="output">
+<h4>Output<a class="headerlink" href="#output" title="Link to this heading">¶</a></h4>
+<p>The script generates plots showing how wines are distributed in reduced feature space, helping to visually assess
+whether sensory profiles group according to the chosen label (e.g., ageing style). It also enables exploratory use
+of clustering to identify potential new categories or sensory trends.</p>
+</section>
+</section>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Wine Analysis Library</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../README.html">General Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pinot_noir/index.html">Pinot Noir</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../press_wines/index.html">Press Wines</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Champagne</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../bordeaux/index.html">Bordeaux</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../utilities/index.html">Utilities</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Champagne</a><ul>
+      <li>Previous: <a href="overview.html" title="previous chapter">Overview</a></li>
+      <li>Next: <a href="train_test_labels.html" title="next chapter">Classification based on labels</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2025, Luis Gomez Camara.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/champagne/projection_visualization.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

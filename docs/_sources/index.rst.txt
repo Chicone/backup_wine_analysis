@@ -18,6 +18,8 @@ This documentation provides tools to analyze GC-MS data for different types of w
    pinot_noir/index
    press_wines/index
    champagne/index
+   bordeaux/index
+   utilities/index
 
 Indices and tables
 ==================
