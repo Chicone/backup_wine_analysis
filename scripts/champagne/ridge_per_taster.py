@@ -492,7 +492,7 @@ if __name__ == "__main__":
         maxima_rank=5,                           # Top-3 peaks
         n_bins=800,                                # 50 bins across chromatogram
         smoothing_sigma=3,
-        rt_min=0, rt_max=800
+        rt_min=0, rt_max=150
     )
 
 

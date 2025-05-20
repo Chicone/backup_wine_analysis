@@ -74,6 +74,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import matplotlib.cm as cm
     import re
+    from sklearn.metrics import r2_score
 
     # --- Parameters ---
     N_DECIMATION = 10
@@ -187,6 +188,8 @@ if __name__ == "__main__":
             abs_error = np.abs(y_test[i] - y_pred[i])
             taster_mae_summary[t].append(abs_error)
 
+
+
     from collections import Counter
 
     wine_counts = Counter(last_sample_ids)
@@ -223,19 +226,19 @@ if __name__ == "__main__":
         plt.tight_layout(rect=[0, 0, 1, 0.92])
         plt.legend()
         plt.show()
-    if multi_taster_wines:
-        wine_code = multi_taster_wines[0]
-        print(f"\nShowing profiles for wine {wine_code} across tasters:")
-        plot_wine_across_tasters(
-            y_true=last_y_test,
-            y_pred=last_y_pred,
-            sample_ids=last_sample_ids,
-            taster_ids=last_taster_ids,
-            wine_code=wine_code,
-            sensory_cols=sensory_cols
-        )
-    else:
-        print("No wine in the test set was rated by multiple tasters.")
+    # if multi_taster_wines:
+    #     wine_code = multi_taster_wines[0]
+    #     print(f"\nShowing profiles for wine {wine_code} across tasters:")
+    #     plot_wine_across_tasters(
+    #         y_true=last_y_test,
+    #         y_pred=last_y_pred,
+    #         sample_ids=last_sample_ids,
+    #         taster_ids=last_taster_ids,
+    #         wine_code=wine_code,
+    #         sensory_cols=sensory_cols
+    #     )
+    # else:
+    #     print("No wine in the test set was rated by multiple tasters.")
 
     mean_mae = np.mean(all_mae, axis=0)
     mean_rmse = np.mean(all_rmse, axis=0)
@@ -266,6 +269,32 @@ if __name__ == "__main__":
         avg_mae_per_attr = np.mean(all_errors, axis=0)
         overall_avg = np.mean(avg_mae_per_attr)
         print(f"Taster {taster}: MAE = {overall_avg:.2f}")
+
+
+    # R^2 estimation
+    taster_r2_summary = defaultdict(list)
+    for i in range(len(last_y_test)):
+        taster = last_taster_ids[i]
+        y_true_i = last_y_test[i]
+        y_pred_i = last_y_pred[i]
+        try:
+            r2 = r2_score(y_true_i, y_pred_i)
+        except ValueError:
+            r2 = float('nan')  # in case y_true_i is constant
+        taster_r2_summary[taster].append(r2)
+
+    print("\nPer-taster average R² (across all attributes):")
+    all_r2_values = []
+    for taster in sorted(taster_r2_summary.keys(), key=natural_key):
+        r2_list = np.array(taster_r2_summary[taster])
+        r2_list = r2_list[~np.isnan(r2_list)]  # drop NaNs
+        avg_r2 = np.mean(r2_list) if len(r2_list) > 0 else float('nan')
+        print(f"Taster {taster}: R² = {avg_r2:.2f}")
+        all_r2_values.extend(r2_list)
+
+    # Overall average R²
+    overall_avg_r2 = np.mean(all_r2_values) if len(all_r2_values) > 0 else float('nan')
+    print(f"\nOverall average R² across all tasters: {overall_avg_r2:.3f}")
 
     def plot_single_wine(y_true, y_pred, sample_ids, wine_code):
         import matplotlib.pyplot as plt
@@ -298,6 +327,8 @@ if __name__ == "__main__":
     def plot_profiles_grouped_by_taster(y_true, y_pred, sample_ids, taster_ids, n_cols=10):
         import matplotlib.pyplot as plt
         import numpy as np
+        from sklearn.metrics import r2_score
+
 
         # unique_tasters = sorted(set(taster_ids))
         all_indices = [np.where(taster_ids == t)[0] for t in unique_tasters]
@@ -316,8 +347,15 @@ if __name__ == "__main__":
                 ax = axes[row_idx, i]
                 ax.plot(y_true[idx], color='black', linewidth=1.5)
                 ax.plot(y_pred[idx], color='red', linewidth=1)
-                mae_i = np.mean(np.abs(y_true[idx] - y_pred[idx]))
-                ax.set_title(f"{sample_ids[idx]}\n{mae_i:.2f}", fontsize=7)
+                true_profile = y_true[idx]
+                pred_profile = y_pred[idx]
+                mae_i = np.mean(np.abs(true_profile - pred_profile))
+                try:
+                    r2_i = r2_score(true_profile, pred_profile)
+                except ValueError:
+                    r2_i = float('nan')  # in case y_true is constant
+                ax.set_title(f"{sample_ids[idx]}; MAE: {mae_i:.2f}; R²: {r2_i:.2f}", fontsize=8, pad=2)
+                # ax.set_title(f"{sample_ids[idx]}\n{mae_i:.2f}", fontsize=7)
                 ax.set_xticks([])
                 ax.set_yticks([])
             for j in range(len(indices), n_cols):
@@ -341,23 +379,23 @@ if __name__ == "__main__":
     plt.show()
 
 
-    n_chem = X_raw.shape[1]
-    tasters = list(encoder.categories_[0])
-    n_tasters = len(tasters)
-    taster_weights = mean_coef[:, n_chem:]  # shape: (n_outputs, n_tasters)
-
-    # Transpose for plotting (tasters as rows, attributes as columns)
-    taster_weights_T = taster_weights.T  # shape: (n_tasters, n_outputs)
-
-    plt.figure(figsize=(12, 6))
-    im = plt.imshow(taster_weights_T, cmap="bwr", aspect="auto", interpolation="nearest")
-    plt.colorbar(im, label="Bias weight")
-    plt.xticks(ticks=np.arange(len(sensory_cols)), labels=sensory_cols, rotation=90)
-    plt.yticks(ticks=np.arange(len(tasters)), labels=tasters)
-    plt.title("Taster-specific bias weights per sensory attribute")
-    plt.xlabel("Sensory Attribute")
-    plt.ylabel("Taster")
-    plt.tight_layout()
-    plt.show()
+    # n_chem = X_raw.shape[1]
+    # tasters = list(encoder.categories_[0])
+    # n_tasters = len(tasters)
+    # taster_weights = mean_coef[:, n_chem:]  # shape: (n_outputs, n_tasters)
+    #
+    # # Transpose for plotting (tasters as rows, attributes as columns)
+    # taster_weights_T = taster_weights.T  # shape: (n_tasters, n_outputs)
+    #
+    # plt.figure(figsize=(12, 6))
+    # im = plt.imshow(taster_weights_T, cmap="bwr", aspect="auto", interpolation="nearest")
+    # plt.colorbar(im, label="Bias weight")
+    # plt.xticks(ticks=np.arange(len(sensory_cols)), labels=sensory_cols, rotation=90)
+    # plt.yticks(ticks=np.arange(len(tasters)), labels=tasters)
+    # plt.title("Taster-specific bias weights per sensory attribute")
+    # plt.xlabel("Sensory Attribute")
+    # plt.ylabel("Taster")
+    # plt.tight_layout()
+    # plt.show()
 
 

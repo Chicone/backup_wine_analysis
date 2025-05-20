@@ -509,7 +509,6 @@ class Classifier:
 
             return train_indices, test_indices
 
-
         def shuffle_split_without_splitting_duplicates(X, y, test_size=0.2, random_state=None, group_duplicates=True):
             """
                 Perform ShuffleSplit on samples while ensuring that:
@@ -573,7 +572,6 @@ class Classifier:
                 train_indices = indices[num_test_samples:]
 
             return np.array(train_indices), np.array(test_indices)
-
 
         def extract_category_labels(composite_labels):
             """
