@@ -127,6 +127,8 @@ if __name__ == "__main__":
     # headers = ['Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot', 'Les Petits Monts',
     #             'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach', 'Brunner', 'Vin des Croisés',
     #             'Villard et Fils', 'République', 'Maladaires', 'Marimar', 'Drouhin']
+    # headers = ["Beaune", "Alsace", "Neuchatel", "Genève", "Valais", "Californie", "Oregon"]
+    # headers = ["France", "Switzerland", "US"]
     # string_to_latex_confusion_matrix_modified(data_str, headers)
 
     # Load dataset paths from config.yaml
@@ -176,6 +178,14 @@ if __name__ == "__main__":
 
     # Extract data matrix (samples × channels) and associated labels
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
+
+    # Extract only Burgundy if region is "burgundy"
+    if wine_kind == "pinot_noir" and region == "burgundy":
+        burgundy_prefixes = ('D', 'P', 'R', 'Q', 'Z', 'E')
+        mask = np.array([label.startswith(burgundy_prefixes) for label in labels])
+        data = data[mask]
+        labels = labels[mask]
+
     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None, None)
 
     # Instantiate classifier with data and labels
@@ -196,6 +206,7 @@ if __name__ == "__main__":
         n_jobs=20,
         feature_type=feature_type,
         classifier_type=classifier,
-        LOOPC=True  # whether to use stratified splitting (False) or Leave One Out Per Class (True)
+        LOOPC=True , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
+        return_umap_data=False
     )
 

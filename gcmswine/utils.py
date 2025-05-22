@@ -1940,11 +1940,13 @@ def get_custom_order_for_pinot_noir_region(region):
     if region == 'winery':
         return ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
     elif region == 'origin':
-        return ['Beaune', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+        return ['Burgundy', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
     elif region == 'country':
         return ['France', 'Switzerland', 'US']
     elif region == 'continent':
         return ['Europe', 'America']
+    elif region == 'burgundy':
+        return ['NB', 'SB']
     else:
         return None
 

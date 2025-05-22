@@ -2310,8 +2310,8 @@ def process_labels_by_wine_kind(labels, wine_kind, region, vintage, class_by_yea
             processed_labels = assign_winery_to_pinot_noir(labels)
         elif region == 'year':
             processed_labels = assign_year_to_pinot_noir(labels)
-        elif region == 'beaume':
-            processed_labels = assign_north_south_to_beaune(labels)
+        elif region == 'burgundy':
+            processed_labels = assign_north_south_to_burgundy(labels)
         else:
             raise ValueError("Invalid region. Options are 'winery', 'origin', 'country' or 'continent'")
         return processed_labels, None
