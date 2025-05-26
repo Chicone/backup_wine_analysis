@@ -120,6 +120,7 @@ if __name__ == "__main__":
     from gcmswine.classification import Classifier
     from gcmswine import utils
     from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
+    from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind, WineKindStrategy
     from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
 
     # # Use this function to convert the printed confusion matrix to a latex confusion matrix
@@ -146,13 +147,10 @@ if __name__ == "__main__":
 
     # Check if all selected dataset contains "bordeaux"
     if not all("bordeaux" in path.lower() for path in selected_paths):
-        raise ValueError(
-            "Please select a script for Bordeaux. The datasets selected in the config.yaml file do not seem to be compatible with this script. "
-        )
+        raise ValueError("Please use this script for Bordeaux datasets.")
 
     # Infer wine_kind from selected dataset paths
     wine_kind = utils.infer_wine_kind(selected_datasets, config["datasets"])
-
     feature_type = config["feature_type"]
     classifier = config["classifier"]
     num_splits = config["num_splits"]
@@ -161,29 +159,38 @@ if __name__ == "__main__":
     sync_state = config["sync_state"]
     region = config["region"]
     # wine_kind = config["wine_kind"]
-
-    # Create ChromatogramAnalysis instance for optional alignment
-    cl = ChromatogramAnalysis(ndec=n_decimation)
+    class_by_year = config['class_by_year']
 
     # Load dataset, removing zero-variance channels
+    cl = ChromatogramAnalysis(ndec=n_decimation)
     selected_paths = {name: dataset_directories[name] for name in selected_datasets}
     data_dict, dataset_origins = utils.join_datasets(selected_datasets, dataset_directories, n_decimation)
     data_dict, _ = utils.remove_zero_variance_channels(data_dict)
     chrom_length = len(list(data_dict.values())[0])
 
     gcms = GCMSDataProcessor(data_dict)
-
     if sync_state:
         tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=30000)
 
     # Extract data matrix (samples × channels) and associated labels
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
+    labels_raw=labels
+    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, None)
 
-    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None, None)
+    # Strategy setup
+    strategy = get_strategy_by_wine_kind(wine_kind, class_by_year=class_by_year)
 
     # Instantiate classifier with data and labels
-    cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
-                     year_labels=np.array(year_labels))
+    cls = Classifier(
+        np.array(list(data)),
+        np.array(list(labels)),
+        classifier_type=classifier,
+        wine_kind=wine_kind,
+        year_labels=np.array(year_labels),
+        strategy=strategy,
+        class_by_year=class_by_year,
+        labels_raw=labels_raw
+    )
 
     # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
     cls.train_and_evaluate_all_channels(

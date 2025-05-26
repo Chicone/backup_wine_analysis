@@ -24,6 +24,6 @@ num_splits: 200
 normalize: true
 n_decimation: 10
 sync_state: false
-region: burgundy # options only for Pinot Noir: winery, origin, country, continent
+region: winery # options only for Pinot Noir: winery, origin, country, continent
 # wine_kind: champagne # pinot_noir, press, champagne
-class_by_year: false # option only for press wines
+class_by_year: true # option only for press wines and bordeaux

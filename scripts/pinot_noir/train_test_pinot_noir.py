@@ -120,6 +120,7 @@ if __name__ == "__main__":
     from gcmswine.classification import Classifier
     from gcmswine import utils
     from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
+    from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind
     from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
 
     # # Use this function to convert the printed confusion matrix to a latex confusion matrix
@@ -146,12 +147,11 @@ if __name__ == "__main__":
 
     # Check if all selected dataset contains "pinot"
     if not all("pinot_noir" in path.lower() for path in selected_paths):
-        raise ValueError(
-            "Please select a script for Pinot Noir. The datasets selected in the config.yaml file do not seem to be compatible with this script. "
-        )
+        raise ValueError("Please use this script for Pinot Noir datasets.")
 
     # Infer wine_kind from selected dataset paths
     wine_kind = utils.infer_wine_kind(selected_datasets, config["datasets"])
+    strategy = get_strategy_by_wine_kind(wine_kind)
 
     feature_type = config["feature_type"]
     classifier = config["classifier"]
@@ -189,8 +189,14 @@ if __name__ == "__main__":
     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None, None)
 
     # Instantiate classifier with data and labels
-    cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
-                     year_labels=np.array(year_labels))
+    cls = Classifier(
+        np.array(list(data)),
+        np.array(list(labels)),
+        classifier_type=classifier,
+        wine_kind=wine_kind,
+        year_labels=np.array(year_labels),
+        strategy=strategy
+    )
 
     # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
     cls.train_and_evaluate_all_channels(

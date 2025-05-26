@@ -41,6 +41,9 @@ from skopt import gp_minimize
 from skopt.space import Real, Integer, Categorical
 from skopt.utils import use_named_args
 
+from gcmswine.wine_kind_strategy import WineKindStrategy
+
+
 from joblib import Parallel, delayed
 import random
 import matplotlib.pyplot as plt
@@ -158,13 +161,18 @@ class Classifier:
         - 'GNB': Gaussian Naive Bayes
         - 'GBC': Gradient Boosting Classifier
     """
-    def __init__(self, data, labels, classifier_type='LDA', wine_kind='bordeaux', window_size=5000, stride=2500,
-                 alpha=1, year_labels= None, dataset_origins=None):
+    def __init__(self, data, labels, classifier_type='LDA', strategy: WineKindStrategy = None,
+                 wine_kind='bordeaux', class_by_year=False, window_size=5000, stride=2500,
+                 alpha=1, year_labels= None, dataset_origins=None, **kwargs
+                 ):
         self.data = data
         self.labels = labels
+        self.labels_raw = kwargs.get("labels_raw", labels)
+        self.strategy = strategy if strategy else WineKindStrategy()
         self.window_size = window_size
         self.stride = stride
         self.wine_kind = wine_kind
+        self.class_by_year = class_by_year
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.alpha=alpha
         self.classifier = self._get_classifier(classifier_type)
@@ -347,8 +355,66 @@ class Classifier:
 
         return summary
 
+    def train_and_evaluate_balanced(self, normalize=False, scaler_type='standard', region=None, random_seed=42,
+                                    test_size=0.2, LOOPC=True
+                                    ):
+        # Step 1: label preprocessing
+        labels_used = self.strategy.extract_labels(self.labels)
+        use_composites = self.strategy.use_composite_labels(self.labels)
 
-    def train_and_evaluate_balanced(self, n_inner_repeats=50, random_seed=42,
+        custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
+
+        # Step 2: split
+        if LOOPC:
+            # Use composite-aware grouping for duplicate-safe splitting
+            composite_labels = assign_bordeaux_label(self.labels_raw, vintage=False)
+            train_idx, test_idx = leave_one_sample_per_class_split(
+                X=self.data,
+                y=composite_labels,
+                random_state=random_seed,
+                is_composite_labels=use_composites
+            )
+        else:
+            train_idx, test_idx = self.shuffle_split_without_splitting_duplicates(
+                X=self.data,
+                y=self.labels,
+                test_size=test_size,
+                random_state=random_seed,
+                group_duplicates=True,
+                dataset_origins=self.dataset_origins)
+
+        # Step 3: data preparation
+        X_train, X_test = self.data[train_idx], self.data[test_idx]
+        X_train_proc, X_test_proc, _, _ = self.preprocess_data(
+            X_train, X_test, normalize, scaler_type, use_pca=None, vthresh=None
+        )
+
+        if self.class_by_year:
+            y_train = self.year_labels[train_idx]
+            y_test = self.year_labels[test_idx]
+        else:
+            processed_labels = np.array(self.strategy.extract_labels(self.labels))
+            y_train = processed_labels[train_idx]
+            y_test = processed_labels[test_idx]
+
+        # Step 4: model training
+        self.classifier.fit(X_train_proc, y_train)
+        y_pred = self.classifier.predict(X_test_proc)
+
+        # Step 5: evaluation
+        result = {
+            "accuracy": accuracy_score(y_test, y_pred),
+            "balanced_accuracy": balanced_accuracy_score(y_test, y_pred),
+            "precision": precision_score(y_test, y_pred, average='weighted', zero_division=0),
+            "recall": recall_score(y_test, y_pred, average='weighted', zero_division=0),
+            "f1": f1_score(y_test, y_pred, average='weighted', zero_division=0),
+            "confusion_matrix": confusion_matrix(y_test, y_pred, labels=custom_order)
+        }
+
+        return result
+
+
+    def train_and_evaluate_balanced_old(self, n_inner_repeats=50, random_seed=42,
                                     test_size=0.2, normalize=False, scaler_type='standard',
                                     use_pca=False, vthresh=0.97, region=None, print_results=True,
                                     n_jobs=-1, test_on_discarded=False, LOOPC=True, return_umap_data=False):
@@ -1439,8 +1505,147 @@ class Classifier:
             # Return per-origin averaged results
             return averaged_results
 
-
     def train_and_evaluate_all_channels(
+            self, num_repeats=10, random_seed=42, test_size=0.2, normalize=False,
+            scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
+            print_results=True, n_jobs=-1, feature_type="concatenated",
+            classifier_type="RGC", LOOPC=True, return_umap_data=False
+    ):
+        import re
+        from collections import Counter
+        from gcmswine import utils
+        import numpy as np
+        from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind
+
+        cls_data = self.data.copy()
+        labels = np.array(self.labels)
+        year_labels = np.array(self.year_labels) if hasattr(self, 'year_labels') else np.array([])
+        num_samples, num_timepoints, num_channels = cls_data.shape
+
+        balanced_accuracies = []
+        confusion_matrices = []
+        all_umap_scores = []
+        all_umap_labels = []
+
+        def compute_features(channels):
+            print(f"Computing features for channels: {channels}")
+            if feature_type == "concatenated":
+                return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+            elif feature_type == "tic":
+                return np.sum(cls_data[:, :, channels], axis=2)
+            elif feature_type == "tis":
+                return np.sum(cls_data[:, :, channels], axis=1)
+            elif feature_type == "tic_tis":
+                tic = np.sum(cls_data[:, :, channels], axis=2)
+                tis = np.sum(cls_data[:, :, channels], axis=1)
+                return np.hstack([tic, tis])
+            else:
+                raise ValueError("Invalid feature_type. Use 'concatenated', 'tic', 'tis', or 'tic_tis'.")
+
+        feature_matrix = compute_features(list(range(num_channels)))
+
+        for repeat_idx in range(num_repeats):
+            print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
+            try:
+                strategy = get_strategy_by_wine_kind(
+                    self.wine_kind, region,
+                    utils.get_custom_order_for_pinot_noir_region,
+                    class_by_year=self.class_by_year if hasattr(self, "class_by_year") else False
+                )
+
+                cls = Classifier(
+                    data=feature_matrix,
+                    labels=labels,
+                    classifier_type=classifier_type,
+                    year_labels=year_labels,
+                    dataset_origins=self.dataset_origins if hasattr(self, 'dataset_origins') else None,
+                    strategy=strategy,
+                    class_by_year=self.class_by_year,
+                    labels_raw=self.labels_raw
+                )
+
+                results = cls.train_and_evaluate_balanced(
+                    normalize=normalize,
+                    scaler_type=scaler_type,
+                    region=region,
+                    random_seed=random_seed + repeat_idx,
+                    test_size=test_size,
+                    LOOPC=LOOPC,
+                )
+
+                if return_umap_data:
+                    all_umap_scores.append(feature_matrix)
+                    all_umap_labels.append(labels)
+
+                if 'balanced_accuracy' in results and not np.isnan(results['balanced_accuracy']):
+                    balanced_accuracies.append(results['balanced_accuracy'])
+                else:
+                    print(f"⚠️ No valid accuracy returned in repeat {repeat_idx + 1}")
+
+                if 'confusion_matrix' in results:
+                    if confusion_matrices and results['confusion_matrix'].shape != confusion_matrices[0].shape:
+                        print("⚠️ Skipping confusion matrix with different shape.")
+                    else:
+                        confusion_matrices.append(results['confusion_matrix'])
+                else:
+                    print("⚠️ Skipping confusion matrix due to missing key.")
+
+            except Exception as e:
+                print(f"⚠️ Skipping repeat {repeat_idx + 1} due to error: {e}")
+
+        if return_umap_data and all_umap_scores:
+            all_umap_scores = np.vstack(all_umap_scores)
+            all_umap_labels = np.concatenate(all_umap_labels)
+        else:
+            all_umap_scores, all_umap_labels = None, None
+
+        mean_test_accuracy = np.mean(balanced_accuracies, axis=0)
+        std_test_accuracy = np.std(balanced_accuracies, axis=0)
+        mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
+
+        # custom_order = strategy.get_custom_order(labels, year_labels)
+
+        print("\n##################################")
+        print(f"Mean Balanced Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")
+
+        labels_used = self.strategy.extract_labels(labels)
+        custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
+        counts = Counter(labels_used)
+
+        print("\nLabel order:")
+        if custom_order is not None:
+            for label in custom_order:
+                print(f"{label} ({counts.get(label, 0)})")
+        else:
+            for label in sorted(counts.keys()):
+                print(f"{label} ({counts[label]})")
+
+        # print("\nLabel order:")
+        # if custom_order is not None:
+        #     if year_labels.size > 0 and np.any(year_labels != None):
+        #         year_count = Counter(year_labels)
+        #         for year in year_count:
+        #             print(f"{year} ({year_count.get(year, 0)})")
+        #     else:
+        #         counts = Counter(strategy.extract_labels(labels))
+        #         for label in custom_order:
+        #             print(f"{label} ({counts.get(label, 0)})")
+        # else:
+        #     counts = Counter(strategy.extract_labels(labels))
+        #     for label in sorted(counts.keys()):
+        #         print(f"{label} ({counts[label]})")
+
+        print("\nFinal Averaged Normalized Confusion Matrix:")
+        print(mean_confusion_matrix)
+        print("##################################")
+
+        if return_umap_data:
+            return mean_test_accuracy, std_test_accuracy, all_umap_scores, all_umap_labels
+        else:
+            return mean_test_accuracy, std_test_accuracy
+
+
+    def train_and_evaluate_all_channels_old(
             self, num_repeats=10, random_seed=42, test_size=0.2, normalize=False,
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None, print_results=True, n_jobs=-1,
             feature_type="concatenated", classifier_type="RGC", LOOPC=True, return_umap_data=False
@@ -1546,7 +1751,7 @@ class Classifier:
             try:
                 cls = Classifier(feature_matrix, labels, classifier_type=classifier_type, wine_kind=self.wine_kind,
                                  year_labels=self.year_labels)
-                results, scores, umap_labels = cls.train_and_evaluate_balanced(
+                results, scores, umap_labels = cls.train_and_evaluate_balanced_old(
                     random_seed=random_seed + repeat_idx,
                     test_size=test_size,
                     normalize=normalize,
@@ -2095,34 +2300,65 @@ def assign_composite_label_to_press_wine(labels):
 
     return composite_labels
 
-
-def assign_composite_label_to_bordeaux_wine(labels):
+def assign_bordeaux_label(labels, vintage=False):
     """
-    Assigns composite labels (e.g., 'A2022') by grouping duplicates like 'A2022B'
-    under the same base label.
+    Assigns labels for Bordeaux wines, optionally grouping by vintage or by composite label.
 
     Args:
-        labels (list of str): A list of wine sample labels.
+        labels (list of str): A list of wine sample labels (e.g., 'A2022', 'B2021B').
+        vintage (bool): If True, extract only the year (e.g., '2022').
+                        If False, extract composite label like 'A2022' but remove trailing 'B' duplicates.
 
     Returns:
-        list of str: A list of composite labels (e.g., 'A2022') with duplicates normalized.
-
-    Example:
-        labels = ['A2022', 'B2021B', 'C2023']
-        assign_composite_label_to_bordeaux_wine(labels)
-        >>> ['A2022', 'B2021', 'C2023']
+        np.ndarray: Processed labels as per selected mode.
     """
-    pattern = re.compile(r'([A-Z]\d{4})B?')  # capture just the base part, ignore B
+    processed_labels = []
 
-    composite_labels = []
     for label in labels:
-        match = pattern.search(label)
-        if match:
-            composite_labels.append(match.group(1))  # just 'A2022', no trailing 'B'
-        else:
-            composite_labels.append(None)
+        match = re.search(r'(\d{4})', label)
+        if not match:
+            processed_labels.append(None)
+            continue
 
-    return composite_labels
+        if vintage:
+            year = match.group(1)
+            processed_labels.append(year)
+        else:
+            # Extract leading letter and year, ignore trailing B
+            letter = label[match.start() - 1]
+            year = match.group(1)
+            processed_labels.append(f"{letter}{year}")
+
+    return np.array(processed_labels)
+
+
+# def assign_composite_label_to_bordeaux_wine(labels):
+#     """
+#     Assigns composite labels (e.g., 'A2022') by grouping duplicates like 'A2022B'
+#     under the same base label.
+#
+#     Args:
+#         labels (list of str): A list of wine sample labels.
+#
+#     Returns:
+#         list of str: A list of composite labels (e.g., 'A2022') with duplicates normalized.
+#
+#     Example:
+#         labels = ['A2022', 'B2021B', 'C2023']
+#         assign_composite_label_to_bordeaux_wine(labels)
+#         >>> ['A2022', 'B2021', 'C2023']
+#     """
+#     pattern = re.compile(r'([A-Z]\d{4})B?')  # capture just the base part, ignore B
+#
+#     composite_labels = []
+#     for label in labels:
+#         match = pattern.search(label)
+#         if match:
+#             composite_labels.append(match.group(1))  # just 'A2022', no trailing 'B'
+#         else:
+#             composite_labels.append(None)
+#
+#     return composite_labels
 
 
 def extract_year_from_samples(sample_names):

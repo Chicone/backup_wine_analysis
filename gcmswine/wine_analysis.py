@@ -2268,7 +2268,7 @@ def optimize_bayesian_params(data, labels, num_splits, ch_treat):
     print(f"Best score: {-result.fun}")
     return alpha, num_total_channels
 
-def process_labels_by_wine_kind(labels, wine_kind, region, vintage, class_by_year, chromatograms):
+def process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, chromatograms):
     """
        Assign labels based on the type of wine and the desired classification region or scheme.
 
@@ -2282,8 +2282,7 @@ def process_labels_by_wine_kind(labels, wine_kind, region, vintage, class_by_yea
            labels (list or np.ndarray): Original labels or identifiers of the samples.
            wine_kind (str): Type of wine. One of: 'bordeaux', 'pinot_noir', or 'press'.
            region (str): Labeling scheme to use for 'pinot_noir' (e.g., 'origin', 'country', 'winery', etc.).
-           vintage (bool): Whether to include vintage information (used for 'bordeaux').
-           class_by_year (bool): If True and `wine_kind` is 'press', extract year labels from chromatogram keys.
+           class_by_year (bool): If True and wine_kind is 'press' or 'bordeaux', extract year labels.
            chromatograms (dict): Dictionary of chromatograms with sample keys used to extract years for 'press'.
 
        Returns:
@@ -2296,9 +2295,9 @@ def process_labels_by_wine_kind(labels, wine_kind, region, vintage, class_by_yea
            ValueError: If an invalid wine kind or region is specified.
        """
     if wine_kind == "bordeaux":
-        # processed_labels = process_labels(labels, vintage=vintage)
-        processed_labels = assign_composite_label_to_bordeaux_wine(labels)
-        return processed_labels, None
+        year_labels = assign_bordeaux_label(labels, vintage=class_by_year) if class_by_year else None
+        processed_labels = assign_bordeaux_label(labels, vintage=False)
+        return processed_labels, year_labels
     elif wine_kind == "pinot_noir":
         if region == 'continent':
             processed_labels = assign_continent_to_pinot_noir(labels)
