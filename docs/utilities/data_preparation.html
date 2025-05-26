@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Data Preparation &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=4f649999" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=cb25574f" />
+    <script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="Overview" href="overview.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="data-preparation">
+<h1>Data Preparation<a class="headerlink" href="#data-preparation" title="Link to this heading">¶</a></h1>
+<p>A fundamental part of the wine data analysis is the preparation of the data into the format required for the different
+scripts.
+The data is expected as csv files contained in folders whose name is the same as the sample with an added “.D”. For
+instance, if we have a sample named Sample_1, then there should be a folder named Sample_1.D containing a csv file named
+Sample_1.csv. The reason for this format is that GC-MS software like Agilent ChemStation typically export in this way.</p>
+<p>The dataset hierarchy should look like the following:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>datasets/
+├── PINOT_NOIR/
+│ ├── Sample1.D/
+│ ├── Sample2.D/
+│ └── ...
+└──  ...
+</pre></div>
+</div>
+<dl>
+<dt>Once opened, the csv file within each .D directory should look like this:</dt><dd><img alt="../_images/csv_content1.png" src="../_images/csv_content1.png" />
+</dd>
+</dl>
+<p>, where the first column is the retention time and the next columns are the intensity signals of each m/z channel
+(starting at 40 in this example).</p>
+<section id="creating-csv-files">
+<h2>Creating csv files<a class="headerlink" href="#creating-csv-files" title="Link to this heading">¶</a></h2>
+<p>GCMS data coming from Agilent products can come in several formats. The ones considered here are files with extension
+.ms or .cdf (eg. data.ms or data.cdf). To convert these files into csv files that can be read by the scripts, we used
+a third party software called OpenChrom (Lablicate Edition). There are probably many other ways to do this but using this package was the
+most straightforward (or at least the one that worked).
+Once OpenChrome is installed and opened, you will see the following screen:</p>
+<blockquote>
+<div><img alt="../_images/openchrom1.png" src="../_images/openchrom1.png" />
+</div></blockquote>
+<p>Then do the following:</p>
+<ol class="arabic simple">
+<li><p>Click on Data Analysis panel to go to next screen</p></li>
+<li><p>In the browser on the top left panel go to your dataset and find the .D  folder corresponding to the sample you want
+to convert to csv.</p></li>
+<li><p>Expand the content of the folder and look for a file with .ms or .cdf extension. They are typically called data.ms
+or data.cdf</p></li>
+<li><p>Double click the file to open the chromatogram</p></li>
+</ol>
+<dl>
+<dt>After double clicking the fie, you will get something like this:</dt><dd><img alt="../_images/openchrom2.png" src="../_images/openchrom2.png" />
+</dd>
+</dl>
+<p>Now that the chromatogram is loaded, you can export it to csv file by going to to the top menu, then Chromatogram -&gt;
+Export -&gt; CSV Chromatogram (*.csv)</p>
+<blockquote>
+<div><a class="reference internal image-reference" href="../_images/openchrom3.png"><img alt="../_images/openchrom3.png" src="../_images/openchrom3.png" style="width: 400px;" /></a>
+</div></blockquote>
+<p>The file will be exported on the predetermined folder. To set this folder to one of your like, go to Window -&gt;
+Preferences -&gt; Chromatography/Spectrometry -&gt; Converter -&gt; Chromatogram Export Path</p>
+<blockquote>
+<div><a class="reference internal image-reference" href="../_images/openchrom4.png"><img alt="../_images/openchrom4.png" src="../_images/openchrom4.png" style="width: 500px;" /></a>
+</div></blockquote>
+<p>You will have to do this for every sample, which depending on the size of your dataset will be viable or not. For
+larger datasets you may have to find an automated way of doing this.</p>
+<p>Once all directories contain csv files, you are ready to un the scripts.</p>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Wine Analysis Library</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../README.html">General Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pinot_noir/index.html">Pinot Noir</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../press_wines/index.html">Press Wines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../champagne/index.html">Champagne</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../bordeaux/index.html">Bordeaux</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Utilities</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Utilities</a><ul>
+      <li>Previous: <a href="overview.html" title="previous chapter">Overview</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2025, Luis Gomez Camara.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/utilities/data_preparation.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

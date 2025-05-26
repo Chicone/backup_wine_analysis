@@ -267,9 +267,13 @@ class Classifier:
             return HistGradientBoostingClassifier(max_leaf_nodes=31, learning_rate=0.2, max_iter=50, max_bins=128)
 
 
+    # def extract_category_labels(self, composite_labels):
+    #     return [re.match(r'([A-C])', label).group(1) if re.match(r'([A-C])', label) else label
+    #             for label in composite_labels]
+
     def extract_category_labels(self, composite_labels):
-        return [re.match(r'([A-C])', label).group(1) if re.match(r'([A-C])', label) else label
-                for label in composite_labels]
+        return [label[0] if label else None for label in composite_labels]
+
 
 
     def preprocess_data(self, X_train, X_val, normalize, scaler_type, use_pca, vthresh):
@@ -365,7 +369,9 @@ class Classifier:
         chance_accuracy = np.sum(class_probabilities ** 2)
 
         # 3. Define label order for confusion matrix
-        if self.wine_kind == "press":
+        if self.wine_kind == 'bordeaux':
+            custom_order = None
+        elif self.wine_kind == "press":
             if self.year_labels.size > 0 and np.any(self.year_labels != None):
                 custom_order = list(Counter(self.year_labels).keys())
             else:
@@ -377,7 +383,8 @@ class Classifier:
         use_groups = True if self.wine_kind == "press" else False
 
         if LOOPC:
-            icl = True if self.wine_kind == "press" and len(self.labels[0]) > 1 else False
+            # icl = True if self.wine_kind == "press" and len(self.labels[0]) > 1 else False
+            icl = True if self.wine_kind in ("press", "bordeaux") and len(self.labels[0]) > 1 else False
             train_idx, test_idx = leave_one_sample_per_class_split(
                 self.data, self.labels, random_state=random_seed, is_composite_labels=icl)
         else:
@@ -389,7 +396,8 @@ class Classifier:
             self.year_labels != None) else self.labels
         y_train_full, y_test = y_train_raw[train_idx], y_train_raw[test_idx]
 
-        if region == "winery" or self.wine_kind == "press":
+        # if region == "winery" or self.wine_kind == "press":
+        if region == "winery" or self.wine_kind == "press" or  self.wine_kind == "bordeaux":
             y_train_full = self.extract_category_labels(y_train_full)
             y_test = self.extract_category_labels(y_test)
 
@@ -1584,7 +1592,9 @@ class Classifier:
         std_test_accuracy = np.std(balanced_accuracies, axis=0)
         mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
         # mean_confusion_matrix = np.mean(confusion_matrices, axis=0)
-        if self.wine_kind == "press":
+        if self.wine_kind == "bordeaux":
+            custom_order = None
+        elif self.wine_kind == "press":
             custom_order = ["A", "B", "C"]
         else:
             custom_order = utils.get_custom_order_for_pinot_noir_region(region)
@@ -1595,7 +1605,8 @@ class Classifier:
 
         if custom_order is not None:
             if region == "winery" or self.wine_kind == "press":
-                category_labels = extract_category_labels(self.labels)
+                # category_labels = extract_category_labels(self.labels)
+                category_labels = self.extract_category_labels(self.labels)
             else:
                 category_labels = self.labels
             # Compute counts
@@ -1610,6 +1621,17 @@ class Classifier:
             else:
                 for label in custom_order:
                     print(f"{label} ({counts.get(label, 0)})")
+        else:
+            print("\nLabel order (default):")
+            category_labels = self.extract_category_labels(self.labels)
+            counts = Counter(category_labels)
+            if self.year_labels.size > 0 and np.any(self.year_labels != None):
+                year_count = Counter(self.year_labels)
+                for year in year_count:
+                    print(f"{year} ({year_count.get(year, 0)})")
+            else:
+                for label in np.unique(category_labels):
+                    print(f"{label} ({counts.get(label, 0)})")
 
 
         print("\nFinal Averaged Normalized Confusion Matrix:")
@@ -1622,19 +1644,19 @@ class Classifier:
         #             'Villard et Fils', 'République', 'Maladaires', 'Marimar', 'Drouhin']
         # headers = ["Burgundy", "Alsace", "Neuchatel", "Genève", "Valais", "Californie", "Oregon"]
         # headers = ["France", "Switzerland", "US"]
-        headers = ["Côte de Nuits", "Côte de Beaune"]
-        from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.set_xlabel('Predicted Label', fontsize=14)
-        ax.set_ylabel('True Label', fontsize=14)
-        # ax.set_title(f'Confusion Matrix by {region}')
-        ax.set_title(f'Confusion Matrix by Burgundy region')
-        disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=headers)
-        disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)  # you can change the colormap
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
-        plt.setp(ax.get_yticklabels(), fontsize=12)
-        plt.tight_layout()
-        plt.show()
+        # headers = ["Côte de Nuits", "Côte de Beaune"]
+        # from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
+        # fig, ax = plt.subplots(figsize=(8, 6))
+        # ax.set_xlabel('Predicted Label', fontsize=14)
+        # ax.set_ylabel('True Label', fontsize=14)
+        # # ax.set_title(f'Confusion Matrix by {region}')
+        # ax.set_title(f'Confusion Matrix by Burgundy region')
+        # disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=headers)
+        # disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)  # you can change the colormap
+        # plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
+        # plt.setp(ax.get_yticklabels(), fontsize=12)
+        # plt.tight_layout()
+        # plt.show()
 
         if return_umap_data:
             return mean_test_accuracy, std_test_accuracy, all_umap_scores, all_umap_labels
@@ -2070,6 +2092,35 @@ def assign_composite_label_to_press_wine(labels):
             composite_labels.append(match.group(1) + match.group(2))
         else:
             composite_labels.append(None)  # If no match, append None or custom label
+
+    return composite_labels
+
+
+def assign_composite_label_to_bordeaux_wine(labels):
+    """
+    Assigns composite labels (e.g., 'A2022') by grouping duplicates like 'A2022B'
+    under the same base label.
+
+    Args:
+        labels (list of str): A list of wine sample labels.
+
+    Returns:
+        list of str: A list of composite labels (e.g., 'A2022') with duplicates normalized.
+
+    Example:
+        labels = ['A2022', 'B2021B', 'C2023']
+        assign_composite_label_to_bordeaux_wine(labels)
+        >>> ['A2022', 'B2021', 'C2023']
+    """
+    pattern = re.compile(r'([A-Z]\d{4})B?')  # capture just the base part, ignore B
+
+    composite_labels = []
+    for label in labels:
+        match = pattern.search(label)
+        if match:
+            composite_labels.append(match.group(1))  # just 'A2022', no trailing 'B'
+        else:
+            composite_labels.append(None)
 
     return composite_labels
 

@@ -1953,14 +1953,16 @@ def get_custom_order_for_pinot_noir_region(region):
 
 def infer_wine_kind(selected_datasets, dataset_directories):
     """
-    Infers the wine kind ('pinot_noir', 'press', or 'champagne') from the dataset paths.
+    Infers the wine kind ('bordeaux', 'pinot_noir', 'press', or 'champagne') from the dataset paths.
     Ensures all selected datasets belong to the same wine kind.
     """
     wine_kind = None
     for name in selected_datasets:
         path = dataset_directories[name].lower()
 
-        if "pinot_noir" in path:
+        if "bordeaux" in path:
+            kind = "bordeaux"
+        elif "pinot_noir" in path:
             kind = "pinot_noir"
         elif "press_wines" in path:
             kind = "press"

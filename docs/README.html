@@ -87,7 +87,7 @@ If you encounter import errors when running scripts, make sure to install the fo
 <p>Before running the analysis scripts, your GC-MS data must be prepared in a specific directory structure.</p>
 <section id="required-format">
 <h3>Required Format<a class="headerlink" href="#required-format" title="Link to this heading">¶</a></h3>
-<p>Each sample must be stored in its own <code class="docutils literal notranslate"><span class="pre">.D</span></code> folder (as typically exported by Agilent ChemStation or similar software).
+<p>Each sample must be stored in its own <code class="docutils literal notranslate"><span class="pre">.D</span></code> folder<br />
 For example:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>datasets/
 ├── PINOT_NOIR/
@@ -98,7 +98,7 @@ For example:</p>
 </pre></div>
 </div>
 <p>Then, within each sample there should be a CSV file like this:
-<img alt="img.png" src="_images/img.png" />
+<img alt="csv_content.png" src="_images/csv_content1.png" />
 , where the first column is the retention time and the next columns are the intensity signals of each m/z channel
 (starting at 40 in this example).</p>
 </section>
@@ -137,6 +137,8 @@ run the script using Python. For example, to run the Pinot Noir classification p
 <li class="toctree-l1"><a class="reference internal" href="pinot_noir/index.html">Pinot Noir</a></li>
 <li class="toctree-l1"><a class="reference internal" href="press_wines/index.html">Press Wines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="champagne/index.html">Champagne</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bordeaux/index.html">Bordeaux</a></li>
+<li class="toctree-l1"><a class="reference internal" href="utilities/index.html">Utilities</a></li>
 </ul>
 
 <div class="relations">

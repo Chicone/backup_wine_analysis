@@ -81,6 +81,7 @@ if __name__ == "__main__":
     N_REPEATS = 10
     TEST_SIZE = 0.2
     RANDOM_SEED = 42
+    CHROM_CAP = None
     directory = "/home/luiscamara/Documents/datasets/Champagnes/HETEROCYC"
     # directory = "/home/luiscamara/Documents/datasets/Champagnes/DMS"
     column_indices = None  # or specify which columns to use
@@ -90,7 +91,8 @@ if __name__ == "__main__":
     row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(directory)
     column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
     data_dict = utils.load_ms_csv_data_from_directories(directory, column_indices, row_start, row_end)
-
+    if CHROM_CAP:
+        data_dict = {key:value[:CHROM_CAP] for key, value in data_dict.items()}
     # --- Load metadata ---
     metadata = pd.read_csv("/home/luiscamara/Documents/datasets/Champagnes/test.csv", skiprows=1)
     metadata = metadata.iloc[1:]  # Remove extra header row

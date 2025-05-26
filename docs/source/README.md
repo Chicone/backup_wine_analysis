@@ -55,7 +55,7 @@ Before running the analysis scripts, your GC-MS data must be prepared in a speci
 
 ### Required Format
 
-Each sample must be stored in its own `.D` folder (as typically exported by Agilent ChemStation or similar software). 
+Each sample must be stored in its own `.D` folder  
 For example:
 ```
 datasets/
@@ -66,7 +66,7 @@ datasets/
 └──  ...
 ```
 Then, within each sample there should be a CSV file like this:
-![img.png](img.png)
+![csv_content.png](images/csv_content.png)
 , where the first column is the retention time and the next columns are the intensity signals of each m/z channel 
 (starting at 40 in this example).
 

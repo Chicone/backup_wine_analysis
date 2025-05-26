@@ -2296,9 +2296,9 @@ def process_labels_by_wine_kind(labels, wine_kind, region, vintage, class_by_yea
            ValueError: If an invalid wine kind or region is specified.
        """
     if wine_kind == "bordeaux":
-        processed_labels = process_labels(labels, vintage=vintage)
+        # processed_labels = process_labels(labels, vintage=vintage)
+        processed_labels = assign_composite_label_to_bordeaux_wine(labels)
         return processed_labels, None
-
     elif wine_kind == "pinot_noir":
         if region == 'continent':
             processed_labels = assign_continent_to_pinot_noir(labels)
@@ -2315,7 +2315,6 @@ def process_labels_by_wine_kind(labels, wine_kind, region, vintage, class_by_yea
         else:
             raise ValueError("Invalid region. Options are 'winery', 'origin', 'country' or 'continent'")
         return processed_labels, None
-
     elif wine_kind == "press":
         year_labels = extract_year_from_samples(chromatograms.keys()) if class_by_year else None
         return assign_composite_label_to_press_wine(labels), year_labels
