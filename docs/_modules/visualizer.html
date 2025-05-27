@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>visualizer &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=4f649999" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=cb25574f" />
+    <script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for visualizer</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">matplotlib</span> <span class="kn">import</span> <span class="n">pyplot</span> <span class="k">as</span> <span class="n">plt</span>
+<span class="kn">from</span> <span class="nn">gcmswine.data_provider</span> <span class="kn">import</span> <span class="n">AccuracyDataProvider</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">sklearn.manifold</span> <span class="kn">import</span> <span class="n">MDS</span>
+<span class="kn">from</span> <span class="nn">matplotlib.cm</span> <span class="kn">import</span> <span class="n">get_cmap</span>
+
+
+<div class="viewcode-block" id="Visualizer">
+<a class="viewcode-back" href="../visualizer.html#visualizer.Visualizer">[docs]</a>
+<span class="k">class</span> <span class="nc">Visualizer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A class used to visualize data in various forms such as scatter plots and 3D stacked plots.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Visualizer.assign_color">
+<a class="viewcode-back" href="../visualizer.html#visualizer.Visualizer.assign_color">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">assign_color</span><span class="p">(</span><span class="n">label</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Assigns a corresponding color to a label.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        label : str</span>
+<span class="sd">            The original label.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            A tuple containing:</span>
+<span class="sd">            - modified_label (str): The label with the first letter changed.</span>
+<span class="sd">            - color (str): The color corresponding to the original first letter.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;C&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;b&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;D&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;g&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;E&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;r&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;H&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;m&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;J&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;K&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;y&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;L&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;c&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;M&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;peru&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;N&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;limegreen&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;P&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;cornflowerblue&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Q&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;olive&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;R&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;tomato&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;U&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;orange&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;W&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;slateblue&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;X&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;darkcyan&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Y&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;gold&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Z&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;firebrick&#39;</span>
+
+        <span class="k">if</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;France&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;b&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;Switzerland&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;g&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;US&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;r&#39;</span>
+
+        <span class="k">if</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;Beaune&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;b&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;Alsace&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;g&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;Neuchatel&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;r&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;Genève&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="o">==</span> <span class="s1">&#39;Valais&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;y&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;Californie&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;c&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;Oregon&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;limegreen&#39;</span>
+
+        <span class="k">if</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;09&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;b&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;10&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;g&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;11&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;r&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;12&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;m&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;13&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;14&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;y&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;15&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;c&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;16&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;peru&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;17&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;limegreen&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;18&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;cornflowerblue&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;19&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;olive&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;20&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;tomato&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;88&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;orange&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;95&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;slateblue&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;01&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;darkcyan&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;08&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;gold&#39;</span>
+
+        <span class="k">if</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;NB&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;b&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span> <span class="o">==</span> <span class="s1">&#39;SB&#39;</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;g&#39;</span>
+
+
+        <span class="k">return</span> <span class="n">color</span></div>
+
+
+
+<div class="viewcode-block" id="Visualizer.change_letter_and_color">
+<a class="viewcode-back" href="../visualizer.html#visualizer.Visualizer.change_letter_and_color">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">change_letter_and_color</span><span class="p">(</span><span class="n">label</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Changes the first letter of a label and assigns a corresponding color.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        label : str</span>
+<span class="sd">            The original label.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple</span>
+<span class="sd">            A tuple containing:</span>
+<span class="sd">            - modified_label (str): The label with the first letter changed.</span>
+<span class="sd">            - color (str): The color corresponding to the original first letter.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;V&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;A&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;b&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;A&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;B&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;g&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;S&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;C&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;r&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;F&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;D&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;m&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;T&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;E&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;G&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;F&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;y&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;B&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;G&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;c&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;M&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;F&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;y&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;H&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;H&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;limegreen&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;I&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;I&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;cornflowerblue&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;K&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;K&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;olive&#39;</span>
+        <span class="k">elif</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;O&#39;</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;tomato&#39;</span>
+        <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="n">color</span></div>
+
+
+<div class="viewcode-block" id="Visualizer.plot_2d_results">
+<a class="viewcode-back" href="../visualizer.html#visualizer.Visualizer.plot_2d_results">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">plot_2d_results</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">xlabel</span><span class="p">,</span> <span class="n">ylabel</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mf">0.02</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Plots the results of a dimensionality reduction algorithm with different colors for different label groups.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        result : pandas.DataFrame</span>
+<span class="sd">            The results of the dimensionality reduction.</span>
+<span class="sd">        title : str</span>
+<span class="sd">            The title of the plot.</span>
+<span class="sd">        xlabel : str</span>
+<span class="sd">            The label for the x-axis.</span>
+<span class="sd">        ylabel : str</span>
+<span class="sd">            The label for the y-axis.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">label_groups</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">colors</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">index</span><span class="p">:</span>
+            <span class="n">first_letter</span> <span class="o">=</span> <span class="n">label</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">first_letter</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">label_groups</span><span class="p">:</span>
+                <span class="n">label_groups</span><span class="p">[</span><span class="n">first_letter</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">colors</span><span class="p">[</span><span class="n">first_letter</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">3</span><span class="p">,)</span>
+            <span class="n">label_groups</span><span class="p">[</span><span class="n">first_letter</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">first_letter</span><span class="p">,</span> <span class="n">color</span> <span class="ow">in</span> <span class="n">colors</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">labels</span> <span class="o">=</span> <span class="n">label_groups</span><span class="p">[</span><span class="n">first_letter</span><span class="p">]</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">([],</span> <span class="p">[],</span> <span class="n">label</span><span class="o">=</span><span class="n">first_letter</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">)</span>  <span class="c1"># Empty scatter plot for legend</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">labels</span><span class="p">):</span>
+                <span class="k">if</span> <span class="s1">&#39;pinot&#39;</span> <span class="ow">in</span> <span class="n">title</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+                    <span class="n">annotation</span> <span class="o">=</span> <span class="n">label</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
+                    <span class="n">color</span> <span class="o">=</span> <span class="n">Visualizer</span><span class="o">.</span><span class="n">assign_color</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">annotation</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="n">Visualizer</span><span class="o">.</span><span class="n">change_letter_and_color</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
+                <span class="c1"># x = result.loc[label, xlabel]</span>
+                <span class="c1"># y = result.loc[label, ylabel]</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">label</span><span class="p">,</span> <span class="n">xlabel</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">y</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">label</span><span class="p">,</span> <span class="n">ylabel</span><span class="p">]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="p">,</span> <span class="o">-</span><span class="n">y</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="p">[</span><span class="n">color</span><span class="p">])</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span><span class="n">annotation</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="n">x</span> <span class="o">+</span> <span class="n">offset</span><span class="p">,</span> <span class="o">-</span><span class="n">y</span> <span class="o">+</span> <span class="n">offset</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="n">xlabel</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="n">ylabel</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">title</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+</div>
+
+
+<div class="viewcode-block" id="plot_all_acc_LDA">
+<a class="viewcode-back" href="../visualizer.html#visualizer.plot_all_acc_LDA">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_all_acc_LDA</span><span class="p">(</span><span class="n">vintage</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plots the classification accuracy for different preprocessing methods and chemical types using LDA.</span>
+
+<span class="sd">    This function generates a bar plot of the classification accuracy for different preprocessing methods</span>
+<span class="sd">    and chemical types using LDA decoding.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vintage : bool, optional</span>
+<span class="sd">        Whether to use vintage data for evaluation (default is False).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">vintage</span><span class="p">:</span>
+        <span class="n">modality</span> <span class="o">=</span> <span class="s2">&quot;vintage&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">modality</span> <span class="o">=</span> <span class="s2">&quot;estate&quot;</span>
+
+    <span class="n">provider</span> <span class="o">=</span> <span class="n">AccuracyDataProvider</span><span class="p">()</span>
+    <span class="n">categories</span><span class="p">,</span> <span class="n">preprocessing_types</span><span class="p">,</span> <span class="n">accuracy</span> <span class="o">=</span> <span class="n">provider</span><span class="o">.</span><span class="n">_accuracies_LDA</span><span class="p">(</span><span class="n">vintage</span><span class="o">=</span><span class="n">vintage</span><span class="p">)</span>
+
+    <span class="n">all_accuracies</span> <span class="o">=</span> <span class="p">[</span><span class="n">accuracy</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">accuracy</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">accuracy</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">accuracy</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">accuracy</span><span class="p">[</span><span class="mi">4</span><span class="p">]]</span>
+
+    <span class="n">chemical_types</span> <span class="o">=</span> <span class="n">categories</span>
+
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+
+    <span class="n">bar_width</span> <span class="o">=</span> <span class="mf">0.2</span>
+    <span class="n">bar_gap</span> <span class="o">=</span> <span class="mf">0.1</span>
+
+    <span class="n">positions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">chemical_types</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">accuracies</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">all_accuracies</span><span class="p">):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">positions</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">accuracies</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">width</span><span class="o">=</span><span class="n">bar_width</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Raw data&#39;</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">positions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">bar_width</span><span class="p">),</span> <span class="n">accuracies</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">width</span><span class="o">=</span><span class="n">bar_width</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;green&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;PCA on raw&#39;</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">positions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">bar_width</span><span class="p">),</span> <span class="n">accuracies</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">width</span><span class="o">=</span><span class="n">bar_width</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Best 3 bins&#39;</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="c1"># ax.bar(positions[i] + 3 * (bar_width), accuracies[3], width=bar_width, color=&#39;c&#39;, alpha=0.7, label=&#39;PCA on best 3 bins&#39; if i == 0 else &quot;&quot;)</span>
+        <span class="c1"># ax.bar(positions[i] + 4 * (bar_width), accuracies[4], width=bar_width, color=&#39;m&#39;, alpha=0.7, label=&#39;PCA prune on raw &#39; if i == 0 else &quot;&quot;)</span>
+        <span class="c1"># ax.bar(positions[i] + 5 * (bar_width), accuracies[5], width=bar_width, color=&#39;y&#39;, alpha=0.7, label=&#39;PCA prune on best 3 bins&#39; if i == 0 else &quot;&quot;)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">positions</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">accuracies</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.05</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">accuracies</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;bottom&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">positions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">bar_width</span><span class="p">),</span> <span class="n">accuracies</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.05</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">accuracies</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;bottom&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;green&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">positions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">bar_width</span><span class="p">),</span> <span class="n">accuracies</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.05</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">accuracies</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;bottom&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+        <span class="c1"># ax.text(positions[i] + 3 * (bar_width), accuracies[3] + 0.05, f&#39;{accuracies[3]:.2f}&#39;, ha=&#39;center&#39;, va=&#39;bottom&#39;, color=&#39;c&#39;, alpha=0.7, fontsize=10, rotation=50)</span>
+        <span class="c1"># ax.text(positions[i] + 4 * (bar_width), accuracies[4] + 0.05, f&#39;{accuracies[4]:.2f}&#39;, ha=&#39;center&#39;, va=&#39;bottom&#39;, color=&#39;m&#39;, alpha=0.7, fontsize=10, rotation=50)</span>
+        <span class="c1"># ax.text(positions[i] + 5 * (bar_width), accuracies[5] + 0.05, f&#39;{accuracies[5]:.2f}&#39;, ha=&#39;center&#39;, va=&#39;bottom&#39;, color=&#39;y&#39;, alpha=0.7, fontsize=10, rotation=50)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">positions</span><span class="p">)</span>
+
+    <span class="c1"># Split the labels into multiple lines</span>
+    <span class="k">def</span> <span class="nf">split_label</span><span class="p">(</span><span class="n">label</span><span class="p">,</span> <span class="n">max_width</span><span class="o">=</span><span class="mi">25</span><span class="p">):</span>
+        <span class="n">words</span> <span class="o">=</span> <span class="n">label</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+        <span class="n">split_labels</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">current_line</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">word</span> <span class="ow">in</span> <span class="n">words</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_line</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">word</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">max_width</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">current_line</span><span class="p">:</span>
+                    <span class="n">current_line</span> <span class="o">+=</span> <span class="s2">&quot; &quot;</span>
+                <span class="n">current_line</span> <span class="o">+=</span> <span class="n">word</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">split_labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">current_line</span><span class="p">)</span>
+                <span class="n">current_line</span> <span class="o">=</span> <span class="n">word</span>
+        <span class="n">split_labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">current_line</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">split_labels</span><span class="p">)</span>
+
+    <span class="n">split_labels</span> <span class="o">=</span> <span class="p">[</span><span class="n">split_label</span><span class="p">(</span><span class="n">label</span><span class="p">)</span> <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">chemical_types</span><span class="p">]</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">split_labels</span><span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Accuracy (%)&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">101</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">120</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Dataset&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;LDA </span><span class="si">{</span><span class="n">modality</span><span class="si">}</span><span class="s2"> decoding for different pre-processing&quot;</span><span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="plot_stacked_chromatograms">
+<a class="viewcode-back" href="../visualizer.html#visualizer.plot_stacked_chromatograms">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_stacked_chromatograms</span><span class="p">(</span><span class="n">analysis</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plots a list of wine labels in a 2D-stacked fashion.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    analysis : WineAnalysis</span>
+<span class="sd">        The analysis object containing the data loader.</span>
+<span class="sd">    labels : list of str</span>
+<span class="sd">        The list of wine labels to plot.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+    <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+    <span class="kn">from</span> <span class="nn">mpl_toolkits.mplot3d</span> <span class="kn">import</span> <span class="n">Axes3D</span>
+
+    <span class="n">len_chrom</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">analysis</span><span class="o">.</span><span class="n">data_loader</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">labels</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="n">len_chrom</span><span class="p">)</span>
+
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+    <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+
+    <span class="n">num_plots</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_plots</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">analysis</span><span class="o">.</span><span class="n">data_loader</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">labels</span><span class="p">[</span><span class="n">i</span><span class="p">]])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full_like</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">+</span> <span class="n">i</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;Plot </span><span class="si">{</span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Retention time (%)&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Amplitude&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_zlabel</span><span class="p">(</span><span class="s1">&#39;Wines&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Stacked 2D Plots&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+
+
+
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<div class="viewcode-block" id="plot_classification_accuracy">
+<a class="viewcode-back" href="../visualizer.html#visualizer.plot_classification_accuracy">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_classification_accuracy</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plots classification accuracy for Pinot Noir ISVV (LLE scan) and Pinot Noir ISVV (DLLME scan) across multiple classifiers,</span>
+<span class="sd">    comparing values for different settings A, B, C, and D.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Data for Pinot Noir ISVV (LLE scan) and Pinot Noir ISVV (DLLME scan)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;Classifier&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="s2">&quot;LDA&quot;</span><span class="p">,</span> <span class="s2">&quot;LR&quot;</span><span class="p">,</span> <span class="s2">&quot;RFC&quot;</span><span class="p">,</span> <span class="s2">&quot;PAC&quot;</span><span class="p">,</span> <span class="s2">&quot;PER&quot;</span><span class="p">,</span> <span class="s2">&quot;RGC&quot;</span><span class="p">,</span> <span class="s2">&quot;SGD&quot;</span><span class="p">,</span> <span class="s2">&quot;SVM&quot;</span><span class="p">,</span> <span class="s2">&quot;KNN&quot;</span><span class="p">,</span> <span class="s2">&quot;DTC&quot;</span><span class="p">,</span> <span class="s2">&quot;GNB&quot;</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;Pinot Noir ISVV (LLE scan) A&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="mf">0.493</span><span class="p">,</span> <span class="mf">0.499</span><span class="p">,</span> <span class="mf">0.403</span><span class="p">,</span> <span class="mf">0.519</span><span class="p">,</span> <span class="mf">0.479</span><span class="p">,</span> <span class="mf">0.555</span><span class="p">,</span> <span class="mf">0.519</span><span class="p">,</span> <span class="mf">0.238</span><span class="p">,</span> <span class="mf">0.224</span><span class="p">,</span> <span class="mf">0.198</span><span class="p">,</span> <span class="mf">0.292</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;Pinot Noir ISVV (LLE scan) B&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="mf">0.572</span><span class="p">,</span> <span class="mf">0.561</span><span class="p">,</span> <span class="mf">0.467</span><span class="p">,</span> <span class="mf">0.568</span><span class="p">,</span> <span class="mf">0.575</span><span class="p">,</span> <span class="mf">0.601</span><span class="p">,</span> <span class="mf">0.613</span><span class="p">,</span> <span class="mf">0.291</span><span class="p">,</span> <span class="mf">0.304</span><span class="p">,</span> <span class="mf">0.269</span><span class="p">,</span> <span class="mf">0.329</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;Pinot Noir ISVV (LLE scan) C&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="mf">0.463</span><span class="p">,</span> <span class="mf">0.485</span><span class="p">,</span> <span class="mf">0.302</span><span class="p">,</span> <span class="mf">0.541</span><span class="p">,</span> <span class="mf">0.386</span><span class="p">,</span> <span class="mf">0.561</span><span class="p">,</span> <span class="mf">0.404</span><span class="p">,</span> <span class="mf">0.147</span><span class="p">,</span> <span class="mf">0.209</span><span class="p">,</span> <span class="mf">0.230</span><span class="p">,</span> <span class="mf">0.176</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;Pinot Noir ISVV (LLE scan) D&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="mf">0.551</span><span class="p">,</span> <span class="mf">0.577</span><span class="p">,</span> <span class="mf">0.476</span><span class="p">,</span> <span class="mf">0.585</span><span class="p">,</span> <span class="mf">0.584</span><span class="p">,</span> <span class="mf">0.612</span><span class="p">,</span> <span class="mf">0.597</span><span class="p">,</span> <span class="mf">0.291</span><span class="p">,</span> <span class="mf">0.293</span><span class="p">,</span> <span class="mf">0.306</span><span class="p">,</span> <span class="mf">0.331</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;Pinot Noir ISVV (DLLME scan) A&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="mf">0.441</span><span class="p">,</span> <span class="mf">0.392</span><span class="p">,</span> <span class="mf">0.323</span><span class="p">,</span> <span class="mf">0.460</span><span class="p">,</span> <span class="mf">0.437</span><span class="p">,</span> <span class="mf">0.463</span><span class="p">,</span> <span class="mf">0.486</span><span class="p">,</span> <span class="mf">0.239</span><span class="p">,</span> <span class="mf">0.244</span><span class="p">,</span> <span class="mf">0.248</span><span class="p">,</span> <span class="mf">0.253</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;Pinot Noir ISVV (DLLME scan) B&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="mf">0.557</span><span class="p">,</span> <span class="mf">0.512</span><span class="p">,</span> <span class="mf">0.419</span><span class="p">,</span> <span class="mf">0.595</span><span class="p">,</span> <span class="mf">0.549</span><span class="p">,</span> <span class="mf">0.592</span><span class="p">,</span> <span class="mf">0.586</span><span class="p">,</span> <span class="mf">0.311</span><span class="p">,</span> <span class="mf">0.361</span><span class="p">,</span> <span class="mf">0.304</span><span class="p">,</span> <span class="mf">0.312</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;Pinot Noir ISVV (DLLME scan) C&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="mf">0.316</span><span class="p">,</span> <span class="mf">0.372</span><span class="p">,</span> <span class="mf">0.278</span><span class="p">,</span> <span class="mf">0.364</span><span class="p">,</span> <span class="mf">0.316</span><span class="p">,</span> <span class="mf">0.421</span><span class="p">,</span> <span class="mf">0.336</span><span class="p">,</span> <span class="mf">0.133</span><span class="p">,</span> <span class="mf">0.217</span><span class="p">,</span> <span class="mf">0.175</span><span class="p">,</span> <span class="mf">0.122</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;Pinot Noir ISVV (DLLME scan) D&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="mf">0.516</span><span class="p">,</span> <span class="mf">0.505</span><span class="p">,</span> <span class="mf">0.418</span><span class="p">,</span> <span class="mf">0.583</span><span class="p">,</span> <span class="mf">0.557</span><span class="p">,</span> <span class="mf">0.544</span><span class="p">,</span> <span class="mf">0.583</span><span class="p">,</span> <span class="mf">0.315</span><span class="p">,</span> <span class="mf">0.379</span><span class="p">,</span> <span class="mf">0.309</span><span class="p">,</span> <span class="mf">0.300</span>
+        <span class="p">]</span>
+    <span class="p">}</span>
+    <span class="c1"># Convert to DataFrame</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="c1"># Plotting setup</span>
+    <span class="n">bar_width</span> <span class="o">=</span> <span class="mf">0.2</span>  <span class="c1"># Adjusted for 4 bars per group</span>
+    <span class="n">index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;Classifier&quot;</span><span class="p">]))</span>  <span class="c1"># Classifier positions</span>
+    <span class="c1"># Create subplots for Pinot Noir ISVV (LLE scan) and Pinot Noir ISVV (DLLME scan)</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span>
+    <span class="c1"># Standard color palette</span>
+    <span class="n">colors</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;#1f77b4&#39;</span><span class="p">,</span> <span class="s1">&#39;#ff7f0e&#39;</span><span class="p">,</span> <span class="s1">&#39;#2ca02c&#39;</span><span class="p">,</span> <span class="s1">&#39;#9370DB&#39;</span><span class="p">]</span>  <span class="c1"># Blue, Orange, Green, Re</span>
+    <span class="c1"># Plot for Pinot Noir ISVV (LLE scan)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Pinot Noir ISVV (LLE scan) A&quot;</span><span class="p">],</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;A: Original TIC&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">index</span> <span class="o">+</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Pinot Noir ISVV (LLE scan) B&quot;</span><span class="p">],</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;B: TIC after Alignment&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">index</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Pinot Noir ISVV (LLE scan) C&quot;</span><span class="p">],</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;C: Total Ion Spectrum (TIS)&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">index</span> <span class="o">+</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Pinot Noir ISVV (LLE scan) D&quot;</span><span class="p">],</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;D: Aligned TIC + TIS&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Pinot Noir ISVV (LLE scan) - Classification Accuracy&quot;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;Accuracy&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">1.02</span><span class="p">)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">index</span> <span class="o">+</span> <span class="mf">1.5</span> <span class="o">*</span> <span class="n">bar_width</span><span class="p">)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;Classifier&quot;</span><span class="p">],</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span>  <span class="c1"># Set x-tick labels and size for the top plot</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper right&#39;</span><span class="p">,</span> <span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">)</span>
+    <span class="c1"># Plot for Pinot Noir ISVV (DLLME scan)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Pinot Noir ISVV (DLLME scan) A&quot;</span><span class="p">],</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;A: Original TIC&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">index</span> <span class="o">+</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Pinot Noir ISVV (DLLME scan) B&quot;</span><span class="p">],</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;B: TIC after Alignment&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">index</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Pinot Noir ISVV (DLLME scan) C&quot;</span><span class="p">],</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;C: Total Ion Spectrum (TIS)&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">index</span> <span class="o">+</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;Pinot Noir ISVV (DLLME scan) D&quot;</span><span class="p">],</span> <span class="n">bar_width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;D: Aligned TIC + TIS&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Pinot Noir ISVV (DLLME scan) - Classification Accuracy&quot;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Classifier&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;Accuracy&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">1.02</span><span class="p">)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">index</span> <span class="o">+</span> <span class="mf">1.5</span> <span class="o">*</span> <span class="n">bar_width</span><span class="p">)</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;Classifier&quot;</span><span class="p">],</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span>  <span class="c1"># Set x-tick labels and size for the bottom plot</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper right&#39;</span><span class="p">,</span> <span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="visualize_confusion_matrix_3d">
+<a class="viewcode-back" href="../visualizer.html#visualizer.visualize_confusion_matrix_3d">[docs]</a>
+<span class="k">def</span> <span class="nf">visualize_confusion_matrix_3d</span><span class="p">(</span><span class="n">conf_matrix</span><span class="p">,</span> <span class="n">class_labels</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">&quot;3D visualization with MDS&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Visualizes a confusion matrix in 3D using MDS, forcing symmetry using the upper triangular part.</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">    ----------</span>
+<span class="sd">    conf_matrix : np.ndarray</span>
+<span class="sd">        A 2D NumPy array representing the confusion matrix.</span>
+<span class="sd">    class_labels : list of str</span>
+<span class="sd">        A list of class labels corresponding to the confusion matrix rows/columns.</span>
+
+<span class="sd">    Example Input:</span>
+<span class="sd">    --------------</span>
+<span class="sd">    conf_matrix = np.array([</span>
+<span class="sd">        [50, 10, 5],</span>
+<span class="sd">        [8, 45, 7],</span>
+<span class="sd">        [6, 9, 40]</span>
+<span class="sd">    ])</span>
+<span class="sd">    class_labels = [&#39;Class 1&#39;, &#39;Class 2&#39;, &#39;Class 3&#39;]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Ensure the input is a NumPy array</span>
+    <span class="n">conf_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">conf_matrix</span><span class="p">)</span>
+
+    <span class="c1"># Force symmetry using the upper triangle</span>
+    <span class="n">symmetric_conf_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">triu</span><span class="p">(</span><span class="n">conf_matrix</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">triu</span><span class="p">(</span><span class="n">conf_matrix</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+
+    <span class="c1"># Normalize using global normalization to preserve symmetry</span>
+    <span class="n">dissimilarity_matrix</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">symmetric_conf_matrix</span> <span class="o">/</span> <span class="n">symmetric_conf_matrix</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+    <span class="c1"># Apply MDS for 3D embedding</span>
+    <span class="n">mds</span> <span class="o">=</span> <span class="n">MDS</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">dissimilarity</span><span class="o">=</span><span class="s1">&#39;precomputed&#39;</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+    <span class="n">embedding</span> <span class="o">=</span> <span class="n">mds</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">dissimilarity_matrix</span><span class="p">)</span>
+
+    <span class="c1"># 3D Visualization</span>
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+    <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Generate a colormap for the classes</span>
+    <span class="n">cmap</span> <span class="o">=</span> <span class="n">get_cmap</span><span class="p">(</span><span class="s2">&quot;tab20&quot;</span><span class="p">)</span>  <span class="c1"># Use a colormap with many distinct colors</span>
+    <span class="n">colors</span> <span class="o">=</span> <span class="p">[</span><span class="n">cmap</span><span class="p">(</span><span class="n">i</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">class_labels</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">class_labels</span><span class="p">))]</span>
+
+    <span class="c1"># Scatter plot with different colors for each class</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">class_labels</span><span class="p">):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">embedding</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">embedding</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">embedding</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+                   <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">s</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
+
+    <span class="c1"># Connect points with a line to aid 3D visualization</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">embedding</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">embedding</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">embedding</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]],</span>
+            <span class="p">[</span><span class="n">embedding</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">embedding</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]],</span>
+            <span class="p">[</span><span class="n">embedding</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">embedding</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]],</span>
+            <span class="n">color</span><span class="o">=</span><span class="s2">&quot;gray&quot;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s2">&quot;--&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Add legend and labels</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s2">&quot;best&quot;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">title</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Dimension 1&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;Dimension 2&quot;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_zlabel</span><span class="p">(</span><span class="s2">&quot;Dimension 3&quot;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="plot_accuracy_vs_channels">
+<a class="viewcode-back" href="../visualizer.html#visualizer.plot_accuracy_vs_channels">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_accuracy_vs_channels</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plots a graph where the x-axis represents the number of contiguous aggregated channels,</span>
+<span class="sd">    and the y-axis represents the accuracy. Data is hardcoded.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Hardcoded data</span>
+    <span class="n">aggr_channels</span> <span class="o">=</span>            <span class="p">[</span><span class="mi">1</span>    <span class="p">,</span> <span class="mi">2</span>    <span class="p">,</span> <span class="mi">3</span>    <span class="p">,</span> <span class="mi">6</span>    <span class="p">,</span> <span class="mi">10</span>   <span class="p">,</span> <span class="mi">15</span>   <span class="p">,</span> <span class="mi">22</span>   <span class="p">,</span> <span class="mi">30</span>   <span class="p">,</span> <span class="mi">45</span>   <span class="p">,</span> <span class="mi">60</span>   <span class="p">,</span> <span class="mi">90</span>   <span class="p">,</span> <span class="mi">181</span>  <span class="p">]</span>  <span class="c1"># Number of aggregated channels</span>
+    <span class="n">accuracy_isvv</span> <span class="o">=</span>            <span class="p">[</span><span class="mf">0.846</span><span class="p">,</span> <span class="mf">0.890</span><span class="p">,</span> <span class="mf">0.886</span><span class="p">,</span> <span class="mf">0.883</span><span class="p">,</span> <span class="mf">0.802</span><span class="p">,</span> <span class="mf">0.619</span><span class="p">,</span> <span class="mf">0.600</span><span class="p">,</span> <span class="mf">0.526</span><span class="p">,</span> <span class="mf">0.456</span><span class="p">,</span> <span class="mf">0.424</span><span class="p">,</span> <span class="mf">0.358</span><span class="p">,</span> <span class="mf">0.580</span><span class="p">]</span>  <span class="c1"># Accuracy values</span>
+    <span class="n">accuracy_changins</span> <span class="o">=</span>        <span class="p">[</span><span class="mf">0.786</span><span class="p">,</span> <span class="mf">0.874</span><span class="p">,</span> <span class="mf">0.906</span><span class="p">,</span> <span class="mf">0.852</span><span class="p">,</span> <span class="mf">0.814</span><span class="p">,</span> <span class="mf">0.657</span><span class="p">,</span> <span class="mf">0.612</span><span class="p">,</span> <span class="mf">0.600</span><span class="p">,</span> <span class="mf">0.553</span><span class="p">,</span> <span class="mf">0.505</span><span class="p">,</span> <span class="mf">0.510</span><span class="p">,</span> <span class="mf">0.744</span><span class="p">]</span>  <span class="c1"># Accuracy values</span>
+
+    <span class="c1"># New values with dynamically learned alpha</span>
+    <span class="n">accuracy_isvv_alpha</span> <span class="o">=</span>      <span class="p">[</span><span class="mf">0.830</span><span class="p">,</span> <span class="mf">0.889</span><span class="p">,</span> <span class="mf">0.861</span><span class="p">,</span> <span class="mf">0.884</span><span class="p">,</span> <span class="mf">0.790</span><span class="p">,</span> <span class="mf">0.613</span><span class="p">,</span> <span class="mf">0.590</span><span class="p">,</span> <span class="mf">0.537</span><span class="p">,</span> <span class="mf">0.475</span><span class="p">,</span> <span class="mf">0.424</span><span class="p">,</span> <span class="mf">0.381</span><span class="p">,</span> <span class="mf">0.551</span><span class="p">]</span>  <span class="c1"># Accuracy values</span>
+    <span class="n">accuracy_changins_alpha</span> <span class="o">=</span>  <span class="p">[</span><span class="mf">0.811</span><span class="p">,</span> <span class="mf">0.889</span><span class="p">,</span> <span class="mf">0.924</span><span class="p">,</span> <span class="mf">0.856</span><span class="p">,</span> <span class="mf">0.810</span><span class="p">,</span> <span class="mf">0.649</span><span class="p">,</span> <span class="mf">0.657</span><span class="p">,</span> <span class="mf">0.595</span><span class="p">,</span> <span class="mf">0.536</span><span class="p">,</span> <span class="mf">0.550</span><span class="p">,</span> <span class="mf">0.571</span><span class="p">,</span> <span class="mf">0.794</span><span class="p">]</span>  <span class="c1"># Accuracy values</span>
+
+    <span class="c1"># Values with concatenated m/z profiles</span>
+    <span class="n">accuracy_isvv_conc</span> <span class="o">=</span>      <span class="p">[</span><span class="mf">0.646</span><span class="p">,</span> <span class="mf">0.616</span><span class="p">,</span> <span class="mf">0.613</span><span class="p">,</span> <span class="mf">0.595</span><span class="p">,</span> <span class="mf">0.584</span><span class="p">,</span> <span class="mf">0.527</span><span class="p">,</span> <span class="mf">0.520</span><span class="p">,</span> <span class="mf">0.500</span><span class="p">,</span> <span class="mf">0.434</span><span class="p">,</span> <span class="mf">0.486</span><span class="p">,</span> <span class="mf">0.515</span><span class="p">,</span> <span class="mf">0.447</span><span class="p">]</span>  <span class="c1"># Accuracy values</span>
+    <span class="n">accuracy_changins_conc</span> <span class="o">=</span>  <span class="p">[</span><span class="mf">0.771</span><span class="p">,</span> <span class="mf">0.773</span><span class="p">,</span> <span class="mf">0.786</span><span class="p">,</span> <span class="mf">0.760</span><span class="p">,</span> <span class="mf">0.728</span><span class="p">,</span> <span class="mf">0.746</span><span class="p">,</span> <span class="mf">0.712</span><span class="p">,</span> <span class="mf">0.747</span><span class="p">,</span> <span class="mf">0.701</span><span class="p">,</span> <span class="mf">0.702</span><span class="p">,</span> <span class="mf">0.710</span><span class="p">,</span> <span class="mf">0.707</span><span class="p">]</span>  <span class="c1"># Accuracy values</span>
+
+    <span class="c1"># Create the plot</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">aggr_channels</span><span class="p">,</span> <span class="n">accuracy_changins</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;Changins $\alpha=500$&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">aggr_channels</span><span class="p">,</span> <span class="n">accuracy_changins_alpha</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;s&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">markerfacecolor</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;Changins adapt. $\alpha$&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">aggr_channels</span><span class="p">,</span> <span class="n">accuracy_changins_conc</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;^&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">markerfacecolor</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;Changins concat. m/z profiles&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">aggr_channels</span><span class="p">,</span> <span class="n">accuracy_isvv</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;ISVV $\alpha=500$&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">aggr_channels</span><span class="p">,</span> <span class="n">accuracy_isvv_alpha</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;s&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">markerfacecolor</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;ISVV adapt. $\alpha$&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">aggr_channels</span><span class="p">,</span> <span class="n">accuracy_isvv_conc</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;^&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">markerfacecolor</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;ISVV  concat. m/z profiles&#39;</span><span class="p">)</span>
+
+
+
+
+    <span class="c1"># Customize the plot</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Accuracy vs. Number of Aggregated Channels&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Number of Aggregated Channels (n)&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Accuracy&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">aggr_channels</span><span class="p">)</span>  <span class="c1"># Set x-ticks to match the data points</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.6</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+    <span class="c1"># Show the plot</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="plot_accuracy_vs_channels_split_by_sample">
+<a class="viewcode-back" href="../visualizer.html#visualizer.plot_accuracy_vs_channels_split_by_sample">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_accuracy_vs_channels_split_by_sample</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plots a graph where the x-axis represents the number of contiguous aggregated channels,</span>
+<span class="sd">    and the y-axis represents the accuracy. Train-test splitting is by sample, not channels.</span>
+<span class="sd">     Data is hardcoded.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Hardcoded data</span>
+    <span class="n">final_channels</span> <span class="o">=</span>            <span class="p">[</span><span class="mi">1</span>    <span class="p">,</span> <span class="mi">2</span>    <span class="p">,</span> <span class="mi">3</span>    <span class="p">,</span> <span class="mi">6</span>    <span class="p">,</span> <span class="mi">10</span>   <span class="p">,</span> <span class="mi">15</span>   <span class="p">,</span> <span class="mi">22</span>   <span class="p">,</span> <span class="mi">30</span>   <span class="p">,</span> <span class="mi">45</span>   <span class="p">,</span> <span class="mi">60</span>   <span class="p">,</span> <span class="mi">90</span>   <span class="p">,</span> <span class="mi">181</span>  <span class="p">]</span>  <span class="c1"># Number of aggregated channels</span>
+    <span class="n">accuracy_isvv</span> <span class="o">=</span>            <span class="p">[</span><span class="mf">0.470</span><span class="p">,</span> <span class="mf">0.484</span><span class="p">,</span> <span class="mf">0.458</span><span class="p">,</span> <span class="mf">0.440</span><span class="p">,</span> <span class="mf">0.418</span><span class="p">,</span> <span class="mf">0.383</span><span class="p">,</span> <span class="mf">0.360</span><span class="p">,</span> <span class="mf">0.315</span><span class="p">,</span> <span class="mf">0.276</span><span class="p">,</span> <span class="mf">0.245</span><span class="p">,</span> <span class="mf">0.213</span><span class="p">,</span> <span class="mf">0.178</span><span class="p">]</span>  <span class="c1"># Accuracy values</span>
+    <span class="n">accuracy_changins</span> <span class="o">=</span>        <span class="p">[</span><span class="mf">0.736</span><span class="p">,</span> <span class="mf">0.704</span><span class="p">,</span> <span class="mf">0.686</span><span class="p">,</span> <span class="mf">0.630</span><span class="p">,</span> <span class="mf">0.569</span><span class="p">,</span> <span class="mf">0.529</span><span class="p">,</span> <span class="mf">0.466</span><span class="p">,</span> <span class="mf">0.392</span><span class="p">,</span> <span class="mf">0.328</span><span class="p">,</span> <span class="mf">0.286</span><span class="p">,</span> <span class="mf">0.247</span><span class="p">,</span> <span class="mf">0.220</span><span class="p">]</span>  <span class="c1"># Accuracy values</span>
+
+
+    <span class="c1"># Create the plot</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">final_channels</span><span class="p">,</span> <span class="n">accuracy_changins</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;Changins&#39;</span> <span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">final_channels</span><span class="p">,</span> <span class="n">accuracy_isvv</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;ISVV&#39;</span><span class="p">)</span>
+
+
+
+    <span class="c1"># Customize the plot</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Accuracy vs. Total Number of Channels after aggregation (train-test split by sample)&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Number of channels&quot;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Accuracy&quot;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">final_channels</span><span class="p">)</span>  <span class="c1"># Set x-ticks to match the data points</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.6</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+    <span class="c1"># Show the plot</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="plot_accuracy_vs_channels_concatenated">
+<a class="viewcode-back" href="../visualizer.html#visualizer.plot_accuracy_vs_channels_concatenated">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_accuracy_vs_channels_concatenated</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plots a graph where the x-axis represents the number of contiguous aggregated channels,</span>
+<span class="sd">    and the y-axis represents the accuracy. Train-test splitting is by sample, not channels.</span>
+<span class="sd">     Data is hardcoded.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Hardcoded data</span>
+    <span class="n">final_channels</span> <span class="o">=</span>           <span class="p">[</span><span class="mi">1</span>    <span class="p">,</span> <span class="mi">2</span>    <span class="p">,</span> <span class="mi">3</span>    <span class="p">,</span> <span class="mi">6</span>    <span class="p">,</span> <span class="mi">10</span>   <span class="p">,</span> <span class="mi">15</span>   <span class="p">,</span> <span class="mi">20</span>   <span class="p">,</span> <span class="mi">30</span>   <span class="p">,</span> <span class="mi">45</span>   <span class="p">,</span> <span class="mi">60</span>   <span class="p">,</span> <span class="mi">90</span>   <span class="p">,</span> <span class="mi">181</span>  <span class="p">]</span>  <span class="c1"># Number of aggregated channels</span>
+    <span class="n">accuracy_isvv</span> <span class="o">=</span>            <span class="p">[</span><span class="mf">0.458</span><span class="p">,</span> <span class="mf">0.472</span><span class="p">,</span> <span class="mf">0.491</span><span class="p">,</span> <span class="mf">0.502</span><span class="p">,</span> <span class="mf">0.512</span><span class="p">,</span> <span class="mf">0.515</span><span class="p">,</span> <span class="mf">0.527</span><span class="p">,</span> <span class="mf">0.526</span><span class="p">,</span> <span class="mf">0.532</span><span class="p">,</span> <span class="mf">0.540</span><span class="p">,</span> <span class="mf">0.538</span><span class="p">,</span> <span class="mf">0.567</span><span class="p">]</span>  <span class="c1"># Accuracy values</span>
+    <span class="n">accuracy_changins</span> <span class="o">=</span>        <span class="p">[</span><span class="mf">0.751</span><span class="p">,</span> <span class="mf">0.762</span><span class="p">,</span> <span class="mf">0.773</span><span class="p">,</span> <span class="mf">0.778</span><span class="p">,</span> <span class="mf">0.788</span><span class="p">,</span> <span class="mf">0.783</span><span class="p">,</span> <span class="mf">0.796</span><span class="p">,</span> <span class="mf">0.778</span><span class="p">,</span> <span class="mf">0.776</span><span class="p">,</span> <span class="mf">0.773</span><span class="p">,</span> <span class="mf">0.760</span><span class="p">,</span> <span class="mf">0.763</span><span class="p">]</span>  <span class="c1"># Accuracy values</span>
+
+
+    <span class="c1"># Create the plot</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">final_channels</span><span class="p">,</span> <span class="n">accuracy_changins</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;Changins&#39;</span> <span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">final_channels</span><span class="p">,</span> <span class="n">accuracy_isvv</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;ISVV&#39;</span><span class="p">)</span>
+
+
+
+    <span class="c1"># Customize the plot</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Accuracy vs. Total Number of Channels after aggregation (concatenated channels)&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Number of channels&quot;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Accuracy&quot;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">final_channels</span><span class="p">)</span>  <span class="c1"># Set x-ticks to match the data points</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.6</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+    <span class="c1"># Show the plot</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Wine Analysis Library</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../pinot_noir.html">Pinot Noir Classification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../press_wines.html">Press Wines Classification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../champagne.html">Champagne Classification</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2025, Luis Gomez Camara.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

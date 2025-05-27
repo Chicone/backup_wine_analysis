@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>wine_analysis module &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=4f649999" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=cb25574f" />
+    <script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-wine_analysis">
+<span id="wine-analysis-module"></span><h1>wine_analysis module<a class="headerlink" href="#module-wine_analysis" title="Link to this heading">¶</a></h1>
+<section id="wine-analysis-overview">
+<h2>Wine Analysis Overview<a class="headerlink" href="#wine-analysis-overview" title="Link to this heading">¶</a></h2>
+<p>This module provides tools and methods for analyzing wine-related data, particularly focusing on chromatogram analysis and dimensionality reduction techniques.</p>
+<section id="key-features">
+<h3>Key Features:<a class="headerlink" href="#key-features" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><strong>WineAnalysis Class</strong>: Facilitates the analysis of wine datasets, including the ability to run dimensionality reduction techniques such as t-SNE and UMAP, as well as train classifiers.</p></li>
+<li><p><strong>ChromatogramAnalysis Class</strong>: Handles the loading, normalization, and merging of chromatogram data, as well as synchronization and scaling of chromatograms.</p></li>
+<li><p><strong>SyncChromatograms Class</strong>: Provides advanced techniques for aligning chromatograms, including methods for adjusting retention times and synchronizing chromatograms based on peak alignment.</p></li>
+</ul>
+</section>
+<section id="usage">
+<h3>Usage:<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h3>
+<p>This module is intended for wine researchers and data scientists who need to analyze complex chromatographic data. The classes and methods provided can be used to preprocess, analyze, and visualize data, making it easier to identify patterns and trends in wine samples.</p>
+</section>
+<section id="dependencies">
+<h3>Dependencies:<a class="headerlink" href="#dependencies" title="Link to this heading">¶</a></h3>
+<p>The module relies on several third-party libraries, including:
+- <cite>numpy</cite> for numerical operations
+- <cite>pandas</cite> for data manipulation
+- <cite>scikit-learn</cite> for machine learning and dimensionality reduction
+- <cite>matplotlib</cite> for plotting and visualization
+- <cite>scipy</cite> for signal processing and interpolation</p>
+</section>
+<section id="example">
+<h3>Example:<a class="headerlink" href="#example" title="Link to this heading">¶</a></h3>
+<p>An example of using the <cite>WineAnalysis</cite> class to run a t-SNE analysis:</p>
+<p><a href="#id1"><span class="problematic" id="id2">``</span></a>`
+python from wine_analysis import WineAnalysis</p>
+<p># Initialize the WineAnalysis class with a data file
+analysis = WineAnalysis(file_path=’wine_data.npy’, normalize=True)</p>
+<p># Run t-SNE on the dataset and plot the results
+analysis.run_tsne(perplexity=30, random_state=42, plot=True)</p>
+</section>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">wine_analysis.</span></span><span class="sig-name descname"><span class="pre">ChromatogramAnalysis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path1</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_path2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ndec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<section id="chromatogramanalysis-class">
+<h2>ChromatogramAnalysis Class<a class="headerlink" href="#chromatogramanalysis-class" title="Link to this heading">¶</a></h2>
+<p>The <cite>ChromatogramAnalysis</cite> class is responsible for managing chromatogram data in wine analysis. It provides methods to load, resample, synchronize, and merge chromatograms from different datasets, making it a vital tool for comparative analysis of wine samples.</p>
+<section id="id3">
+<h3>Key Features:<a class="headerlink" href="#id3" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><strong>Data Loading</strong>: Load chromatograms from various file formats.</p></li>
+<li><p><strong>Resampling and Merging</strong>: Resample chromatograms to a common time axis and merge data from different sources.</p></li>
+<li><p><strong>Synchronization</strong>: Synchronize chromatograms by aligning peaks and adjusting retention times.</p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.align_tics">
+<span class="sig-name descname"><span class="pre">align_tics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gcms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chrom_cap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">25000</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.align_tics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.align_tics" title="Link to this definition">¶</a></dt>
+<dd><p>Align TIC chromatograms using MS data. It also returns the aligned MS data</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_dict</strong> (<em>dict</em>) – Dictionary of chromatographic data.</p></li>
+<li><p><strong>chrom_cap</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum size of chromatograms to process, by default 25000.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>norm_tics</strong> (<em>dict</em>) – Normalized TIC chromatograms.</p></li>
+<li><p><strong>synced_gcms</strong> (<em>dict</em>) – Synchronized GC-MS data.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.calculate_mean_chromatogram">
+<span class="sig-name descname"><span class="pre">calculate_mean_chromatogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chromatograms</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.calculate_mean_chromatogram"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.calculate_mean_chromatogram" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.closest_to_mean_chromatogram">
+<span class="sig-name descname"><span class="pre">closest_to_mean_chromatogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chromatograms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_chromatogram</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.closest_to_mean_chromatogram"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.closest_to_mean_chromatogram" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.load_chromatogram">
+<span class="sig-name descname"><span class="pre">load_chromatogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.load_chromatogram"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.load_chromatogram" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.load_chromatograms">
+<span class="sig-name descname"><span class="pre">load_chromatograms</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.load_chromatograms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.load_chromatograms" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.merge_chromatograms">
+<span class="sig-name descname"><span class="pre">merge_chromatograms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chrom1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chrom2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.merge_chromatograms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.merge_chromatograms" title="Link to this definition">¶</a></dt>
+<dd><p>Merges two chromatogram dictionaries, normalizes them, and handles duplicate sample names.</p>
+<p>Parameters:
+chrom1 (dict): The first chromatogram dictionary.
+chrom2 (dict): The second chromatogram dictionary.</p>
+<p>Returns:
+dict: The merged and normalized chromatogram data.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.normalize_chromatogram">
+<span class="sig-name descname"><span class="pre">normalize_chromatogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chromatogram</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.normalize_chromatogram"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.normalize_chromatogram" title="Link to this definition">¶</a></dt>
+<dd><p>Normalizes the chromatogram data using StandardScaler.</p>
+<p>Parameters:
+chromatogram (np.ndarray): The input chromatogram data.</p>
+<p>Returns:
+np.ndarray: The normalized chromatogram.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.resample_chromatogram">
+<span class="sig-name descname"><span class="pre">resample_chromatogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chrom</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_length</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.resample_chromatogram"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.resample_chromatogram" title="Link to this definition">¶</a></dt>
+<dd><p>Resamples a chromatogram to a new length using interpolation.</p>
+<p>Parameters:
+chrom (np.ndarray): The chromatogram to be resampled.
+new_length (int): The new length for the chromatogram.</p>
+<p>Returns:
+np.ndarray: The resampled chromatogram.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.resample_chromatograms">
+<span class="sig-name descname"><span class="pre">resample_chromatograms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chrom1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chrom2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.resample_chromatograms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.resample_chromatograms" title="Link to this definition">¶</a></dt>
+<dd><p>Resamples two chromatograms to the same length using interpolation.</p>
+<p>Parameters:
+chrom1 (dict or np.ndarray): The first chromatogram dictionary or array to be resampled.
+chrom2 (dict or np.ndarray): The second chromatogram dictionary or array to be resampled.</p>
+<p>Returns:
+tuple: The resampled chromatograms.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.stacked_2D_plots_3D">
+<span class="sig-name descname"><span class="pre">stacked_2D_plots_3D</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dict</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.stacked_2D_plots_3D"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.stacked_2D_plots_3D" title="Link to this definition">¶</a></dt>
+<dd><p>Creates stacked 2D plots in a 3D space for the given dictionary of data.</p>
+<p>Parameters:
+data_dict (dict): A dictionary with labels as keys and lists of values as values.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.stacked_plot">
+<span class="sig-name descname"><span class="pre">stacked_plot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dict</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.stacked_plot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.stacked_plot" title="Link to this definition">¶</a></dt>
+<dd><p>Creates a stacked plot for the given dictionary of data.</p>
+<p>Parameters:
+data_dict (dict): A dictionary with labels as keys and lists of values as values.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.sync_individual_chromatograms">
+<span class="sig-name descname"><span class="pre">sync_individual_chromatograms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">reference_chromatogram</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reference_ms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_chromatograms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">all_ms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scales</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_lag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">300</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ndec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.sync_individual_chromatograms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.sync_individual_chromatograms" title="Link to this definition">¶</a></dt>
+<dd><p>Synchronize individual chromatograms with a reference chromatogram.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>reference_chromatogram</strong> (<em>array-like</em>) – The reference chromatogram to which the individual chromatograms will be synchronized.</p></li>
+<li><p><strong>input_chromatograms</strong> (<em>dict</em>) – A dictionary where keys are labels for each chromatogram, and values are the chromatograms to be synchronized.</p></li>
+<li><p><strong>scales</strong> (<em>array-like</em>) – Scaling factors to be applied during synchronization.</p></li>
+<li><p><strong>initial_lag</strong> (<em>int</em><em>, </em><em>optional</em>) – The initial lag to be considered for synchronization, by default 300.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary with the same keys as <cite>input_chromatograms</cite>, where each value is the synchronized chromatogram.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>This function uses the <cite>SyncChromatograms</cite> class from the <cite>wine_analysis</cite> module to perform the synchronization.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">synced_chromatograms</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">sync_individual_chromatograms</span><span class="p">(</span><span class="n">reference_chromatogram</span><span class="p">,</span> <span class="n">input_chromatograms</span><span class="p">,</span> <span class="n">scales</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">synced_chromatograms</span><span class="p">[</span><span class="s1">&#39;label1&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.tsne_analysis">
+<span class="sig-name descname"><span class="pre">tsne_analysis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vintage</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chem_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">perplexity_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">range(10,</span> <span class="pre">60,</span> <span class="pre">10)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_states</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">range(0,</span> <span class="pre">96,</span> <span class="pre">16)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wk</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bordeaux'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">region</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'winery'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.tsne_analysis"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.tsne_analysis" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.ChromatogramAnalysis.umap_analysis">
+<span class="sig-name descname"><span class="pre">umap_analysis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vintage</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chem_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neigh_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">range(10,</span> <span class="pre">60,</span> <span class="pre">10)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_states</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">range(0,</span> <span class="pre">96,</span> <span class="pre">16)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wk</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bordeaux'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">region</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'winery'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#ChromatogramAnalysis.umap_analysis"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.ChromatogramAnalysis.umap_analysis" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+</section>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="wine_analysis.GCMSDataProcessor">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">wine_analysis.</span></span><span class="sig-name descname"><span class="pre">GCMSDataProcessor</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#GCMSDataProcessor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.GCMSDataProcessor" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.GCMSDataProcessor.compute_tics">
+<span class="sig-name descname"><span class="pre">compute_tics</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#GCMSDataProcessor.compute_tics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.GCMSDataProcessor.compute_tics" title="Link to this definition">¶</a></dt>
+<dd><p>Compute the Total Ion Chromatogram (TIC) for each sample by summing all columns (m/z) for each retention time.</p>
+<p>Returns:
+- dict: A dictionary where keys are sample labels and values are 1D numpy arrays (TIC profiles).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.GCMSDataProcessor.compute_tiss">
+<span class="sig-name descname"><span class="pre">compute_tiss</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#GCMSDataProcessor.compute_tiss"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.GCMSDataProcessor.compute_tiss" title="Link to this definition">¶</a></dt>
+<dd><p>Compute the Total Ion Spectrum (TIS) for each sample by summing all rows (retention times) for each m/z channel.</p>
+<p>Returns:
+- dict: A dictionary where keys are sample labels and values are 1D numpy arrays (TIS profiles).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.GCMSDataProcessor.create_overlapping_windows">
+<span class="sig-name descname"><span class="pre">create_overlapping_windows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">window_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stride</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#GCMSDataProcessor.create_overlapping_windows"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.GCMSDataProcessor.create_overlapping_windows" title="Link to this definition">¶</a></dt>
+<dd><p>Divide each sample matrix into overlapping windows along the retention time direction.</p>
+<p>Parameters:
+- window_size (int): The size of each window in the retention time direction.
+- stride (int): The step size to move the window.</p>
+<p>Returns:
+- numpy.ndarray: An array containing all the smaller matrices in succession for all samples.
+- numpy.ndarray: A labels array assigning to each matrix the label of the sample they come from.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.GCMSDataProcessor.generate_crops">
+<span class="sig-name descname"><span class="pre">generate_crops</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">crop_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stride</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#GCMSDataProcessor.generate_crops"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.GCMSDataProcessor.generate_crops" title="Link to this definition">¶</a></dt>
+<dd><p>Generate crops from GC-MS data with specified size and stride.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>crop_size</strong> (<em>tuple</em>) – The size of each crop (height, width).</p></li>
+<li><p><strong>stride</strong> (<em>tuple</em>) – The stride for overlapping crops (vertical, horizontal).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dictionary of cropped data for each sample.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.GCMSDataProcessor.normalize_mz_profiles_amplitude">
+<span class="sig-name descname"><span class="pre">normalize_mz_profiles_amplitude</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'z-score'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#GCMSDataProcessor.normalize_mz_profiles_amplitude"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.GCMSDataProcessor.normalize_mz_profiles_amplitude" title="Link to this definition">¶</a></dt>
+<dd><p>Normalize the amplitude of each m/z profile (column-wise normalization
+across retention times) using z-score or min-max normalization.</p>
+<section id="parameters">
+<h2>Parameters:<a class="headerlink" href="#parameters" title="Link to this heading">¶</a></h2>
+<dl class="simple">
+<dt>data_dict<span class="classifier">dict</span></dt><dd><p>Dictionary where each key is a sample and each value is a 2D matrix
+(rows: retention times, columns: m/z values).</p>
+</dd>
+<dt>method<span class="classifier">str</span></dt><dd><p>Normalization method, either “z-score” or “min-max”.</p>
+</dd>
+</dl>
+</section>
+<section id="returns">
+<h2>Returns:<a class="headerlink" href="#returns" title="Link to this heading">¶</a></h2>
+<dl class="simple">
+<dt>dict</dt><dd><p>Dictionary with normalized matrices.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.GCMSDataProcessor.resample_gcms_pytorch">
+<span class="sig-name descname"><span class="pre">resample_gcms_pytorch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">original_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_size</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#GCMSDataProcessor.resample_gcms_pytorch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.GCMSDataProcessor.resample_gcms_pytorch" title="Link to this definition">¶</a></dt>
+<dd><p>Resample GC-MS data using PyTorch interpolation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>original_size</strong> (<em>int</em>) – Original size of the data (e.g., retention times).</p></li>
+<li><p><strong>new_size</strong> (<em>int</em>) – Target size for resampling.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Resampled data dictionary.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.GCMSDataProcessor.to_dataframe">
+<span class="sig-name descname"><span class="pre">to_dataframe</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#GCMSDataProcessor.to_dataframe"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.GCMSDataProcessor.to_dataframe" title="Link to this definition">¶</a></dt>
+<dd><p>Convert the GC-MS data to a Pandas DataFrame for easier analysis.</p>
+<p>Returns:
+- pd.DataFrame: A DataFrame where each sample is a column, indexed by retention times.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">wine_analysis.</span></span><span class="sig-name descname"><span class="pre">SyncChromatograms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">c1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c2s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_ms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_ms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_segments</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scales</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_peaks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iterations</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_sep_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peak_prominence</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ndec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<section id="syncchromatograms-class">
+<h2>SyncChromatograms Class<a class="headerlink" href="#syncchromatograms-class" title="Link to this heading">¶</a></h2>
+<p>The <cite>SyncChromatograms</cite> class provides methods for synchronizing chromatographic data, focusing on aligning peaks and adjusting retention times across different chromatograms. This is essential for comparing chromatographic profiles from different wine samples.</p>
+<section id="id4">
+<h3>Key Features:<a class="headerlink" href="#id4" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><strong>Peak Alignment</strong>: Automatically detects and aligns peaks across chromatograms.</p></li>
+<li><p><strong>Retention Time Adjustment</strong>: Corrects differences in retention times to synchronize chromatograms.</p></li>
+<li><p><strong>Segmented Analysis</strong>: Allows for synchronization across multiple segments for greater accuracy.</p></li>
+</ul>
+</section>
+<section id="id5">
+<h3>Usage:<a class="headerlink" href="#id5" title="Link to this heading">¶</a></h3>
+<p>This class is ideal for researchers who need to compare chromatographic data across multiple wine samples, ensuring that peaks and retention times are aligned for accurate analysis.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.adjust_chromatogram">
+<span class="sig-name descname"><span class="pre">adjust_chromatogram</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.adjust_chromatogram"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.adjust_chromatogram" title="Link to this definition">¶</a></dt>
+<dd><p>Adjusts the chromatogram to match a reference chromatogram.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The adjusted chromatogram after applying the synchronization algorithm.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.apply_shift_spline">
+<span class="sig-name descname"><span class="pre">apply_shift_spline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">c2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spline</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.apply_shift_spline"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.apply_shift_spline" title="Link to this definition">¶</a></dt>
+<dd><p>Apply a spline-based retention time shift to a chromatogram signal.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>c2</strong> (<em>array-like</em>) – The chromatogram to be adjusted.</p></li>
+<li><p><strong>t</strong> (<em>array-like</em>) – The time indices in the chromatogram.</p></li>
+<li><p><strong>spline</strong> (<em>UnivariateSpline</em>) – The spline function representing the time shift to be applied.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The chromatogram after the shift has been applied.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.calculate_lag_profile">
+<span class="sig-name descname"><span class="pre">calculate_lag_profile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">c1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segment_length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hop</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lag_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distance_metric</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'l2'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_min_dist</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.calculate_lag_profile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.calculate_lag_profile" title="Link to this definition">¶</a></dt>
+<dd><p>Calculate the lag of a segment ahead for each datapoint in c2 against c1 using L1 or L2 distance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>c1</strong> (<em>numpy.ndarray</em>) – Reference signal.</p></li>
+<li><p><strong>c2</strong> (<em>numpy.ndarray</em>) – Signal to be compared.</p></li>
+<li><p><strong>segment_length</strong> (<em>int</em>) – Length of the segment ahead.</p></li>
+<li><p><strong>hop</strong> (<em>int</em><em>, </em><em>optional</em>) – Step size for sliding the window. Default is 1.</p></li>
+<li><p><strong>sigma</strong> (<em>float</em><em>, </em><em>optional</em>) – Standard deviation for Gaussian filter. Default is 20.</p></li>
+<li><p><strong>lag_range</strong> (<em>int</em><em>, </em><em>optional</em>) – The range of lags to test on both sides. Default is 10.</p></li>
+<li><p><strong>distance_metric</strong> (<em>str</em><em>, </em><em>optional</em>) – The distance metric to use for lag calculation (‘L1’ or ‘L2’). Default is ‘L2’.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Lags for each datapoint in c2.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.correct_matrix_lag">
+<span class="sig-name descname"><span class="pre">correct_matrix_lag</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">matrix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lag</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.correct_matrix_lag"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.correct_matrix_lag" title="Link to this definition">¶</a></dt>
+<dd><p>Shifts the rows of a matrix by a specified lag, keeping the row content intact.
+New positions are padded with zeros.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>matrix</strong> (<em>2D array-like</em>) – The matrix where each row contains data that should be shifted as a whole.</p></li>
+<li><p><strong>lag</strong> (<em>int</em>) – The number of rows to shift. Positive values shift down, negative values shift up.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>shifted_matrix</strong> – The matrix with rows shifted by the specified lag, with padding for empty rows.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.correct_segment">
+<span class="sig-name descname"><span class="pre">correct_segment</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">segment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lag</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.correct_segment"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.correct_segment" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.correct_with_spline">
+<span class="sig-name descname"><span class="pre">correct_with_spline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">corrected_c2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.correct_with_spline"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.correct_with_spline" title="Link to this definition">¶</a></dt>
+<dd><p>Correct the chromatogram using a spline-based shift.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>corrected_c2</strong> (<em>array-like</em>) – The chromatogram to be corrected.</p></li>
+<li><p><strong>s</strong> (<em>float</em>) – Smoothing factor for the spline.</p></li>
+<li><p><strong>k</strong> (<em>int</em>) – Degree of the spline.</p></li>
+<li><p><strong>normalize</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to normalize the chromatograms before correction. Default is True.</p></li>
+<li><p><strong>plot</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to plot the results. Default is False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The corrected chromatogram after applying the spline-based shift.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.ensure_peaks_in_segments">
+<span class="sig-name descname"><span class="pre">ensure_peaks_in_segments</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peaks_in_signal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_segments</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_segment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peak_ord</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.ensure_peaks_in_segments"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.ensure_peaks_in_segments" title="Link to this definition">¶</a></dt>
+<dd><p>Ensure that each segment of the signal has at least one peak by selecting the most prominent peaks.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>signal</strong> (<em>array-like</em>) – The signal data from which peaks have been identified.</p></li>
+<li><p><strong>peaks_in_signal</strong> (<em>array-like</em>) – Indices of the peaks identified in the signal.</p></li>
+<li><p><strong>num_segments</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of segments to divide the signal into. Default is 10.</p></li>
+<li><p><strong>last_segment</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The index of the last segment to process. If None, all segments are processed. Default is None.</p></li>
+<li><p><strong>peak_ord</strong> (<em>int</em><em>, </em><em>optional</em>) – The ordinal rank of the peak to select in each segment when sorted by prominence. Default is 0 (highest peak).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>numpy.ndarray</em> – The indices of the selected peaks across all segments.</p></li>
+<li><p><em>bool</em> – True if peaks were successfully found in all segments, False otherwise.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.find_best_scale_and_lag_corr">
+<span class="sig-name descname"><span class="pre">find_best_scale_and_lag_corr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chrom1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chrom2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scales</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_lag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">300</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.find_best_scale_and_lag_corr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.find_best_scale_and_lag_corr" title="Link to this definition">¶</a></dt>
+<dd><p>Finds the best scale and lag for cross-correlation between two chromatograms.</p>
+<p>Parameters:
+chrom1 (np.array): The first chromatogram.
+chrom2 (np.array): The second chromatogram.
+scales (list of float): The list of scaling factors to try.
+max_lag (int): The maximum lag to consider for cross-correlation.</p>
+<p>Returns:
+float: The best scaling factor.
+int: The best lag.
+float: The highest cross-correlation value.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.lag_profile_from_correlation">
+<span class="sig-name descname"><span class="pre">lag_profile_from_correlation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">reference_chromatogram</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_chromatogram</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_slice_length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hop_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apply_global_alignment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_slice_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.lag_profile_from_correlation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.lag_profile_from_correlation" title="Link to this definition">¶</a></dt>
+<dd><p>Computes a lag (offset) profile between a reference and a target chromatogram by sliding a window
+along the target and finding the offset that maximizes the correlation with the corresponding region
+in the reference chromatogram.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>reference_chromatogram</strong> (<em>array-like</em>) – The reference signal (chromatogram) used as the baseline.</p></li>
+<li><p><strong>target_chromatogram</strong> (<em>array-like</em>) – The target signal (chromatogram) which will be aligned to the reference.</p></li>
+<li><p><strong>initial_slice_length</strong> (<em>int</em>) – The starting window size (number of data points) used for correlation estimation.</p></li>
+<li><p><strong>hop_size</strong> (<em>int</em><em>, </em><em>optional</em>) – The step size for sliding the window along the target chromatogram. Default is 1.</p></li>
+<li><p><strong>scan_range</strong> (<em>int</em><em>, </em><em>optional</em>) – The maximum lag (in data points) to scan (in both positive and negative directions) for the best alignment.
+Default is 10.</p></li>
+<li><p><strong>apply_global_alignment</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, performs a global alignment on the target chromatogram using a pre-computed best scale and lag.
+Default is True.</p></li>
+<li><p><strong>max_slice_length</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – If provided and greater than initial_slice_length, allows dynamic adjustment of the slice length up to this value.
+Default is None.</p></li>
+<li><p><strong>score</strong> (<em>float</em><em>, </em><em>optional</em>) – The initial correlation score baseline. Default is 0.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>lags_location</strong> (<em>ndarray</em>) – An array of indices along the target chromatogram where the lag was computed.</p></li>
+<li><p><strong>lags</strong> (<em>ndarray</em>) – An array of lag values (offsets) computed for each corresponding location in lags_location.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>For TIC data, the x-axis is typically time. The function first (optionally) applies a global alignment
+to the target chromatogram, normalizes both signals, and then iterates over the target signal in steps.
+At each step, a window (or slice) is extracted and the correlation with the reference (shifted by various offsets)
+is computed. The offset that maximizes the correlation is recorded, and a lag profile is built along the target.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.lag_profile_from_ms_data">
+<span class="sig-name descname"><span class="pre">lag_profile_from_ms_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">reference_chromatogram</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_chromatogram</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reference_matrix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_matrix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_segments</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sep_thresh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_corrections</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_corr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.lag_profile_from_ms_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.lag_profile_from_ms_data" title="Link to this definition">¶</a></dt>
+<dd><p>Compute the lag profile between two chromatograms using MS data.</p>
+<p>This function divides the reference chromatogram into segments, identifies maximum peaks within each segment,
+and finds the best-matching peak in the target chromatogram within a specified retention time window.
+Matching is based on the Pearson correlation coefficient of the corresponding rows from the reference and
+target MS data matrices. The function returns the indices of matched peaks in the target chromatogram
+and the index differences (lags) between matched peaks.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>reference_chromatogram</strong> (<em>array-like</em>) – The reference chromatogram used as a baseline for alignment.</p></li>
+<li><p><strong>target_chromatogram</strong> (<em>array-like</em>) – The target chromatogram to be aligned with the reference.</p></li>
+<li><p><strong>reference_matrix</strong> (<em>2D array-like</em>) – The mass spectrometry (MS) data matrix corresponding to the reference chromatogram.
+Each row corresponds to a retention time, and each column corresponds to an m/z channel.</p></li>
+<li><p><strong>target_matrix</strong> (<em>2D array-like</em>) – The MS data matrix corresponding to the target chromatogram.</p></li>
+<li><p><strong>num_segments</strong> (<em>int</em>) – The number of segments to divide the chromatogram into for peak detection.</p></li>
+<li><p><strong>sep_thresh</strong> (<em>int</em>) – The maximum allowed retention time difference (in indices) between a reference peak
+and its matching peak in the target chromatogram.</p></li>
+<li><p><strong>show_corrections</strong> (<em>bool</em><em>, </em><em>optional</em><em> (</em><em>default=False</em><em>)</em>) – If True, prints information about each peak match, including the reference peak index,
+target peak index, and the index difference.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>locations</strong> (<em>numpy.ndarray</em>) – An array of indices representing the locations of matched peaks in the target chromatogram.</p></li>
+<li><p><strong>index_differences</strong> (<em>numpy.ndarray</em>) – An array of index differences between each reference peak and its best match in the target chromatogram.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – <ul class="simple">
+<li><p>If any segment of the reference chromatogram does not contain a peak.
+    - If any segment of the target chromatogram does not contain a peak.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The chromatograms are divided into segments using <cite>self.ensure_peaks_in_segments()</cite>.</p></li>
+<li><p>The maximum peak in each segment is selected as the reference peak.</p></li>
+<li><p>For each reference peak, the function searches within a window defined by <cite>sep_thresh</cite> in the target chromatogram.</p></li>
+<li><p>The Pearson correlation coefficient is calculated between the MS rows at each candidate peak index.</p></li>
+<li><p>The best match is chosen based on the highest Pearson correlation (&gt; 0.98) that also exceeds previous matches.</p></li>
+<li><p>Matching peaks must have increasing indices to avoid backward shifts in retention time.</p></li>
+</ul>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">locations</span><span class="p">,</span> <span class="n">index_differences</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">lag_profile_from_ms_data</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">reference_chromatogram</span><span class="p">,</span> <span class="n">target_chromatogram</span><span class="p">,</span> <span class="n">reference_matrix</span><span class="p">,</span> <span class="n">target_matrix</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">num_segments</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">sep_thresh</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">show_corrections</span><span class="o">=</span><span class="kc">True</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="go">Reference peak at index 1200 best matches target at index 1195 (difference: 5)</span>
+<span class="go">Reference peak at index 3400 best matches target at index 3398 (difference: 2)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">locations</span><span class="p">)</span>
+<span class="go">[1195, 3398, 4500, 6200]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">index_differences</span><span class="p">)</span>
+<span class="go">[5, 2, -3, 1]</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.lag_profile_from_peaks">
+<span class="sig-name descname"><span class="pre">lag_profile_from_peaks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">reference_chromatogram</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_chromatogram</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alignment_tolerance</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_segments</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apply_global_alignment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">only_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.lag_profile_from_peaks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.lag_profile_from_peaks" title="Link to this definition">¶</a></dt>
+<dd><p>Generate a lag profile from peaks in two chromatograms by aligning segments.</p>
+<p>This function aligns peaks in <cite>target_chromatogram</cite> to peaks in <cite>reference_chromatogram</cite> and adjusts the chromatogram
+<cite>target_chromatogram</cite> accordingly. It then computes the lag profile based on the difference in peak positions between
+the two chromatograms.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>reference_chromatogram</strong> (<em>array-like</em>) – The reference chromatogram (e.g. the mean chromatogram of a given dataset).</p></li>
+<li><p><strong>target_chromatogram</strong> (<em>array-like</em>) – The chromatogram to be aligned with <cite>reference_chromatogram</cite>.</p></li>
+<li><p><strong>alignment_tolerance</strong> (<em>float</em>) – The maximum allowed distance between aligned peaks in <cite>reference_chromatogram</cite> and <cite>target_chromatogram</cite>. Peaks in
+<cite>target_chromatogram</cite> that are too far from the corresponding peak in <cite>reference_chromatogram</cite> will be skipped.</p></li>
+<li><p><strong>num_segments</strong> (<em>int</em>) – The number of segments to divide the chromatograms into for peak alignment. The highest peak from each segment
+is typically selected.</p></li>
+<li><p><strong>apply_global_alignment</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, apply a global time shift to align the chromatograms before local adjustments. Default is True.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>lags_location</strong> (<em>numpy.ndarray</em>) – The locations of the lags in <cite>target_chromatogram</cite> after alignment.</p></li>
+<li><p><strong>lags</strong> (<em>numpy.ndarray</em>) – The lag values corresponding to each peak after alignment.</p></li>
+<li><p><strong>target_chromatogram_aligned</strong> (<em>numpy.ndarray</em>) – The aligned chromatogram <cite>target_chromatogram</cite> after applying the per-section adjustments.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If some segments in <cite>target_chromatogram</cite> do not have peaks.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>This method uses a combination of global and local alignment to synchronize the chromatograms. The global alignment
+is applied first (if <cite>apply_global_alignment</cite> is True), followed by local adjustments in each segment.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">lags_location</span><span class="p">,</span> <span class="n">lags</span><span class="p">,</span> <span class="n">target_chromatogram_aligned</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">lag_profile_from_peaks</span><span class="p">(</span><span class="n">reference_chromatogram</span><span class="p">,</span> <span class="n">target_chromatogram</span><span class="p">,</span> <span class="n">alignment_tolerance</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">num_segments</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.lag_profile_moving_peaks_individually">
+<span class="sig-name descname"><span class="pre">lag_profile_moving_peaks_individually</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">reference_chromatogram</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_chromatogram</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alignment_tolerance</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_segments</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apply_global_alignment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peak_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interval_after</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_avg_peak_distance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.lag_profile_moving_peaks_individually"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.lag_profile_moving_peaks_individually" title="Link to this definition">¶</a></dt>
+<dd><p>Align peaks between a reference signal and a target signal by moving target peaks independently,
+and calculate the lag profile. The peaks are moved by rescaling the intervals with their adjacent peaks to both</p>
+<blockquote>
+<div><p>left and right of each peak.</p>
+</div></blockquote>
+<p>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>reference_chromatogram</strong> (<em>array-like</em>) – The reference chromatogram used for peak alignment.</p></li>
+<li><p><strong>target_chromatogram</strong> (<em>array-like</em>) – The target chromatogram to be aligned with the reference signal.</p></li>
+<li><p><strong>alignment_tolerance</strong> (<em>float</em>) – The maximum allowed distance between aligned peaks.</p></li>
+<li><p><strong>num_segments</strong> (<em>int</em>) – Number of segments to divide the signal into.</p></li>
+<li><p><strong>apply_global_alignment</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, apply a global time shift before peak alignment. Default is True.</p></li>
+<li><p><strong>scan_range</strong> (<em>int</em><em>, </em><em>optional</em>) – The range within which to scan for matching peaks. Default is 1.</p></li>
+<li><p><strong>peak_order</strong> (<em>int</em><em>, </em><em>optional</em>) – The rank of the peak to select within each segment. Default is 0 (highest peak).</p></li>
+<li><p><strong>interval_after</strong> (<em>int</em><em>, </em><em>optional</em>) – Interval length after the peak to improve similarity measure. Default is 500.</p></li>
+<li><p><strong>min_avg_peak_distance</strong> (<em>float</em><em>, </em><em>optional</em>) – Minimum average peak distance required for accepting the scaling. Default is 50.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>numpy.ndarray</em> – Locations of the lags in the target signal after alignment.</p></li>
+<li><p><em>numpy.ndarray</em> – The lag values corresponding to each peak after alignment.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.objective_function_spline">
+<span class="sig-name descname"><span class="pre">objective_function_spline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spline</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">loss</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'l2'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.objective_function_spline"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.objective_function_spline" title="Link to this definition">¶</a></dt>
+<dd><p>Objective function to minimize the difference between the reference and adjusted chromatograms.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>array-like</em>) – Parameters to optimize, typically the smoothing factor for the spline.</p></li>
+<li><p><strong>c1</strong> (<em>array-like</em>) – The reference chromatogram.</p></li>
+<li><p><strong>c2</strong> (<em>array-like</em>) – The chromatogram to be adjusted.</p></li>
+<li><p><strong>t</strong> (<em>array-like</em>) – The time points corresponding to the chromatograms.</p></li>
+<li><p><strong>spline</strong> (<em>UnivariateSpline</em>) – The spline function representing the shift to be applied.</p></li>
+<li><p><strong>loss</strong> (<em>str</em><em>, </em><em>optional</em>) – The loss function to be used in the optimization. Options are:
+- ‘l1’: Mean absolute error
+- ‘l2’: Mean squared error (default)
+- ‘corr’: Negative maximum cross-correlation
+- ‘mse’: Mean squared error</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The value of the loss function for the given parameters.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.plot_signal_and_fit">
+<span class="sig-name descname"><span class="pre">plot_signal_and_fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chrom</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corrected_c2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'spline'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_points</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.plot_signal_and_fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.plot_signal_and_fit" title="Link to this definition">¶</a></dt>
+<dd><p>Plots the original and corrected signals, as well as the fitting curve (spline, quadratic, or linear).</p>
+<p>Parameters:
+- t: Time axis or index.
+- ref: Reference signal.
+- chrom: Original signal before correction.
+- corrected_c2: Corrected signal after applying the shift.
+- fit_type: Type of fitting (‘spline’, ‘quadratic’, or ‘linear’).
+- fit_params: Parameters for the fit. Could be the spline object, quadratic coefficients, or linear coefficients.
+- data_points: Data points related to the lag or shift used for plotting (optional).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.SyncChromatograms.scale_chromatogram">
+<span class="sig-name descname"><span class="pre">scale_chromatogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chrom</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#SyncChromatograms.scale_chromatogram"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.SyncChromatograms.scale_chromatogram" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+</section>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="wine_analysis.WineAnalysis">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">wine_analysis.</span></span><span class="sig-name descname"><span class="pre">WineAnalysis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#WineAnalysis"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.WineAnalysis" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<section id="wineanalysis-class">
+<h2>WineAnalysis Class<a class="headerlink" href="#wineanalysis-class" title="Link to this heading">¶</a></h2>
+<p>The <cite>WineAnalysis</cite> class is designed to facilitate the analysis of wine-related chromatographic data.
+It provides methods for loading data from various sources, performing dimensionality reduction, and running
+classification algorithms to extract meaningful insights from the data.</p>
+<section id="id6">
+<h3>Key Features:<a class="headerlink" href="#id6" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><strong>Data Loading</strong>: Load wine chromatographic data from .npy or .xlsx files, or directly from a dictionary.</p></li>
+<li><p><strong>Dimensionality Reduction</strong>: Apply techniques like PCA, t-SNE, and UMAP to reduce the dimensionality of the data.</p></li>
+<li><p><strong>Classification</strong>: Train classifiers such as LDA on the data to evaluate and compare different wine samples.</p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.WineAnalysis.run_tsne">
+<span class="sig-name descname"><span class="pre">run_tsne</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">perplexity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">16</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">best_score</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#WineAnalysis.run_tsne"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.WineAnalysis.run_tsne" title="Link to this definition">¶</a></dt>
+<dd><p>Runs t-Distributed Stochastic Neighbor Embedding (t-SNE) on the data and plots the results.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.WineAnalysis.run_umap">
+<span class="sig-name descname"><span class="pre">run_umap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_state</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">16</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">best_score</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#WineAnalysis.run_umap"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.WineAnalysis.run_umap" title="Link to this definition">¶</a></dt>
+<dd><p>Runs Uniform Manifold Approximation and Projection (UMAP) on the data and plots the results.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wine_analysis.WineAnalysis.train_classifier">
+<span class="sig-name descname"><span class="pre">train_classifier</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">classifier_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'LDA'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vintage</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_splits</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#WineAnalysis.train_classifier"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.WineAnalysis.train_classifier" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="wine_analysis.optimize_bayesian_params">
+<span class="sig-prename descclassname"><span class="pre">wine_analysis.</span></span><span class="sig-name descname"><span class="pre">optimize_bayesian_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_splits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ch_treat</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#optimize_bayesian_params"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.optimize_bayesian_params" title="Link to this definition">¶</a></dt>
+<dd><p>Perform Bayesian optimization to select the best hyperparameters for GCMS channel reduction and classification.</p>
+<p>This function searches for the optimal number of channel aggregations and regularization strength (alpha)
+using Bayesian optimization. It returns the best alpha and the resulting total number of channels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>np.ndarray</em>) – Input GCMS data of shape (n_samples, n_timepoints, n_channels).</p></li>
+<li><p><strong>labels</strong> (<em>list</em><em> or </em><em>np.ndarray</em>) – Corresponding class labels for each sample.</p></li>
+<li><p><strong>num_splits</strong> (<em>int</em>) – Number of splits to use in cross-validation during optimization.</p></li>
+<li><p><strong>ch_treat</strong> (<em>str</em>) – Channel treatment strategy (‘concatenated’ or ‘independent’).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>alpha (float): The optimal regularization strength found by the optimizer.
+num_total_channels (int): The number of channels after optimal aggregation.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Prints:</dt><dd><ul class="simple">
+<li><p>Optimal aggregation factor.</p></li>
+<li><p>Total resulting channels.</p></li>
+<li><p>Optimal alpha.</p></li>
+<li><p>Best (lowest) loss achieved during optimization.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="wine_analysis.process_chromatograms">
+<span class="sig-prename descclassname"><span class="pre">wine_analysis.</span></span><span class="sig-name descname"><span class="pre">process_chromatograms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gcms</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sync_state</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chrom_cap</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#process_chromatograms"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.process_chromatograms" title="Link to this definition">¶</a></dt>
+<dd><p>Process chromatographic data based on the specified data type and synchronization setting.</p>
+<p>This function extracts TIC (Total Ion Chromatogram), TIS (Total Ion Spectrum), or both,
+depending on the specified <cite>data_type</cite>. If <cite>sync_state</cite> is True and <cite>data_type</cite> is “TIC-TIS”,
+retention time alignment is performed before extraction.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>gcms</strong> (<a class="reference internal" href="#wine_analysis.GCMSDataProcessor" title="wine_analysis.GCMSDataProcessor"><em>GCMSDataProcessor</em></a>) – An instance containing preloaded GC-MS data.</p></li>
+<li><p><strong>cl</strong> (<a class="reference internal" href="#wine_analysis.ChromatogramAnalysis" title="wine_analysis.ChromatogramAnalysis"><em>ChromatogramAnalysis</em></a>) – An instance of this class.</p></li>
+<li><p><strong>data_type</strong> (<em>str</em>) – Type of chromatographic signal to process. Must be one of:
+“TIC”, “TIS”, or “TIC-TIS”.</p></li>
+<li><p><strong>sync_state</strong> (<em>bool</em>) – If True and data_type is “TIC-TIS”, perform TIC alignment using cl.align_tics.</p></li>
+<li><p><strong>chrom_cap</strong> (<em>int</em>) – Chromatogram cap used during TIC alignment.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>If data_type is “TIC” or “TIS”, returns a dictionary of chromatograms.</p></li>
+<li><p>If data_type is “TIC-TIS”, returns a tuple (tics, tiss) of dictionaries.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict or tuple</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If <cite>data_type</cite> is not one of the supported options.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="wine_analysis.process_labels_by_wine_kind">
+<span class="sig-prename descclassname"><span class="pre">wine_analysis.</span></span><span class="sig-name descname"><span class="pre">process_labels_by_wine_kind</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">labels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wine_kind</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">region</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vintage</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">class_by_year</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chromatograms</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wine_analysis.html#process_labels_by_wine_kind"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wine_analysis.process_labels_by_wine_kind" title="Link to this definition">¶</a></dt>
+<dd><p>Assign labels based on the type of wine and the desired classification region or scheme.</p>
+<p>This function handles label processing differently depending on the wine type:
+- For ‘bordeaux’: returns processed labels, optionally including vintage year.
+- For ‘pinot_noir’: assigns labels based on the specified region (e.g., country, origin, winery, etc.).
+- For ‘press’ wines: assigns composite labels, and optionally extracts vintage year labels</p>
+<blockquote>
+<div><p>if <cite>class_by_year</cite> is True.</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>labels</strong> (<em>list</em><em> or </em><em>np.ndarray</em>) – Original labels or identifiers of the samples.</p></li>
+<li><p><strong>wine_kind</strong> (<em>str</em>) – Type of wine. One of: ‘bordeaux’, ‘pinot_noir’, or ‘press’.</p></li>
+<li><p><strong>region</strong> (<em>str</em>) – Labeling scheme to use for ‘pinot_noir’ (e.g., ‘origin’, ‘country’, ‘winery’, etc.).</p></li>
+<li><p><strong>vintage</strong> (<em>bool</em>) – Whether to include vintage information (used for ‘bordeaux’).</p></li>
+<li><p><strong>class_by_year</strong> (<em>bool</em>) – If True and <cite>wine_kind</cite> is ‘press’, extract year labels from chromatogram keys.</p></li>
+<li><p><strong>chromatograms</strong> (<em>dict</em>) – Dictionary of chromatograms with sample keys used to extract years for ‘press’.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>tuple: (processed_labels, year_labels)
+Otherwise:</p>
+<blockquote>
+<div><p>processed_labels</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>If wine_kind == ‘press’</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If an invalid wine kind or region is specified.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Wine Analysis Library</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="README.html">Wine Analysis Library Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pinot_noir/index.html">Pinot Noir</a></li>
+<li class="toctree-l1"><a class="reference internal" href="press_wines/index.html">Press Wines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="champagne/index.html">Champagne</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2025, Luis Gomez Camara.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/wine_analysis.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
