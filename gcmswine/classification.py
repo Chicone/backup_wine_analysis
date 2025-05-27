@@ -367,7 +367,8 @@ class Classifier:
         # Step 2: split
         if LOOPC:
             # Use composite-aware grouping for duplicate-safe splitting
-            composite_labels = assign_bordeaux_label(self.labels_raw, vintage=False)
+            # composite_labels = assign_bordeaux_label(self.labels_raw, vintage=False)
+            composite_labels = self.strategy.get_split_labels(self.labels_raw, self.class_by_year)
             train_idx, test_idx = leave_one_sample_per_class_split(
                 X=self.data,
                 y=composite_labels,
@@ -1509,7 +1510,8 @@ class Classifier:
             self, num_repeats=10, random_seed=42, test_size=0.2, normalize=False,
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
             print_results=True, n_jobs=-1, feature_type="concatenated",
-            classifier_type="RGC", LOOPC=True, return_umap_data=False
+            classifier_type="RGC", LOOPC=True, return_umap_data=False,
+            show_confusion_matrix=False
     ):
         import re
         from collections import Counter
@@ -1550,7 +1552,7 @@ class Classifier:
                 strategy = get_strategy_by_wine_kind(
                     self.wine_kind, region,
                     utils.get_custom_order_for_pinot_noir_region,
-                    class_by_year=self.class_by_year if hasattr(self, "class_by_year") else False
+                    class_by_year=self.class_by_year
                 )
 
                 cls = Classifier(
@@ -1603,12 +1605,13 @@ class Classifier:
         std_test_accuracy = np.std(balanced_accuracies, axis=0)
         mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
 
-        # custom_order = strategy.get_custom_order(labels, year_labels)
-
         print("\n##################################")
         print(f"Mean Balanced Accuracy: {mean_test_accuracy:.3f} ± {std_test_accuracy:.3f}")
 
-        labels_used = self.strategy.extract_labels(labels)
+        if self.class_by_year:
+            labels_used = self.year_labels
+        else:
+            labels_used = self.strategy.extract_labels(labels)
         custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
         counts = Counter(labels_used)
 
@@ -1620,24 +1623,33 @@ class Classifier:
             for label in sorted(counts.keys()):
                 print(f"{label} ({counts[label]})")
 
-        # print("\nLabel order:")
-        # if custom_order is not None:
-        #     if year_labels.size > 0 and np.any(year_labels != None):
-        #         year_count = Counter(year_labels)
-        #         for year in year_count:
-        #             print(f"{year} ({year_count.get(year, 0)})")
-        #     else:
-        #         counts = Counter(strategy.extract_labels(labels))
-        #         for label in custom_order:
-        #             print(f"{label} ({counts.get(label, 0)})")
-        # else:
-        #     counts = Counter(strategy.extract_labels(labels))
-        #     for label in sorted(counts.keys()):
-        #         print(f"{label} ({counts[label]})")
-
         print("\nFinal Averaged Normalized Confusion Matrix:")
         print(mean_confusion_matrix)
         print("##################################")
+
+        if show_confusion_matrix:
+            import matplotlib.pyplot as plt
+            from sklearn.metrics import ConfusionMatrixDisplay
+
+            headers = custom_order  # Can be overwritten manually below if needed
+            # Example manual header sets (uncomment one as needed)
+            # headers = ['Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot', 'Les Petits Monts',
+            #             'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach', 'Brunner', 'Vin des Croisés',
+            #             'Villard et Fils', 'République', 'Maladaires', 'Marimar', 'Drouhin']
+            # headers = ["Burgundy", "Alsace", "Neuchatel", "Genève", "Valais", "Californie", "Oregon"]
+            # headers = ["France", "Switzerland", "US"]
+            # headers = ["Côte de Nuits", "Côte de Beaune"]
+
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.set_xlabel('Predicted Label', fontsize=14)
+            ax.set_ylabel('True Label', fontsize=14)
+            ax.set_title(f'Confusion Matrix by {region}')
+            disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=headers)
+            disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
+            plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
+            plt.setp(ax.get_yticklabels(), fontsize=12)
+            plt.tight_layout()
+            plt.show()
 
         if return_umap_data:
             return mean_test_accuracy, std_test_accuracy, all_umap_scores, all_umap_labels
@@ -2300,36 +2312,36 @@ def assign_composite_label_to_press_wine(labels):
 
     return composite_labels
 
-def assign_bordeaux_label(labels, vintage=False):
-    """
-    Assigns labels for Bordeaux wines, optionally grouping by vintage or by composite label.
-
-    Args:
-        labels (list of str): A list of wine sample labels (e.g., 'A2022', 'B2021B').
-        vintage (bool): If True, extract only the year (e.g., '2022').
-                        If False, extract composite label like 'A2022' but remove trailing 'B' duplicates.
-
-    Returns:
-        np.ndarray: Processed labels as per selected mode.
-    """
-    processed_labels = []
-
-    for label in labels:
-        match = re.search(r'(\d{4})', label)
-        if not match:
-            processed_labels.append(None)
-            continue
-
-        if vintage:
-            year = match.group(1)
-            processed_labels.append(year)
-        else:
-            # Extract leading letter and year, ignore trailing B
-            letter = label[match.start() - 1]
-            year = match.group(1)
-            processed_labels.append(f"{letter}{year}")
-
-    return np.array(processed_labels)
+# def assign_bordeaux_label(labels, vintage=False):
+#     """
+#     Assigns labels for Bordeaux wines, optionally grouping by vintage or by composite label.
+#
+#     Args:
+#         labels (list of str): A list of wine sample labels (e.g., 'A2022', 'B2021B').
+#         vintage (bool): If True, extract only the year (e.g., '2022').
+#                         If False, extract composite label like 'A2022' but remove trailing 'B' duplicates.
+#
+#     Returns:
+#         np.ndarray: Processed labels as per selected mode.
+#     """
+#     processed_labels = []
+#
+#     for label in labels:
+#         match = re.search(r'(\d{4})', label)
+#         if not match:
+#             processed_labels.append(None)
+#             continue
+#
+#         if vintage:
+#             year = match.group(1)
+#             processed_labels.append(year)
+#         else:
+#             # Extract leading letter and year, ignore trailing B
+#             letter = label[match.start() - 1]
+#             year = match.group(1)
+#             processed_labels.append(f"{letter}{year}")
+#
+#     return np.array(processed_labels)
 
 
 # def assign_composite_label_to_bordeaux_wine(labels):

@@ -1980,3 +1980,35 @@ def infer_wine_kind(selected_datasets, dataset_directories):
             )
 
     return wine_kind
+
+
+def assign_bordeaux_label(labels, vintage=False):
+    """
+    Assigns labels for Bordeaux wines, optionally grouping by vintage or by composite label.
+
+    Args:
+        labels (list of str): A list of wine sample labels (e.g., 'A2022', 'B2021B').
+        vintage (bool): If True, extract only the year (e.g., '2022').
+                        If False, extract composite label like 'A2022' but remove trailing 'B' duplicates.
+
+    Returns:
+        np.ndarray: Processed labels as per selected mode.
+    """
+    processed_labels = []
+
+    for label in labels:
+        match = re.search(r'(\d{4})', label)
+        if not match:
+            processed_labels.append(None)
+            continue
+
+        if vintage:
+            year = match.group(1)
+            processed_labels.append(year)
+        else:
+            # Extract leading letter and year, ignore trailing B
+            letter = label[match.start() - 1]
+            year = match.group(1)
+            processed_labels.append(f"{letter}{year}")
+
+    return np.array(processed_labels)

@@ -151,7 +151,6 @@ if __name__ == "__main__":
 
     # Infer wine_kind from selected dataset paths
     wine_kind = utils.infer_wine_kind(selected_datasets, config["datasets"])
-    strategy = get_strategy_by_wine_kind(wine_kind)
 
     feature_type = config["feature_type"]
     classifier = config["classifier"]
@@ -161,6 +160,13 @@ if __name__ == "__main__":
     sync_state = config["sync_state"]
     region = config["region"]
     # wine_kind = config["wine_kind"]
+
+    # strategy = get_strategy_by_wine_kind(wine_kind, get_custom_order_func=utils.get_custom_order_for_pinot_noir_region())
+    strategy = get_strategy_by_wine_kind(
+        wine_kind=wine_kind,
+        region=region,
+        get_custom_order_func=utils.get_custom_order_for_pinot_noir_region,
+    )
 
     # Create ChromatogramAnalysis instance for optional alignment
     cl = ChromatogramAnalysis(ndec=n_decimation)
@@ -186,7 +192,7 @@ if __name__ == "__main__":
         data = data[mask]
         labels = labels[mask]
 
-    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None, None)
+    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None)
 
     # Instantiate classifier with data and labels
     cls = Classifier(
@@ -213,6 +219,7 @@ if __name__ == "__main__":
         feature_type=feature_type,
         classifier_type=classifier,
         LOOPC=True , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
-        return_umap_data=False
+        return_umap_data=False,
+        show_confusion_matrix=True
     )
 

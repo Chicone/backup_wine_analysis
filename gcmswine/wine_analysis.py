@@ -46,10 +46,9 @@ from scipy.interpolate import UnivariateSpline
 from scipy.interpolate import interp1d
 from scipy.signal import correlate, find_peaks, peak_prominences
 from scipy.stats import pearsonr
-from gcmswine.utils import normalize_dict, remove_peak, min_max_normalize, normalize_data
+from gcmswine.utils import normalize_dict, remove_peak, min_max_normalize, normalize_data, assign_bordeaux_label
 from scipy.ndimage import gaussian_filter
 # from config import *
-
 from gcmswine.classification import *
 # from scripts.press_wines.train_test_press_wines import n_decimation
 

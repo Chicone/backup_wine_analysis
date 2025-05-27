@@ -2,8 +2,16 @@
 
 from collections import Counter
 import re
+import numpy as np
 
 class WineKindStrategy:
+    def get_split_labels(self, labels_raw, class_by_year=False):
+        """
+        Returns labels to use for duplicate-safe grouping during splitting.
+        Override in subclasses as needed.
+        """
+        return labels_raw
+
     def extract_labels(self, labels):
         return labels  # Default: no transformation
 
@@ -19,16 +27,23 @@ class PressWineStrategy(WineKindStrategy):
         return [label[0] if label else None for label in labels]  # 'A1' -> 'A'
 
     def get_custom_order(self, labels, year_labels=None):
-        if year_labels is not None and len(year_labels) > 0 and any(y is not None for y in year_labels):
-            return list(Counter(year_labels).keys())
+        if year_labels is not None:
+            year_labels = np.array(year_labels)
+            if year_labels.size > 0 and np.any(year_labels != None):
+                return list(Counter(year_labels).keys())
         return ["A", "B", "C"]
 
     def use_composite_labels(self, labels):
-        return len(labels[0]) > 1 if labels and labels[0] else False
+        return len(labels[0]) > 1 if len(labels) > 0 and labels[0] is not None else False
 
+
+from gcmswine.utils import assign_bordeaux_label
 class BordeauxWineStrategy(WineKindStrategy):
     def __init__(self, class_by_year=False):
         self.class_by_year = class_by_year
+
+    def get_split_labels(self, labels_raw, class_by_year=False):
+        return assign_bordeaux_label(labels_raw, vintage=False)
 
     def extract_labels(self, labels):
         if self.class_by_year:
