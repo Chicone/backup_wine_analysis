@@ -1,25 +1,28 @@
 """
+To train and test classification of Bordeaux wines, we use the script **train_test_bordeaux.py**.
+The goal is to classify Bordeaux wine samples based on their GC-MS chemical fingerprint, using either
+sample-level identifiers (e.g., A2022) or vintage year labels (e.g., 2022) depending on the configuration.
 
-To train and test classification of Bordeaux wine samples we use the script **train_test_bordeaux.py**.
-
+The script implements a complete machine learning pipeline including data loading, label parsing,
+feature extraction, classification, and repeated evaluation using replicate-safe splitting.
 
 Configuration Parameters
------------------------
+------------------------
 
-The script reads analysis parameters from a configuration file (`config.yaml`) located at the root of the repository.
+The script reads configuration parameters from a file (`config.yaml`) located at the root of the repository.
 Below is a description of the key parameters:
 
-- **dataset**: Each dataset must be specified with a name and its corresponding path on your local machine. The paths should point to directories containing `.D` folders for each sample.
+- **datasets**: A dictionary mapping dataset names to paths on your local machine. Each path should contain `.D` folders for raw GC-MS samples.
 
-- **selected_datasets**: Selects the datasets to be used. You can join more than one but must be compatible in terms of m/z channels
+- **selected_datasets**: The list of datasets to include. All selected datasets must be compatible in terms of m/z channels.
 
-- **feature_type**: Determines how the chromatogram channels are aggregated for classification.
+- **feature_type**: Determines how chromatographic data are aggregated for classification.
 
   - ``tic``: Use the Total Ion Chromatogram only.
   - ``tis``: Use individual Total Ion Spectrum channels.
-  - ``tic_tis``: Combines TIC and TIS features by concatenation.
+  - ``tic_tis``: Concatenates TIC and TIS into a joint feature vector.
 
-- **classifier**: Specifies the classification model used for training. Available options include:
+- **classifier**: The classification algorithm to use. Options include:
 
   - ``DTC``: Decision Tree Classifier
   - ``GNB``: Gaussian Naive Bayes
@@ -33,75 +36,69 @@ Below is a description of the key parameters:
   - ``SGD``: Stochastic Gradient Descent
   - ``SVM``: Support Vector Machine
 
-- **num_splits**: Number of random train/test splits to evaluate model stability. Higher values improve statistical confidence.
+- **num_splits**: Number of repetitions for train/test evaluation. Higher values yield more robust statistics.
 
-- **normalize**: Whether to apply feature scaling (standard normalization) before classification. It is learned on training splits and applied to test split, so no leakage
+- **normalize**: Whether to apply standard scaling to features. Scaling is fitted on the training set and applied to test.
 
-- **n_decimation**: Factor by which chromatograms are downsampled along the retention time axis to reduce dimensionality.
+- **n_decimation**: Downsampling factor for chromatograms along the retention time axis.
 
-- **sync_state**: Enables or disables retention time synchronization between samples using peak alignment algorithms.
+- **sync_state**: Enables retention time alignment between samples (typically not needed for Bordeaux).
 
-- **region**: Indicates the classification granularity, such as:
+- **region**: Not used in Bordeaux classification, but required for other pipelines such as Pinot Noir.
 
-  - ``winery``: Group samples by producer.
-  - ``origin``: Group samples by geographical origin or region of production.
-  - ``country``: Group samples by country.
-  - ``continent``: Group samples by continent.
+- **class_by_year**: If `True`, samples are classified by vintage year (e.g., 2020, 2021). If `False`, samples are classified by composite label (e.g., A2022).
 
-- **wine_kind**: This parameter is used internally to distinguish the type of wine (e.g., ``pinot_noir``, ``press``, ``champagne``) and to apply appropriate label parsing and evaluation logic.
-  **This field is now automatically inferred from the dataset path and should not be set manually.**
-
-These parameters allow users to flexibly configure the pipeline without modifying the script itself.
+- **wine_kind**: Internally inferred from the dataset path (should include `bordeaux`). Should not be set manually.
 
 Script Overview
 ---------------
 
-The script performs classification of Pinot Noir wine samples using GC-MS data and a configurable machine learning pipeline.
-It loads all key parameters and dataset paths from a separate configuration file. To modify the experiment and the
-location of your dataset, simply edit ``config.yaml`` according to your needs.
+This script performs classification of **Bordeaux wine samples** using GC-MS data and a configurable machine learning pipeline.
 
+All parameters are loaded from a central `config.yaml` file, enabling reproducibility and flexibility.
 
 The main steps include:
 
-1. **Configuration loading**:
+1. **Configuration Loading**:
 
-   - Loads experiment settings from ``config.yaml``.
-   - This includes paths to the datasets, the number of evaluation splits, the classifier type, and other parameters.
+   - Loads paths, classifier settings, and feature types from the config file.
+   - Verifies that all selected datasets are Bordeaux-type (i.e., paths contain `'bordeaux'`).
 
 2. **Data Loading and Preprocessing**:
 
-   - GC-MS chromatograms are loaded using `GCMSDataProcessor`.
-   - Datasets are joined and decimated according to the defined factor.
-   - Channels with zero variance are removed.
-   - Optionally, retention time alignment (synchronization) is performed if `sync_state` is enabled in the config.
-   - Optionally, data normalization (recommended), using training-set statistics only to avoid leakage.
+   - Loads and optionally decimates GC-MS chromatograms using `GCMSDataProcessor`.
+   - Removes channels with zero variance.
+   - Optional retention time synchronization can be enabled with `sync_state=True`.
 
 3. **Label Processing**:
 
-   - Sample labels are extracted and grouped according to the selected `region` (e.g., winery, origin, country or continent).
-   - These labels are prepared for supervised classification.
+   - Labels are parsed based on `class_by_year`:
+     - If `True`, classification is done by year (e.g., 2021).
+     - If `False`, composite labels like `A2022` are used.
+   - Label extraction and grouping are managed by the `WineKindStrategy` abstraction layer.
 
 4. **Classification**:
 
-   - The `Classifier` class is used to train a machine learning model on the processed data.
-   - The `train_and_evaluate_all_channels()` method evaluates model performance across multiple splits.
-   - Classification features are aggregated as specified by the `feature_type` parameter (e.g., TIC, TIS, or both).
+   - A `Classifier` object is initialized with the processed data and selected classifier.
+   - The `train_and_evaluate_all_channels()` method runs repeated evaluations across all channels or selected feature types.
 
-5. **Evaluation**:
+5. **Cross-Validation and Replicate Handling**:
 
-   - Accuracy results are printed.
-   - Optionally, confusion matrices can be converted to LaTeX using provided helper functions for reporting.
+   - If `LOOPC=True`, one sample is randomly selected per class along with all of its replicates, then used as the test set. This ensures that each test fold contains exactly one unique wine per class, and no sample is split across train and test. The rest of the data is used for training.
+   - If `LOOPC=False`, stratified shuffling is used, still preserving replicate integrity using group logic.
 
-This script provides a complete, reproducible workflow to test classification accuracy of Pinot Noir wines using chemical
-profiles extracted from GC-MS data.
+6. **Evaluation**:
 
+   - Prints mean and standard deviation of balanced accuracy.
+   - Displays label counts and ordering used for confusion matrix construction.
+   - Set `show_confusion_matrix=True` to visualize the averaged confusion matrix with matplotlib.
 
 Requirements
 ------------
 
-- Properly structured GC-MS data directories
-- Required dependencies installed (see `README.md`)
-- Adjust paths in `DATASET_DIRECTORIES` to match your local setup
+- Properly structured GC-MS dataset folders
+- All required Python dependencies installed (see `README.md`)
+- Dataset paths correctly specified in `config.yaml`
 
 Usage
 -----
@@ -110,8 +107,9 @@ From the root of the repository, run:
 
 .. code-block:: bash
 
-   python scripts/pinot_noir/train_test_pinot_noir.py
+   python scripts/bordeaux/train_test_bordeaux.py
 """
+
 
 if __name__ == "__main__":
     import numpy as np

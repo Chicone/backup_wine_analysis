@@ -1,25 +1,29 @@
 """
+To train and test classification of Pinot Noir wines, we use the script **train_test_pinot_noir.py**.
+The goal is to classify wine samples based on their GC-MS chemical fingerprint, using geographic labels
+at different levels of granularity (e.g., winery, region, country, north-south of Burgundy, or continent).
 
-To train and test classification of Pinot Noir wine samples we use the script **train_test_pinot_noir.py**.
-
+The script implements a complete machine learning pipeline including data loading, preprocessing,
+region-based label extraction, feature computation, and repeated classifier evaluation.
 
 Configuration Parameters
------------------------
+------------------------
 
-The script reads analysis parameters from a configuration file (`config.yaml`) located at the root of the repository.
+The script reads configuration parameters from a file (`config.yaml`) located at the root of the repository.
 Below is a description of the key parameters:
 
-- **dataset**: Each dataset must be specified with a name and its corresponding path on your local machine. The paths should point to directories containing `.D` folders for each sample.
+- **datasets**: Dictionary mapping dataset names to local paths. Each path must contain `.D` folders for each chromatogram.
 
-- **selected_datasets**: Selects the datasets to be used. You can join more than one but must be compatible in terms of m/z channels
+- **selected_datasets**: The list of datasets to use for the analysis. Must be compatible in terms of m/z channels.
 
-- **feature_type**: Determines how the chromatogram channels are aggregated for classification.
+- **feature_type**: Defines how chromatograms are converted into features for classification:
 
   - ``tic``: Use the Total Ion Chromatogram only.
   - ``tis``: Use individual Total Ion Spectrum channels.
-  - ``tic_tis``: Combines TIC and TIS features by concatenation.
+  - ``tic_tis``: Concatenate TIC and TIS.
+  - ``concatenated``: Flatten raw chromatograms across all channels.
 
-- **classifier**: Specifies the classification model used for training. Available options include:
+- **classifier**: Classification model to apply. Available options:
 
   - ``DTC``: Decision Tree Classifier
   - ``GNB``: Gaussian Naive Bayes
@@ -33,75 +37,70 @@ Below is a description of the key parameters:
   - ``SGD``: Stochastic Gradient Descent
   - ``SVM``: Support Vector Machine
 
-- **num_splits**: Number of random train/test splits to evaluate model stability. Higher values improve statistical confidence.
+- **num_splits**: Number of repeated train/test splits to run.
 
-- **normalize**: Whether to apply feature scaling (standard normalization) before classification. It is learned on training splits and applied to test split, so no leakage
+- **normalize**: Whether to apply standard scaling before classification. Normalization is fit on training data only.
 
-- **n_decimation**: Factor by which chromatograms are downsampled along the retention time axis to reduce dimensionality.
+- **n_decimation**: Downsampling factor along the retention time axis to reduce dimensionality.
 
-- **sync_state**: Enables or disables retention time synchronization between samples using peak alignment algorithms.
+- **sync_state**: Whether to align chromatograms using retention time synchronization (useful for Pinot Noir samples with retention drift).
 
-- **region**: Indicates the classification granularity, such as:
+- **region**: Defines the classification target. Available options:
 
-  - ``winery``: Group samples by producer.
-  - ``origin``: Group samples by geographical origin or region of production.
-  - ``country``: Group samples by country.
-  - ``continent``: Group samples by continent.
+  - ``winery``: Classify by individual wine producer
+  - ``origin``: Group samples by geographic region (e.g., Beaune, Alsace)
+  - ``country``: Group by country (e.g., France, Switzerland, USA)
+  - ``continent``: Group by continent
+  - ``north_south_burgundy``: Binary classification of northern vs southern Burgundy subregions
 
-- **wine_kind**: This parameter is used internally to distinguish the type of wine (e.g., ``pinot_noir``, ``press``, ``champagne``) and to apply appropriate label parsing and evaluation logic.
-  **This field is now automatically inferred from the dataset path and should not be set manually.**
-
-These parameters allow users to flexibly configure the pipeline without modifying the script itself.
+- **wine_kind**: Internally inferred from dataset paths. Should not be set manually.
 
 Script Overview
 ---------------
 
-The script performs classification of Pinot Noir wine samples using GC-MS data and a configurable machine learning pipeline.
-It loads all key parameters and dataset paths from a separate configuration file. To modify the experiment and the
-location of your dataset, simply edit ``config.yaml`` according to your needs.
+This script performs classification of **Pinot Noir wine samples** using GC-MS data and a configurable
+classification pipeline. It allows for flexible region-based classification using a strategy abstraction.
 
+The main workflow is:
 
-The main steps include:
+1. **Configuration Loading**:
 
-1. **Configuration loading**:
-
-   - Loads experiment settings from ``config.yaml``.
-   - This includes paths to the datasets, the number of evaluation splits, the classifier type, and other parameters.
+   - Loads classifier, region, feature type, and dataset settings from `config.yaml`.
+   - Confirms that all dataset paths are compatible (must contain `'pinot'`).
 
 2. **Data Loading and Preprocessing**:
 
-   - GC-MS chromatograms are loaded using `GCMSDataProcessor`.
-   - Datasets are joined and decimated according to the defined factor.
+   - Chromatograms are loaded and decimated.
    - Channels with zero variance are removed.
-   - Optionally, retention time alignment (synchronization) is performed if `sync_state` is enabled in the config.
-   - Optionally, data normalization (recommended), using training-set statistics only to avoid leakage.
+   - If `sync_state=True`, samples are aligned by retention time.
 
 3. **Label Processing**:
 
-   - Sample labels are extracted and grouped according to the selected `region` (e.g., winery, origin, country or continent).
-   - These labels are prepared for supervised classification.
+   - Region-based labels are extracted using `process_labels_by_wine_kind()` and the `WineKindStrategy` abstraction.
+   - Granularity is determined by the `region` parameter (e.g., `"winery"` or `"country"`).
 
 4. **Classification**:
 
-   - The `Classifier` class is used to train a machine learning model on the processed data.
-   - The `train_and_evaluate_all_channels()` method evaluates model performance across multiple splits.
-   - Classification features are aggregated as specified by the `feature_type` parameter (e.g., TIC, TIS, or both).
+   - Initializes a `Classifier` instance with the chosen feature representation and classifier model.
+   - Runs repeated evaluation via `train_and_evaluate_all_channels()` using the selected splitting strategy.
 
-5. **Evaluation**:
+5. **Cross-Validation and Replicate Handling**:
 
-   - Accuracy results are printed.
-   - Optionally, confusion matrices can be converted to LaTeX using provided helper functions for reporting.
+   - If `LOOPC=True`, one sample is randomly selected per class along with all of its replicates, then used as the test set. This ensures that each test fold contains exactly one unique wine per class, and no sample is split across train and test. The rest of the data is used for training.
+   - If `LOOPC=False`, stratified shuffling is used while still preventing replicate leakage.
 
-This script provides a complete, reproducible workflow to test classification accuracy of Pinot Noir wines using chemical
-profiles extracted from GC-MS data.
+6. **Evaluation**:
 
+   - Prints average and standard deviation of balanced accuracy across splits.
+   - Displays label ordering and sample distribution.
+   - Set `show_confusion_matrix=True` to visualize the averaged confusion matrix with matplotlib.
 
 Requirements
 ------------
 
-- Properly structured GC-MS data directories
-- Required dependencies installed (see `README.md`)
-- Adjust paths in `DATASET_DIRECTORIES` to match your local setup
+- Properly structured Pinot Noir GC-MS dataset folders
+- All dependencies installed (see `README.md`)
+- Valid paths and regions configured in `config.yaml`
 
 Usage
 -----

@@ -19,7 +19,7 @@ selected_datasets:  # Choose the dataset to be used
   - pinot_noir_changins
 
 feature_type: tic_tis      # Options: tic, tis, tic_tis
-classifier: RGC # Available classifiers: "DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"
+classifier: RGC # Best is typically RGC. Available classifiers: "DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"
 num_splits: 10
 normalize: true
 n_decimation: 10

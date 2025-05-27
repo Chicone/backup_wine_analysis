@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Pinot Noir Classification &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <title>Bordeaux Classification &#8212; Wine Analysis Library 0.1.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=4f649999" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=cb25574f" />
     <script src="../_static/documentation_options.js?v=01f34227"></script>
@@ -13,7 +13,7 @@
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Press Wines" href="../press_wines/index.html" />
+    <link rel="next" title="Pinot Noir" href="../pinot_noir/index.html" />
     <link rel="prev" title="Overview" href="overview.html" />
    
   <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
@@ -31,29 +31,28 @@
 
           <div class="body" role="main">
             
-  <section id="module-scripts.pinot_noir.train_test_pinot_noir">
-<span id="pinot-noir-classification"></span><h1>Pinot Noir Classification<a class="headerlink" href="#module-scripts.pinot_noir.train_test_pinot_noir" title="Link to this heading">¶</a></h1>
-<p>To train and test classification of Pinot Noir wines, we use the script <strong>train_test_pinot_noir.py</strong>.
-The goal is to classify wine samples based on their GC-MS chemical fingerprint, using geographic labels
-at different levels of granularity (e.g., winery, region, country, north-south of Burgundy, or continent).</p>
-<p>The script implements a complete machine learning pipeline including data loading, preprocessing,
-region-based label extraction, feature computation, and repeated classifier evaluation.</p>
+  <section id="module-scripts.bordeaux.train_test_bordeaux">
+<span id="bordeaux-classification"></span><h1>Bordeaux Classification<a class="headerlink" href="#module-scripts.bordeaux.train_test_bordeaux" title="Link to this heading">¶</a></h1>
+<p>To train and test classification of Bordeaux wines, we use the script <strong>train_test_bordeaux.py</strong>.
+The goal is to classify Bordeaux wine samples based on their GC-MS chemical fingerprint, using either
+sample-level identifiers (e.g., A2022) or vintage year labels (e.g., 2022) depending on the configuration.</p>
+<p>The script implements a complete machine learning pipeline including data loading, label parsing,
+feature extraction, classification, and repeated evaluation using replicate-safe splitting.</p>
 <section id="configuration-parameters">
 <h2>Configuration Parameters<a class="headerlink" href="#configuration-parameters" title="Link to this heading">¶</a></h2>
 <p>The script reads configuration parameters from a file (<cite>config.yaml</cite>) located at the root of the repository.
 Below is a description of the key parameters:</p>
 <ul class="simple">
-<li><p><strong>datasets</strong>: Dictionary mapping dataset names to local paths. Each path must contain <cite>.D</cite> folders for each chromatogram.</p></li>
-<li><p><strong>selected_datasets</strong>: The list of datasets to use for the analysis. Must be compatible in terms of m/z channels.</p></li>
-<li><p><strong>feature_type</strong>: Defines how chromatograms are converted into features for classification:</p>
+<li><p><strong>datasets</strong>: A dictionary mapping dataset names to paths on your local machine. Each path should contain <cite>.D</cite> folders for raw GC-MS samples.</p></li>
+<li><p><strong>selected_datasets</strong>: The list of datasets to include. All selected datasets must be compatible in terms of m/z channels.</p></li>
+<li><p><strong>feature_type</strong>: Determines how chromatographic data are aggregated for classification.</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">tic</span></code>: Use the Total Ion Chromatogram only.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tis</span></code>: Use individual Total Ion Spectrum channels.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tic_tis</span></code>: Concatenate TIC and TIS.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">concatenated</span></code>: Flatten raw chromatograms across all channels.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tic_tis</span></code>: Concatenates TIC and TIS into a joint feature vector.</p></li>
 </ul>
 </li>
-<li><p><strong>classifier</strong>: Classification model to apply. Available options:</p>
+<li><p><strong>classifier</strong>: The classification algorithm to use. Options include:</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">DTC</span></code>: Decision Tree Classifier</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">GNB</span></code>: Gaussian Naive Bayes</p></li>
@@ -68,63 +67,58 @@ Below is a description of the key parameters:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">SVM</span></code>: Support Vector Machine</p></li>
 </ul>
 </li>
-<li><p><strong>num_splits</strong>: Number of repeated train/test splits to run.</p></li>
-<li><p><strong>normalize</strong>: Whether to apply standard scaling before classification. Normalization is fit on training data only.</p></li>
-<li><p><strong>n_decimation</strong>: Downsampling factor along the retention time axis to reduce dimensionality.</p></li>
-<li><p><strong>sync_state</strong>: Whether to align chromatograms using retention time synchronization (useful for Pinot Noir samples with retention drift).</p></li>
-<li><p><strong>region</strong>: Defines the classification target. Available options:</p>
-<ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">winery</span></code>: Classify by individual wine producer</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">origin</span></code>: Group samples by geographic region (e.g., Beaune, Alsace)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">country</span></code>: Group by country (e.g., France, Switzerland, USA)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">continent</span></code>: Group by continent</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">north_south_burgundy</span></code>: Binary classification of northern vs southern Burgundy subregions</p></li>
-</ul>
-</li>
-<li><p><strong>wine_kind</strong>: Internally inferred from dataset paths. Should not be set manually.</p></li>
+<li><p><strong>num_splits</strong>: Number of repetitions for train/test evaluation. Higher values yield more robust statistics.</p></li>
+<li><p><strong>normalize</strong>: Whether to apply standard scaling to features. Scaling is fitted on the training set and applied to test.</p></li>
+<li><p><strong>n_decimation</strong>: Downsampling factor for chromatograms along the retention time axis.</p></li>
+<li><p><strong>sync_state</strong>: Enables retention time alignment between samples (typically not needed for Bordeaux).</p></li>
+<li><p><strong>region</strong>: Not used in Bordeaux classification, but required for other pipelines such as Pinot Noir.</p></li>
+<li><p><strong>class_by_year</strong>: If <cite>True</cite>, samples are classified by vintage year (e.g., 2020, 2021). If <cite>False</cite>, samples are classified by composite label (e.g., A2022).</p></li>
+<li><p><strong>wine_kind</strong>: Internally inferred from the dataset path (should include <cite>bordeaux</cite>). Should not be set manually.</p></li>
 </ul>
 </section>
 <section id="script-overview">
 <h2>Script Overview<a class="headerlink" href="#script-overview" title="Link to this heading">¶</a></h2>
-<p>This script performs classification of <strong>Pinot Noir wine samples</strong> using GC-MS data and a configurable
-classification pipeline. It allows for flexible region-based classification using a strategy abstraction.</p>
-<p>The main workflow is:</p>
+<p>This script performs classification of <strong>Bordeaux wine samples</strong> using GC-MS data and a configurable machine learning pipeline.</p>
+<p>All parameters are loaded from a central <cite>config.yaml</cite> file, enabling reproducibility and flexibility.</p>
+<p>The main steps include:</p>
 <ol class="arabic simple">
 <li><p><strong>Configuration Loading</strong>:</p>
 <ul class="simple">
-<li><p>Loads classifier, region, feature type, and dataset settings from <cite>config.yaml</cite>.</p></li>
-<li><p>Confirms that all dataset paths are compatible (must contain <cite>‘pinot’</cite>).</p></li>
+<li><p>Loads paths, classifier settings, and feature types from the config file.</p></li>
+<li><p>Verifies that all selected datasets are Bordeaux-type (i.e., paths contain <cite>‘bordeaux’</cite>).</p></li>
 </ul>
 </li>
 <li><p><strong>Data Loading and Preprocessing</strong>:</p>
 <ul class="simple">
-<li><p>Chromatograms are loaded and decimated.</p></li>
-<li><p>Channels with zero variance are removed.</p></li>
-<li><p>If <cite>sync_state=True</cite>, samples are aligned by retention time.</p></li>
+<li><p>Loads and optionally decimates GC-MS chromatograms using <cite>GCMSDataProcessor</cite>.</p></li>
+<li><p>Removes channels with zero variance.</p></li>
+<li><p>Optional retention time synchronization can be enabled with <cite>sync_state=True</cite>.</p></li>
 </ul>
 </li>
 <li><p><strong>Label Processing</strong>:</p>
 <ul class="simple">
-<li><p>Region-based labels are extracted using <cite>process_labels_by_wine_kind()</cite> and the <cite>WineKindStrategy</cite> abstraction.</p></li>
-<li><p>Granularity is determined by the <cite>region</cite> parameter (e.g., <cite>“winery”</cite> or <cite>“country”</cite>).</p></li>
+<li><p>Labels are parsed based on <cite>class_by_year</cite>:
+- If <cite>True</cite>, classification is done by year (e.g., 2021).
+- If <cite>False</cite>, composite labels like <cite>A2022</cite> are used.</p></li>
+<li><p>Label extraction and grouping are managed by the <cite>WineKindStrategy</cite> abstraction layer.</p></li>
 </ul>
 </li>
 <li><p><strong>Classification</strong>:</p>
 <ul class="simple">
-<li><p>Initializes a <cite>Classifier</cite> instance with the chosen feature representation and classifier model.</p></li>
-<li><p>Runs repeated evaluation via <cite>train_and_evaluate_all_channels()</cite> using the selected splitting strategy.</p></li>
+<li><p>A <cite>Classifier</cite> object is initialized with the processed data and selected classifier.</p></li>
+<li><p>The <cite>train_and_evaluate_all_channels()</cite> method runs repeated evaluations across all channels or selected feature types.</p></li>
 </ul>
 </li>
 <li><p><strong>Cross-Validation and Replicate Handling</strong>:</p>
 <ul class="simple">
 <li><p>If <cite>LOOPC=True</cite>, one sample is randomly selected per class along with all of its replicates, then used as the test set. This ensures that each test fold contains exactly one unique wine per class, and no sample is split across train and test. The rest of the data is used for training.</p></li>
-<li><p>If <cite>LOOPC=False</cite>, stratified shuffling is used while still preventing replicate leakage.</p></li>
+<li><p>If <cite>LOOPC=False</cite>, stratified shuffling is used, still preserving replicate integrity using group logic.</p></li>
 </ul>
 </li>
 <li><p><strong>Evaluation</strong>:</p>
 <ul class="simple">
-<li><p>Prints average and standard deviation of balanced accuracy across splits.</p></li>
-<li><p>Displays label ordering and sample distribution.</p></li>
+<li><p>Prints mean and standard deviation of balanced accuracy.</p></li>
+<li><p>Displays label counts and ordering used for confusion matrix construction.</p></li>
 <li><p>Set <cite>show_confusion_matrix=True</cite> to visualize the averaged confusion matrix with matplotlib.</p></li>
 </ul>
 </li>
@@ -133,15 +127,15 @@ classification pipeline. It allows for flexible region-based classification usin
 <section id="requirements">
 <h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Properly structured Pinot Noir GC-MS dataset folders</p></li>
-<li><p>All dependencies installed (see <cite>README.md</cite>)</p></li>
-<li><p>Valid paths and regions configured in <cite>config.yaml</cite></p></li>
+<li><p>Properly structured GC-MS dataset folders</p></li>
+<li><p>All required Python dependencies installed (see <cite>README.md</cite>)</p></li>
+<li><p>Dataset paths correctly specified in <cite>config.yaml</cite></p></li>
 </ul>
 </section>
 <section id="usage">
 <h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h2>
 <p>From the root of the repository, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/pinot_noir/train_test_pinot_noir.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/bordeaux/train_test_bordeaux.py
 </pre></div>
 </div>
 </section>
@@ -167,8 +161,8 @@ classification pipeline. It allows for flexible region-based classification usin
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../README.html">General Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../bordeaux/index.html">Bordeaux</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">Pinot Noir</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Bordeaux</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pinot_noir/index.html">Pinot Noir</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../press_wines/index.html">Press Wines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../champagne/index.html">Champagne</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/index.html">Utilities</a></li>
@@ -178,9 +172,9 @@ classification pipeline. It allows for flexible region-based classification usin
 <h3>Related Topics</h3>
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>
-  <li><a href="index.html">Pinot Noir</a><ul>
+  <li><a href="index.html">Bordeaux</a><ul>
       <li>Previous: <a href="overview.html" title="previous chapter">Overview</a></li>
-      <li>Next: <a href="../press_wines/index.html" title="next chapter">Press Wines</a></li>
+      <li>Next: <a href="../pinot_noir/index.html" title="next chapter">Pinot Noir</a></li>
   </ul></li>
   </ul></li>
 </ul>
@@ -215,7 +209,7 @@ classification pipeline. It allows for flexible region-based classification usin
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |
-      <a href="../_sources/pinot_noir/train_test_pinot_noir.rst.txt"
+      <a href="../_sources/bordeaux/train_test_bordeaux.rst.txt"
           rel="nofollow">Page source</a>
     </div>
 

@@ -1,5 +1,5 @@
-Train Test Pinot Noir
-~~~~~~~~~~~~~~~~~~~~~
+Pinot Noir Classification
+=========================
 
 .. automodule:: scripts.pinot_noir.train_test_pinot_noir
    :members:

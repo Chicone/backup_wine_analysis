@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Train Test Press Wines &#8212; Wine Analysis Library 0.1.0 documentation</title>
+    <title>Press Wine Classification &#8212; Wine Analysis Library 0.1.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=4f649999" />
     <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=cb25574f" />
     <script src="../_static/documentation_options.js?v=01f34227"></script>
@@ -32,14 +32,14 @@
           <div class="body" role="main">
             
   <section id="module-scripts.press_wines.train_test_press_wines">
-<span id="train-test-press-wines"></span><h1>Train Test Press Wines<a class="headerlink" href="#module-scripts.press_wines.train_test_press_wines" title="Link to this heading">¶</a></h1>
+<span id="press-wine-classification"></span><h1>Press Wine Classification<a class="headerlink" href="#module-scripts.press_wines.train_test_press_wines" title="Link to this heading">¶</a></h1>
 <p>To train and test classification of press wines, we use the script <strong>train_test_press_wines.py</strong>. The
 goal is to predict wine press class membership (e.g., A, B, or C) based on GC-MS data collected from Merlot and
 Cabernet Sauvignon wines across multiple vintages. The script implements a full processing pipeline including
 data loading, preprocessing, feature extraction, and classification.</p>
 <section id="configuration-parameters">
 <h2>Configuration Parameters<a class="headerlink" href="#configuration-parameters" title="Link to this heading">¶</a></h2>
-<p>The script reads analysis parameters from a configuration file (<cite>config.yaml</cite>) located at the root of the repository.
+<p>The script reads configuration parameters from a file (<cite>config.yaml</cite>) located at the root of the repository.
 Below is a description of the key parameters:</p>
 <ul>
 <li><p><strong>dataset</strong>: Each dataset must be specified with a name and its corresponding path on your local machine. The paths should point to directories containing <cite>.D</cite> folders for each sample.</p></li>
@@ -103,7 +103,7 @@ allowing users to customize experiments without editing the script.</p>
 <li><p><strong>Label Processing</strong>:</p>
 <ul class="simple">
 <li><p>Sample labels are parsed using <cite>process_labels_by_wine_kind()</cite>, which groups samples by predefined categories (A, B, C) based on sample naming conventions.</p></li>
-<li><p>Label parsing logic is automatically adjusted according to the inferred <cite>wine_kind</cite>.</p></li>
+<li><p>Label parsing and split logic are dynamically handled via a strategy abstraction (WineKindStrategy), which adapts behavior for press, Bordeaux, or Pinot Noir samples.</p></li>
 </ul>
 </li>
 <li><p><strong>Classification</strong>:</p>
@@ -115,7 +115,7 @@ allowing users to customize experiments without editing the script.</p>
 <li><p><strong>Cross-Validation and Replicate Handling</strong>:</p>
 <ul class="simple">
 <li><p>The script uses repeated train/test splits (default: 20% test) across <cite>num_splits</cite> repetitions.</p></li>
-<li><p>When <cite>LOOPC=True</cite>, test splits consist of a sample from each class with all their replicates (never split across train and test sets), ensuring a realistic and conservative accuracy estimate.</p></li>
+<li><p>When <cite>LOOPC=True</cite>, one sample is randomly selected per class along with all of its replicates, then used as the test set. This ensures that each test fold contains exactly one unique wine per class, and no sample is split across train and test.  The rest of the data is used for training.</p></li>
 <li><p>When <cite>LOOPC=False</cite>, a <strong>stratified shuffle split</strong> is used with a test fraction of 0.2 (i.e., 80/20 split). Even in this case, <strong>replicates of the same sample are always grouped</strong>, ensuring that no replicate of a given sample appears in both training and test sets.</p></li>
 </ul>
 </li>
@@ -123,6 +123,7 @@ allowing users to customize experiments without editing the script.</p>
 <ul class="simple">
 <li><p>The script prints the mean and standard deviation of the balanced accuracy across all splits.</p></li>
 <li><p>A normalized confusion matrix is computed and printed.</p></li>
+<li><p>Set <cite>show_confusion_matrix=True</cite> to display the averaged confusion matrix using matplotlib.</p></li>
 </ul>
 </li>
 </ol>
@@ -140,7 +141,7 @@ based on their chemical fingerprints, while properly accounting for technical re
 <section id="usage">
 <h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h2>
 <p>From the root of the repository, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/pinot_noir/train_test_press_wines.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/press_wines/train_test_press_wines.py
 </pre></div>
 </div>
 </section>
@@ -166,9 +167,11 @@ based on their chemical fingerprints, while properly accounting for technical re
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../README.html">General Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../bordeaux/index.html">Bordeaux</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../pinot_noir/index.html">Pinot Noir</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Press Wines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../champagne/index.html">Champagne</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../utilities/index.html">Utilities</a></li>
 </ul>
 
 <div class="relations">

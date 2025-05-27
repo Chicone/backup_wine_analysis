@@ -9,7 +9,7 @@ data loading, preprocessing, feature extraction, and classification.
 Configuration Parameters
 ------------------------
 
-The script reads analysis parameters from a configuration file (`config.yaml`) located at the root of the repository.
+The script reads configuration parameters from a file (`config.yaml`) located at the root of the repository.
 Below is a description of the key parameters:
 
 - **dataset**: Each dataset must be specified with a name and its corresponding path on your local machine. The paths should point to directories containing `.D` folders for each sample.
@@ -79,7 +79,7 @@ The main steps include:
 3. **Label Processing**:
 
    - Sample labels are parsed using `process_labels_by_wine_kind()`, which groups samples by predefined categories (A, B, C) based on sample naming conventions.
-   - Label parsing logic is automatically adjusted according to the inferred `wine_kind`.
+   - Label parsing and split logic are dynamically handled via a strategy abstraction (WineKindStrategy), which adapts behavior for press, Bordeaux, or Pinot Noir samples.
 
 4. **Classification**:
 
@@ -89,13 +89,14 @@ The main steps include:
 5. **Cross-Validation and Replicate Handling**:
 
    - The script uses repeated train/test splits (default: 20% test) across `num_splits` repetitions.
-   - When `LOOPC=True`, test splits consist of a sample from each class with all their replicates (never split across train and test sets), ensuring a realistic and conservative accuracy estimate.
+   - When `LOOPC=True`, one sample is randomly selected per class along with all of its replicates, then used as the test set. This ensures that each test fold contains exactly one unique wine per class, and no sample is split across train and test.  The rest of the data is used for training.
    - When `LOOPC=False`, a **stratified shuffle split** is used with a test fraction of 0.2 (i.e., 80/20 split). Even in this case, **replicates of the same sample are always grouped**, ensuring that no replicate of a given sample appears in both training and test sets.
 
 6. **Evaluation**:
 
    - The script prints the mean and standard deviation of the balanced accuracy across all splits.
    - A normalized confusion matrix is computed and printed.
+   - Set `show_confusion_matrix=True` to display the averaged confusion matrix using matplotlib.
 
 This script provides a robust, reproducible workflow to evaluate the classification accuracy of press wine samples
 based on their chemical fingerprints, while properly accounting for technical replicates and dataset structure.
@@ -114,7 +115,7 @@ From the root of the repository, run:
 
 .. code-block:: bash
 
-   python scripts/pinot_noir/train_test_press_wines.py
+   python scripts/press_wines/train_test_press_wines.py
    """
 if __name__ == "__main__":
     import numpy as np
@@ -172,13 +173,6 @@ if __name__ == "__main__":
     labels_raw = np.array(list(gcms.data.keys()))
     labels, year_labels = process_labels_by_wine_kind(labels_raw, wine_kind, region, class_by_year, data_dict)
 
-    # # Extract data matrix (samples × channels) and associated labels
-    # data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
-    # if class_by_year:
-    #     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, class_by_year, data_dict)
-    # else:
-    #     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None, None)
-
     cls = Classifier(
         data=data,
         labels=labels,
@@ -208,24 +202,3 @@ if __name__ == "__main__":
         return_umap_data=False,
         show_confusion_matrix=True
     )
-
-    # # Instantiate classifier with data and labels
-    # cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
-    #                  year_labels=np.array(year_labels))
-    #
-    # # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
-    # cls.train_and_evaluate_all_channels(
-    #     num_repeats=num_splits,
-    #     random_seed=42,
-    #     test_size=0.2,
-    #     normalize=normalize,
-    #     scaler_type='standard',
-    #     use_pca=False,
-    #     vthresh=0.97,
-    #     region=region,
-    #     print_results=True,
-    #     n_jobs=20,
-    #     feature_type=feature_type,
-    #     classifier_type=classifier,
-    #     LOOPC=True  # whether to use stratified splitting (False) or Leave One Out Per Class (True)
-    # )

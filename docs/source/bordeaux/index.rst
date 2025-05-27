@@ -1,9 +1,9 @@
 Bordeaux
-==========
+========
 
 .. toctree::
    :maxdepth: 1
 
    overview
-   test
+   train_test_bordeaux
 
