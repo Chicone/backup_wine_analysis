@@ -20,10 +20,10 @@ selected_datasets:  # Choose the dataset to be used
 
 feature_type: tic_tis      # Options: tic, tis, tic_tis
 classifier: RGC # Best is typically RGC. Available classifiers: "DTC", "GNB", "KNN", "LDA", "LR", "PAC", "PER", "RFC", "RGC", "SGD", "SVM"
-num_splits: 10
+num_splits: 200
 normalize: true
 n_decimation: 10
 sync_state: false
 region: winery # options only for Pinot Noir: winery, origin, country, continent
 # wine_kind: champagne # pinot_noir, press, champagne
-class_by_year: true # option only for press wines and bordeaux
+class_by_year: false # option only for press wines and bordeaux
