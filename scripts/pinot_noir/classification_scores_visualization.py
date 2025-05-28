@@ -75,7 +75,7 @@ if __name__ == "__main__":
         data = data[mask]
         labels = labels[mask]
 
-    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None, None)
+    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None)
 
     # Instantiate classifier with data and labels
     cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
