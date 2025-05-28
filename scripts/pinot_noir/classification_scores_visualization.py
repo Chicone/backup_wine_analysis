@@ -26,6 +26,11 @@ if __name__ == "__main__":
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
+    plot_umap = config.get("plot_umap", False)
+    umap_dim = config.get("umap_dim", 2)
+    n_neighbors = config.get("n_neighbors", 30)
+    random_state = config.get("random_state", 42)
+
     # Parameters from config file
     dataset_directories = config["datasets"]
     selected_datasets = config["selected_datasets"]
@@ -51,6 +56,7 @@ if __name__ == "__main__":
     region = config["region"]
     # wine_kind = config["wine_kind"]
 
+
     # Create ChromatogramAnalysis instance for optional alignment
     cl = ChromatogramAnalysis(ndec=n_decimation)
 
@@ -75,7 +81,7 @@ if __name__ == "__main__":
         data = data[mask]
         labels = labels[mask]
 
-    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None, None)
+    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None)
 
     # Instantiate classifier with data and labels
     cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
@@ -202,6 +208,18 @@ if __name__ == "__main__":
     # ---------- PCA ----------
     # Set this True or False depending on your need
     group_by_country = False
+
+    # if plot_umap:
+    #     if umap_dim == 2:
+    #         plot_2d(
+    #             reducer.umap(components=2, n_neighbors=n_neighbors, random_state=random_state),
+    #             f"UMAP Model Decision Scores ({region})", region, all_umap_labels, legend_labels, group_by_country
+    #         )
+    #     elif umap_dim == 3:
+    #         plot_3d(
+    #             reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
+    #             f"UMAP Model Decision Scores ({region})", region, all_umap_labels, legend_labels, group_by_country
+    #         )
 
     # --- 2D ---
     # plot_2d(reducer.pca(components=2), "PCA of Model Decision Scores (2D)", region, all_umap_labels,

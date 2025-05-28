@@ -19,6 +19,10 @@ scripts = {
     "bordeaux": "scripts/bordeaux/train_test_bordeaux.py",
     "press": "scripts/press_wines/train_test_press_wines.py",
     "pinot": "scripts/pinot_noir/train_test_pinot_noir.py",
+
+    "bordeaux_umap": "scripts/bordeaux/classification_scores_visualization.py",
+    "pinot_umap": "scripts/pinot_noir/classification_scores_visualization.py",
+    "press_umap": "scripts/press_wines/classification_scores_visualization.py",
 }
 
 from typing import List, Optional
@@ -50,7 +54,8 @@ app.add_middleware(
 @app.post("/run-script")
 async def run_script(payload: dict):
     script_key = payload["script_key"]
-    script = scripts.get(script_key)
+    key = f"{script_key}_umap" if payload.get("plot_umap") else script_key
+    script = scripts.get(key)
     if not script:
         return StreamingResponse(iter(["Invalid script selected.\n"]), media_type="text/plain")
 
@@ -66,10 +71,27 @@ async def run_script(payload: dict):
         return StreamingResponse(iter([f"Failed to read config.yaml: {e}\n"]), media_type="text/plain")
 
     # Apply overrides from frontend
-    for key in ["selected_datasets", "classifier", "feature_type", "num_splits", "normalize", "sync_state",
-                "class_by_year", "region", "show_confusion_matrix"]:
+    # Apply overrides from frontend
+    optional_keys = [
+        ("selected_datasets", []),
+        ("classifier", "RGC"),
+        ("feature_type", "TIC"),
+        ("num_splits", 5),
+        ("normalize", False),
+        ("sync_state", False),
+        ("class_by_year", False),
+        ("region", ""),
+        ("show_confusion_matrix", False),
+        ("plot_umap", False),
+        ("umap_dim", 2),
+        ("n_neighbors", 15),
+        ("random_state", 42),
+    ]
+    for key, default in optional_keys:
         if key in payload:
             config[key] = payload[key]
+        elif key not in config:
+            config[key] = default
 
     # Save updated config.yaml
     try:

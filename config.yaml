@@ -11,14 +11,16 @@ datasets:
   pinot_noir_changins: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom_CDF/
   pinot_noir_isvv_dllme: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/
   pinot_noir_isvv_lle: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/
-feature_type: tic_tis
+feature_type: tic
 n_decimation: 10
+n_neighbors: 30
 normalize: true
-num_splits: 100
-region: winery
+num_splits: 10
+plot_umap: true
+random_state: 42
+region: origin
 selected_datasets:
-- merlot_2022
-- merlot_2021
-- merlot_2023
+- pinot_noir_changins
 show_confusion_matrix: false
 sync_state: false
+umap_dim: 2
