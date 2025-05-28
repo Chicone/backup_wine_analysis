@@ -55,6 +55,7 @@ if __name__ == "__main__":
     sync_state = config["sync_state"]
     region = config["region"]
     # wine_kind = config["wine_kind"]
+    return_umap_data = config['plot_umap']
 
 
     # Create ChromatogramAnalysis instance for optional alignment
@@ -97,7 +98,7 @@ if __name__ == "__main__":
         feature_type=feature_type,
         region=region,
         LOOPC=True,
-        return_umap_data=True
+        return_umap_data=return_umap_data
     )
 
     # Normalize

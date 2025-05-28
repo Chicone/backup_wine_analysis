@@ -356,7 +356,8 @@ class Classifier:
         return summary
 
     def train_and_evaluate_balanced(self, normalize=False, scaler_type='standard', region=None, random_seed=42,
-                                    test_size=0.2, LOOPC=True
+                                    test_size=0.2, LOOPC=True,
+                                    return_umap_data=False
                                     ):
         # Step 1: label preprocessing
         labels_used = self.strategy.extract_labels(self.labels)
@@ -401,6 +402,11 @@ class Classifier:
         # Step 4: model training
         self.classifier.fit(X_train_proc, y_train)
         y_pred = self.classifier.predict(X_test_proc)
+        scores = self.classifier.decision_function(X_test_proc)
+
+        # create compatible format for binary classification
+        if scores.ndim == 1:
+            scores = np.stack([-scores, scores], axis=1)  # Shape (n_samples, 2)
 
         # Step 5: evaluation
         result = {
@@ -412,7 +418,11 @@ class Classifier:
             "confusion_matrix": confusion_matrix(y_test, y_pred, labels=custom_order)
         }
 
-        return result
+        if return_umap_data:
+            return result, scores, y_test
+        else:
+            return result, None, None
+        # return result
 
 
     def train_and_evaluate_balanced_old(self, n_inner_repeats=50, random_seed=42,
@@ -1566,18 +1576,21 @@ class Classifier:
                     labels_raw=self.labels_raw
                 )
 
-                results = cls.train_and_evaluate_balanced(
+                results, scores, umap_labels = cls.train_and_evaluate_balanced(
                     normalize=normalize,
                     scaler_type=scaler_type,
                     region=region,
                     random_seed=random_seed + repeat_idx,
                     test_size=test_size,
                     LOOPC=LOOPC,
+                    return_umap_data=return_umap_data
                 )
-
-                if return_umap_data:
-                    all_umap_scores.append(feature_matrix)
-                    all_umap_labels.append(labels)
+                if scores is not None:
+                    all_umap_scores.append(scores)
+                    all_umap_labels.append(umap_labels)
+                # if return_umap_data:
+                #     all_umap_scores.append(feature_matrix)
+                #     all_umap_labels.append(labels)
 
                 if 'balanced_accuracy' in results and not np.isnan(results['balanced_accuracy']):
                     balanced_accuracies.append(results['balanced_accuracy'])

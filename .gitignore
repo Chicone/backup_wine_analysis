@@ -1,5 +1,46 @@
-# Ignore raw data and outputs
+# Python
+__pycache__/
+*.pyc
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# FastAPI and backend project structure
+logs/
+config.yaml
+.env
+
+# Node + React frontend
+node_modules/
+build/
+dist/
+
+# Venvs
+.venv/
+venv/
+
+# IDEs and OS junk
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Datasets or outputs
+*.csv
+*.tsv
+*.pkl
+*.npy
+
+# Ignore local source dirs if not versioned
 src/
 wine_analysis/
-logs/
-__pycache__/
+
+node_modules/
+*.iml
+.idea/
