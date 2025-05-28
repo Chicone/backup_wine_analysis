@@ -159,6 +159,7 @@ if __name__ == "__main__":
     sync_state = config["sync_state"]
     region = config["region"]
     # wine_kind = config["wine_kind"]
+    show_confusion_matrix = config['show_confusion_matrix']
 
     # strategy = get_strategy_by_wine_kind(wine_kind, get_custom_order_func=utils.get_custom_order_for_pinot_noir_region())
     strategy = get_strategy_by_wine_kind(
@@ -219,6 +220,6 @@ if __name__ == "__main__":
         classifier_type=classifier,
         LOOPC=True , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
         return_umap_data=False,
-        show_confusion_matrix=True
+        show_confusion_matrix=show_confusion_matrix
     )
 

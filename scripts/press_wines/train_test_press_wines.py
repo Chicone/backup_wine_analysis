@@ -153,8 +153,8 @@ if __name__ == "__main__":
     sync_state = config["sync_state"]
     region = config["region"]
     # wine_kind = config["wine_kind"]
+    show_confusion_matrix = config['show_confusion_matrix']
     class_by_year = config['class_by_year']
-
     # Infer wine_kind from selected dataset paths
     wine_kind = utils.infer_wine_kind(selected_datasets, config["datasets"])
     strategy = get_strategy_by_wine_kind(wine_kind)
@@ -200,5 +200,5 @@ if __name__ == "__main__":
         classifier_type=classifier,
         LOOPC=True,
         return_umap_data=False,
-        show_confusion_matrix=True
+        show_confusion_matrix=show_confusion_matrix
     )

@@ -158,6 +158,7 @@ if __name__ == "__main__":
     region = config["region"]
     # wine_kind = config["wine_kind"]
     class_by_year = config['class_by_year']
+    show_confusion_matrix = config['show_confusion_matrix']
 
     # Load dataset, removing zero-variance channels
     cl = ChromatogramAnalysis(ndec=n_decimation)
@@ -205,6 +206,7 @@ if __name__ == "__main__":
         feature_type=feature_type,
         classifier_type=classifier,
         LOOPC=True , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
-        return_umap_data=False
+        return_umap_data=False,
+        show_confusion_matrix=show_confusion_matrix
     )
 
