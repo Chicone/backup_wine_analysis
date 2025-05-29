@@ -2012,3 +2012,41 @@ def assign_bordeaux_label(labels, vintage=False):
             processed_labels.append(f"{letter}{year}")
 
     return np.array(processed_labels)
+
+def compute_features(data, channels=None, feature_type="concatenated"):
+    """
+    Compute feature representations from GC-MS data.
+
+    Parameters:
+    ----------
+    data : np.ndarray
+        GC-MS data of shape (n_samples, n_timepoints, n_channels).
+    channels : list or None
+        List of channel indices to include. If None, all channels are used.
+    feature_type : str
+        One of 'concatenated', 'tic', 'tis', 'tic_tis':
+        - 'concatenated': Flatten each selected channel and concatenate them.
+        - 'tic': Total Ion Current (sum over channels).
+        - 'tis': Total Ion Spectrum (sum over timepoints).
+        - 'tic_tis': Concatenation of TIC and TIS features.
+
+    Returns:
+    -------
+    features : np.ndarray
+        Feature matrix of shape (n_samples, n_features).
+    """
+    if channels is None:
+        channels = list(range(data.shape[2]))
+
+    if feature_type == "concatenated":
+        return np.hstack([data[:, :, ch].reshape(data.shape[0], -1) for ch in channels])
+    elif feature_type == "tic":
+        return np.sum(data[:, :, channels], axis=2)
+    elif feature_type == "tis":
+        return np.sum(data[:, :, channels], axis=1)
+    elif feature_type == "tic_tis":
+        tic = np.sum(data[:, :, channels], axis=2)
+        tis = np.sum(data[:, :, channels], axis=1)
+        return np.hstack([tic, tis])
+    else:
+        raise ValueError("Invalid feature_type. Use 'concatenated', 'tic', 'tis', or 'tic_tis'.")

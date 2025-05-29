@@ -296,8 +296,8 @@ class ChromatogramAnalysis:
                 labels = assign_winery_to_pinot_noir(cls.labels)
             elif region == 'year':
                 labels = assign_year_to_pinot_noir(cls.labels)
-            elif region == 'beaume':
-                labels = assign_north_south_to_beaune(cls.labels)
+            elif region == 'burgundy':
+                labels = assign_north_south_to_burgundy(cls.labels)
             else:
                 raise ValueError(f"Incorrect region entered: '{region}'. Valid options are 'continent', 'country', "
                                  f"'origin', 'winery', or 'year'.")
@@ -330,7 +330,7 @@ class ChromatogramAnalysis:
                 labels = assign_winery_to_pinot_noir(cls.labels)
             elif region == 'year':
                 labels = assign_year_to_pinot_noir(cls.labels)
-            elif region == 'beaume':
+            elif region == 'burgundy':
                 labels = assign_north_south_to_beaune(cls.labels)
             else:
                 raise ValueError(f"Incorrect region entered: '{region}'. Valid options are 'continent', 'country', "

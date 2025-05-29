@@ -355,10 +355,15 @@ class Classifier:
 
         return summary
 
-    def train_and_evaluate_balanced(self, normalize=False, scaler_type='standard', region=None, random_seed=42,
-                                    test_size=0.2, LOOPC=True,
-                                    return_umap_data=False
-                                    ):
+    def train_and_evaluate_balanced(
+            self,
+            normalize=False,
+            scaler_type='standard',
+            region=None,
+            random_seed=42,
+            test_size=0.2, LOOPC=True,
+            umap_source=False
+    ):
         # Step 1: label preprocessing
         labels_used = self.strategy.extract_labels(self.labels)
         use_composites = self.strategy.use_composite_labels(self.labels)
@@ -418,7 +423,7 @@ class Classifier:
             "confusion_matrix": confusion_matrix(y_test, y_pred, labels=custom_order)
         }
 
-        if return_umap_data:
+        if umap_source == "scores":
             return result, scores, y_test
         else:
             return result, None, None
@@ -1520,8 +1525,9 @@ class Classifier:
             self, num_repeats=10, random_seed=42, test_size=0.2, normalize=False,
             scaler_type='standard', use_pca=False, vthresh=0.97, region=None,
             print_results=True, n_jobs=-1, feature_type="concatenated",
-            classifier_type="RGC", LOOPC=True, return_umap_data=False,
-            show_confusion_matrix=False
+            classifier_type="RGC", LOOPC=True,
+            show_confusion_matrix=False,
+            umap_source=False
     ):
         import re
         from collections import Counter
@@ -1583,14 +1589,11 @@ class Classifier:
                     random_seed=random_seed + repeat_idx,
                     test_size=test_size,
                     LOOPC=LOOPC,
-                    return_umap_data=return_umap_data
+                    umap_source=umap_source
                 )
                 if scores is not None:
                     all_umap_scores.append(scores)
                     all_umap_labels.append(umap_labels)
-                # if return_umap_data:
-                #     all_umap_scores.append(feature_matrix)
-                #     all_umap_labels.append(labels)
 
                 if 'balanced_accuracy' in results and not np.isnan(results['balanced_accuracy']):
                     balanced_accuracies.append(results['balanced_accuracy'])
@@ -1608,7 +1611,7 @@ class Classifier:
             except Exception as e:
                 print(f"⚠️ Skipping repeat {repeat_idx + 1} due to error: {e}")
 
-        if return_umap_data and all_umap_scores:
+        if umap_source and all_umap_scores:
             all_umap_scores = np.vstack(all_umap_scores)
             all_umap_labels = np.concatenate(all_umap_labels)
         else:
@@ -1664,10 +1667,10 @@ class Classifier:
             plt.tight_layout()
             plt.show()
 
-        if return_umap_data:
+        if umap_source == "scores":
             return mean_test_accuracy, std_test_accuracy, all_umap_scores, all_umap_labels
         else:
-            return mean_test_accuracy, std_test_accuracy
+            return mean_test_accuracy, std_test_accuracy, None, None
 
 
     def train_and_evaluate_all_channels_old(
