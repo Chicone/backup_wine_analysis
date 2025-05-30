@@ -7,6 +7,7 @@ import yaml
 
 app = FastAPI()
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -121,6 +122,7 @@ async def run_script(payload: dict):
             yield f"Error running script: {str(e)}\n"
 
     return StreamingResponse(run_and_stream(), media_type="text/plain")
+
 
 # @app.post("/run-script")
 # async def run_script(payload: dict):

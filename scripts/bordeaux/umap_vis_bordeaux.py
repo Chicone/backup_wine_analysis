@@ -87,12 +87,7 @@ if __name__ == "__main__":
         umap_source=umap_source
     )
 
-
-
     # reducer = DimensionalityReducer(scores)
-
-
-
 
     if umap_source == "scores":
         data_for_umap = normalize(scores)
@@ -118,45 +113,51 @@ if __name__ == "__main__":
         elif umap_dim == 3:
             plot_3d(
                 reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
-                umap_title, region, umap_labels, legend_labels, color_by_country
+                umap_title, umap_labels, label_dict=None, group_by_country=color_by_country
             )
     plt.show()
 
 
-    #
-    # # Define distinct markers and colors
-    # markers = ['o', 's', '^', 'D', 'v', '<', '>', 'P', 'X', '*', 'h', 'H', '8', 'p', '+', 'x']
-    # color_map = plt.cm.get_cmap("tab20", len(legend_labels))
-    #
-    #
-    #
-    #
-    # # if plot_umap:
-    # #     if umap_dim == 2:
-    # #         plot_2d(
-    # #             reducer.umap(components=2, n_neighbors=n_neighbors, random_state=random_state),
-    # #             f"UMAP Model Decision Scores ({region})", region, all_umap_labels, legend_labels, group_by_country
-    # #         )
-    # #     elif umap_dim == 3:
-    # #         plot_3d(
-    # #             reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
-    # #             f"UMAP Model Decision Scores ({region})", region, all_umap_labels, legend_labels, group_by_country
-    # #         )
-    #
-    # # --- 2D ---
-    # # plot_2d(reducer.pca(components=2), "PCA of Model Decision Scores (2D)", region, all_umap_labels,
-    # #         winery_legend_labels, group_by_country)
-    # # plot_2d(reducer.tsne(components=2, perplexity=5, random_state=42), "t-SNE of Model Decision Scores (2D)", region,
-    # #         all_umap_labels, winery_legend_labels, group_by_country)
-    # plot_2d(reducer.umap(components=2, n_neighbors=30, random_state=42), f"UMAP Model Decision Scores ({region})", region,
-    #         all_umap_labels, legend_labels, group_by_country)
-    #
-    # # # --- 3D ---
-    # # plot_3d(reducer.pca(components=3), "PCA of Model Decision Scores (3D)", region, all_umap_labels,
-    # #         winery_legend_labels, group_by_country)
-    # # plot_3d(reducer.tsne(components=3, perplexity=5, random_state=42), "t-SNE of Model Decision Scores (3D)", region,
-    # #         all_umap_labels, winery_legend_labels, group_by_country)
-    # # plot_3d(reducer.umap(components=3, n_neighbors=15, random_state=42), "UMAP of Model Decision Scores (3D)", region,
-    # #         all_umap_labels, winery_legend_labels, group_by_country)
-    #
-    # plt.show()
+import os
+import numpy as np
+from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
+from gcmswine import utils
+
+
+def load_features_and_labels(payload):
+    dataset_directories = utils.load_dataset_paths()
+    selected_datasets = payload["selected_datasets"]
+    n_decimation = payload.get("n_decimation", 10)
+    sync_state = payload.get("sync_state", False)
+    region = payload.get("region", "winery")
+    feature_type = payload.get("umap_source", "tic")
+    normalize_flag = payload.get("normalize", False)
+    color_by_country = payload.get("color_by_country", False)
+
+    # Load and preprocess data
+    cl = ChromatogramAnalysis(ndec=n_decimation)
+    data_dict, dataset_origins = utils.join_datasets(selected_datasets, dataset_directories, n_decimation)
+    data_dict, _ = utils.remove_zero_variance_channels(data_dict)
+    gcms = GCMSDataProcessor(data_dict)
+
+    if sync_state:
+        _, data_dict = cl.align_tics(data_dict, gcms)
+
+    data = np.array(list(gcms.data.values()))
+    labels = np.array(list(gcms.data.keys()))
+    wine_kind = utils.infer_wine_kind(selected_datasets, dataset_directories)
+    labels, _ = process_labels_by_wine_kind(labels, wine_kind, region, None, None)
+
+    # Compute features for UMAP
+    if feature_type == "scores":
+        raise ValueError("Scores cannot be computed here — run classification first")
+    else:
+        data_for_umap = utils.compute_features(data, feature_type=feature_type)
+
+    if normalize_flag:
+        data_for_umap = normalize(data_for_umap)
+
+    title = f"UMAP of {feature_type.upper()}"
+
+    return data_for_umap, labels, title, color_by_country
+

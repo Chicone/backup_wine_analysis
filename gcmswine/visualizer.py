@@ -731,28 +731,63 @@ def plot_2d(embedding, title, labels, label_dict, group_by_country=False):
 #     plt.show(block=False)
 
 
-def plot_3d(embedding, title, region, labels, label_dict, group_by_country=False):
+def plot_3d(embedding, title, labels, label_dict, group_by_country=False):
     """
-      Plot a 3D scatter plot of embedded data with labeled points.
+    Plot a 3D scatter plot of embedded data with labeled points.
 
-      Parameters:
-          embedding (np.ndarray): 3D coordinates of points (n_samples, 3).
-          title (str): Title for the plot.
-          region (str): Type of region grouping (e.g., 'winery').
-          labels (np.ndarray): Array of integer or categorical labels corresponding to each point.
-          label_dict (dict): Mapping from label codes to human-readable names.
-          group_by_country (bool): If True, use country-based coloring instead of winery-level.
+    Parameters:
+        embedding (np.ndarray): 3D coordinates of points (n_samples, 3).
+        title (str): Title for the plot.
+        labels (np.ndarray): Array of integer or categorical labels corresponding to each point.
+        label_dict (dict): Mapping from label codes to human-readable names.
+        group_by_country (bool): If True, use country-based coloring instead of winery-level.
 
-      Returns:
-          None. Displays a matplotlib 3D plot.
-      """
+    Returns:
+        None. Displays a matplotlib 3D plot.
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib import colormaps
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+    from gcmswine.visualizer import change_letter_and_color_bordeaux
+
     labels = np.array(labels)
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
     markers = ['o', 's', '^', 'v', 'D', 'X', '*', 'P', 'h', '8', '<', '>', 'p', 'H', 'd', '1']
     color_map = colormaps.get_cmap("tab20")
 
-    if region == "winery":
+    # Handle case where label_dict is a list, not a dict
+    if isinstance(label_dict, list):
+        label_dict = {label: label for label in label_dict}
+
+    # Auto-detect Bordeaux based on label prefixes
+    bordeaux_prefixes = {'V', 'A', 'S', 'F', 'T', 'G', 'B', 'M', 'H', 'I', 'K', 'O'}
+    is_bordeaux = all(str(label)[0] in bordeaux_prefixes for label in labels)
+
+    if is_bordeaux:
+        sorted_indices = np.argsort(labels)
+        labels = labels[sorted_indices]
+        embedding = embedding[sorted_indices]
+        used_colors = set()
+
+        for i, label in enumerate(labels):
+            x, y, z = embedding[i]
+            mod_label, color = change_letter_and_color_bordeaux(label)
+
+            if color not in used_colors:
+                ax.scatter([], [], [], color=color, label=mod_label[0])
+                used_colors.add(color)
+
+            ax.scatter(x, y, z, color=color, s=60, alpha=0.9)
+
+        handles, labels_ = ax.get_legend_handles_labels()
+        if handles and labels_:
+            sorted_legend = sorted(zip(labels_, handles), key=lambda x: x[0])
+            labels_, handles = zip(*sorted_legend)
+            ax.legend(handles, labels_, title="Mapped group", loc="best", fontsize='medium')
+
+    else:
         label_keys = list(label_dict.keys())
         if group_by_country:
             countries = sorted(set(label.split("(")[-1].strip(")") for label in label_dict.values()))
@@ -766,19 +801,63 @@ def plot_3d(embedding, title, region, labels, label_dict, group_by_country=False
                      if group_by_country else color_map(i / len(label_keys)))
             ax.scatter(embedding[mask, 0], embedding[mask, 1], embedding[mask, 2],
                        label=readable_label, alpha=0.9, s=80, color=color, marker=marker)
-    else:
-        for i, label in enumerate(np.unique(labels)):
-            mask = labels == label
-            ax.scatter(embedding[mask, 0], embedding[mask, 1], embedding[mask, 2],
-                       label=str(label), alpha=0.9, s=80, marker=markers[i % len(markers)])
 
     ax.set_title(title)
     ax.set_xlabel(f"{title.split()[0]} 1")
     ax.set_ylabel(f"{title.split()[0]} 2")
     ax.set_zlabel(f"{title.split()[0]} 3")
-    ax.legend(fontsize='medium', loc='best')
     plt.tight_layout()
     plt.show(block=False)
+
+
+# def plot_3d(embedding, title, region, labels, label_dict, group_by_country=False):
+#     """
+#       Plot a 3D scatter plot of embedded data with labeled points.
+#
+#       Parameters:
+#           embedding (np.ndarray): 3D coordinates of points (n_samples, 3).
+#           title (str): Title for the plot.
+#           region (str): Type of region grouping (e.g., 'winery').
+#           labels (np.ndarray): Array of integer or categorical labels corresponding to each point.
+#           label_dict (dict): Mapping from label codes to human-readable names.
+#           group_by_country (bool): If True, use country-based coloring instead of winery-level.
+#
+#       Returns:
+#           None. Displays a matplotlib 3D plot.
+#       """
+#     labels = np.array(labels)
+#     fig = plt.figure(figsize=(10, 8))
+#     ax = fig.add_subplot(111, projection='3d')
+#     markers = ['o', 's', '^', 'v', 'D', 'X', '*', 'P', 'h', '8', '<', '>', 'p', 'H', 'd', '1']
+#     color_map = colormaps.get_cmap("tab20")
+#
+#     if region == "winery":
+#         label_keys = list(label_dict.keys())
+#         if group_by_country:
+#             countries = sorted(set(label.split("(")[-1].strip(")") for label in label_dict.values()))
+#             country_colors = {country: color_map(i / len(countries)) for i, country in enumerate(countries)}
+#
+#         for i, code in enumerate(label_keys):
+#             mask = labels == code
+#             readable_label = label_dict[code]
+#             marker = markers[i % len(markers)]
+#             color = (country_colors[readable_label.split("(")[-1].strip(")")]
+#                      if group_by_country else color_map(i / len(label_keys)))
+#             ax.scatter(embedding[mask, 0], embedding[mask, 1], embedding[mask, 2],
+#                        label=readable_label, alpha=0.9, s=80, color=color, marker=marker)
+#     else:
+#         for i, label in enumerate(np.unique(labels)):
+#             mask = labels == label
+#             ax.scatter(embedding[mask, 0], embedding[mask, 1], embedding[mask, 2],
+#                        label=str(label), alpha=0.9, s=80, marker=markers[i % len(markers)])
+#
+#     ax.set_title(title)
+#     ax.set_xlabel(f"{title.split()[0]} 1")
+#     ax.set_ylabel(f"{title.split()[0]} 2")
+#     ax.set_zlabel(f"{title.split()[0]} 3")
+#     ax.legend(fontsize='medium', loc='best')
+#     plt.tight_layout()
+#     plt.show(block=False)
 
 
 def change_letter_and_color_bordeaux(label):
