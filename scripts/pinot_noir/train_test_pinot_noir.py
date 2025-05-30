@@ -219,7 +219,7 @@ if __name__ == "__main__":
         feature_type=feature_type,
         classifier_type=classifier,
         LOOPC=True , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
-        return_umap_data=False,
+        umap_source=False,
         show_confusion_matrix=show_confusion_matrix
     )
 

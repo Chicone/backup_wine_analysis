@@ -32,10 +32,9 @@ if __name__ == "__main__":
     # Get the paths corresponding to the selected datasets
     selected_paths = [config["datasets"][name] for name in selected_datasets]
 
-    # Check if all selected dataset contains "pinot"
-    if not all("pinot_noir" in path.lower() for path in selected_paths):
-        raise ValueError(
-            "Please select a script for Pinot Noir. The datasets selected in the config.yaml file do not seem to be compatible with this script. "
+    # Check if all selected dataset contains "bordeaux"
+    if not all("bordeaux" in path.lower() for path in selected_paths):
+        raise ValueError("Please select a script for Bordeaux..."
         )
 
     # Infer wine_kind from selected dataset paths
@@ -49,6 +48,7 @@ if __name__ == "__main__":
     sync_state = config["sync_state"]
     region = config["region"]
     # wine_kind = config["wine_kind"]
+    color_by_country = config["color_by_country"]
 
 
     # Create ChromatogramAnalysis instance for optional alignment
@@ -67,13 +67,6 @@ if __name__ == "__main__":
 
     # Extract data matrix (samples × channels) and associated labels
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
-
-    # Extract only Burgundy if region is "burgundy"
-    if wine_kind == "pinot_noir" and region == "burgundy":
-        burgundy_prefixes = ('D', 'P', 'R', 'Q', 'Z', 'E')
-        mask = np.array([label.startswith(burgundy_prefixes) for label in labels])
-        data = data[mask]
-        labels = labels[mask]
 
     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None)
 
@@ -98,49 +91,19 @@ if __name__ == "__main__":
 
     # reducer = DimensionalityReducer(scores)
 
-    ordered_labels = [
-        "D", "E", "Q", "P", "R", "Z", "C", "W", "Y", "M", "N", "J", "L", "H", "U", "X"
-    ]
-    if region == "winery":
-        legend_labels = {
-            "D": "D = Clos Des Mouches Drouhin (FR)",
-            "E": "E = Vigne de l’Enfant Jésus Bouchard (FR)",
-            "Q": "Q = Nuit Saint Georges - Les Cailles Bouchard (FR)",
-            "P": "P = Bressandes Jadot (FR)",
-            "R": "R = Les Petits Monts Jadot (FR)",
-            "Z": "Z = Nuit Saint Georges - Les Boudots Drouhin (FR)",
-            "C": "C = Domaine Schlumberger (FR)",
-            "W": "W = Domaine Jean Sipp (FR)",
-            "Y": "Y = Domaine Weinbach (FR)",
-            "M": "M = Domaine Brunner (CH)",
-            "N": "N = Vin des Croisés (CH)",
-            "J": "J = Domaine Villard et Fils (CH)",
-            "L": "L = Domaine de la République (CH)",
-            "H": "H = Les Maladaires (CH)",
-            "U": "U = Marimar Estate (US)",
-            "X": "X = Domaine Drouhin (US)"
-    }
-    elif region == "burgundy":
-        legend_labels = {
-            "NB": "Côte de Nuits (north)",
-            "SB": "Côte de Beaune (south)"
-        }
-    else:
-        legend_labels = utils.get_custom_order_for_pinot_noir_region(region)
 
-    # Set this True or False depending on your need
-    group_by_country = False
+
 
     if umap_source == "scores":
         data_for_umap = normalize(scores)
         umap_labels = all_umap_labels
-        umap_title = f"UMAP of Classification Scores ({region})"
+        umap_title = f"UMAP of Origin Classification Scores"
     elif umap_source in {"tic", "tis", "tic_tis"}:
         channels = list(range(data.shape[2]))  # use all channels
         data_for_umap = utils.compute_features(data, feature_type=umap_source)  # shape: (n_samples, n_timepoints)
         data_for_umap = normalize(data_for_umap)
         umap_labels = labels  # use raw labels from data
-        umap_title = f"UMAP of TICs ({region})"
+        umap_title = f"UMAP of {umap_source.upper()}"
     else:
         data_for_umap = None
         umap_labels = None
@@ -150,12 +113,12 @@ if __name__ == "__main__":
         if umap_dim == 2:
             plot_2d(
                 reducer.umap(components=2, n_neighbors=n_neighbors, random_state=random_state),
-                umap_title, region, umap_labels, legend_labels, group_by_country
+                umap_title, umap_labels, label_dict=None, group_by_country=color_by_country
             )
         elif umap_dim == 3:
             plot_3d(
                 reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
-                umap_title, region, umap_labels, legend_labels, group_by_country
+                umap_title, region, umap_labels, legend_labels, color_by_country
             )
     plt.show()
 

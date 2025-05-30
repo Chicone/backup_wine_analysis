@@ -20,9 +20,9 @@ scripts = {
     "press": "scripts/press_wines/train_test_press_wines.py",
     "pinot": "scripts/pinot_noir/train_test_pinot_noir.py",
 
-    "bordeaux_umap": "scripts/bordeaux/umap_vis.py",
-    "pinot_umap": "scripts/pinot_noir/umap_vis.py",
-    "press_umap": "scripts/press_wines/umap_vis.py",
+    "bordeaux_umap": "scripts/bordeaux/umap_vis_bordeaux.py",
+    "pinot_umap": "scripts/pinot_noir/umap_vis_pinot_noir.py",
+    "press_umap": "scripts/press_wines/umap_vis_press_wines.py",
 }
 
 from typing import List, Optional
@@ -83,6 +83,7 @@ async def run_script(payload: dict):
         ("region", ""),
         ("show_confusion_matrix", False),
         ("plot_umap", False),
+        ("color_by_country", False),
         ("umap_source", "scores"),
         ("umap_dim", 2),
         ("n_neighbors", 15),

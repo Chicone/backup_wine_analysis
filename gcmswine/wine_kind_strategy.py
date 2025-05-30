@@ -21,7 +21,7 @@ class WineKindStrategy:
     def use_composite_labels(self, labels):
         return False
 
-# Defienes the interface and default behaviour
+# Defines the interface and default behaviour
 class PressWineStrategy(WineKindStrategy):
     def extract_labels(self, labels):
         return [label[0] if label else None for label in labels]  # 'A1' -> 'A'

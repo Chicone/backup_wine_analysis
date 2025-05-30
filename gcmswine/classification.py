@@ -1627,8 +1627,10 @@ class Classifier:
         if self.class_by_year:
             labels_used = self.year_labels
         else:
-            labels_used = self.strategy.extract_labels(labels)
-        custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
+            labels_used = strategy.extract_labels(labels)
+            # labels_used = self.strategy.extract_labels(labels)
+        custom_order = strategy.get_custom_order(labels_used, self.year_labels)
+        # custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
         counts = Counter(labels_used)
 
         print("\nLabel order:")
