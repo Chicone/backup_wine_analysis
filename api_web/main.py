@@ -1,5 +1,7 @@
 import subprocess
 import os
+import time
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -21,9 +23,9 @@ scripts = {
     "press": "scripts/press_wines/train_test_press_wines.py",
     "pinot": "scripts/pinot_noir/train_test_pinot_noir.py",
 
-    "bordeaux_umap": "scripts/bordeaux/umap_vis_bordeaux.py",
-    "pinot_umap": "scripts/pinot_noir/umap_vis_pinot_noir.py",
-    "press_umap": "scripts/press_wines/umap_vis_press_wines.py",
+    "bordeaux_projection": "scripts/bordeaux/projection_bordeaux.py",
+    "pinot_projection": "scripts/pinot_noir/projection_pinot_noir.py",
+    "press_projection": "scripts/press_wines/projection_press_wines.py",
 }
 
 from typing import List, Optional
@@ -55,7 +57,7 @@ app.add_middleware(
 @app.post("/run-script")
 async def run_script(payload: dict):
     script_key = payload["script_key"]
-    key = f"{script_key}_umap" if payload.get("plot_umap") else script_key
+    key = f"{script_key}_projection" if payload.get("plot_projection") else script_key
     script = scripts.get(key)
     if not script:
         return StreamingResponse(iter(["Invalid script selected.\n"]), media_type="text/plain")
@@ -81,12 +83,12 @@ async def run_script(payload: dict):
         ("normalize", False),
         ("sync_state", False),
         ("class_by_year", False),
-        ("region", ""),
         ("show_confusion_matrix", False),
-        ("plot_umap", False),
+        ("plot_projection", False),
         ("color_by_country", False),
-        ("umap_source", "scores"),
-        ("umap_dim", 2),
+        ("projection_source", "scores"),
+        ("projection_dim", 2),
+        ("projection_method", "UMAP"),
         ("n_neighbors", 15),
         ("random_state", 42),
     ]
@@ -95,6 +97,10 @@ async def run_script(payload: dict):
             config[key] = payload[key]
         elif key not in config:
             config[key] = default
+
+    if "region" in config:
+        if not config["region"] or config["region"].strip() == "":
+            del config["region"]
 
     # Save updated config.yaml
     try:

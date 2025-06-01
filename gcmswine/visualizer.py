@@ -665,19 +665,48 @@ def plot_2d(embedding, title, labels, label_dict, group_by_country=False):
             countries = sorted(set(label.split("(")[-1].strip(")") for label in label_dict.values()))
             country_colors = {country: color_map(i / len(countries)) for i, country in enumerate(countries)}
 
-        for i, code in enumerate(label_keys):
-            mask = labels == code
-            readable_label = label_dict[code]
-            marker = markers[i % len(markers)]
+        if all(lbl in label_dict for lbl in labels):
+            # Normal case: labels are codes, label_dict maps to readable labels
+            for i, (code, readable_label) in enumerate(label_dict.items()):
+                mask = np.array([label_dict.get(lbl) == readable_label for lbl in labels])
+                marker = markers[i % len(markers)]
 
-            if group_by_country:
-                country = readable_label.split("(")[-1].strip(")")
-                color = country_colors[country]
-            else:
-                color = color_map(i / len(label_keys))
+                if group_by_country:
+                    country = readable_label.split("(")[-1].strip(")")
+                    color = country_colors[country]
+                else:
+                    color = color_map(i / len(label_dict))
 
-            plt.scatter(*embedding[mask].T, label=readable_label, alpha=0.9, s=80,
-                        color=color, marker=marker)
+                plt.scatter(*embedding[mask].T, label=readable_label, alpha=0.9, s=80,
+                            color=color, marker=marker)
+        else:
+            # Fallback case: labels already contain readable names
+            unique_labels = sorted(set(labels))
+            for i, readable_label in enumerate(unique_labels):
+                mask = labels == readable_label
+                marker = markers[i % len(markers)]
+
+                if group_by_country:
+                    country = readable_label.split("(")[-1].strip(")")
+                    color = country_colors[country]
+                else:
+                    color = color_map(i / len(unique_labels))
+
+                plt.scatter(*embedding[mask].T, label=readable_label, alpha=0.9, s=80,
+                            color=color, marker=marker)
+        # for i, code in enumerate(label_keys):
+        #     mask = labels == code
+        #     readable_label = label_dict[code]
+        #     marker = markers[i % len(markers)]
+        #
+        #     if group_by_country:
+        #         country = readable_label.split("(")[-1].strip(")")
+        #         color = country_colors[country]
+        #     else:
+        #         color = color_map(i / len(label_keys))
+        #
+        #     plt.scatter(*embedding[mask].T, label=readable_label, alpha=0.9, s=80,
+        #                 color=color, marker=marker)
 
         plt.title(title, fontsize=16)
         plt.legend(fontsize='large', loc='best')
