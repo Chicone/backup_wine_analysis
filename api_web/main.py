@@ -91,6 +91,7 @@ async def run_script(payload: dict):
         ("projection_method", "UMAP"),
         ("n_neighbors", 15),
         ("random_state", 42),
+        ("region", "region"),
     ]
     for key, default in optional_keys:
         if key in payload:
@@ -98,9 +99,9 @@ async def run_script(payload: dict):
         elif key not in config:
             config[key] = default
 
-    if "region" in config:
-        if not config["region"] or config["region"].strip() == "":
-            del config["region"]
+    # if "region" in config:
+    #     if not config["region"] or config["region"].strip() == "":
+    #         del config["region"]
 
     # Save updated config.yaml
     try:

@@ -19,10 +19,10 @@ if __name__ == "__main__":
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
-    plot_umap = config.get("plot_umap", False)
+    plot_projection = config.get("plot_projection", False)
     projection_method = config.get("projection_method", "UMAP").upper()
     projection_source = config.get("projection_source", False)
-    umap_dim = config.get("umap_dim", 2)
+    projection_dim = config.get("projection_dim", 2)
     n_neighbors = config.get("n_neighbors", 30)
     random_state = config.get("random_state", 42)
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     region = config["region"]
     # wine_kind = config["wine_kind"]
     color_by_country = config["color_by_country"]
-
+    class_by_year = config['class_by_year']
 
     # Create ChromatogramAnalysis instance for optional alignment
     cl = ChromatogramAnalysis(ndec=n_decimation)
@@ -68,11 +68,13 @@ if __name__ == "__main__":
     # Extract data matrix (samples × channels) and associated labels
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
 
-    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None)
+    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, None)
 
     # Instantiate classifier with data and labels
     cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
-                     year_labels=np.array(year_labels))
+                     year_labels=np.array(year_labels),
+                     class_by_year=class_by_year,
+                     )
 
     # Run training and collect score vectors
     mean_acc, std_acc, scores, all_labels = cls.train_and_evaluate_all_channels(
@@ -87,14 +89,13 @@ if __name__ == "__main__":
         projection_source=projection_source
     )
 
-    # Manage plot titles
     if projection_source == "scores":
-        data_for_umap = normalize(scores)
+        data_for_projection = normalize(scores)
         projection_labels = all_labels
     elif projection_source in {"tic", "tis", "tic_tis"}:
         channels = list(range(data.shape[2]))  # use all channels
-        data_for_umap = utils.compute_features(data, feature_type=projection_source)
-        data_for_umap = normalize(data_for_umap)
+        data_for_projection = utils.compute_features(data, feature_type=projection_source)
+        data_for_projection = normalize(data_for_projection)
         projection_labels = labels  # use raw labels from data
     else:
         raise ValueError(f"Unknown projection source: {projection_source}")
@@ -121,33 +122,39 @@ if __name__ == "__main__":
         "burgundy": "N/S Burgundy"
     }.get(region, region)
 
-    if region:
-        plot_title = f"{pretty_method} of {pretty_source} ({pretty_region})"
-    else:
-        plot_title = f"{pretty_method} of {pretty_source}"
+    plot_title = f"{pretty_method} of {pretty_source}"
 
-    if data_for_umap is not None:
-        reducer = DimensionalityReducer(data_for_umap)
-        if umap_dim == 2:
+    if data_for_projection is not None:
+        reducer = DimensionalityReducer(data_for_projection)
+        if projection_dim == 2:
             if projection_method == "UMAP":
                 plot_2d(
                     reducer.umap(components=2, n_neighbors=n_neighbors, random_state=random_state),
-                    plot_title, projection_labels, labels, color_by_country
+                    plot_title, projection_labels, labels, color_by_country, is_bordeaux=True
                 )
             elif projection_method == "PCA":
-                plot_2d(reducer.pca(components=2), plot_title, projection_labels, labels, color_by_country)
+                plot_2d(reducer.pca(components=2), plot_title, projection_labels, labels, color_by_country, is_bordeaux=True)
             elif projection_method == "T-SNE":
                 plot_2d(reducer.tsne(components=2, perplexity=5, random_state=42),
-                        plot_title, projection_labels, labels, color_by_country
+                        plot_title, projection_labels, labels, color_by_country, is_bordeaux=True
                         )
             else:
                 raise ValueError(f"Unsupported projection method: {projection_method}")
 
-        elif umap_dim == 3:
-            plot_3d(
-                reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
-                plot_title, region, projection_labels, labels, color_by_country
-            )
+        elif projection_dim == 3:
+            if projection_method == "UMAP":
+                plot_3d(
+                    reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
+                    plot_title,  projection_labels, labels, color_by_country, is_bordeaux=True
+                )
+            elif projection_method == "PCA":
+                plot_3d(reducer.pca(components=3), plot_title, projection_labels, labels, color_by_country, is_bordeaux=True)
+            elif projection_method == "T-SNE":
+                plot_3d(reducer.tsne(components=3, perplexity=5, random_state=42),
+                        plot_title, projection_labels, labels, color_by_country, is_bordeaux=True
+                        )
+            else:
+                raise ValueError(f"Unsupported projection method: {projection_method}")
     plt.show()
 
 

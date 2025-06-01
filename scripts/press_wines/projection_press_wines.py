@@ -40,6 +40,7 @@ if __name__ == "__main__":
 
     # Infer wine_kind from selected dataset paths
     wine_kind = utils.infer_wine_kind(selected_datasets, config["datasets"])
+    strategy = get_strategy_by_wine_kind(wine_kind)
 
     feature_type = config["feature_type"]
     classifier = config["classifier"]
@@ -71,50 +72,37 @@ if __name__ == "__main__":
     labels, year_labels = process_labels_by_wine_kind(labels_raw, wine_kind, region, class_by_year, data_dict)
 
     # Instantiate classifier with data and labels
-    # cls = Classifier(
-    #     data=data,
-    #     labels=labels,
-    #     classifier_type=classifier,
-    #     wine_kind=wine_kind,
-    #     year_labels=year_labels,
-    #     dataset_origins=np.array(dataset_origins),
-    #     class_by_year=class_by_year,
-    #     labels_raw=labels_raw
-    # )
-    cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
-                     year_labels=np.array(year_labels))
+    cls = Classifier(
+        data=data,
+        labels=labels,
+        classifier_type=classifier,
+        wine_kind=wine_kind,
+        year_labels=year_labels,
+        dataset_origins=np.array(dataset_origins),
+        strategy=strategy,
+        class_by_year=class_by_year,
+        labels_raw=labels_raw
+    )
+    # cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
+    #                  year_labels=np.array(year_labels))
 
     # Run training and collect score vectors
-    # mean_acc, std_acc, scores, all_labels = cls.train_and_evaluate_all_channels(
-    #     num_repeats=num_splits,
-    #     random_seed=42,
-    #     test_size=0.2,
-    #     normalize=normalize,
-    #     scaler_type='standard',
-    #     use_pca=False,
-    #     vthresh=0.97,
-    #     region=region,
-    #     print_results=True,
-    #     n_jobs=20,
-    #     feature_type=feature_type,
-    #     classifier_type=classifier,
-    #     LOOPC=True,
-    #     projection_source=projection_source,
-    # )
     mean_acc, std_acc, scores, all_labels = cls.train_and_evaluate_all_channels(
         num_repeats=num_splits,
+        random_seed=42,
         test_size=0.2,
-        normalize=normalize_flag,
+        normalize=normalize,
+        scaler_type='standard',
         use_pca=False,
-        classifier_type=classifier,
-        feature_type=feature_type,
+        vthresh=0.97,
         region=region,
+        print_results=True,
+        n_jobs=20,
+        feature_type=feature_type,
+        classifier_type=classifier,
         LOOPC=True,
-        projection_source=projection_source
+        projection_source=projection_source,
     )
-
-
-    # Manage plot titles
     if projection_source == "scores":
         data_for_projection = normalize(scores)
         projection_labels = all_labels
@@ -122,7 +110,10 @@ if __name__ == "__main__":
         channels = list(range(data.shape[2]))  # use all channels
         data_for_projection = utils.compute_features(data, feature_type=projection_source)
         data_for_projection = normalize(data_for_projection)
-        projection_labels = labels  # use raw labels from data
+        if year_labels:
+            projection_labels = year_labels
+        else:
+            projection_labels = labels
     else:
         raise ValueError(f"Unknown projection source: {projection_source}")
 
@@ -168,10 +159,19 @@ if __name__ == "__main__":
                 raise ValueError(f"Unsupported projection method: {projection_method}")
 
         elif projection_dim == 3:
-            plot_3d(
-                reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
-                plot_title, region, projection_labels, labels, color_by_country
-            )
+            if projection_method == "UMAP":
+                plot_3d(
+                    reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
+                    plot_title, projection_labels, labels, color_by_country
+                )
+            elif projection_method == "PCA":
+                plot_3d(reducer.pca(components=3), plot_title, projection_labels, labels, color_by_country)
+            elif projection_method == "T-SNE":
+                plot_3d(reducer.tsne(components=3, perplexity=5, random_state=42),
+                        plot_title, projection_labels, labels, color_by_country
+                        )
+            else:
+                raise ValueError(f"Unsupported projection method: {projection_method}")
     plt.show()
 
 

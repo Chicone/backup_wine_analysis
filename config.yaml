@@ -25,7 +25,7 @@ projection_source: scores
 random_state: 42
 region: winery
 selected_datasets:
-- bordeaux_oak
+- pinot_noir_changins
 show_confusion_matrix: false
 sync_state: false
 umap_dim: 2
