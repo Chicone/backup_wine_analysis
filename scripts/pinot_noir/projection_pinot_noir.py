@@ -11,7 +11,9 @@ from umap import UMAP
 from sklearn.preprocessing import normalize
 from gcmswine.dimensionality_reduction import DimensionalityReducer
 from gcmswine.visualizer import plot_2d, plot_3d
+from scripts.pinot_noir.plotting_pinot_noir import plot_pinot_noir
 
+# from plotting_pinot_noir import plot_pinot_noir
 if __name__ == "__main__":
     # Load dataset paths from config.yaml
     config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
@@ -23,7 +25,7 @@ if __name__ == "__main__":
     projection_method = config.get("projection_method", "UMAP").upper()
 
     projection_source = config.get("projection_source", False)
-    umap_dim = config.get("umap_dim", 2)
+    projection_dim = config.get("projection_dim", 2)
     n_neighbors = config.get("n_neighbors", 30)
     random_state = config.get("random_state", 42)
 
@@ -124,10 +126,31 @@ if __name__ == "__main__":
             "U": "U = Marimar Estate (US)",
             "X": "X = Domaine Drouhin (US)"
     }
+    elif region == "origin":
+        legend_labels = {
+            "B": "Burgundy",
+            "A": "Alsace",
+            "N": "Neuchatel",
+            "G": "Geneva",
+            "V": "Valais",
+            "C": "California",
+            "O": "Oregon",
+        }
+    elif region == "country":
+        legend_labels = {
+            "F": "France",
+            "S": "Switzerland",
+            "U": "US"
+        }
+    elif region == "continent":
+        legend_labels = {
+            "E": "Europe",
+            "N": "America"
+        }
     elif region == "burgundy":
         legend_labels = {
-            "NB": "Côte de Nuits (north)",
-            "SB": "Côte de Beaune (south)"
+            "N": "Côte de Nuits (north)",
+            "S": "Côte de Beaune (south)"
         }
     else:
         legend_labels = utils.get_custom_order_for_pinot_noir_region(region)
@@ -173,26 +196,21 @@ if __name__ == "__main__":
 
     if data_for_umap is not None:
         reducer = DimensionalityReducer(data_for_umap)
-        if umap_dim == 2:
-            if projection_method == "UMAP":
-                plot_2d(
-                    reducer.umap(components=2, n_neighbors=n_neighbors, random_state=random_state),
-                    plot_title, projection_labels, legend_labels, color_by_country
-                )
-            elif projection_method == "PCA":
-                plot_2d(reducer.pca(components=2),plot_title, projection_labels, legend_labels, color_by_country)
-            elif projection_method == "T-SNE":
-                plot_2d(reducer.tsne(components=2, perplexity=5, random_state=42),
-                        plot_title, projection_labels, legend_labels, color_by_country
-                        )
-            else:
-                raise ValueError(f"Unsupported projection method: {projection_method}")
-
-        elif umap_dim == 3:
-            plot_3d(
-                reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
-                plot_title, region, projection_labels, legend_labels, color_by_country
+        if projection_method == "UMAP":
+            plot_pinot_noir(
+                reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
+                plot_title, projection_labels, legend_labels, color_by_country
             )
+        elif projection_method == "PCA":
+            plot_pinot_noir(reducer.pca(components=projection_dim),plot_title, projection_labels, legend_labels, color_by_country)
+        elif projection_method == "T-SNE":
+            plot_pinot_noir(reducer.tsne(components=projection_dim, perplexity=5, random_state=42),
+                    plot_title, projection_labels, legend_labels, color_by_country
+                    )
+        else:
+            raise ValueError(f"Unsupported projection method: {projection_method}")
+
+
     plt.show()
 
 

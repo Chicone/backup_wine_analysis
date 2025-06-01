@@ -132,35 +132,19 @@ if __name__ == "__main__":
 
     if data_for_projection is not None:
         reducer = DimensionalityReducer(data_for_projection)
-        if projection_dim == 2:
-            if projection_method == "UMAP":
-                plot_bordeaux(
-                    reducer.umap(components=2, n_neighbors=n_neighbors, random_state=random_state),
+        if projection_method == "UMAP":
+            plot_bordeaux(
+                reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
+                plot_title, projection_labels, labels, color_by_country
+            )
+        elif projection_method == "PCA":
+            plot_bordeaux(reducer.pca(components=projection_dim), plot_title, projection_labels, labels, color_by_country)
+        elif projection_method == "T-SNE":
+            plot_bordeaux(reducer.tsne(components=projection_dim, perplexity=5, random_state=42),
                     plot_title, projection_labels, labels, color_by_country
-                )
-            elif projection_method == "PCA":
-                plot_bordeaux(reducer.pca(components=2), plot_title, projection_labels, labels, color_by_country)
-            elif projection_method == "T-SNE":
-                plot_bordeaux(reducer.tsne(components=2, perplexity=5, random_state=42),
-                        plot_title, projection_labels, labels, color_by_country
-                        )
-            else:
-                raise ValueError(f"Unsupported projection method: {projection_method}")
-
-        elif projection_dim == 3:
-            if projection_method == "UMAP":
-                plot_bordeaux(
-                    reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
-                    plot_title,  projection_labels, labels, color_by_country
-                )
-            elif projection_method == "PCA":
-                plot_bordeaux(reducer.pca(components=3), plot_title, projection_labels, labels, color_by_country)
-            elif projection_method == "T-SNE":
-                plot_bordeaux(reducer.tsne(components=3, perplexity=5, random_state=42),
-                        plot_title, projection_labels, labels, color_by_country
-                        )
-            else:
-                raise ValueError(f"Unsupported projection method: {projection_method}")
+                    )
+        else:
+            raise ValueError(f"Unsupported projection method: {projection_method}")
     plt.show()
 
 

@@ -685,15 +685,16 @@ def plot_2d(embedding, title, labels, label_dict, group_by_country=False, is_bor
 
             for i, cat in enumerate(category_keys):
                 mask = label_categories == cat
+                readable_label = label_dict[cat]
                 marker = markers[i % len(markers)]
 
                 if group_by_country:
-                    country = label_dict[cat].split("(")[-1].strip(")")
+                    country = readable_label.split("(")[-1].strip(")")
                     color = country_colors[country]
                 else:
                     color = color_map(i / len(category_keys))
 
-                plt.scatter(*embedding[mask].T, label=cat, alpha=0.9, s=80,
+                plt.scatter(*embedding[mask].T, label=readable_label, alpha=0.9, s=80,
                             color=color, marker=marker)
         else:
             # Fallback case: labels already contain readable names
