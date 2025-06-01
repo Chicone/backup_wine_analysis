@@ -12,7 +12,8 @@ from sklearn.preprocessing import normalize
 from gcmswine.dimensionality_reduction import DimensionalityReducer
 from gcmswine.visualizer import plot_2d, plot_3d
 from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind
-
+from plotting_press_wines import plot_press_wines
+from gcmswine.classification import assign_category_to_press_wine
 if __name__ == "__main__":
     # Load dataset paths from config.yaml
     config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
@@ -63,9 +64,9 @@ if __name__ == "__main__":
     chrom_length = len(list(data_dict.values())[0])
 
     gcms = GCMSDataProcessor(data_dict)
-
     if sync_state:
         tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=30000)
+        gcms = GCMSDataProcessor(data_dict)
 
     data = np.array(list(gcms.data.values()))
     labels_raw = np.array(list(gcms.data.keys()))
@@ -110,10 +111,10 @@ if __name__ == "__main__":
         channels = list(range(data.shape[2]))  # use all channels
         data_for_projection = utils.compute_features(data, feature_type=projection_source)
         data_for_projection = normalize(data_for_projection)
-        if year_labels:
-            projection_labels = year_labels
+        if year_labels is not None and all(str(label).isdigit() for label in year_labels):
+                projection_labels = year_labels
         else:
-            projection_labels = labels
+            projection_labels = assign_category_to_press_wine(labels)
     else:
         raise ValueError(f"Unknown projection source: {projection_source}")
 
@@ -141,37 +142,58 @@ if __name__ == "__main__":
 
     plot_title = f"{pretty_method} of {pretty_source}"
 
-    if data_for_projection is not None:
-        reducer = DimensionalityReducer(data_for_projection)
-        if projection_dim == 2:
-            if projection_method == "UMAP":
-                plot_2d(
-                    reducer.umap(components=2, n_neighbors=n_neighbors, random_state=random_state),
-                    plot_title, projection_labels, labels, color_by_country
-                )
-            elif projection_method == "PCA":
-                plot_2d(reducer.pca(components=2), plot_title, projection_labels, labels, color_by_country)
-            elif projection_method == "T-SNE":
-                plot_2d(reducer.tsne(components=2, perplexity=5, random_state=42),
-                        plot_title, projection_labels, labels, color_by_country
-                        )
-            else:
-                raise ValueError(f"Unsupported projection method: {projection_method}")
+    legend_labels = {
+        "A": "Press A",
+        "B": "Press B",
+        "C": "Press C"
+    }
 
-        elif projection_dim == 3:
-            if projection_method == "UMAP":
-                plot_3d(
-                    reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
-                    plot_title, projection_labels, labels, color_by_country
+    reducer = DimensionalityReducer(data_for_projection)
+    if projection_method == "UMAP":
+        plot_press_wines(
+            reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
+            plot_title, projection_labels, legend_labels, color_by_country
+        )
+    elif projection_method == "PCA":
+        plot_press_wines(reducer.pca(components=projection_dim), plot_title, projection_labels, legend_labels, color_by_country)
+    elif projection_method == "T-SNE":
+        plot_press_wines(reducer.tsne(components=projection_dim, perplexity=5, random_state=42),
+                plot_title, projection_labels, legend_labels, color_by_country
                 )
-            elif projection_method == "PCA":
-                plot_3d(reducer.pca(components=3), plot_title, projection_labels, labels, color_by_country)
-            elif projection_method == "T-SNE":
-                plot_3d(reducer.tsne(components=3, perplexity=5, random_state=42),
-                        plot_title, projection_labels, labels, color_by_country
-                        )
-            else:
-                raise ValueError(f"Unsupported projection method: {projection_method}")
+    else:
+        raise ValueError(f"Unsupported projection method: {projection_method}")
+
+    # if data_for_projection is not None:
+    #     reducer = DimensionalityReducer(data_for_projection)
+    #     if projection_dim == 2:
+    #         if projection_method == "UMAP":
+    #             plot_2d(
+    #                 reducer.umap(components=2, n_neighbors=n_neighbors, random_state=random_state),
+    #                 plot_title, projection_labels, labels, color_by_country
+    #             )
+    #         elif projection_method == "PCA":
+    #             plot_2d(reducer.pca(components=2), plot_title, projection_labels, labels, color_by_country)
+    #         elif projection_method == "T-SNE":
+    #             plot_2d(reducer.tsne(components=2, perplexity=5, random_state=42),
+    #                     plot_title, projection_labels, labels, color_by_country
+    #                     )
+    #         else:
+    #             raise ValueError(f"Unsupported projection method: {projection_method}")
+    #
+    #     elif projection_dim == 3:
+    #         if projection_method == "UMAP":
+    #             plot_3d(
+    #                 reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
+    #                 plot_title, projection_labels, labels, color_by_country
+    #             )
+    #         elif projection_method == "PCA":
+    #             plot_3d(reducer.pca(components=3), plot_title, projection_labels, labels, color_by_country)
+    #         elif projection_method == "T-SNE":
+    #             plot_3d(reducer.tsne(components=3, perplexity=5, random_state=42),
+    #                     plot_title, projection_labels, labels, color_by_country
+    #                     )
+    #         else:
+    #             raise ValueError(f"Unsupported projection method: {projection_method}")
     plt.show()
 
 

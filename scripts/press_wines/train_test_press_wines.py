@@ -165,9 +165,9 @@ if __name__ == "__main__":
     data_dict, _ = utils.remove_zero_variance_channels(data_dict)
     chrom_length = len(list(data_dict.values())[0])
     gcms = GCMSDataProcessor(data_dict)
-
     if sync_state:
         tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=30000)
+        gcms = GCMSDataProcessor(data_dict)
 
     data = np.array(list(gcms.data.values()))
     labels_raw = np.array(list(gcms.data.keys()))

@@ -1,4 +1,4 @@
-class_by_year: true
+class_by_year: false
 classifier: RGC
 color_by_country: false
 datasets:
@@ -12,20 +12,20 @@ datasets:
   pinot_noir_changins: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom_CDF/
   pinot_noir_isvv_dllme: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/
   pinot_noir_isvv_lle: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/
-feature_type: tic
+feature_type: tic_tis
 n_decimation: 10
-n_neighbors: 10
+n_neighbors: 15
 normalize: true
-num_splits: 10
-plot_projection: scores
+num_splits: 20
+plot_projection: tic_tis
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
-projection_source: scores
+projection_source: tic_tis
 random_state: 42
-region: origin
+region: null
 selected_datasets:
-- pinot_noir_changins
+- bordeaux_oak
 show_confusion_matrix: false
 sync_state: false
 umap_dim: 2

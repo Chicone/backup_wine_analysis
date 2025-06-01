@@ -153,19 +153,55 @@ class ChromatogramAnalysis:
         """
         Align TIC chromatograms using MS data. It also returns the aligned MS data
 
+        Align multiple chromatograms to a reference using lag optimization and scaling.
+
+        This function performs individual synchronization of GC-MS chromatograms to a reference chromatogram
+        using dynamic lag correction and warping, leveraging the `SyncChromatograms` class. It also aligns
+        the associated mass spectra (MS) data accordingly.
+
         Parameters
         ----------
-        data_dict : dict
-            Dictionary of chromatographic data.
-        chrom_cap : int, optional
-            Maximum size of chromatograms to process, by default 25000.
+        reference_chromatogram : np.ndarray
+            The 1D signal (Total Ion Chromatogram) to be used as the alignment reference.
+
+        reference_ms : np.ndarray
+            The mass spectrum (e.g., 2D array) associated with the reference chromatogram.
+
+        input_chromatograms : dict of {str: np.ndarray}
+            Dictionary mapping sample identifiers to their raw chromatograms (TIC signals).
+
+        all_ms : dict of {str: np.ndarray}
+            Dictionary mapping sample identifiers to their raw MS data (e.g., 2D arrays aligned to TICs).
+
+        scales : array-like
+            List or array of scaling factors to use in the synchronization process, typically to model local stretching.
+
+        initial_lag : int, optional
+            Initial maximum shift to consider (in samples) when estimating lag alignment, by default 300.
+
+        ndec : int, optional
+            Decimation factor used during preprocessing (e.g., downsampling the signal to reduce computation), by default 10.
 
         Returns
         -------
-        norm_tics : dict
-            Normalized TIC chromatograms.
-        synced_gcms : dict
-            Synchronized GC-MS data.
+        synced_chromatograms : dict of {str: np.ndarray}
+            Dictionary of chromatograms aligned to the reference, with the same keys as `input_chromatograms`.
+
+        synced_gcms : dict of {str: np.ndarray}
+            Dictionary of mass spectra aligned to the reference, with the same keys as `input_chromatograms`.
+
+        Notes
+        -----
+        - This method uses dynamic alignment by evaluating lag-resolved correlation surfaces.
+        - Both chromatogram intensity vectors and MS signals are warped.
+        - `SyncChromatograms.adjust_chromatogram()` handles the optimization.
+        - A lag profile can be optionally visualized using the commented-out `plot_average_profile_with_std()`.
+
+        Example
+        -------
+        >>> synced_chroms, synced_ms = obj.sync_individual_chromatograms(
+        ...     ref_tic, ref_ms, chrom_dict, ms_dict, scales=np.linspace(0.9, 1.1, 21))
+        >>> aligned_tic = synced_chroms['SampleA']
         """
         tics = gcms.compute_tics()
         mean_tic = self.calculate_mean_chromatogram(tics)
