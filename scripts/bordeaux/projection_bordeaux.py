@@ -10,7 +10,9 @@ from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_con
 from umap import UMAP
 from sklearn.preprocessing import normalize
 from gcmswine.dimensionality_reduction import DimensionalityReducer
-from gcmswine.visualizer import plot_2d, plot_3d
+# from gcmswine.visualizer import plot_2d, plot_3d
+from plotting_bordeaux import plot_bordeaux
+from scripts.bordeaux.plotting_bordeaux import plot_bordeaux
 
 if __name__ == "__main__":
     # Load dataset paths from config.yaml
@@ -97,6 +99,10 @@ if __name__ == "__main__":
         data_for_projection = utils.compute_features(data, feature_type=projection_source)
         data_for_projection = normalize(data_for_projection)
         projection_labels = labels  # use raw labels from data
+        if year_labels is not None and all(str(label).isdigit() for label in year_labels):
+            projection_labels = year_labels
+        else:
+            projection_labels = labels
     else:
         raise ValueError(f"Unknown projection source: {projection_source}")
 
@@ -128,30 +134,30 @@ if __name__ == "__main__":
         reducer = DimensionalityReducer(data_for_projection)
         if projection_dim == 2:
             if projection_method == "UMAP":
-                plot_2d(
+                plot_bordeaux(
                     reducer.umap(components=2, n_neighbors=n_neighbors, random_state=random_state),
-                    plot_title, projection_labels, labels, color_by_country, is_bordeaux=True
+                    plot_title, projection_labels, labels, color_by_country
                 )
             elif projection_method == "PCA":
-                plot_2d(reducer.pca(components=2), plot_title, projection_labels, labels, color_by_country, is_bordeaux=True)
+                plot_bordeaux(reducer.pca(components=2), plot_title, projection_labels, labels, color_by_country)
             elif projection_method == "T-SNE":
-                plot_2d(reducer.tsne(components=2, perplexity=5, random_state=42),
-                        plot_title, projection_labels, labels, color_by_country, is_bordeaux=True
+                plot_bordeaux(reducer.tsne(components=2, perplexity=5, random_state=42),
+                        plot_title, projection_labels, labels, color_by_country
                         )
             else:
                 raise ValueError(f"Unsupported projection method: {projection_method}")
 
         elif projection_dim == 3:
             if projection_method == "UMAP":
-                plot_3d(
+                plot_bordeaux(
                     reducer.umap(components=3, n_neighbors=n_neighbors, random_state=random_state),
-                    plot_title,  projection_labels, labels, color_by_country, is_bordeaux=True
+                    plot_title,  projection_labels, labels, color_by_country
                 )
             elif projection_method == "PCA":
-                plot_3d(reducer.pca(components=3), plot_title, projection_labels, labels, color_by_country, is_bordeaux=True)
+                plot_bordeaux(reducer.pca(components=3), plot_title, projection_labels, labels, color_by_country)
             elif projection_method == "T-SNE":
-                plot_3d(reducer.tsne(components=3, perplexity=5, random_state=42),
-                        plot_title, projection_labels, labels, color_by_country, is_bordeaux=True
+                plot_bordeaux(reducer.tsne(components=3, perplexity=5, random_state=42),
+                        plot_title, projection_labels, labels, color_by_country
                         )
             else:
                 raise ValueError(f"Unsupported projection method: {projection_method}")
