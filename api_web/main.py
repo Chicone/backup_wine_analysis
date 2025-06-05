@@ -22,6 +22,8 @@ scripts = {
     "bordeaux": "scripts/bordeaux/train_test_bordeaux.py",
     "press": "scripts/press_wines/train_test_press_wines.py",
     "pinot": "scripts/pinot_noir/train_test_pinot_noir.py",
+    "champagne_predict_labels": "scripts/champagne/train_test_labels.py",
+    "champagne_predict_age": "scripts/champagne/train_test_age.py",
 
     "bordeaux_projection": "scripts/bordeaux/projection_bordeaux.py",
     "pinot_projection": "scripts/pinot_noir/projection_pinot_noir.py",
@@ -34,7 +36,7 @@ class RunRequest(BaseModel):
     script_key: str
     classifier: Optional[str] = None
     feature_type: Optional[str] = None
-    num_splits: Optional[int] = None
+    num_repeats: Optional[int] = None
     normalize: Optional[bool] = None
     selected_datasets: Optional[List[str]] = None
 
@@ -57,7 +59,10 @@ app.add_middleware(
 @app.post("/run-script")
 async def run_script(payload: dict):
     script_key = payload["script_key"]
-    key = f"{script_key}_projection" if payload.get("plot_projection") else script_key
+    if script_key == "champagne_predict_labels":
+        key = script_key
+    else:
+        key = f"{script_key}_projection" if payload.get("plot_projection") else script_key
     script = scripts.get(key)
     if not script:
         return StreamingResponse(iter(["Invalid script selected.\n"]), media_type="text/plain")
@@ -74,12 +79,12 @@ async def run_script(payload: dict):
         return StreamingResponse(iter([f"Failed to read config.yaml: {e}\n"]), media_type="text/plain")
 
     # Apply overrides from frontend
-    # Apply overrides from frontend
     optional_keys = [
         ("selected_datasets", []),
         ("classifier", "RGC"),
+        ("regressor", "ridge"),
         ("feature_type", "TIC"),
-        ("num_splits", 5),
+        ("num_repeats", 5),
         ("normalize", False),
         ("sync_state", False),
         ("class_by_year", False),
@@ -92,12 +97,20 @@ async def run_script(payload: dict):
         ("n_neighbors", 15),
         ("random_state", 42),
         ("region", "region"),
+        ("label_targets", "taster"),
+        ("show_sample_names", "showSampleNames"),
+        ("show_pred_plot", "show_pred_plot"),
+        ("show_age_histogram", "show_age_histogram"),
+
     ]
     for key, default in optional_keys:
         if key in payload:
             config[key] = payload[key]
         elif key not in config:
             config[key] = default
+    if script_key == "champagne_predict_labels":
+        for unused in ["sync_state", "class_by_year", "feature_type"]:
+            config.pop(unused, None)
 
     # if "region" in config:
     #     if not config["region"] or config["region"].strip() == "":
