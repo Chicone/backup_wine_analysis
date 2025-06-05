@@ -2050,3 +2050,72 @@ def compute_features(data, channels=None, feature_type="concatenated"):
         return np.hstack([tic, tis])
     else:
         raise ValueError("Invalid feature_type. Use 'concatenated', 'tic', 'tis', or 'tic_tis'.")
+
+from pathlib import Path
+from datetime import datetime
+import xml.etree.ElementTree as ET
+# from gcmswine.utils import print_letter_origine_and_date_from_sample_info
+# root_path = "/home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom/"
+# print_letter_origine_and_date_from_sample_info(root_path)
+def print_letter_origine_and_date_from_sample_info(root_path):
+    letter_to_origine = {
+        "P": "Burgundy", "D": "Burgundy", "M": "Neuchatel", "L": "Genève",
+        "X": "Oregon", "W": "Alsace", "C": "Alsace", "J": "Genève",
+        "Y": "Alsace", "K": "Alsace", "H": "Valais", "R": "Burgundy",
+        "U": "Californie", "Z": "Burgundy", "Q": "Burgundy", "E": "Burgundy",
+        "N": "Neuchatel",
+    }
+
+    root = Path(root_path)
+    entries = []
+
+    for d_folder in root.glob("*.D"):
+        acqdata_path = d_folder / "AcqData" / "sample_info.xml"
+        letter = d_folder.name[:3]
+        origine = letter_to_origine.get(letter[0], "Unknown")
+
+
+        if acqdata_path.exists():
+            try:
+                tree = ET.parse(acqdata_path)
+                root_elem = tree.getroot()
+
+                # Find AcqTime
+                display_elems = root_elem.findall(".//DisplayName")
+                acq_time_value = None
+
+                for i, elem in enumerate(display_elems):
+                    if elem.text == "AcqTime":
+                        value_elem = display_elems[i].getparent()[i+1] if hasattr(display_elems[i], 'getparent') else display_elems[i].find("../Value")
+                        if value_elem is not None and value_elem.text:
+                            acq_time_value = value_elem.text.strip()
+                            break
+
+                if not acq_time_value:
+                    # fallback: brute-force search for Value after AcqTime
+                    lines = acqdata_path.read_text(errors="ignore").splitlines()
+                    for idx, line in enumerate(lines):
+                        if "DisplayName>AcqTime" in line:
+                            for j in range(idx+1, min(idx+4, len(lines))):
+                                if "<Value>" in lines[j]:
+                                    acq_time_value = lines[j].strip().replace("<Value>", "").replace("</Value>", "")
+                                    break
+                            break
+
+                if acq_time_value:
+                    dt = datetime.fromisoformat(acq_time_value.split("+")[0])  # Drop timezone offset
+                    date_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    date_str = "[Error: AcqTime not found]"
+
+            except Exception as e:
+                date_str = f"[Error: {e}]"
+
+            entries.append((date_str, letter, origine))
+
+    # Align and sort
+    date_width = max(len(date_str) for date_str, _, _ in entries)
+    entries.sort()
+
+    for date_str, letter, origine in entries:
+        print(f"{letter} — {origine:<12} — {date_str.rjust(date_width)}")

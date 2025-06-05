@@ -54,6 +54,7 @@ if __name__ == "__main__":
     region = config["region"]
     # wine_kind = config["wine_kind"]
     color_by_country = config["color_by_country"]
+    show_sample_names = config["show_sample_names"]
 
 
     # Create ChromatogramAnalysis instance for optional alignment
@@ -66,12 +67,13 @@ if __name__ == "__main__":
     chrom_length = len(list(data_dict.values())[0])
 
     gcms = GCMSDataProcessor(data_dict)
-
     if sync_state:
         tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=30000)
+        gcms = GCMSDataProcessor(data_dict)
 
     # Extract data matrix (samples × channels) and associated labels
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
+    raw_sample_labels = labels.copy()  # Save raw labels for annotation
 
     # Extract only Burgundy if region is "burgundy"
     if wine_kind == "pinot_noir" and region == "burgundy":
@@ -84,11 +86,11 @@ if __name__ == "__main__":
 
     # Instantiate classifier with data and labels
     cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
-                     year_labels=np.array(year_labels))
+                     year_labels=np.array(year_labels), sample_labels=raw_sample_labels)
 
 
     # Run training and collect score vectors
-    mean_acc, std_acc, scores, all_labels = cls.train_and_evaluate_all_channels(
+    mean_acc, std_acc, scores, all_labels, test_samples_names= cls.train_and_evaluate_all_channels(
         num_repeats=num_splits,
         test_size=0.2,
         normalize=normalize_flag,
@@ -99,8 +101,6 @@ if __name__ == "__main__":
         LOOPC=True,
         projection_source=projection_source
     )
-
-
 
     # reducer = DimensionalityReducer(scores)
 
@@ -128,8 +128,8 @@ if __name__ == "__main__":
     }
     elif region == "origin":
         legend_labels = {
-            "B": "Burgundy",
             "A": "Alsace",
+            "B": "Burgundy",
             "N": "Neuchatel",
             "G": "Geneva",
             "V": "Valais",
@@ -194,18 +194,23 @@ if __name__ == "__main__":
     else:
         plot_title = f"{pretty_method} of {pretty_source}"
 
+    # Disable showing sample names
+    if not show_sample_names:
+        test_samples_names = None
+
     if data_for_umap is not None:
         reducer = DimensionalityReducer(data_for_umap)
         if projection_method == "UMAP":
             plot_pinot_noir(
                 reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
-                plot_title, projection_labels, legend_labels, color_by_country
+                plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names
             )
         elif projection_method == "PCA":
-            plot_pinot_noir(reducer.pca(components=projection_dim),plot_title, projection_labels, legend_labels, color_by_country)
+            plot_pinot_noir(reducer.pca(components=projection_dim),plot_title, projection_labels, legend_labels,
+                            color_by_country, test_sample_names=test_samples_names)
         elif projection_method == "T-SNE":
             plot_pinot_noir(reducer.tsne(components=projection_dim, perplexity=5, random_state=42),
-                    plot_title, projection_labels, legend_labels, color_by_country
+                    plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names
                     )
         else:
             raise ValueError(f"Unsupported projection method: {projection_method}")

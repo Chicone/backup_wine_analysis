@@ -29,7 +29,7 @@ if __name__ == "__main__":
     RANDOM_SEED = 42
 
     directory = "/home/luiscamara/Documents/datasets/Champagnes/HETEROCYC"
-    metadata_path = "/home/luiscamara/Documents/datasets/Champagnes/test.csv"
+    metadata_path = "/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv"
 
     # --- Load chromatograms ---
     row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(directory)

@@ -70,6 +70,8 @@ if __name__ == "__main__":
 
     data = np.array(list(gcms.data.values()))
     labels_raw = np.array(list(gcms.data.keys()))
+    raw_sample_labels = labels_raw.copy()  # Save raw labels for annotation
+
     labels, year_labels = process_labels_by_wine_kind(labels_raw, wine_kind, region, class_by_year, data_dict)
 
     # Instantiate classifier with data and labels
@@ -82,7 +84,8 @@ if __name__ == "__main__":
         dataset_origins=np.array(dataset_origins),
         strategy=strategy,
         class_by_year=class_by_year,
-        labels_raw=labels_raw
+        labels_raw=labels_raw,
+        sample_labels=raw_sample_labels
     )
     # cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
     #                  year_labels=np.array(year_labels))

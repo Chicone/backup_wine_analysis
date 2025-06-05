@@ -1,15 +1,19 @@
 """
-Taster Score Classification using the script **train_test_labels.py**
+Age Prediction of Champagne Wines using Ridge Regression
 
-This script trains and evaluates a Ridge classifier to predict categorical labels (e.g. taster identity, wine variety,
-cave, age) based on averaged sensory evaluation scores of Champagne wines.
-The features correspond to numerical scores given by tasters on different attributes (e.g. acid, balance),
-and the labels are drawn from associated metadata.
+This script performs regression analysis to predict the age of Champagne wines
+based on averaged GC-MS chromatogram signals per wine sample.
 
-Data is preprocessed by collapsing replicates per (wine, taster) pair and cleaning non-numeric values.
-Stratified K-Fold cross-validation is repeated multiple times to obtain a robust estimate of classification accuracy,
-and a normalized confusion matrix is plotted at the end for each classification target to visualize model performance
-across classes.
+Each sample is obtained by averaging multiple replicate chromatograms associated
+with the same wine code, decimated for dimensionality reduction.
+
+The regression model used is Ridge, applied with repeated Stratified K-Fold
+cross-validation. Stratification is done by binning the target (age) into discrete
+quantile-based bins for better balanced splits.
+
+Performance metrics such as MAE, RMSE, R², and rounded accuracy (within exact
+and ±tolerance) are reported. Additionally, visualizations include metric distributions,
+a confusion matrix of rounded predictions, and a scatter plot of true vs. predicted ages.
 
 """
 import pandas as pd
@@ -23,50 +27,100 @@ import matplotlib.pyplot as plt
 from gcmswine import utils  # Assumes this is your utility module for GC-MS data loading
 from sklearn.model_selection import GroupKFold
 from sklearn.utils import shuffle
+import os
+import yaml
+import matplotlib.patches as patches
 
+from sklearn.linear_model import Ridge, Lasso, ElasticNet
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, HistGradientBoostingRegressor
+from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
+try:
+    from xgboost import XGBRegressor
+    xgb_available = True
+except ImportError:
+    xgb_available = False
 
 if __name__ == "__main__":
+    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
+    config_path = os.path.abspath(config_path)
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+
     # ------------------ Parameters ------------------
     directory = "/home/luiscamara/Documents/datasets/Champagnes/HETEROCYC"
-    csv_path = "/home/luiscamara/Documents/datasets/Champagnes/test.csv"
-    n_splits = 10
-    n_repeats = 1
-    random_seed = 42
-    N_DECIMATION = 10
-    CHROM_CAP = None
-    row_start, row_end = 0, None
-    n_bins = 5  # for stratification
-    year_tolerance = 3  # years of tolerance for relaxed accuracy
+    csv_path = "/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv"
+    n_splits = 5                      # Number of CV folds
+    random_seed = 42                   # For reproducibility
+    N_DECIMATION = 10                  # Downsampling factor
+    CHROM_CAP = None                   # Max number of chromatograms per wine (if capped)
+    row_start, row_end = 0, None       # Limit which rows to read
+    year_tolerances = [1, 2, 3, 4, 5]        # Multiple tolerance values to evaluate
+    normalize = config.get("normalize", True)
+    show_confusion = config.get("show_confusion_matrix", False)
+    show_pred_plot = config.get("show_pred_plot", False)
+    show_age_histograma = config.get("show_age_histogram", False)
+    if normalize:
+        print("🔄 Normalized features using z-score (per CV fold)")
+    num_repeats = config.get("num_repeats", 10)
+    model_name = config.get("regressor", "ridge").lower()
+
+    if model_name == "ridge":
+        model = Ridge()
+    elif model_name == "lasso":
+        model = Lasso()
+    elif model_name == "elasticnet":
+        model = ElasticNet()
+    elif model_name == "rf":
+        model = RandomForestRegressor(n_estimators=100, random_state=random_seed)
+    elif model_name == "gbr":
+        model = GradientBoostingRegressor(random_state=random_seed)
+    elif model_name == "hgb":
+        model = HistGradientBoostingRegressor(random_state=random_seed)
+    elif model_name == "svr":
+        model = SVR()
+    elif model_name == "knn":
+        model = KNeighborsRegressor()
+    elif model_name == "dt":
+        model = DecisionTreeRegressor(random_state=random_seed)
+    elif model_name == "xgb" and xgb_available:
+        model = XGBRegressor(random_state=random_seed)
+    else:
+        raise ValueError(f"Unsupported or unavailable model: {model_name}")
+
+    print(f'Regressor is {model_name}')
 
     # ------------------ Load chromatograms ------------------
-    row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(directory)
+    row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(directory)  # Get signal column bounds
     column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
-    data_dict = utils.load_ms_csv_data_from_directories(directory, column_indices, row_start, row_end)
+    data_dict = utils.load_ms_csv_data_from_directories(directory, column_indices, row_start, row_end)  # Load chromatograms
+
     if CHROM_CAP:
-        data_dict = {key: value[:CHROM_CAP] for key, value in data_dict.items()}
+        data_dict = {key: value[:CHROM_CAP] for key, value in data_dict.items()}  # Optionally truncate replicates
 
     # ------------------ Load and clean metadata ------------------
     df = pd.read_csv(csv_path, skiprows=1)
-    df = df.iloc[1:]
     df.columns = [col.strip().lower() for col in df.columns]
-    df['age'] = pd.to_numeric(df['age'], errors='coerce')
-    df = df.dropna(subset=['age'])
+    df['age'] = pd.to_numeric(df['age'], errors='coerce')  # Ensure age is numeric
+    df = df.dropna(subset=['age'])  # Drop rows without age
 
-    # ------------------ Prepare samples ------------------
+    # ------------------ Prepare data matrix ------------------
     X, y, groups = [], [], []
+    df_unique = df.drop_duplicates(subset='code vin')  # One entry per wine
 
-    for _, row in df.iterrows():
+    for _, row in df_unique.iterrows():
         code_vin = row['code vin']
         if pd.isna(code_vin):
             continue
 
-        replicate_keys = [k for k in data_dict if k.startswith(code_vin)]
+        replicate_keys = [k for k in data_dict if k.startswith(code_vin)]  # Match all replicates
         if not replicate_keys:
             continue
 
-        replicates = np.array([data_dict[k][::N_DECIMATION] for k in replicate_keys])
-        chromatogram = np.mean(replicates, axis=0).flatten()
-        chromatogram = np.nan_to_num(chromatogram)
+        replicates = np.array([data_dict[k][::N_DECIMATION] for k in replicate_keys])  # Decimate and collect replicates
+        chromatogram = np.mean(replicates, axis=0).flatten()  # Average replicates into single sample
+        chromatogram = np.nan_to_num(chromatogram)  # Replace NaNs with 0
 
         X.append(chromatogram)
         y.append(row['age'])
@@ -76,102 +130,149 @@ if __name__ == "__main__":
     y = np.array(y)
     groups = np.array(groups)
 
-    # ------------------ Prepare unique wine stratification ------------------
+    # ------------------ Bin ages for stratified CV ------------------
     wine_df = pd.DataFrame({'code_vin': groups, 'age': y})
     wine_df_unique = wine_df.drop_duplicates(subset='code_vin').copy()
 
-    bin_encoder = KBinsDiscretizer(n_bins=n_bins, encode='ordinal', strategy='quantile')
-    wine_df_unique['age_bin'] = bin_encoder.fit_transform(wine_df_unique[['age']]).astype(int).flatten()
+    # Custom binning: 0-5, 5-10, 10-15, 15-20, 20-25, 25-30
+    bin_edges = [0, 5, 10, 15, 20, 25, 30]
+    # bin_edges = [0, 10, 20, 30]
+    wine_df_unique['age_bin'] = np.digitize(wine_df_unique['age'], bins=bin_edges, right=False)
 
-    # ------------------ Regression with Ridge ------------------
-    mae_list, rmse_list, r2_list, acc_list, acc_tol_list = [], [], [], [], []
-    y_true_all, y_pred_all = [], []
+    all_mae, all_rmse, all_r2, all_acc, all_acc_tol, all_y_true, all_y_pred = [], [], [], [], [], [], []
+    for repeat in range(num_repeats):
+        print(f"\n🔁 Repeat {repeat + 1}/{num_repeats}")
+        mae_list, rmse_list, r2_list = [], [], []
+        acc_list, acc_tol_dict = [], {tol: [] for tol in year_tolerances}
+        y_true_all, y_pred_all = [], []
 
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_seed)
-    for train_idx, test_idx in skf.split(wine_df_unique['code_vin'], wine_df_unique['age_bin']):
-        train_codes = wine_df_unique.iloc[train_idx]['code_vin'].values
-        test_codes = wine_df_unique.iloc[test_idx]['code_vin'].values
+        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_seed + repeat)
 
-        train_mask = np.isin(groups, train_codes)
-        test_mask = np.isin(groups, test_codes)
+        for train_idx, test_idx in skf.split(wine_df_unique['code_vin'], wine_df_unique['age_bin']):
+            train_codes = wine_df_unique.iloc[train_idx]['code_vin'].values
+            test_codes = wine_df_unique.iloc[test_idx]['code_vin'].values
 
-        X_train, X_test = X[train_mask], X[test_mask]
-        y_train, y_test = y[train_mask], y[test_mask]
+            train_mask = np.isin(groups, train_codes)
+            test_mask = np.isin(groups, test_codes)
 
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
+            X_train, X_test = X[train_mask], X[test_mask]
+            y_train, y_test = y[train_mask], y[test_mask]
 
-        model = Ridge()
-        model.fit(X_train_scaled, y_train)
-        y_pred = model.predict(X_test_scaled)
+            if normalize:
+                scaler = StandardScaler()
+                X_train = scaler.fit_transform(X_train)
+                X_test = scaler.transform(X_test)
 
-        mae_list.append(mean_absolute_error(y_test, y_pred))
-        rmse_list.append(np.sqrt(mean_squared_error(y_test, y_pred)))
-        r2_list.append(r2_score(y_test, y_pred))
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
 
-        acc = np.mean(np.round(y_pred) == np.round(y_test))
-        acc_tol = np.mean(np.abs(np.round(y_pred) - np.round(y_test)) <= year_tolerance)
+            mae_list.append(mean_absolute_error(y_test, y_pred))
+            rmse_list.append(np.sqrt(mean_squared_error(y_test, y_pred)))
+            r2_list.append(r2_score(y_test, y_pred))
+            acc_list.append(np.mean(np.round(y_pred) == np.round(y_test)))
+            for tol in year_tolerances:
+                acc_tol_dict[tol].append(np.mean(np.abs(np.round(y_pred) - np.round(y_test)) <= tol))
 
-        acc_list.append(acc)
-        acc_tol_list.append(acc_tol)
+            y_true_all.extend(y_test)
+            y_pred_all.extend(y_pred)
 
-        y_true_all.extend(y_test)
-        y_pred_all.extend(y_pred)
+        all_mae.append(np.mean(mae_list))
+        all_rmse.append(np.mean(rmse_list))
+        all_r2.append(np.mean(r2_list))
+        all_acc.append(np.mean(acc_list))
+        all_acc_tol.append({tol: np.mean(acc_tol_dict[tol]) for tol in year_tolerances})
+        all_y_true.extend(y_true_all)
+        all_y_pred.extend(y_pred_all)
 
-    # ------------------ Report performance ------------------
-    print("\nCross-validated Ridge Regression Performance:")
-    print(f"MAE:  {np.mean(mae_list):.2f} ± {np.std(mae_list):.2f}")
-    print(f"RMSE: {np.mean(rmse_list):.2f} ± {np.std(rmse_list):.2f}")
-    print(f"R²:   {np.mean(r2_list):.3f} ± {np.std(r2_list):.3f}")
-    print(f"Rounded Accuracy (Exact): {np.mean(acc_list):.3f} ± {np.std(acc_list):.3f}")
-    print(f"Rounded Accuracy (±{year_tolerance} yrs): {np.mean(acc_tol_list):.3f} ± {np.std(acc_tol_list):.3f}")
 
-    # ------------------ Plot metrics distribution ------------------
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 3, 1)
-    plt.hist(mae_list, bins=10, color="skyblue", edgecolor="k")
-    plt.title("MAE Distribution")
-    plt.xlabel("MAE")
+    print("\nCross-validated Regression Performance:")
+    print(f"Regressor: {model_name}")
+    print(f"MAE:  {np.mean(all_mae):.2f} ± {np.std(all_mae):.2f}")
+    print(f"RMSE: {np.mean(all_rmse):.2f} ± {np.std(all_rmse):.2f}")
+    print(f"R²:   {np.mean(all_r2):.3f} ± {np.std(all_r2):.3f}")
+    print(f"Rounded Accuracy (Exact): {np.mean(all_acc):.3f} ± {np.std(all_acc):.3f}")
+    for tol in year_tolerances:
+        tol_scores = [rep[tol] for rep in all_acc_tol]
+        print(f"Rounded Accuracy (±{tol} yrs): {np.mean(tol_scores):.3f} ± {np.std(tol_scores):.3f}")
 
-    plt.subplot(1, 3, 2)
-    plt.hist(r2_list, bins=10, color="salmon", edgecolor="k")
-    plt.title("R² Distribution")
-    plt.xlabel("R²")
+    # # ------------------ Print performance summary ------------------
+    # print("\nCross-validated Ridge Regression Performance:")
+    # print(f"MAE:  {np.mean(mae_list):.2f} ± {np.std(mae_list):.2f}")
+    # print(f"RMSE: {np.mean(rmse_list):.2f} ± {np.std(rmse_list):.2f}")
+    # print(f"R²:   {np.mean(r2_list):.3f} ± {np.std(r2_list):.3f}")
+    # print(f"Rounded Accuracy (Exact): {np.mean(acc_list):.3f} ± {np.std(acc_list):.3f}")
+    # for tol in year_tolerances:
+    #     print(f"Rounded Accuracy (±{tol} yrs): {np.mean(acc_tol_dict[tol]):.3f} ± {np.std(acc_tol_dict[tol]):.3f}")
 
-    plt.subplot(1, 3, 3)
-    plt.hist(acc_tol_list, bins=10, color="lightgreen", edgecolor="k")
-    plt.title(f"Accuracy (±{year_tolerance} yrs)")
-    plt.xlabel("Accuracy")
-    plt.tight_layout()
-    plt.show()
+    # # ------------------ Plot distributions of key metrics ------------------
+    # plt.figure(figsize=(12, 4))
+    # plt.subplot(1, 3, 1)
+    # plt.hist(mae_list, bins=10, color="skyblue", edgecolor="k")
+    # plt.title("MAE Distribution")
+    #
+    # plt.subplot(1, 3, 2)
+    # plt.hist(r2_list, bins=10, color="salmon", edgecolor="k")
+    # plt.title("R² Distribution")
+    #
+    # plt.subplot(1, 3, 3)
+    # plt.hist(acc_tol_dict[3], bins=10, color="lightgreen", edgecolor="k")
+    # plt.title(f"Accuracy (±3 yrs)")
+    # plt.tight_layout()
+    # plt.show()
 
-    # ------------------ Confusion Matrix ------------------
-    y_true_arr = np.round(np.array(y_true_all)).astype(int)
-    y_pred_arr = np.round(np.array(y_pred_all)).astype(int)
-    unique_labels = np.unique(np.concatenate((y_true_arr, y_pred_arr)))
-    cm = confusion_matrix(y_true_arr, y_pred_arr, labels=unique_labels, normalize='true')
+    # Determine which plots are to be shown
+    plots_to_show = {
+        "confusion": show_confusion,
+        "histogram": show_age_histograma,
+        "scatter": show_pred_plot,
+    }
 
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=unique_labels)
-    disp.plot(cmap="Blues", xticks_rotation=45)
-    plt.title("Confusion Matrix (Rounded Age)")
-    plt.tight_layout()
-    plt.show()
+    # Count how many plots to display
+    n_plots = sum(plots_to_show.values())
 
-    # ------------------ Extra: Age Distribution & Scatter ------------------
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 2, 1)
-    plt.hist(y, bins=np.arange(np.floor(y.min()), np.ceil(y.max()) + 1), color="gray", edgecolor="black")
-    plt.title("Age Distribution")
-    plt.xlabel("True Age")
-    plt.ylabel("Count")
+    if n_plots > 0:
+        fig, axes = plt.subplots(1, n_plots, figsize=(6 * n_plots, 6))
+        if n_plots == 1:
+            axes = [axes]  # Ensure axes is iterable
 
-    plt.subplot(1, 2, 2)
-    plt.scatter(y_true_all, y_pred_all, alpha=0.4, edgecolors='k')
-    plt.plot([min(y_true_all), max(y_true_all)], [min(y_true_all), max(y_true_all)], 'r--', lw=2)
-    plt.xlabel("True Age")
-    plt.ylabel("Predicted Age")
-    plt.title("True vs Predicted Age")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+        plot_idx = 0
+
+        if plots_to_show["confusion"]:
+            y_true_arr = np.round(np.array(y_true_all)).astype(int)
+            y_pred_arr = np.round(np.array(y_pred_all)).astype(int)
+            unique_labels = np.unique(np.concatenate((y_true_arr, y_pred_arr)))
+            cm = confusion_matrix(y_true_arr, y_pred_arr, labels=unique_labels, normalize='true')
+            disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=unique_labels)
+            disp.plot(ax=axes[plot_idx], cmap="Blues", xticks_rotation=45, colorbar=False)
+            axes[plot_idx].set_title("Confusion Matrix (Rounded Age)")
+            # Bold the border of diagonal cells
+            ax = axes[plot_idx]
+            num_classes = cm.shape[0]
+
+            for i in range(num_classes):
+                rect = patches.Rectangle((i - 0.5, i - 0.5), 1, 1,
+                                         linewidth=0.5, edgecolor='black', facecolor='none')
+                ax.add_patch(rect)
+            plot_idx += 1
+
+        if plots_to_show["scatter"]:
+            axes[plot_idx].scatter(y_true_all, y_pred_all, color='#1f77b4',
+                                   alpha=0.5, edgecolors='none')
+            axes[plot_idx].plot([min(y_true_all), max(y_true_all)],
+                                [min(y_true_all), max(y_true_all)], 'r--', lw=2)
+            axes[plot_idx].set_xlabel("True Age")
+            axes[plot_idx].set_ylabel("Predicted Age")
+            axes[plot_idx].set_title("True vs Predicted Age")
+            axes[plot_idx].grid(True)
+            plot_idx += 1
+
+        if plots_to_show["histogram"]:
+            axes[plot_idx].hist(y, bins=np.arange(np.floor(y.min()), np.ceil(y.max()) + 1),
+                                color="gray", edgecolor="black")
+            axes[plot_idx].set_title("Age Distribution")
+            axes[plot_idx].set_xlabel("True Age")
+            axes[plot_idx].set_ylabel("Count")
+            plot_idx += 1
+
+        plt.tight_layout()
+        plt.show()

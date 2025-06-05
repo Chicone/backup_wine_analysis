@@ -178,9 +178,9 @@ if __name__ == "__main__":
     chrom_length = len(list(data_dict.values())[0])
 
     gcms = GCMSDataProcessor(data_dict)
-
     if sync_state:
         tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=30000)
+        gcms = GCMSDataProcessor(data_dict)
 
     # Extract data matrix (samples × channels) and associated labels
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))

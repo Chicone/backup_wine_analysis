@@ -69,6 +69,7 @@ if __name__ == "__main__":
 
     # Extract data matrix (samples × channels) and associated labels
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
+    raw_sample_labels = labels.copy()  # Save raw labels for annotation
 
     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, None)
 
@@ -76,10 +77,11 @@ if __name__ == "__main__":
     cls = Classifier(np.array(list(data)), np.array(list(labels)), classifier_type=classifier, wine_kind=wine_kind,
                      year_labels=np.array(year_labels),
                      class_by_year=class_by_year,
+                     sample_labels=raw_sample_labels
                      )
 
     # Run training and collect score vectors
-    mean_acc, std_acc, scores, all_labels = cls.train_and_evaluate_all_channels(
+    mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_all_channels(
         num_repeats=num_splits,
         test_size=0.2,
         normalize=normalize_flag,

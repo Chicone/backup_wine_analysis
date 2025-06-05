@@ -1,3 +1,19 @@
+import os
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import RidgeClassifier
+from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, confusion_matrix, ConfusionMatrixDisplay
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import yaml
+import math
+from gcmswine.classification import Classifier
+from plot_projection import compute_projection, plot_projection_with_labels
+
+
 """
 Taster Score Classification using the script **train_test_labels.py**
 
@@ -14,44 +30,66 @@ across classes.
 """
 
 if __name__ == "__main__":
-    import pandas as pd
-    import numpy as np
-    from sklearn.linear_model import RidgeClassifier
-    from sklearn.model_selection import StratifiedKFold
-    from sklearn.preprocessing import LabelEncoder, StandardScaler
-    from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
-    from tqdm import tqdm
-    import matplotlib.pyplot as plt
-    import matplotlib.colors as mcolors
+    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
+    config_path = os.path.abspath(config_path)
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+    # Default fallback
+    label_columns = config.get("label_targets", ["taster"])
+    if isinstance(label_columns, str):
+        label_columns = [label_columns]
+
+    show_confusion = config.get("show_confusion_matrix", False)
+    normalize = config.get("normalize", True)
+    classifier = config.get("classifier", "RGC")
+    projection_enabled = config.get("plot_projection", False)
+    projection_source = config.get("projection_source", "scores")
+    projection_method = config.get("projection_method", "UMAP")
+    projection_dim = config.get("projection_dim", 2)
+    n_neighbors = config.get("n_neighbors", 15)
+    perplexity = config.get("perplexity", 30)
+    random_state = config.get("random_state", 42)
+    n_repeats = config.get("num_repeats", 10)
+
+    # instatiate the class Classifier to use _get_classifier()
+    dummy_data = np.zeros((1, 10))         # 1 sample, 10 features
+    dummy_labels = np.array(["A"])
+    clf = Classifier(data=dummy_data, labels=dummy_labels, classifier_type=classifier)
+
+    if normalize:
+        print("🔄 Normalized features using z-score (per CV fold)")
 
     # --- Parameters ---
-    label_columns = ['prod area', 'variety', 'cave', 'age']
-    csv_path = "/home/luiscamara/Documents/datasets/Champagnes/test.csv"
+    print(f"Using label target from config.yaml: {label_columns}")
+    csv_path = "/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv"
     n_splits = 10
-    n_repeats = 20
+    # n_repeats = 20 # Repeat the cross validation to stabilize results
     random_seed = 42
 
     # --- Load and clean dataset ---
-    df = pd.read_csv(csv_path, skiprows=1)
-    df = df.iloc[1:]  # Skip redundant header row
+    df = pd.read_csv(csv_path, skiprows=1) # Load ignoring first row; use second row as header (default behaviour)
+    df = df.iloc[1:]  # Skip redundant second header row
     df.columns = [col.strip().lower() for col in df.columns]  # Normalize column names
 
-    # --- Prepare features ---
-    df_selected = df.loc[:, 'code vin':'ageing']
-    df_selected['taster'] = df['taster']
+    # --- Prepare feature table ---
+    df_selected = df.loc[:, 'code vin':'ageing']  # Select columns from 'code vin' to 'ageing' inclusive
+    df_selected['taster'] = df['taster'] # Re-add taster column (was outside the selected range)
+
+    # Convert internal score columns to numeric (e.g. acid, balance), coerce errors to NaN
     df_selected.iloc[:, 1:-1] = df_selected.iloc[:, 1:-1].apply(pd.to_numeric, errors='coerce')
     df_selected = df_selected.dropna(axis=1, how='all')
+
+    # Group by wine and taster, averaging repeated tastings
     df_grouped = df_selected.groupby(['code vin', 'taster']).mean().dropna().reset_index()
 
     # --- Storage for results ---
-    conf_matrices = []
-    label_encoders = []
-    class_counts_per_label = []
+    conf_matrices = []          # Store confusion matrices for each label
+    label_encoders = []         # Store label encoders per label (to map back classes)
+    class_counts_per_label = [] # Store count of samples per class for each label column
+    summary_stats = []
 
     # --- Loop through classification targets ---
     for label_column in label_columns:
-        print(f"\nRunning Ridge Classifier for label: {label_column}\n")
-
         labels_df = df[['code vin', label_column, 'taster']].dropna()
         labels_df = labels_df.drop_duplicates(subset=['code vin', 'taster'])
         labels_df.columns = ['code vin', 'label', 'taster']
@@ -73,35 +111,45 @@ if __name__ == "__main__":
         class_counts = dict(zip(le.classes_, sample_counts))
         class_counts_per_label.append(class_counts)
 
-        # Print sample counts per class
-        print("Samples per class:")
-        for cls, count in class_counts.items():
-            print(f"  {cls}: {count}")
+        # # Print sample counts per class
+        # print("Samples per class:")
+        # for cls, count in class_counts.items():
+        #     print(f"  {cls}: {count}")
 
-
-        all_true = []
-        all_pred = []
-
+        balanced_accuracies = []
+        raw_accuracies = []
+        all_projection_scores = []
+        all_projection_labels = []
         for repeat in tqdm(range(n_repeats)):
-            skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_seed + repeat)
+            all_true = []
+            all_pred = []
 
+            skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_seed + repeat)
             for train_idx, test_idx in skf.split(feature_matrix, y):
                 X_train, X_test = feature_matrix[train_idx], feature_matrix[test_idx]
                 y_train, y_test = y[train_idx], y[test_idx]
 
-                scaler = StandardScaler()
-                X_train_scaled = scaler.fit_transform(X_train)
-                X_test_scaled = scaler.transform(X_test)
+                if normalize:
+                    scaler = StandardScaler()
+                    X_train = scaler.fit_transform(X_train)
+                    X_test = scaler.transform(X_test)
 
                 # clf = RidgeClassifier(class_weight='balanced')
-                clf = RidgeClassifier(class_weight='balanced')
-                clf.fit(X_train_scaled, y_train)
-                y_pred = clf.predict(X_test_scaled)
+                clf.classifier.fit(X_train, y_train)
+                y_pred = clf.classifier.predict(X_test)
+
+                if projection_enabled and projection_source == "scores":
+                    if hasattr(clf.classifier, "decision_function"):
+                        scores = clf.classifier.decision_function(X_test)
+                        all_projection_scores.append(scores)
+                        all_projection_labels.append(y_test)
+                    else:
+                        print("⚠️ Classifier does not support decision_function; skipping score projection.")
 
                 all_true.extend(y_test)
                 all_pred.extend(y_pred)
-            pred_counts = np.bincount(all_pred, minlength=len(le.classes_))
-            true_counts = np.bincount(all_true, minlength=len(le.classes_))
+            # pred_counts = np.bincount(all_pred, minlength=len(le.classes_))
+            # true_counts = np.bincount(all_true, minlength=len(le.classes_))
             # print("Predicted counts:")
             # for cls, count in zip(le.classes_, pred_counts):
             #     print(f"  {cls}: {count}")
@@ -109,21 +157,85 @@ if __name__ == "__main__":
             # for cls, count in zip(le.classes_, true_counts):
             #     print(f"  {cls}: {count}")
 
+            bal_acc = balanced_accuracy_score(all_true, all_pred)
+            raw_acc = accuracy_score(all_true, all_pred)
+            balanced_accuracies.append(bal_acc)
+            raw_accuracies.append(raw_acc)
+
+        mean_bal = np.mean(balanced_accuracies)
+        std_bal = np.std(balanced_accuracies)
+        mean_raw = np.mean(raw_accuracies)
+        std_raw = np.std(raw_accuracies)
+
+        print(f"\n📊 Results for label: '{label_column}'")
+        print(f"   ✅ Balanced Accuracy: {mean_bal:.3f} ± {std_bal:.3f}")
+        print(f"   ℹ️  Raw Accuracy     : {mean_raw:.3f} ± {std_raw:.3f}")
+
+        summary_stats.append((label_column, mean_bal, std_bal, mean_raw, std_raw))
+
         cm = confusion_matrix(all_true, all_pred, labels=np.arange(len(le.classes_)), normalize='true')
         conf_matrices.append(cm)
         label_encoders.append(le)
 
     # --- Plot all confusion matrices ---
-    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
-    axes = axes.flatten()
+    n_labels = len(label_columns)
+    cols = min(n_labels, 2)
+    rows = math.ceil(n_labels / cols)
 
-    for i, (cm, le, title) in enumerate(zip(conf_matrices, label_encoders, label_columns)):
-        print(f"\nLabel column: {title}")
-        print("Label order (classes_):", list(le.classes_))
-        print("Class counts:", class_counts_per_label[i])
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
-        disp.plot(ax=axes[i], cmap="Blues", values_format=".2f", xticks_rotation=45, colorbar=False)
-        axes[i].set_title(f"Confusion Matrix – {title}")
+    if show_confusion:
+        fig, axes = plt.subplots(rows, cols, figsize=(7 * cols, 6 * rows))
+        if n_labels == 1:
+            axes = [axes]  # make it iterable
+        else:
+            axes = axes.flatten()
 
-    plt.tight_layout()
-    plt.show()
+        for i, (cm, le, title) in enumerate(zip(conf_matrices, label_encoders, label_columns)):
+            print(f"\nLabel column: {title}")
+            print("Label order (classes_):", list(le.classes_))
+            print("Class counts:", class_counts_per_label[i])
+            disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
+            disp.plot(ax=axes[i], cmap="Blues", values_format=".2f", xticks_rotation=45, colorbar=False)
+            axes[i].set_title(f"Confusion Matrix – {title}")
+
+        plt.tight_layout()
+        plt.show()
+
+    print("\n📋 Overall Summary:")
+    for label, mean_bal, std_bal, mean_raw, std_raw in summary_stats:
+        print(f"  {label:<12} | Balanced: {mean_bal:.3f} ± {std_bal:.3f} | Raw: {mean_raw:.3f} ± {std_raw:.3f}")
+
+    if projection_enabled:
+        if projection_source == "scores":
+            if all_projection_scores:
+                X_to_plot = np.vstack(all_projection_scores)
+                y_to_plot = np.hstack(all_projection_labels)
+            else:
+                print("⚠️ No scores collected for projection; skipping plot.")
+                X_to_plot = None
+                y_to_plot = None
+        else:
+            X_to_plot = feature_matrix
+            y_to_plot = y
+
+        if X_to_plot is not None:
+            X_proj = compute_projection(
+                X=X_to_plot,
+                method=config.get("projection_method", "UMAP"),
+                dim=config.get("projection_dim", 2),
+                random_state=config.get("random_state", 42),
+                n_neighbors=config.get("n_neighbors", 10),
+                perplexity=config.get("perplexity", 5)
+            )
+
+        plot_projection_with_labels(
+            X_proj,
+            y_to_plot,
+            method="UMAP",
+            n_components=projection_dim,
+            label_encoder=le,
+            n_neighbors=30,
+            random_state=42
+        )
+
+
+

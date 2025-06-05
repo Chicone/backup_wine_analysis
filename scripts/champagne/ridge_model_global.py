@@ -24,7 +24,7 @@ Key Features:
    - Chromatograms are decimated (downsampled) along the retention time axis.
 
 2. **Sensory Metadata Preprocessing**:
-   - Loads a structured sensory dataset (`test.csv`) with wine codes, tasters, and 100+ attributes.
+   - Loads a structured sensory dataset (`sensory_scores.csv`) with wine codes, tasters, and 100+ attributes.
    - Cleans and averages duplicate ratings by (wine, taster) pairs.
 
 3. **Feature Construction**:
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     if CHROM_CAP:
         data_dict = {key:value[:CHROM_CAP] for key, value in data_dict.items()}
     # --- Load metadata ---
-    metadata = pd.read_csv("/home/luiscamara/Documents/datasets/Champagnes/test.csv", skiprows=1)
+    metadata = pd.read_csv("/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv", skiprows=1)
     metadata = metadata.iloc[1:]  # Remove extra header row
     metadata.columns = [col.strip().lower() for col in metadata.columns]  # Clean headers
     metadata.drop(columns=[col for col in metadata.columns if 'unnamed' in col.lower()], inplace=True)

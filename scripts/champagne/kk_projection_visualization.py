@@ -11,7 +11,7 @@ There is no 3D GC-MS data for this dataset, meaning we have to deal directly wit
 Sensory Data Visualization
 --------------------------
 
-The script **projection_visualization.py** provides a flexible tool to visualize sensory data for Champagne wine samples.
+The script **kk_projection_visualization.py** provides a flexible tool to visualize sensory data for Champagne wine samples.
 It enables exploratory analysis of sensory descriptors using unsupervised methods to uncover latent patterns related to
 ageing, variety, production site, or taster.
 
@@ -75,7 +75,7 @@ To run the script:
 
 .. code-block:: bash
 
-   python scripts/champagne/projection_visualization.py
+   python scripts/champagne/kk_projection_visualization.py
 
 Before running, modify the top of the script to select the appropriate label column:
 

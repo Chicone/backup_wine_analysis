@@ -163,10 +163,11 @@ class Classifier:
     """
     def __init__(self, data, labels, classifier_type='LDA', strategy: WineKindStrategy = None,
                  wine_kind='bordeaux', class_by_year=False, window_size=5000, stride=2500,
-                 alpha=1, year_labels= None, dataset_origins=None, **kwargs
+                 alpha=1, year_labels= None, dataset_origins=None, sample_labels=None, **kwargs
                  ):
         self.data = data
         self.labels = labels
+        self.sample_labels = sample_labels
         self.labels_raw = kwargs.get("labels_raw", labels)
         self.strategy = strategy if strategy else WineKindStrategy()
         self.window_size = window_size
@@ -424,9 +425,10 @@ class Classifier:
         }
 
         if projection_source == "scores":
-            return result, scores, y_test
+            raw_test_labels = self.sample_labels[test_idx]
+            return result, scores, y_test, raw_test_labels
         else:
-            return result, None, None
+            return result, None, None, None
         # return result
 
 
@@ -1544,6 +1546,7 @@ class Classifier:
         confusion_matrices = []
         all_scores = []
         all_labels = []
+        test_samples_names = []
 
         def compute_features(channels):
             print(f"Computing features for channels: {channels}")
@@ -1579,10 +1582,11 @@ class Classifier:
                     dataset_origins=self.dataset_origins if hasattr(self, 'dataset_origins') else None,
                     strategy=strategy,
                     class_by_year=self.class_by_year,
-                    labels_raw=self.labels_raw
+                    labels_raw=self.labels_raw,
+                    sample_labels=self.sample_labels
                 )
 
-                results, scores, projection_labels = cls.train_and_evaluate_balanced(
+                results, scores, projection_labels, raw_test_labels = cls.train_and_evaluate_balanced(
                     normalize=normalize,
                     scaler_type=scaler_type,
                     region=region,
@@ -1594,6 +1598,7 @@ class Classifier:
                 if scores is not None:
                     all_scores.append(scores)
                     all_labels.append(projection_labels)
+                    test_samples_names.append(raw_test_labels)
 
                 if 'balanced_accuracy' in results and not np.isnan(results['balanced_accuracy']):
                     balanced_accuracies.append(results['balanced_accuracy'])
@@ -1614,6 +1619,7 @@ class Classifier:
         if projection_source and all_scores:
             all_scores = np.vstack(all_scores)
             all_labels = np.concatenate(all_labels)
+            test_samples_names = np.concatenate(test_samples_names)
         else:
             all_scores, all_labels = None, None
 
@@ -1670,9 +1676,9 @@ class Classifier:
             plt.show()
 
         if projection_source == "scores":
-            return mean_test_accuracy, std_test_accuracy, all_scores, all_labels
+            return mean_test_accuracy, std_test_accuracy, all_scores, all_labels, test_samples_names
         else:
-            return mean_test_accuracy, std_test_accuracy, None, None
+            return mean_test_accuracy, std_test_accuracy, None, None, None
 
 
     def train_and_evaluate_all_channels_old(
@@ -2204,8 +2210,8 @@ def assign_north_south_to_burgundy(original_keys):
         first letter of the key.
 
     """
-    if len(original_keys) != 61:
-        raise ValueError(f"Incorrect wines passed. Input should be Burgundy wines only")
+    # if len(original_keys) != 61:
+    #     raise ValueError(f"Incorrect wines passed. Input should be Burgundy wines only")
 
     # Dictionary to map letters to North or South Beaune
     letter_to_burgundy_region = {

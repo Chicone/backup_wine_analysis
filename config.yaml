@@ -13,20 +13,28 @@ datasets:
   pinot_noir_isvv_dllme: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/
   pinot_noir_isvv_lle: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/
 feature_type: tic_tis
+label_target: prod area
+label_targets:
+- taster
 n_decimation: 10
-n_neighbors: 15
+n_neighbors: 30
 normalize: true
-num_splits: 20
-plot_projection: tic_tis
+num_repeats: 10
+num_splits: 1
+plot_projection: false
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
-projection_source: tic_tis
+projection_source: scores
 random_state: 42
-region: null
+region: ''
+regressor: null
 selected_datasets:
 - bordeaux_oak
+show_age_histogram: false
 show_confusion_matrix: false
+show_pred_plot: false
+show_sample_names: false
 sync_state: false
 umap_dim: 2
 umap_source: tic_tis
