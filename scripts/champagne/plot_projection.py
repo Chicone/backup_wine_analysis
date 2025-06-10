@@ -33,7 +33,7 @@ def compute_projection(X, method="UMAP", dim=2, random_state=42, n_neighbors=15,
         reducer = umap.UMAP(n_components=dim, n_neighbors=n_neighbors, random_state=random_state)
         X_proj = reducer.fit_transform(X)
     elif method == "t-SNE":
-        reducer = TSNE(n_components=dim, perplexity=perplexity, random_state=random_state)
+        reducer = TSNE(n_components=dim, perplexity=perplexity, init='random', random_state=random_state)
         X_proj = reducer.fit_transform(X)
     elif method == "PCA":
         reducer = PCA(n_components=dim, random_state=random_state)

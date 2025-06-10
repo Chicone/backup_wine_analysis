@@ -1,3 +1,4 @@
+chrom_cap: 35000
 class_by_year: false
 classifier: RGC
 color_by_country: false
@@ -17,21 +18,28 @@ label_target: prod area
 label_targets:
 - taster
 n_decimation: 10
-n_neighbors: 30
+n_neighbors: null
 normalize: true
 num_repeats: 10
 num_splits: 1
-plot_projection: false
+plot_projection: scores
 plot_umap: scores
 projection_dim: 2
-projection_method: UMAP
+projection_method: t-SNE
 projection_source: scores
-random_state: 42
-region: ''
+random_state: 102
+region: origin
 regressor: null
+retention_time_range:
+  max: 30000
+  min: 0
+rt_range:
+  max: 30000
+  min: 0
 selected_datasets:
-- bordeaux_oak
+- pinot_noir_changins
 show_age_histogram: false
+show_chromatograms: false
 show_confusion_matrix: false
 show_pred_plot: false
 show_sample_names: false

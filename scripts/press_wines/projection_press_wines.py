@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
     feature_type = config["feature_type"]
     classifier = config["classifier"]
-    num_splits = config["num_splits"]
+    num_repeats = config["num_repeats"]
     normalize_flag = config["normalize"]
     n_decimation = config["n_decimation"]
     sync_state = config["sync_state"]
@@ -53,6 +53,7 @@ if __name__ == "__main__":
     # wine_kind = config["wine_kind"]
     color_by_country = config["color_by_country"]
     class_by_year = config['class_by_year']
+    retention_time_range = config['rt_range']
 
     # Create ChromatogramAnalysis instance for optional alignment
     cl = ChromatogramAnalysis(ndec=n_decimation)
@@ -60,8 +61,17 @@ if __name__ == "__main__":
     # Load dataset, removing zero-variance channels
     selected_paths = {name: dataset_directories[name] for name in selected_datasets}
     data_dict, dataset_origins = utils.join_datasets(selected_datasets, dataset_directories, n_decimation)
-    data_dict, _ = utils.remove_zero_variance_channels(data_dict)
     chrom_length = len(list(data_dict.values())[0])
+    print(f'Chromatogram length: {chrom_length}')
+
+    if retention_time_range:
+        min_rt = retention_time_range['min']
+        raw_max_rt = retention_time_range['max']
+        max_rt = min(raw_max_rt, chrom_length)
+        print(f"Applying RT range: {min_rt} to {max_rt} (capped at {chrom_length})")
+        data_dict = {key: value[min_rt:max_rt] for key, value in data_dict.items()}
+
+    data_dict, _ = utils.remove_zero_variance_channels(data_dict)
 
     gcms = GCMSDataProcessor(data_dict)
     if sync_state:
@@ -91,8 +101,8 @@ if __name__ == "__main__":
     #                  year_labels=np.array(year_labels))
 
     # Run training and collect score vectors
-    mean_acc, std_acc, scores, all_labels = cls.train_and_evaluate_all_channels(
-        num_repeats=num_splits,
+    mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_all_channels(
+        num_repeats=num_repeats,
         random_seed=42,
         test_size=0.2,
         normalize=normalize,
@@ -160,7 +170,7 @@ if __name__ == "__main__":
     elif projection_method == "PCA":
         plot_press_wines(reducer.pca(components=projection_dim), plot_title, projection_labels, legend_labels, color_by_country)
     elif projection_method == "T-SNE":
-        plot_press_wines(reducer.tsne(components=projection_dim, perplexity=5, random_state=42),
+        plot_press_wines(reducer.tsne(components=projection_dim, perplexity=5, random_state=random_state),
                 plot_title, projection_labels, legend_labels, color_by_country
                 )
     else:

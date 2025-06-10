@@ -83,7 +83,7 @@ class DimensionalityReducer:
             The dataset transformed into the specified number of dimensions using t-SNE.
         """
         # Initialize and fit the t-SNE model to the data
-        tsne = TSNE(n_components=components, perplexity=perplexity, random_state=random_state)
+        tsne = TSNE(n_components=components, perplexity=perplexity, init='random', random_state=random_state)
         return tsne.fit_transform(self.data)
 
     def umap(self, components=2, n_neighbors=60, random_state=8):

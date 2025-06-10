@@ -153,13 +153,14 @@ if __name__ == "__main__":
 
     feature_type = config["feature_type"]
     classifier = config["classifier"]
-    num_splits = config["num_splits"]
+    num_repeats = config["num_repeats"]
     normalize = config["normalize"]
     n_decimation = config["n_decimation"]
     sync_state = config["sync_state"]
     region = config["region"]
     # wine_kind = config["wine_kind"]
     show_confusion_matrix = config['show_confusion_matrix']
+    retention_time_range = config['rt_range']
 
     # strategy = get_strategy_by_wine_kind(wine_kind, get_custom_order_func=utils.get_custom_order_for_pinot_noir_region())
     strategy = get_strategy_by_wine_kind(
@@ -174,8 +175,17 @@ if __name__ == "__main__":
     # Load dataset, removing zero-variance channels
     selected_paths = {name: dataset_directories[name] for name in selected_datasets}
     data_dict, dataset_origins = utils.join_datasets(selected_datasets, dataset_directories, n_decimation)
-    data_dict, _ = utils.remove_zero_variance_channels(data_dict)
     chrom_length = len(list(data_dict.values())[0])
+    print(f'Chromatogram length: {chrom_length}')
+
+    if retention_time_range:
+        min_rt = retention_time_range['min'] // n_decimation
+        raw_max_rt = retention_time_range['max'] // n_decimation
+        max_rt = min(raw_max_rt, chrom_length)
+        print(f"Applying RT range: {min_rt} to {max_rt} (capped at {chrom_length})")
+        data_dict = {key: value[min_rt:max_rt] for key, value in data_dict.items()}
+
+    data_dict, _ = utils.remove_zero_variance_channels(data_dict)
 
     gcms = GCMSDataProcessor(data_dict)
     if sync_state:
@@ -206,7 +216,7 @@ if __name__ == "__main__":
 
     # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
     cls.train_and_evaluate_all_channels(
-        num_repeats=num_splits,
+        num_repeats=num_repeats,
         random_seed=42,
         test_size=0.2,
         normalize=normalize,

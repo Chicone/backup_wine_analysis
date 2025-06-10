@@ -85,6 +85,7 @@ async def run_script(payload: dict):
         ("regressor", "ridge"),
         ("feature_type", "TIC"),
         ("num_repeats", 5),
+        ("chrom_cap", 35000),
         ("normalize", False),
         ("sync_state", False),
         ("class_by_year", False),
@@ -101,7 +102,8 @@ async def run_script(payload: dict):
         ("show_sample_names", "showSampleNames"),
         ("show_pred_plot", "show_pred_plot"),
         ("show_age_histogram", "show_age_histogram"),
-
+        ("show_chromatograms", "show_chromatograms"),
+        ("rt_range", "rt_range")
     ]
     for key, default in optional_keys:
         if key in payload:

@@ -16,13 +16,18 @@ and ±tolerance) are reported. Additionally, visualizations include metric distr
 a confusion matrix of rounded predictions, and a scatter plot of true vs. predicted ages.
 
 """
+import time
+
 import pandas as pd
 import numpy as np
+import sys
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, confusion_matrix, ConfusionMatrixDisplay
 from tqdm import tqdm
+# import matplotlib
+# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from gcmswine import utils  # Assumes this is your utility module for GC-MS data loading
 from sklearn.model_selection import GroupKFold
@@ -54,13 +59,16 @@ if __name__ == "__main__":
     n_splits = 5                      # Number of CV folds
     random_seed = 42                   # For reproducibility
     N_DECIMATION = 10                  # Downsampling factor
-    CHROM_CAP = None                   # Max number of chromatograms per wine (if capped)
+    CHROM_CAP = config.get("chrom_cap", False)
     row_start, row_end = 0, None       # Limit which rows to read
     year_tolerances = [1, 2, 3, 4, 5]        # Multiple tolerance values to evaluate
     normalize = config.get("normalize", True)
     show_confusion = config.get("show_confusion_matrix", False)
     show_pred_plot = config.get("show_pred_plot", False)
     show_age_histograma = config.get("show_age_histogram", False)
+    show_chromatograms = config.get("show_chromatograms", False)
+    retention_time_range = config.get("rt_range", False)
+    print(retention_time_range)
     if normalize:
         print("🔄 Normalized features using z-score (per CV fold)")
     num_repeats = config.get("num_repeats", 10)
@@ -96,8 +104,63 @@ if __name__ == "__main__":
     column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
     data_dict = utils.load_ms_csv_data_from_directories(directory, column_indices, row_start, row_end)  # Load chromatograms
 
-    if CHROM_CAP:
-        data_dict = {key: value[:CHROM_CAP] for key, value in data_dict.items()}  # Optionally truncate replicates
+    if show_chromatograms:
+        def plot_chromatograms(data_dict, keys=None, max_traces=None, title="Chromatograms", decimation_factor=1):
+            """
+            Plot individual chromatograms (no averaging), handling 1D and (n, 1) formats.
+
+            Parameters:
+                data_dict (dict): Dictionary of chromatograms.
+                keys (list): Specific keys to plot. Defaults to all.
+                max_traces (int): Maximum number of traces to show.
+                title (str): Plot title.
+                decimation_factor (int): Downsampling factor for x-axis.
+            """
+            if keys is None:
+                keys = list(data_dict.keys())
+
+            if not keys:
+                print("❌ No chromatogram keys found.")
+                return
+
+            plt.figure(figsize=(10, 6))
+            trace_count = 0
+
+            for key in keys:
+                if trace_count == max_traces:
+                    break
+
+                chrom = data_dict[key]
+                chrom = np.squeeze(chrom)  # Ensures shape becomes (n,) if (n,1)
+
+                if chrom.ndim == 1:
+                    trace = chrom[::decimation_factor]
+                    plt.plot(trace, label=key)
+                    trace_count += 1
+                else:
+                    print(f"⚠️ Unexpected shape after squeeze for {key}: {chrom.shape}")
+
+            plt.title(title)
+            plt.xlabel("Retention Index (or Time)")
+            plt.ylabel("Intensity")
+            plt.legend(fontsize='small', loc='upper right')
+            plt.grid(True)
+            plt.tight_layout()
+            plt.show()
+
+        plot_chromatograms(data_dict, keys=None, max_traces=10, title="Chromatograms", decimation_factor=1)
+
+    # if CHROM_CAP:
+    #     data_dict = {key: value[:CHROM_CAP] for key, value in data_dict.items()}  # Optionally truncate replicates
+    chrom_length = len(list(data_dict.values())[0])
+    print(f'Chromatogram length: {chrom_length}')
+
+    if retention_time_range:
+        min_rt = retention_time_range['min']
+        raw_max_rt = retention_time_range['max']
+        max_rt = min(raw_max_rt, chrom_length)
+        print(f"Applying RT range: {min_rt} to {max_rt} (capped at {chrom_length})")
+        data_dict = {key: value[min_rt:max_rt] for key, value in data_dict.items()}
 
     # ------------------ Load and clean metadata ------------------
     df = pd.read_csv(csv_path, skiprows=1)
@@ -195,31 +258,6 @@ if __name__ == "__main__":
         tol_scores = [rep[tol] for rep in all_acc_tol]
         print(f"Rounded Accuracy (±{tol} yrs): {np.mean(tol_scores):.3f} ± {np.std(tol_scores):.3f}")
 
-    # # ------------------ Print performance summary ------------------
-    # print("\nCross-validated Ridge Regression Performance:")
-    # print(f"MAE:  {np.mean(mae_list):.2f} ± {np.std(mae_list):.2f}")
-    # print(f"RMSE: {np.mean(rmse_list):.2f} ± {np.std(rmse_list):.2f}")
-    # print(f"R²:   {np.mean(r2_list):.3f} ± {np.std(r2_list):.3f}")
-    # print(f"Rounded Accuracy (Exact): {np.mean(acc_list):.3f} ± {np.std(acc_list):.3f}")
-    # for tol in year_tolerances:
-    #     print(f"Rounded Accuracy (±{tol} yrs): {np.mean(acc_tol_dict[tol]):.3f} ± {np.std(acc_tol_dict[tol]):.3f}")
-
-    # # ------------------ Plot distributions of key metrics ------------------
-    # plt.figure(figsize=(12, 4))
-    # plt.subplot(1, 3, 1)
-    # plt.hist(mae_list, bins=10, color="skyblue", edgecolor="k")
-    # plt.title("MAE Distribution")
-    #
-    # plt.subplot(1, 3, 2)
-    # plt.hist(r2_list, bins=10, color="salmon", edgecolor="k")
-    # plt.title("R² Distribution")
-    #
-    # plt.subplot(1, 3, 3)
-    # plt.hist(acc_tol_dict[3], bins=10, color="lightgreen", edgecolor="k")
-    # plt.title(f"Accuracy (±3 yrs)")
-    # plt.tight_layout()
-    # plt.show()
-
     # Determine which plots are to be shown
     plots_to_show = {
         "confusion": show_confusion,
@@ -229,6 +267,8 @@ if __name__ == "__main__":
 
     # Count how many plots to display
     n_plots = sum(plots_to_show.values())
+
+    sys.stdout.flush()
 
     if n_plots > 0:
         fig, axes = plt.subplots(1, n_plots, figsize=(6 * n_plots, 6))
