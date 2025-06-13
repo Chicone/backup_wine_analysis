@@ -24,6 +24,8 @@ scripts = {
     "pinot": "scripts/pinot_noir/train_test_pinot_noir.py",
     "champagne_predict_labels": "scripts/champagne/train_test_labels.py",
     "champagne_predict_age": "scripts/champagne/train_test_age.py",
+    "champagne_global_model": "scripts/champagne/ridge_model_global.py",
+    "champagne_per_taster_model": "scripts/champagne/ridge_model_per_taster.py",
 
     "bordeaux_projection": "scripts/bordeaux/projection_bordeaux.py",
     "pinot_projection": "scripts/pinot_noir/projection_pinot_noir.py",
@@ -103,7 +105,12 @@ async def run_script(payload: dict):
         ("show_pred_plot", "show_pred_plot"),
         ("show_age_histogram", "show_age_histogram"),
         ("show_chromatograms", "show_chromatograms"),
-        ("rt_range", "rt_range")
+        ("rt_range", "rt_range"),
+        ("show_predicted_profiles", False),
+        ("taster_scaling", False),
+        ("shuffle_labels", False),
+        ("group_wines", False),
+
     ]
     for key, default in optional_keys:
         if key in payload:

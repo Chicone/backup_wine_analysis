@@ -9,38 +9,74 @@ Chromatogram feature weights are saved per taster for later comparison.
 
 Author: Luis G Camara
 """
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.model_selection import train_test_split
+from gcmswine import utils  # Your custom module
+from collections import defaultdict
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import re
+from sklearn.metrics import r2_score
+import os
+import yaml
+from sklearn.linear_model import Ridge, Lasso, ElasticNet
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, HistGradientBoostingRegressor
+from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.model_selection import KFold
+from sklearn.metrics import r2_score
+try:
+    from xgboost import XGBRegressor
+    xgb_available = True
+except ImportError:
+    xgb_available = False
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import cross_val_predict
+from gcmswine.wine_analysis import ChromatogramAnalysis, GCMSDataProcessor
+from gcmswine.helpers import (
+    load_config, get_model, load_chromatograms_decimated, load_and_clean_metadata, build_feature_target_arrays
+)
+
 if __name__ == "__main__":
-    # --- Imports ---
-    import numpy as np
-    import pandas as pd
-    from sklearn.preprocessing import OneHotEncoder, StandardScaler
-    from sklearn.linear_model import Ridge
-    from sklearn.metrics import mean_absolute_error, mean_squared_error
-    from sklearn.model_selection import KFold
-    import matplotlib.pyplot as plt
-    from collections import defaultdict
-    from gcmswine import utils
-    import matplotlib.cm as cm
+    # Load configuration parameters from YAML
+    config = load_config(os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml"))
 
     # --- Parameters ---
     N_DECIMATION = 10
     N_SPLITS = 5  # CV folds
     N_REPEATS = 20
-    RANDOM_SEED = 42
-
+    # RANDOM_SEED = 42
+    random_seed = 42                   # For reproducibility
+    row_start, row_end = 0, None
     directory = "/home/luiscamara/Documents/datasets/Champagnes/HETEROCYC"
     metadata_path = "/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv"
 
+    # Load user-defined options
+    normalize = config.get("normalize", True)
+    retention_time_range = config.get("rt_range", None)
+    show_taster_predictions = config.get("show_predicted_profiles", False)
+    taster_scaling = config.get("taster_scaling", False)
+    model_name = config.get("regressor", "ridge").lower()
+    num_repeats = config.get("num_repeats", 10)
+    shuffle_labels = config.get("shuffle_labels", False)
+
+    # Select the model based on user input
+    model = get_model(model_name, random_seed=random_seed)
+    print(f'Regressor is {model_name}')
+
     # --- Load chromatograms ---
-    row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(directory)
-    column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
-    data_dict = utils.load_ms_csv_data_from_directories(directory, column_indices, 0, None)
+    data_dict, chome_length = load_chromatograms_decimated(
+        directory, row_start, row_end, N_DECIMATION, retention_time_range=retention_time_range
+    )
 
     # --- Load metadata ---
-    metadata = pd.read_csv(metadata_path, skiprows=1)
-    metadata = metadata.iloc[1:]  # Remove extra header row
-    metadata.columns = [col.strip().lower() for col in metadata.columns]
-    metadata.drop(columns=[col for col in metadata.columns if 'unnamed' in col.lower()], inplace=True)
+    metadata = load_and_clean_metadata(metadata_path)
 
     # --- Explore variability of sensory attributes ---
     known_metadata = ['code vin', 'taster', 'prod area', 'variety', 'cave', 'age']
@@ -57,51 +93,20 @@ if __name__ == "__main__":
         max_val = metadata[col].max()
         print(f"{col:>20s}: Std = {std_dev:6.2f}   Range = ({min_val:.1f}–{max_val:.1f})")
 
-    # --- Prepare sensory columns ---
-    known_metadata = ['code vin', 'taster', 'prod area', 'variety', 'cave', 'age']
-    sensory_cols = [col for col in metadata.columns if
-                    col not in known_metadata and pd.api.types.is_numeric_dtype(metadata[col])]
-    metadata[sensory_cols] = metadata[sensory_cols].apply(pd.to_numeric, errors='coerce')
+    # # --- Prepare sensory columns ---
+    # known_metadata = ['code vin', 'taster', 'prod area', 'variety', 'cave', 'age']
+    # sensory_cols = [col for col in metadata.columns if
+    #                 col not in known_metadata and pd.api.types.is_numeric_dtype(metadata[col])]
+    # metadata[sensory_cols] = metadata[sensory_cols].apply(pd.to_numeric, errors='coerce')
 
     # --- Group replicates ---
     metadata = metadata.groupby(['code vin', 'taster'], as_index=False)[sensory_cols].mean()
 
     # --- Build input (X) and output (y) ---
-    X_raw = []
-    y = []
-    taster_ids = []
-    sample_ids = []
+    X_raw, y, taster_ids, sample_ids = [], [], [], []
     skipped_count = 0
 
-    for _, row in metadata.iterrows():
-        sample_id = row['code vin']
-        taster_id = row['taster']
-        try:
-            attributes = row[sensory_cols].astype(float).values
-        except:
-            continue
-
-        replicate_keys = [k for k in data_dict if k.startswith(sample_id)]
-
-        if not replicate_keys:
-            skipped_count += 1
-            continue
-
-        replicates = np.array([data_dict[k][::N_DECIMATION] for k in replicate_keys])
-        chromatogram = np.mean(replicates, axis=0).flatten()
-        chromatogram = np.nan_to_num(chromatogram, nan=0.0)
-
-        X_raw.append(chromatogram)
-        y.append(attributes)
-        taster_ids.append(taster_id)
-        sample_ids.append(sample_id)
-
-    print(f"\nTotal samples skipped: {skipped_count}")
-
-    X_raw = np.array(X_raw)
-    y = np.array(y)
-    taster_ids = np.array(taster_ids)
-    sample_ids = np.array(sample_ids)
+    X_raw, y, taster_ids, sample_ids = build_feature_target_arrays(metadata, sensory_cols, data_dict)
 
     # --- Group samples by taster ---
     taster_data = defaultdict(list)
@@ -112,6 +117,7 @@ if __name__ == "__main__":
     per_taster_mae = {}
     per_taster_rmse = {}
     per_taster_weights = {}
+    per_taster_r2 = {}
 
     print("\nTraining Ridge models per taster...")
 
@@ -122,13 +128,14 @@ if __name__ == "__main__":
 
         X_taster = X_raw[indices]
         y_taster = y[indices]
-
         mae_list = []
         rmse_list = []
         coef_list = []  # <--- save all coefficients here
+        r2_list = []
 
-        for repeat in range(N_REPEATS):
-            kf = KFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_SEED + repeat)
+        n_splits = 5
+        for repeat in range(num_repeats):
+            kf = KFold(n_splits=n_splits, shuffle=True, random_state=random_seed + repeat)
 
             for train_idx, test_idx in kf.split(X_taster):
                 X_train, X_test = X_taster[train_idx], X_taster[test_idx]
@@ -138,9 +145,8 @@ if __name__ == "__main__":
                 X_train_scaled = scaler.fit_transform(X_train)
                 X_test_scaled = scaler.transform(X_test)
 
-                model = Ridge()
+                # model = Ridge()
                 model.fit(X_train_scaled, y_train)
-
                 y_pred = model.predict(X_test_scaled)
 
                 mae = mean_absolute_error(y_test, y_pred, multioutput='raw_values')
@@ -150,6 +156,14 @@ if __name__ == "__main__":
                 rmse_list.append(rmse)
 
                 coef_list.append(model.coef_)  # <--- save model coefficients
+
+                # Compute multivariate R² as:
+                # 1 - (sum of squared errors) / (total variance of true values)
+                ss_res = np.sum((y_test - y_pred) ** 2)
+                y_test_mean = np.mean(y_test, axis=0)
+                ss_tot = np.sum((y_test - y_test_mean) ** 2)
+                r2_multivariate = 1 - ss_res / ss_tot
+                r2_list.append(r2_multivariate)
 
         # Average errors
         mean_mae = np.mean(mae_list, axis=0)
@@ -162,6 +176,8 @@ if __name__ == "__main__":
         per_taster_rmse[taster] = mean_rmse
         per_taster_weights[taster] = mean_coef  # <--- save average coefficients here
 
+        per_taster_r2[taster] = np.mean(r2_list)  # mean across repeats, 1 scalar per taster
+
     print("\nDone training per taster!")
 
     # --- Example: Print summary of per-taster performance ---
@@ -169,6 +185,11 @@ if __name__ == "__main__":
     for taster, mae in per_taster_mae.items():
         print(f"Taster {taster}: MAE = {np.mean(mae):.2f}")
 
+    print("\nR² score per taster (multivariate):\n")
+    print(f"{'Taster':<10} R²")
+    print("-" * 20)
+    for taster, r2_val in per_taster_r2.items():
+        print(f"{taster:<10} {r2_val:6.3f}")
 
 
     attributes_to_plot = ['fruity', 'citrus', 'maturated fruits', 'candied citrus', 'toasted',
@@ -231,13 +252,13 @@ if __name__ == "__main__":
         plt.suptitle(f"Top-{maxima_rank} chromatogram peaks across tasters (selected attributes)", fontsize=16)
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.show(block=False)
-    plot_top_peaks_selected_attributes(
-        per_taster_weights=per_taster_weights,
-        sensory_cols=sensory_cols,
-        X_raw_shape=X_raw.shape,
-        attributes_to_plot=attributes_to_plot,
-        maxima_rank=1
-    )
+    # plot_top_peaks_selected_attributes(
+    #     per_taster_weights=per_taster_weights,
+    #     sensory_cols=sensory_cols,
+    #     X_raw_shape=X_raw.shape,
+    #     attributes_to_plot=attributes_to_plot,
+    #     maxima_rank=1
+    # )
 
     def plot_strongest_focus_per_attribute(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot, maxima_rank=1):
         n_chromatogram_features = X_raw_shape[1]
@@ -303,13 +324,13 @@ if __name__ == "__main__":
         plt.suptitle(f"Strongest chromatogram focus per attribute – Top-{maxima_rank} peak", fontsize=16)
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.show(block=False)
-    plot_strongest_focus_per_attribute(
-        per_taster_weights=per_taster_weights,
-        sensory_cols=sensory_cols,
-        X_raw_shape=X_raw.shape,
-        attributes_to_plot=attributes_to_plot,
-        maxima_rank=1
-    )
+    # plot_strongest_focus_per_attribute(
+    #     per_taster_weights=per_taster_weights,
+    #     sensory_cols=sensory_cols,
+    #     X_raw_shape=X_raw.shape,
+    #     attributes_to_plot=attributes_to_plot,
+    #     maxima_rank=1
+    # )
 
 
     def plot_vertical_focus_map_multiple_attributes(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot,
@@ -388,13 +409,13 @@ if __name__ == "__main__":
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.show(block=False)
 
-    plot_vertical_focus_map_multiple_attributes(
-        per_taster_weights=per_taster_weights,
-        sensory_cols=sensory_cols,
-        X_raw_shape=X_raw.shape,
-        attributes_to_plot=attributes_to_plot,  # your list: fruity, citrus, toasted, etc.
-        maxima_rank=5  # Top-3 peaks
-    )
+    # plot_vertical_focus_map_multiple_attributes(
+    #     per_taster_weights=per_taster_weights,
+    #     sensory_cols=sensory_cols,
+    #     X_raw_shape=X_raw.shape,
+    #     attributes_to_plot=attributes_to_plot,  # your list: fruity, citrus, toasted, etc.
+    #     maxima_rank=5  # Top-3 peaks
+    # )
 
     from scipy.ndimage import gaussian_filter1d
 

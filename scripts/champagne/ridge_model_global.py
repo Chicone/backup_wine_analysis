@@ -62,57 +62,42 @@ Example Output:
 - Per-taster mean absolute errors
 - Prediction plots showing model quality for each taster
 """
-if __name__ == "__main__":
-    import numpy as np
-    import pandas as pd
-    from sklearn.preprocessing import OneHotEncoder, StandardScaler
-    from sklearn.linear_model import Ridge
-    from sklearn.metrics import mean_squared_error, mean_absolute_error
-    from sklearn.model_selection import train_test_split
-    from gcmswine import utils  # Your custom module
-    from collections import defaultdict
-    import matplotlib.pyplot as plt
-    import matplotlib.cm as cm
-    import re
-    from sklearn.metrics import r2_score
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.model_selection import train_test_split
+from gcmswine import utils  # Your custom module
+from collections import defaultdict
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import re
+from sklearn.metrics import r2_score
+import os
+import yaml
+from sklearn.linear_model import Ridge, Lasso, ElasticNet
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, HistGradientBoostingRegressor
+from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.model_selection import KFold
+from gcmswine.helpers import (
+    load_config, get_model, load_chromatograms_decimated, load_and_clean_metadata, build_feature_target_arrays,
+)
+try:
+    from xgboost import XGBRegressor
+    xgb_available = True
+except ImportError:
+    xgb_available = False
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import cross_val_predict, GroupKFold
+from gcmswine.wine_analysis import ChromatogramAnalysis, GCMSDataProcessor
 
-    # --- Parameters ---
-    N_DECIMATION = 10
-    N_REPEATS = 10
-    TEST_SIZE = 0.2
-    RANDOM_SEED = 42
-    CHROM_CAP = None
-    directory = "/home/luiscamara/Documents/datasets/Champagnes/HETEROCYC"
-    # directory = "/home/luiscamara/Documents/datasets/Champagnes/DMS"
-    column_indices = None  # or specify which columns to use
-    row_start, row_end = 0, None  # if you want to trim rows
-
-    # --- Load chromatograms ---
-    row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(directory)
-    column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
-    data_dict = utils.load_ms_csv_data_from_directories(directory, column_indices, row_start, row_end)
-    if CHROM_CAP:
-        data_dict = {key:value[:CHROM_CAP] for key, value in data_dict.items()}
-    # --- Load metadata ---
-    metadata = pd.read_csv("/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv", skiprows=1)
-    metadata = metadata.iloc[1:]  # Remove extra header row
-    metadata.columns = [col.strip().lower() for col in metadata.columns]  # Clean headers
-    metadata.drop(columns=[col for col in metadata.columns if 'unnamed' in col.lower()], inplace=True)
-
-    # --- Average duplicates ---
-    # Convert sensory columns to numeric
-    known_metadata = ['code vin', 'taster', 'prod area', 'variety', 'cave', 'age']
-    sensory_cols = [col for col in metadata.columns if col not in known_metadata and pd.api.types.is_numeric_dtype(metadata[col])]
-    metadata[sensory_cols] = metadata[sensory_cols].apply(pd.to_numeric, errors='coerce')
-
-    # Group by code vin and taster and average
-    metadata = metadata.groupby(['code vin', 'taster'], as_index=False)[sensory_cols].mean()
-
-    # --- Build input (X) and output (y) ---
-    X_raw = []
-    y = []
-    taster_ids = []
-    sample_ids = []
+# Define helper functions
+def build_feature_target_arrays(metadata, sensory_cols, data_dict):
+    X_raw, y, taster_ids, sample_ids = [], [], [], []
     skipped_count = 0
 
     for _, row in metadata.iterrows():
@@ -123,16 +108,13 @@ if __name__ == "__main__":
         except:
             continue  # skip row if attribute values can't be converted
 
-        # Find all replicate keys in the chromatogram dict that start with the sample_id
         replicate_keys = [k for k in data_dict if k.startswith(sample_id)]
-
         if not replicate_keys:
             skipped_count += 1
             print(f"Warning: No chromatograms found for sample {sample_id}")
-            continue  # <-- SKIP if no chromatograms found
+            continue
 
-        # Stack and average the decimated chromatograms
-        replicates = np.array([data_dict[k][::N_DECIMATION] for k in replicate_keys])
+        replicates = np.array([data_dict[k] for k in replicate_keys])
         chromatogram = np.mean(replicates, axis=0).flatten()
         chromatogram = np.nan_to_num(chromatogram, nan=0.0)
 
@@ -141,16 +123,181 @@ if __name__ == "__main__":
         taster_ids.append(taster_id)
         sample_ids.append(sample_id)
 
-
     print(f"\nTotal samples skipped due to missing chromatograms: {skipped_count}")
+    return np.array(X_raw), np.array(y), np.array(taster_ids), np.array(sample_ids)
+def train_and_evaluate_model(X_input, y, taster_ids, sample_ids, model, *,
+                             num_repeats=5, test_size=0.2, normalize=True,
+                             taster_scaling=False, group_wines=False, random_seed=42):
+    """
+    Train and evaluate the model with or without grouping by wines.
 
-    X_raw = np.array(X_raw)
-    y = np.array(y)
+    Parameters
+    ----------
+    X_input : ndarray
+        Input feature matrix (chromatogram + one-hot taster).
+    y : ndarray
+        Target matrix (sensory attributes).
+    taster_ids : ndarray
+        Array of taster identifiers (1D).
+    sample_ids : ndarray
+        Array of wine identifiers (1D).
+    model : regressor object
+        The regression model to train.
+    num_repeats : int
+        Number of repeats.
+    test_size : float
+        Proportion of data to use for test split.
+    normalize : bool
+        Whether to normalize features before training.
+    taster_scaling : bool
+        Whether to apply per-taster prediction scaling.
+    group_wines : bool
+        Whether to group folds by wine ID.
+    random_seed : int
+        Random seed for reproducibility.
 
+    Returns
+    -------
+    all_mae : list of np.ndarray
+    all_rmse : list of np.ndarray
+    taster_mae_summary : dict
+    last_y_test : np.ndarray
+    last_y_pred : np.ndarray
+    last_sample_ids : np.ndarray
+    last_taster_ids : np.ndarray
+    """
+    all_mae, all_rmse = [], []
+    taster_mae_summary = defaultdict(list)
+    last_y_test = last_y_pred = last_sample_ids = last_taster_ids = None
+
+    n_splits = 5
+
+    for repeat in range(num_repeats):
+        if group_wines:
+            gkf = GroupKFold(n_splits=n_splits)
+            splits = gkf.split(X_input, y, groups=sample_ids)
+        else:
+            splits = [train_test_split(
+                np.arange(len(X_input)),
+                test_size=test_size,
+                random_state=random_seed + repeat
+            )]
+
+        for fold_idx, (train_idx, test_idx) in enumerate(splits):
+            print(f"Repeat {repeat + 1}, Fold {fold_idx + 1}")
+
+            X_train, X_test = X_input[train_idx], X_input[test_idx]
+            y_train, y_test = y[train_idx], y[test_idx]
+            t_train, t_test = taster_ids[train_idx], taster_ids[test_idx]
+            s_test = sample_ids[test_idx]
+
+            if normalize:
+                scaler = StandardScaler()
+                X_train = scaler.fit_transform(X_train)
+                X_test = scaler.transform(X_test)
+
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+
+            if taster_scaling:
+                taster_scalers = {}
+                if group_wines:
+                    y_train_pred = model.predict(X_train)
+                else:
+                    y_train_pred = cross_val_predict(model, X_train, y_train, cv=5)
+
+                for t in np.unique(t_train):
+                    mask = (t_train == t)
+                    if np.sum(mask) < 2:
+                        continue
+                    scaler_model = MultiOutputRegressor(LinearRegression(fit_intercept=False))
+                    scaler_model.fit(y_train_pred[mask], y_train[mask])
+                    scale = np.array([est.coef_[0] for est in scaler_model.estimators_])
+                    taster_scalers[t] = scale
+
+                for i, t in enumerate(t_test):
+                    if t in taster_scalers:
+                        y_pred[i] *= taster_scalers[t]
+
+            mae = mean_absolute_error(y_test, y_pred, multioutput='raw_values')
+            rmse = np.sqrt(mean_squared_error(y_test, y_pred, multioutput='raw_values'))
+
+            all_mae.append(mae)
+            all_rmse.append(rmse)
+
+            for i, t in enumerate(t_test):
+                taster_mae_summary[t].append(np.abs(y_test[i] - y_pred[i]))
+
+            if repeat == num_repeats - 1 and (not group_wines or fold_idx == n_splits - 1):
+                last_y_test = y_test
+                last_y_pred = y_pred
+                last_sample_ids = s_test
+                last_taster_ids = t_test
+
+    return all_mae, all_rmse, taster_mae_summary, last_y_test, last_y_pred, last_sample_ids, last_taster_ids
+# Main logic
+if __name__ == "__main__":
+    # Load configuration parameters from YAML
+    config = load_config(os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml"))
+
+    # --- Parameters ---
+    N_DECIMATION = 10
+    TEST_SIZE = 0.2
+    CHROM_CAP = None
+    directory = "/home/luiscamara/Documents/datasets/Champagnes/HETEROCYC"
+    # directory = "/home/luiscamara/Documents/datasets/Champagnes/DMS"
+    metadata_path = "/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv"
+    random_seed = 42                   # For reproducibility
+    column_indices = None  # or specify which columns to use
+    row_start, row_end = 0, None  # if you want to trim rows
+
+    # Load user-defined options
+    normalize = config.get("normalize", True)
+    retention_time_range = config.get("rt_range", None)
+    show_taster_predictions = config.get("show_predicted_profiles", False)
+    taster_scaling = config.get("taster_scaling", False)
+    model_name = config.get("regressor", "ridge").lower()
+    num_repeats = config.get("num_repeats", 10)
+    shuffle_labels = config.get("shuffle_labels", False)
+    group_wines = config.get("group_wines", False)
+
+    # Select the model based on user input
+    model = get_model(model_name, random_seed=random_seed)
+    print(f'Regressor is {model_name}')
+
+    # --- Load chromatograms ---
+    data_dict, chome_length = load_chromatograms_decimated(
+        directory, row_start, row_end, N_DECIMATION, retention_time_range=retention_time_range
+    )
+
+    # --- Load metadata ---
+    metadata = load_and_clean_metadata(metadata_path)
+
+    # --- Average duplicates ---
+    known_metadata = ['code vin', 'taster', 'prod area', 'variety', 'cave', 'age']
+    sensory_cols = [col for col in metadata.columns if col not in known_metadata and pd.api.types.is_numeric_dtype(metadata[col])]
+    metadata[sensory_cols] = metadata[sensory_cols].apply(pd.to_numeric, errors='coerce')
+    metadata = metadata.groupby(['code vin', 'taster'], as_index=False)[sensory_cols].mean()
+
+    # --- Build input (X) and output (y) ---
+    X_raw, y, taster_ids, sample_ids = [], [], [], []
+    skipped_count = 0
+
+    # Extract input features and target attributes from metadata and matched chromatograms
+    X_raw, y, taster_ids, sample_ids = build_feature_target_arrays(metadata, sensory_cols, data_dict)
+
+    if shuffle_labels:
+        np.random.seed(random_seed)
+        y = y.copy()
+        np.random.shuffle(y)
+        print("⚠️ Sensory labels have been shuffled across samples (diagnostic run).")
+
+    # One-hot encode taster identities
     encoder = OneHotEncoder(sparse_output=False)
     taster_onehot = encoder.fit_transform(np.array(taster_ids).reshape(-1, 1))
     X_input = np.concatenate([X_raw, taster_onehot], axis=1)
 
+    # Create a mask to filter out any samples with NaNs in input or output
     mask = ~np.isnan(X_input).any(axis=1) & ~np.isnan(y).any(axis=1)
     X_input = X_input[mask]
     y = y[mask]
@@ -158,38 +305,25 @@ if __name__ == "__main__":
     sample_ids = np.array(sample_ids)[mask]
     print(f"Removed {np.sum(~mask)} samples with NaNs.")
 
-    all_mae = []
-    all_rmse = []
+    all_mae, all_rmse, all_r2 = [], [], []
     taster_mae_summary = defaultdict(list)
     last_y_test, last_y_pred, last_sample_ids, last_taster_ids = None, None, None, None
     saved_model_coefs = []
 
-    for repeat in range(N_REPEATS):
-        X_train, X_test, y_train, y_test, t_train, t_test, s_train, s_test = train_test_split(
-            X_input, y, taster_ids, sample_ids, test_size=TEST_SIZE, random_state=RANDOM_SEED + repeat)
-
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
-
-        model = Ridge()
-        model.fit(X_train_scaled, y_train)
-        y_pred = model.predict(X_test_scaled)
-        saved_model_coefs.append(model.coef_.copy())
-
-        mae = mean_absolute_error(y_test, y_pred, multioutput='raw_values')
-        rmse = np.sqrt(mean_squared_error(y_test, y_pred, multioutput='raw_values'))
-
-        all_mae.append(mae)
-        all_rmse.append(rmse)
-
-        last_y_test, last_y_pred = y_test, y_pred
-        last_sample_ids, last_taster_ids = s_test, t_test
-
-        for i, t in enumerate(t_test):
-            abs_error = np.abs(y_test[i] - y_pred[i])
-            taster_mae_summary[t].append(abs_error)
-
+    results = train_and_evaluate_model(
+        X_input=X_input,
+        y=y,
+        taster_ids=taster_ids,
+        sample_ids=sample_ids,
+        model=model,
+        num_repeats=num_repeats,
+        test_size=TEST_SIZE,
+        normalize=normalize,
+        taster_scaling=taster_scaling,
+        group_wines=group_wines,
+        random_seed=random_seed
+    )
+    all_mae, all_rmse, taster_mae_summary, last_y_test, last_y_pred, last_sample_ids, last_taster_ids = results
 
 
     from collections import Counter
@@ -228,32 +362,19 @@ if __name__ == "__main__":
         plt.tight_layout(rect=[0, 0, 1, 0.92])
         plt.legend()
         plt.show()
-    # if multi_taster_wines:
-    #     wine_code = multi_taster_wines[0]
-    #     print(f"\nShowing profiles for wine {wine_code} across tasters:")
-    #     plot_wine_across_tasters(
-    #         y_true=last_y_test,
-    #         y_pred=last_y_pred,
-    #         sample_ids=last_sample_ids,
-    #         taster_ids=last_taster_ids,
-    #         wine_code=wine_code,
-    #         sensory_cols=sensory_cols
-    #     )
-    # else:
-    #     print("No wine in the test set was rated by multiple tasters.")
 
     mean_mae = np.mean(all_mae, axis=0)
     mean_rmse = np.mean(all_rmse, axis=0)
     rmse_pct = mean_rmse
 
-    mean_coef = np.mean(saved_model_coefs, axis=0)  # shape (n_outputs, n_features)
+    # mean_coef = np.mean(saved_model_coefs, axis=0)  # shape (n_outputs, n_features)
 
     # Separate chromatogram and taster weights
     n_chromatogram_features = X_raw.shape[1]
     n_taster_features = taster_onehot.shape[1]
 
-    chromatogram_weights = mean_coef[:, :n_chromatogram_features]
-    taster_weights = mean_coef[:, n_chromatogram_features:]
+    # chromatogram_weights = mean_coef[:, :n_chromatogram_features]
+    # taster_weights = mean_coef[:, n_chromatogram_features:]
 
     def natural_key(t):
         return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', t)]
@@ -370,34 +491,16 @@ if __name__ == "__main__":
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.show(block=False)
 
-    print("\nPlotting all predicted sensory profiles grouped by taster (single figure)...")
-    plot_profiles_grouped_by_taster(
-        y_true=last_y_test,
-        y_pred=last_y_pred,
-        sample_ids=last_sample_ids,
-        taster_ids=last_taster_ids,
-        n_cols=10
-    )
-    plt.show()
+    if show_taster_predictions:
+        print("\nPlotting all predicted sensory profiles grouped by taster (single figure)...")
+        plot_profiles_grouped_by_taster(
+            y_true=last_y_test,
+            y_pred=last_y_pred,
+            sample_ids=last_sample_ids,
+            taster_ids=last_taster_ids,
+            n_cols=10
+        )
+        plt.show()
 
-
-    # n_chem = X_raw.shape[1]
-    # tasters = list(encoder.categories_[0])
-    # n_tasters = len(tasters)
-    # taster_weights = mean_coef[:, n_chem:]  # shape: (n_outputs, n_tasters)
-    #
-    # # Transpose for plotting (tasters as rows, attributes as columns)
-    # taster_weights_T = taster_weights.T  # shape: (n_tasters, n_outputs)
-    #
-    # plt.figure(figsize=(12, 6))
-    # im = plt.imshow(taster_weights_T, cmap="bwr", aspect="auto", interpolation="nearest")
-    # plt.colorbar(im, label="Bias weight")
-    # plt.xticks(ticks=np.arange(len(sensory_cols)), labels=sensory_cols, rotation=90)
-    # plt.yticks(ticks=np.arange(len(tasters)), labels=tasters)
-    # plt.title("Taster-specific bias weights per sensory attribute")
-    # plt.xlabel("Sensory Attribute")
-    # plt.ylabel("Taster")
-    # plt.tight_layout()
-    # plt.show()
 
 

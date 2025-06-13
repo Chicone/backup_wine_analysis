@@ -148,7 +148,7 @@ if __name__ == "__main__":
             plt.tight_layout()
             plt.show()
 
-        plot_chromatograms(data_dict, keys=None, max_traces=10, title="Chromatograms", decimation_factor=1)
+        plot_chromatograms(data_dict, keys=None, max_traces=None, title="Chromatograms", decimation_factor=1)
 
     # if CHROM_CAP:
     #     data_dict = {key: value[:CHROM_CAP] for key, value in data_dict.items()}  # Optionally truncate replicates

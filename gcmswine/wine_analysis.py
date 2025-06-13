@@ -204,7 +204,13 @@ class ChromatogramAnalysis:
         >>> aligned_tic = synced_chroms['SampleA']
         """
         tics = gcms.compute_tics()
+        tics = {k: v for k, v in tics.items() if not np.isnan(v).any()}
+        if len(tics) == 0:
+            raise ValueError("All TICs contain NaNs and cannot be used for alignment.")
         mean_tic = self.calculate_mean_chromatogram(tics)
+        if np.isnan(mean_tic).any():
+            raise ValueError("Mean chromatogram contains NaNs; cannot proceed with alignment.")
+
         closest_to_mean = self.closest_to_mean_chromatogram(tics, mean_tic)
         # synced_tics, synced_gcms = self.sync_individual_chromatograms(
         #     closest_to_mean[1], data_dict[closest_to_mean[0]], tics, data_dict,
@@ -479,6 +485,7 @@ class ChromatogramAnalysis:
 
         # plot_average_profile_with_std(lag_profiles, title='Lag distribution 2018 dataset')
         return synced_chromatograms, synced_gcms
+
 
     def stacked_2D_plots_3D(self, data_dict):
         """
