@@ -110,6 +110,7 @@ async def run_script(payload: dict):
         ("taster_scaling", False),
         ("shuffle_labels", False),
         ("group_wines", False),
+        ("cv_type", "LOOPC"),
 
     ]
     for key, default in optional_keys:

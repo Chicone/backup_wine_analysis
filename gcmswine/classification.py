@@ -356,6 +356,66 @@ class Classifier:
 
         return summary
 
+    def train_and_evaluate_leave_one_out(
+            self,
+            left_out_index,
+            normalize=False,
+            scaler_type='standard',
+            projection_source=False
+    ):
+        # Step 1: label preprocessing
+        labels_used = self.strategy.extract_labels(self.labels)
+        use_composites = self.strategy.use_composite_labels(self.labels)
+        custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
+
+        # Step 2: leave out one sample
+        n_samples = len(self.data)
+        if not (0 <= left_out_index < n_samples):
+            raise ValueError(f"Invalid left_out_index: {left_out_index} (must be in [0, {n_samples - 1}])")
+
+        train_idx = np.delete(np.arange(n_samples), left_out_index)
+        test_idx = np.array([left_out_index])
+
+        # Step 3: data preparation
+        X_train, X_test = self.data[train_idx], self.data[test_idx]
+        X_train_proc, X_test_proc, _, _ = self.preprocess_data(
+            X_train, X_test, normalize, scaler_type, use_pca=None, vthresh=None
+        )
+
+        if self.class_by_year:
+            y_train = self.year_labels[train_idx]
+            y_test = self.year_labels[test_idx]
+        else:
+            processed_labels = np.array(self.strategy.extract_labels(self.labels))
+            y_train = processed_labels[train_idx]
+            y_test = processed_labels[test_idx]
+
+        # Step 4: model training
+        self.classifier.fit(X_train_proc, y_train)
+        y_pred = self.classifier.predict(X_test_proc)
+        scores = self.classifier.decision_function(X_test_proc)
+
+        # create compatible format for binary classification
+        if scores.ndim == 1:
+            scores = np.stack([-scores, scores], axis=1)  # Shape (1, 2)
+
+        # Step 5: evaluation (not meaningful with 1 test point, but for completeness)
+        result = {
+            "accuracy": accuracy_score(y_test, y_pred),
+            "balanced_accuracy": balanced_accuracy_score(y_test, y_pred),
+            "precision": precision_score(y_test, y_pred, average='weighted', zero_division=0),
+            "recall": recall_score(y_test, y_pred, average='weighted', zero_division=0),
+            "f1": f1_score(y_test, y_pred, average='weighted', zero_division=0),
+            "confusion_matrix": confusion_matrix(y_test, y_pred, labels=custom_order)
+        }
+
+        if projection_source == "scores":
+            raw_test_labels = self.sample_labels[test_idx]
+            return result, scores, y_test, raw_test_labels
+        else:
+            return result, None, None, None
+
+
     def train_and_evaluate_balanced(
             self,
             normalize=False,
@@ -1522,6 +1582,154 @@ class Classifier:
 
             # Return per-origin averaged results
             return averaged_results
+
+    def train_and_evaluate_leave_one_out_all_samples(
+            self,
+            normalize=False,
+            scaler_type='standard',
+            region=None,
+            projection_source=False,
+            classifier_type="RGC",
+            feature_type="concatenated",
+            show_confusion_matrix=False
+    ):
+        from collections import Counter
+        from gcmswine import utils
+        import numpy as np
+        from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind
+        from sklearn.metrics import confusion_matrix
+
+        # Setup data and strategy
+        cls_data = self.data.copy()
+        labels = np.array(self.labels)
+        year_labels = np.array(self.year_labels) if hasattr(self, 'year_labels') else np.array([])
+        num_samples, num_timepoints, num_channels = cls_data.shape
+
+        def compute_features(channels):
+            if feature_type == "concatenated":
+                return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+            elif feature_type == "tic":
+                return np.sum(cls_data[:, :, channels], axis=2)
+            elif feature_type == "tis":
+                return np.sum(cls_data[:, :, channels], axis=1)
+            elif feature_type == "tic_tis":
+                tic = np.sum(cls_data[:, :, channels], axis=2)
+                tis = np.sum(cls_data[:, :, channels], axis=1)
+                return np.hstack([tic, tis])
+            else:
+                raise ValueError("Invalid feature_type. Use 'concatenated', 'tic', 'tis', or 'tic_tis'.")
+
+        feature_matrix = compute_features(list(range(num_channels)))
+
+        all_scores = []
+        all_labels = []
+        test_sample_names = []
+        confusion_matrices = []
+        accuracies = []
+
+        strategy = get_strategy_by_wine_kind(
+            self.wine_kind, region,
+            utils.get_custom_order_for_pinot_noir_region,
+            class_by_year=self.class_by_year
+        )
+
+        for idx in range(num_samples):
+            try:
+                cls = Classifier(
+                    data=feature_matrix,
+                    labels=labels,
+                    classifier_type=classifier_type,
+                    year_labels=year_labels,
+                    dataset_origins=self.dataset_origins if hasattr(self, 'dataset_origins') else None,
+                    strategy=strategy,
+                    class_by_year=self.class_by_year,
+                    labels_raw=self.labels_raw,
+                    sample_labels=self.sample_labels
+                )
+
+                results, scores, y_test, raw_test_labels = cls.train_and_evaluate_leave_one_out(
+                    left_out_index=idx,
+                    normalize=normalize,
+                    scaler_type=scaler_type,
+                    projection_source=projection_source
+                )
+
+                if 'accuracy' in results:
+                    accuracies.append(results['accuracy'])
+                else:
+                    print(f"⚠️ Accuracy missing for sample {idx}")
+
+
+                if scores is not None:
+                    all_scores.append(scores[0])  # scores is (1, C) for one sample
+                    all_labels.append(y_test[0])
+                    test_sample_names.append(raw_test_labels[0])
+
+                if 'confusion_matrix' in results:
+                    confusion_matrices.append(results['confusion_matrix'])
+
+            except Exception as e:
+                print(f"⚠️ Skipping sample {idx} due to error: {e}")
+
+        accuracies = np.array(accuracies)
+        mean_acc = np.mean(accuracies)
+        std_acc = np.std(accuracies)
+        if projection_source == "scores" and all_scores:
+            all_scores = np.vstack(all_scores)
+            all_labels = np.array(all_labels)
+            test_sample_names = np.array(test_sample_names)
+        else:
+            all_scores, all_labels, test_sample_names = None, None, np.array(list(self.sample_labels))
+        mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
+
+        # Summary
+        print("##################################")
+        print("Leave-One-Out Evaluation Finished")
+        print("##################################")
+        print("\n##################################")
+        print(f"Mean Accuracy (LOO): {mean_acc:.3f} ± {std_acc:.3f}")
+
+        if self.class_by_year:
+            labels_used = self.year_labels
+        else:
+            labels_used = strategy.extract_labels(labels)
+
+        custom_order = strategy.get_custom_order(labels_used, year_labels)
+        counts = Counter(labels_used)
+
+        print("\nLabel order:")
+        if custom_order is not None:
+            for label in custom_order:
+                print(f"{label} ({counts.get(label, 0)})")
+        else:
+            for label in sorted(counts.keys()):
+                print(f"{label} ({counts[label]})")
+
+        print("\nFinal Averaged Normalized Confusion Matrix:")
+        print(mean_confusion_matrix)
+        print("##################################")
+        labels_used = year_labels if self.class_by_year else strategy.extract_labels(labels)
+        custom_order = strategy.get_custom_order(labels_used, year_labels)
+        counts = Counter(labels_used)
+
+        if show_confusion_matrix:
+            import matplotlib.pyplot as plt
+            from sklearn.metrics import ConfusionMatrixDisplay
+
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.set_xlabel('Predicted Label', fontsize=14)
+            ax.set_ylabel('True Label', fontsize=14)
+            ax.set_title(f'LOO Confusion Matrix by {region}')
+            disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=custom_order)
+            disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
+            plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
+            plt.setp(ax.get_yticklabels(), fontsize=12)
+            plt.tight_layout()
+            plt.show()
+
+        return mean_acc, std_acc, all_scores, all_labels, test_sample_names
+
+
 
     def train_and_evaluate_all_channels(
             self, num_repeats=10, random_seed=42, test_size=0.2, normalize=False,

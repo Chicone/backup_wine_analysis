@@ -14,7 +14,9 @@ def plot_pinot_noir(
     label_dict,
     group_by_country=False,
     test_sample_names=None,
-    unique_samples_only=False
+    unique_samples_only=False,
+    n_neighbors=None,              # ← new
+    random_state=None
 ):
     """
     Plot a 2D or 3D scatter plot of embedded data with labeled points.
@@ -103,21 +105,29 @@ def plot_pinot_noir(
             ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], label=readable_label,
                        alpha=0.9, s=80, color=color, marker=marker)
         else:
-            ax.scatter(coords[:, 0], -coords[:, 1], label=readable_label,
+            ax.scatter(-coords[:, 0], -coords[:, 1], label=readable_label,
                        alpha=0.9, s=80, color=color, marker=marker)
 
     if test_sample_names is not None:
         for i, name in enumerate(test_sample_names):
             ax.annotate(
                 name,
-                (embedding[i, 0], -embedding[i, 1]),
+                (-embedding[i, 0], -embedding[i, 1]),
                 fontsize=10,
                 alpha=0.6,
                 xytext=(2, 2),
                 textcoords="offset points"
             )
 
-    ax.set_title(title, fontsize=16)
+    # ax.set_title(title, fontsize=16)
+    subtitle = ""
+    if n_neighbors is not None:
+        subtitle += f"n_neighbors={n_neighbors}  "
+    if random_state is not None:
+        subtitle += f"random_state={random_state}"
+
+    full_title = title if subtitle == "" else f"{title}\n{subtitle.strip()}"
+    ax.set_title(full_title, fontsize=16)
     ax.legend(fontsize='large', loc='best')
     plt.tight_layout()
     plt.show(block=False)

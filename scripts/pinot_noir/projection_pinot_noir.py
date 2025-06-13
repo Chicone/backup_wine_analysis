@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import os
@@ -12,6 +13,29 @@ from sklearn.preprocessing import normalize
 from gcmswine.dimensionality_reduction import DimensionalityReducer
 from gcmswine.visualizer import plot_2d, plot_3d
 from scripts.pinot_noir.plotting_pinot_noir import plot_pinot_noir
+
+def average_scores_per_sample(scores, test_sample_names):
+    """
+    Aggregate prediction scores by averaging them for each unique sample.
+
+    Parameters:
+        scores (np.ndarray): shape (N, 7) — prediction vectors.
+        test_sample_names (list or np.ndarray): shape (N,) — names or IDs of test samples.
+
+    Returns:
+        unique_names (np.ndarray): shape (M,) — unique sample names.
+        averaged_scores (np.ndarray): shape (M, 7) — averaged prediction vectors.
+    """
+    df = pd.DataFrame(scores)
+    df['sample_name'] = test_sample_names
+
+    # Group by sample name and average
+    grouped = df.groupby('sample_name').mean()
+
+    unique_names = grouped.index.to_numpy()
+    averaged_scores = grouped.to_numpy()
+
+    return unique_names, averaged_scores
 
 # from plotting_pinot_noir import plot_pinot_noir
 if __name__ == "__main__":
@@ -56,6 +80,7 @@ if __name__ == "__main__":
     color_by_country = config["color_by_country"]
     show_sample_names = config["show_sample_names"]
     retention_time_range = config['rt_range']
+    cv_type = config['cv_type']
 
     # Create ChromatogramAnalysis instance for optional alignment
     cl = ChromatogramAnalysis(ndec=n_decimation)
@@ -98,18 +123,33 @@ if __name__ == "__main__":
                      year_labels=np.array(year_labels), sample_labels=raw_sample_labels)
 
 
-    # Run training and collect score vectors
-    mean_acc, std_acc, scores, all_labels, test_samples_names= cls.train_and_evaluate_all_channels(
-        num_repeats=num_repeats,
-        test_size=0.2,
-        normalize=normalize_flag,
-        use_pca=False,
-        classifier_type=classifier,
-        feature_type=feature_type,
-        region=region,
-        LOOPC=True,
-        projection_source=projection_source
-    )
+    if cv_type == "LOOPC":
+        # Run training and collect score vectors
+        mean_acc, std_acc, scores, all_labels, test_samples_names= cls.train_and_evaluate_all_channels(
+            num_repeats=num_repeats,
+            test_size=0.2,
+            normalize=normalize_flag,
+            use_pca=False,
+            classifier_type=classifier,
+            feature_type=feature_type,
+            region=region,
+            LOOPC=True,
+            projection_source=projection_source
+        )
+    elif cv_type == "LOO":
+        mean_acc, std_acc, scores, all_labels, test_samples_names= cls.train_and_evaluate_leave_one_out_all_samples(
+            normalize=normalize_flag,
+            scaler_type='standard',
+            region=region,
+            feature_type=feature_type,
+            classifier_type=classifier,
+            show_confusion_matrix=False,
+            projection_source=projection_source
+        )
+    else:
+        raise ValueError(f"Invalid cross-validation type: '{cv_type}'. Expected 'LOO' or 'LOOPC'.")
+
+    # test_samples_names, scores = average_scores_per_sample(scores, test_samples_names)
 
     # reducer = DimensionalityReducer(scores)
 
@@ -213,7 +253,7 @@ if __name__ == "__main__":
             plot_pinot_noir(
                 reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
                 plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names,
-                unique_samples_only=True
+                unique_samples_only=True, n_neighbors=n_neighbors, random_state=random_state
             )
         elif projection_method == "PCA":
             plot_pinot_noir(reducer.pca(components=projection_dim),plot_title, projection_labels, legend_labels,
