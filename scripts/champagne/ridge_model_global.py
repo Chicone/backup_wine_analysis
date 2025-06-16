@@ -125,6 +125,272 @@ def build_feature_target_arrays(metadata, sensory_cols, data_dict):
 
     print(f"\nTotal samples skipped due to missing chromatograms: {skipped_count}")
     return np.array(X_raw), np.array(y), np.array(taster_ids), np.array(sample_ids)
+
+def compare_model_on_group_average_vs_taster_scores(
+    X_input, y, sample_ids, taster_ids, model,
+    target_taster, sensory_cols,
+    num_repeats=5, test_size=0.2, normalize=True, random_seed=42
+):
+    """
+    Trains a model on the average scores of all tasters (excluding `target_taster`) per wine,
+    then evaluates how well it predicts that taster's individual scores.
+
+    Parameters
+    ----------
+    X_input : ndarray
+        Chromatographic features, one row per (wine, taster).
+    y : ndarray
+        Sensory scores aligned with X_input.
+    sample_ids : ndarray
+        Wine identifiers aligned with rows of X_input.
+    taster_ids : ndarray
+        Taster IDs aligned with X_input.
+    model : scikit-learn regressor
+        The regression model to train.
+    target_taster : str
+        The taster whose scores will be used as test targets.
+    sensory_cols : list of str
+        Names of sensory attributes.
+    num_repeats : int
+        Number of train/test splits to average over.
+    test_size : float
+        Fraction of data used for testing.
+    normalize : bool
+        Whether to normalize features.
+    random_seed : int
+        Seed for reproducibility.
+
+    Returns
+    -------
+    r2_scores_avg : list of float
+        Mean R² scores per attribute across all splits.
+    """
+
+    X_list, y_group_avg_list, y_target_list = [], [], []
+
+    # Only consider wines rated by the target taster
+    wines_of_target = np.unique(sample_ids[taster_ids == target_taster])
+
+    for wine in wines_of_target:
+        mask_wine = sample_ids == wine
+        mask_target = mask_wine & (taster_ids == target_taster)
+        mask_others = mask_wine & (taster_ids != target_taster)
+
+        if not np.any(mask_target) or not np.any(mask_others):
+            continue
+
+        # Use the same X for both — e.g., mean of all replicates for that wine
+        X_feat = np.mean(X_input[mask_wine], axis=0)
+        y_group_avg = np.mean(y[mask_others], axis=0)
+        y_target = y[mask_target][0]  # assumes only one row for target taster
+
+        X_list.append(X_feat)
+        y_group_avg_list.append(y_group_avg)
+        y_target_list.append(y_target)
+
+    X_all = np.array(X_list)
+    y_train_targets = np.array(y_group_avg_list)
+    y_true_targets = np.array(y_target_list)
+
+    r2_all = []
+
+    for repeat in range(num_repeats):
+        train_idx, test_idx = train_test_split(
+            np.arange(len(X_all)), test_size=test_size, random_state=random_seed + repeat
+        )
+
+        X_train, X_test = X_all[train_idx], X_all[test_idx]
+        y_train = y_train_targets[train_idx]
+        y_test_true = y_true_targets[test_idx]
+
+        if normalize:
+            scaler = StandardScaler()
+            X_train = scaler.fit_transform(X_train)
+            X_test = scaler.transform(X_test)
+
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+
+        r2_scores = [r2_score(y_test_true[:, i], y_pred[:, i]) for i in range(y.shape[1])]
+        r2_all.append(r2_scores)
+
+    r2_scores_avg = np.nanmean(r2_all, axis=0)
+
+    return r2_scores_avg
+
+
+def compare_self_vs_group_models_per_taster(
+    X_input, y, sample_ids, taster_ids, model, sensory_cols,
+    num_repeats=5, test_size=0.2, normalize=True, random_seed=42
+):
+    """
+    For each taster:
+      - Train a model on their own scores (self-model)
+      - Train a model on the group average (excluding them) and test on their scores
+    Returns
+    -------
+    results_df : pd.DataFrame with R² per attribute and overall mean R² for both models.
+    """
+    unique_tasters = np.unique(taster_ids)
+    rows = []
+
+    for taster in unique_tasters:
+        print(f"\n--- Evaluating taster: {taster} ---")
+
+        # === SELF MODEL ===
+        mask_self = (taster_ids == taster)
+        X_self = X_input[mask_self]
+        y_self = y[mask_self]
+
+        r2_self_all = []
+        for repeat in range(num_repeats):
+            train_idx, test_idx = train_test_split(
+                np.arange(len(X_self)), test_size=test_size, random_state=random_seed + repeat
+            )
+            X_train, X_test = X_self[train_idx], X_self[test_idx]
+            y_train, y_test = y_self[train_idx], y_self[test_idx]
+
+            if normalize:
+                scaler = StandardScaler()
+                X_train = scaler.fit_transform(X_train)
+                X_test = scaler.transform(X_test)
+
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+
+            r2_scores = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(y.shape[1])]
+            r2_self_all.append(r2_scores)
+
+        r2_self_avg = np.nanmean(r2_self_all, axis=0)
+
+        # === GROUP MODEL (Train on average of others, test on taster) ===
+        r2_group_avg = compare_model_on_group_average_vs_taster_scores(
+            X_input, y, sample_ids, taster_ids, model,
+            target_taster=taster,
+            sensory_cols=sensory_cols,
+            num_repeats=num_repeats,
+            test_size=test_size,
+            normalize=normalize,
+            random_seed=random_seed
+        )
+
+        # Store results
+        row = {
+            'taster': taster,
+            'mean_r2_self': np.nanmean(r2_self_avg),
+            'mean_r2_group': np.nanmean(r2_group_avg),
+        }
+        for i, attr in enumerate(sensory_cols):
+            row[f'{attr}_r2_self'] = r2_self_avg[i]
+            row[f'{attr}_r2_group'] = r2_group_avg[i]
+
+        rows.append(row)
+
+    df = pd.DataFrame(rows).set_index("taster")
+    print("\n=== Comparison of self vs group models ===")
+    print(df[['mean_r2_self', 'mean_r2_group']].round(3))
+    print (df[['mean_r2_self', 'mean_r2_group']].mean())
+    return df
+
+
+def train_and_evaluate_average_scores_model(X_input, y, sample_ids, model, *,
+                                             num_repeats=5, test_size=0.2, normalize=True,
+                                             random_seed=42,
+                                             taster_ids=None):
+    """
+    Train and evaluate a model on average sensory scores per wine sample.
+
+    Parameters
+    ----------
+    X_input : ndarray
+        Input features (e.g., chromatograms).
+    y : ndarray
+        Target sensory scores (one row per taster-wine pair).
+    sample_ids : ndarray
+        Wine identifiers (aligned with rows in X_input).
+    model : object
+        Scikit-learn regressor.
+    num_repeats : int
+        Number of repeats.
+    test_size : float
+        Proportion of test set.
+    normalize : bool
+        Whether to normalize input features.
+    random_seed : int
+        Seed for reproducibility.
+    taster_ids : ndarray or None
+        Optional taster identifiers aligned with rows in `y`.
+
+    Returns
+    -------
+    all_mae : list
+        List of MAE arrays across repeats.
+    all_rmse : list
+        List of RMSE arrays across repeats.
+    last_y_test : ndarray
+        True values of the last test split.
+    last_y_pred : ndarray
+        Predictions of the last test split.
+    last_sample_ids : ndarray
+        Wine codes of the last test split.
+    last_taster_ids : ndarray or None
+        Taster identifiers for the test set, if provided.
+    """
+    # Average feature vectors and targets by wine code
+    unique_wines = np.unique(sample_ids)
+    X_avg, y_avg, wine_ids = [], [], []
+
+    for wine in unique_wines:
+        indices = np.where(sample_ids == wine)[0]
+        X_avg.append(np.mean(X_input[indices], axis=0))
+        y_avg.append(np.mean(y[indices], axis=0))
+        wine_ids.append(wine)
+
+    X_input = np.array(X_avg)
+    y = np.array(y_avg)
+    sample_ids = np.array(wine_ids)
+    taster_ids = None  # dropped for average model
+
+    all_mae, all_rmse = [], []
+    last_y_test = last_y_pred = last_sample_ids = last_taster_ids = None
+
+    n_splits = 5
+    all_mae, all_rmse = [], []
+    all_y_test, all_y_pred = [], []
+    all_sample_ids, all_taster_ids = [], []
+    for repeat in range(num_repeats):
+        splits = [train_test_split(np.arange(len(X_input)), test_size=test_size, random_state=random_seed + repeat)]
+        for fold_idx, (train_idx, test_idx) in enumerate(splits):
+            print(f"[AVG] Repeat {repeat + 1}, Fold {fold_idx + 1}")
+
+            X_train, X_test = X_input[train_idx], X_input[test_idx]
+            y_train, y_test = y[train_idx], y[test_idx]
+            s_test = sample_ids[test_idx]
+            t_test = taster_ids[test_idx] if taster_ids is not None else None
+
+            if normalize:
+                scaler = StandardScaler()
+                X_train = scaler.fit_transform(X_train)
+                X_test = scaler.transform(X_test)
+
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+
+            # Accumulate
+            all_y_test.append(y_test)
+            all_y_pred.append(y_pred)
+            all_sample_ids.append(s_test)
+            if t_test is not None:
+                all_taster_ids.append(t_test)
+
+            mae = mean_absolute_error(y_test, y_pred, multioutput='raw_values')
+            rmse = np.sqrt(mean_squared_error(y_test, y_pred, multioutput='raw_values'))
+            all_mae.append(mae)
+            all_rmse.append(rmse)
+
+    return all_mae, all_rmse, all_y_test, all_y_pred, all_sample_ids, all_taster_ids
+
+
 def train_and_evaluate_model(X_input, y, taster_ids, sample_ids, model, *,
                              num_repeats=5, test_size=0.2, normalize=True,
                              taster_scaling=False, group_wines=False, random_seed=42):
@@ -235,6 +501,9 @@ def train_and_evaluate_model(X_input, y, taster_ids, sample_ids, model, *,
                 last_taster_ids = t_test
 
     return all_mae, all_rmse, taster_mae_summary, last_y_test, last_y_pred, last_sample_ids, last_taster_ids
+
+
+
 # Main logic
 if __name__ == "__main__":
     # Load configuration parameters from YAML
@@ -260,6 +529,9 @@ if __name__ == "__main__":
     num_repeats = config.get("num_repeats", 10)
     shuffle_labels = config.get("shuffle_labels", False)
     group_wines = config.get("group_wines", False)
+    test_average_scores = config.get("test_average_scores", False)
+    taster_vs_mean = config.get("taster_vs_mean", False)
+
 
     # Select the model based on user input
     model = get_model(model_name, random_seed=random_seed)
@@ -310,6 +582,47 @@ if __name__ == "__main__":
     last_y_test, last_y_pred, last_sample_ids, last_taster_ids = None, None, None, None
     saved_model_coefs = []
 
+    if test_average_scores:
+        results = train_and_evaluate_average_scores_model(
+            X_input=X_input,
+            y=y,
+            sample_ids=sample_ids,
+            model=model,
+            num_repeats=num_repeats,
+            test_size=TEST_SIZE,
+            normalize=normalize,
+            random_seed=random_seed
+        )
+        all_mae, all_rmse, all_y_test, all_y_pred, all_sample_ids, all_taster_ids = results
+
+        # Concatenate all predictions and ground truth
+        y_test_all = np.vstack(all_y_test)
+        y_pred_all = np.vstack(all_y_pred)
+
+        print("\nPer-attribute R² for averaged model (robust across all splits):")
+        r2_per_attr = []
+        for i, col in enumerate(sensory_cols):
+            try:
+                r2 = r2_score(y_test_all[:, i], y_pred_all[:, i])
+            except ValueError:
+                r2 = float('nan')
+            r2_per_attr.append(r2)
+            print(f"{col:>12s}: R² = {r2:.2f}")
+
+        overall_avg_r2 = np.nanmean(r2_per_attr)
+        print(f"\nOverall average R² across attributes: {overall_avg_r2:.3f}")
+
+
+    if taster_vs_mean:
+        unique_tasters = np.unique(taster_ids)
+        results = []
+
+        results_df = compare_self_vs_group_models_per_taster(
+            X_input, y, sample_ids, taster_ids,
+            model=Ridge(alpha=1.0),
+            sensory_cols=sensory_cols
+        )
+
     results = train_and_evaluate_model(
         X_input=X_input,
         y=y,
@@ -324,7 +637,6 @@ if __name__ == "__main__":
         random_seed=random_seed
     )
     all_mae, all_rmse, taster_mae_summary, last_y_test, last_y_pred, last_sample_ids, last_taster_ids = results
-
 
     from collections import Counter
 
@@ -395,29 +707,39 @@ if __name__ == "__main__":
 
 
     # R^2 estimation
-    taster_r2_summary = defaultdict(list)
-    for i in range(len(last_y_test)):
-        taster = last_taster_ids[i]
-        y_true_i = last_y_test[i]
-        y_pred_i = last_y_pred[i]
-        try:
-            r2 = r2_score(y_true_i, y_pred_i)
-        except ValueError:
-            r2 = float('nan')  # in case y_true_i is constant
-        taster_r2_summary[taster].append(r2)
+    if not test_average_scores:
+        print("\nPer-taster average MAE (across all attributes):")
+        for taster in sorted(taster_mae_summary.keys(), key=natural_key):
+            all_errors = np.array(taster_mae_summary[taster])
+            avg_mae_per_attr = np.mean(all_errors, axis=0)
+            overall_avg = np.mean(avg_mae_per_attr)
+            print(f"Taster {taster}: MAE = {overall_avg:.2f}")
 
-    print("\nPer-taster average R² (across all attributes):")
-    all_r2_values = []
-    for taster in sorted(taster_r2_summary.keys(), key=natural_key):
-        r2_list = np.array(taster_r2_summary[taster])
-        r2_list = r2_list[~np.isnan(r2_list)]  # drop NaNs
-        avg_r2 = np.mean(r2_list) if len(r2_list) > 0 else float('nan')
-        print(f"Taster {taster}: R² = {avg_r2:.2f}")
-        all_r2_values.extend(r2_list)
+        # R² estimation
+        taster_r2_summary = defaultdict(list)
+        for i in range(len(last_y_test)):
+            taster = last_taster_ids[i]
+            y_true_i = last_y_test[i]
+            y_pred_i = last_y_pred[i]
+            try:
+                r2 = r2_score(y_true_i, y_pred_i)
+            except ValueError:
+                r2 = float('nan')
+            taster_r2_summary[taster].append(r2)
 
-    # Overall average R²
-    overall_avg_r2 = np.mean(all_r2_values) if len(all_r2_values) > 0 else float('nan')
-    print(f"\nOverall average R² across all tasters: {overall_avg_r2:.3f}")
+        print("\nPer-taster average R² (across all attributes):")
+        all_r2_values = []
+        for taster in sorted(taster_r2_summary.keys(), key=natural_key):
+            r2_list = np.array(taster_r2_summary[taster])
+            r2_list = r2_list[~np.isnan(r2_list)]
+            avg_r2 = np.mean(r2_list) if len(r2_list) > 0 else float('nan')
+            print(f"Taster {taster}: R² = {avg_r2:.2f}")
+            all_r2_values.extend(r2_list)
+
+        overall_avg_r2 = np.mean(all_r2_values) if len(all_r2_values) > 0 else float('nan')
+        print(f"\nOverall average R² across all tasters: {overall_avg_r2:.3f}")
+    else:
+        print("\nSkipped per-taster MAE and R² because test_average_scores=True")
 
     def plot_single_wine(y_true, y_pred, sample_ids, wine_code):
         import matplotlib.pyplot as plt

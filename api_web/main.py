@@ -109,8 +109,11 @@ async def run_script(payload: dict):
         ("show_predicted_profiles", False),
         ("taster_scaling", False),
         ("shuffle_labels", False),
+        ("test_average_scores", False),
+        ("taster_vs_mean", False),
         ("group_wines", False),
         ("cv_type", "LOOPC"),
+
 
     ]
     for key, default in optional_keys:
