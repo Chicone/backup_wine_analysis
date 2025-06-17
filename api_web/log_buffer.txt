@@ -1,0 +1,94 @@
+[16:36:51] Regressor is ridge
+[16:36:52] 
+Per-attribute R² for averaged model (robust across all splits):
+[16:36:52]       fruity: R² = 0.30
+[16:36:52]       citrus: R² = 0.16
+[16:36:52] maturated fruits: R² = 0.15
+[16:36:52] candied citrus: R² = 0.56
+[16:36:52]      toasted: R² = 0.66
+[16:36:52]         nuts: R² = 0.65
+[16:36:52]        spicy: R² = 0.70
+[16:36:52]    petroleum: R² = 0.35
+[16:36:52]   undergroth: R² = 0.55
+[16:36:52]       babery: R² = -0.22
+[16:36:52]        honey: R² = 0.56
+[16:36:52]        diary: R² = 0.16
+[16:36:52]       herbal: R² = 0.07
+[16:36:52]       tobaco: R² = 0.49
+[16:36:52]      texture: R² = 0.08
+[16:36:52]         acid: R² = -0.37
+[16:36:52]       ageing: R² = -0.12
+[16:36:52] 
+Overall average R² across attributes: 0.278
+[19:52:55] Regressor is ridge
+[19:52:56] 
+Per-attribute average errors over multiple splits:
+[19:52:56]       fruity: MAE = 12.75, RMSE = 15.96 (16.0% of scale)
+[19:52:56]       citrus: MAE = 13.35, RMSE = 16.59 (16.6% of scale)
+[19:52:56] maturated fruits: MAE = 14.92, RMSE = 18.71 (18.7% of scale)
+[19:52:56] candied citrus: MAE = 12.86, RMSE = 16.02 (16.0% of scale)
+[19:52:56]      toasted: MAE = 13.51, RMSE = 17.22 (17.2% of scale)
+[19:52:56]         nuts: MAE = 12.59, RMSE = 15.50 (15.5% of scale)
+[19:52:56]        spicy: MAE = 12.84, RMSE = 16.51 (16.5% of scale)
+[19:52:56]    petroleum: MAE = 13.45, RMSE = 17.76 (17.8% of scale)
+[19:52:56]   undergroth: MAE = 10.96, RMSE = 14.49 (14.5% of scale)
+[19:52:56]       babery: MAE = 11.69, RMSE = 14.98 (15.0% of scale)
+[19:52:56]        honey: MAE = 12.88, RMSE = 16.13 (16.1% of scale)
+[19:52:56]        diary: MAE = 11.19, RMSE = 14.46 (14.5% of scale)
+[19:52:56]       herbal: MAE = 11.89, RMSE = 15.71 (15.7% of scale)
+[19:52:56]       tobaco: MAE = 12.18, RMSE = 15.86 (15.9% of scale)
+[19:52:56]      texture: MAE = 12.60, RMSE = 16.00 (16.0% of scale)
+[19:52:56]         acid: MAE = 12.17, RMSE = 15.50 (15.5% of scale)
+[19:52:56]       ageing: MAE = 15.53, RMSE = 19.79 (19.8% of scale)
+[19:52:56] 
+Overall RMSE across repeats: 16.3623
+[19:52:56] 
+Per-taster average MAE (across all attributes):
+[19:52:56] 
+Per-taster average MAE (across all attributes):
+[19:52:56] Taster D1: MAE = 10.51
+[19:52:56] Taster D2: MAE = 12.67
+[19:52:56] Taster D3: MAE = 11.40
+[19:52:56] Taster D4: MAE = 15.58
+[19:52:56] Taster D5: MAE = 13.19
+[19:52:56] Taster D6: MAE = 12.11
+[19:52:56] Taster D7: MAE = 12.05
+[19:52:56] Taster D8: MAE = 13.81
+[19:52:56] Taster D9: MAE = 11.47
+[19:52:56] Taster D10: MAE = 13.98
+[19:52:56] 
+Per-taster average R² (across all attributes):
+[19:52:56] Taster D1: R² = 0.58
+[19:52:56] Taster D2: R² = 0.67
+[19:52:56] Taster D3: R² = 0.64
+[19:52:56] Taster D4: R² = 0.49
+[19:52:56] Taster D5: R² = 0.22
+[19:52:56] Taster D6: R² = 0.47
+[19:52:56] Taster D7: R² = 0.13
+[19:52:56] Taster D8: R² = 0.34
+[19:52:56] Taster D9: R² = 0.11
+[19:52:56] Taster D10: R² = 0.33
+[19:52:56] 
+Overall average R² across all tasters: 0.365
+[19:53:25] Regressor is ridge
+[19:53:26] 
+Per-attribute R² for averaged model (robust across all splits):
+[19:53:26]       fruity: R² = 0.30
+[19:53:26]       citrus: R² = 0.16
+[19:53:26] maturated fruits: R² = 0.15
+[19:53:26] candied citrus: R² = 0.56
+[19:53:26]      toasted: R² = 0.66
+[19:53:26]         nuts: R² = 0.65
+[19:53:26]        spicy: R² = 0.70
+[19:53:26]    petroleum: R² = 0.35
+[19:53:26]   undergroth: R² = 0.55
+[19:53:26]       babery: R² = -0.22
+[19:53:26]        honey: R² = 0.56
+[19:53:26]        diary: R² = 0.16
+[19:53:26]       herbal: R² = 0.07
+[19:53:26]       tobaco: R² = 0.49
+[19:53:26]      texture: R² = 0.08
+[19:53:26]         acid: R² = -0.37
+[19:53:26]       ageing: R² = -0.12
+[19:53:26] 
+Overall average R² across attributes: 0.278

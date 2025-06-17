@@ -50,7 +50,7 @@ show_sample_names: false
 shuffle_labels: false
 sync_state: false
 taster_scaling: false
-taster_vs_mean: true
-test_average_scores: false
+taster_vs_mean: false
+test_average_scores: true
 umap_dim: 2
 umap_source: tic_tis

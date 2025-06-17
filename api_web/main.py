@@ -1,18 +1,21 @@
 import subprocess
 import os
 import time
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import yaml
+import asyncio
+from fastapi.responses import StreamingResponse
+import subprocess
+import datetime
 
 app = FastAPI()
-
+log_queue = asyncio.Queue()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,20 +46,39 @@ class RunRequest(BaseModel):
     selected_datasets: Optional[List[str]] = None
 
 
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
-import subprocess
+async def logMessage(message: str):
+    timestamp = datetime.datetime.now().strftime("[%I:%M:%S %p]")
+    full_message = f"{timestamp} {message}"
+    await log_queue.put(full_message)
+    print(full_message)  # Optional: still prints to backend console
 
-app = FastAPI()
+@app.get("/logs")
+async def stream_logs():
+    async def event_generator():
+        last_pos = 0
+        try:
+            with open("log_buffer.txt", "r") as f:
+                full = f.read()
+                if full:
+                    for line in full.splitlines():
+                        yield f"data: {line}\n\n"
+                last_pos = f.tell()
+        except FileNotFoundError:
+            pass
 
-from fastapi.middleware.cors import CORSMiddleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # or ["http://localhost:3000"]
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+        while True:
+            await asyncio.sleep(1)
+            try:
+                with open("log_buffer.txt", "r") as f:
+                    f.seek(last_pos)
+                    new = f.read()
+                    last_pos = f.tell()
+                    if new:
+                        yield f"data: {new}\n\n"
+            except FileNotFoundError:
+                pass
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.post("/run-script")
 async def run_script(payload: dict):

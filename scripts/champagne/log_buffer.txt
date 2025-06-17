@@ -1,0 +1,205 @@
+Regressor is ridge
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/00ML-B-11-1.D/00ML-B-11-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/00ML-B-11-2.D/00ML-B-11-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/00ML-B-11-3.D/00ML-B-11-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/01ML-B-05-1.D/01ML-B-05-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/01ML-B-05-2.D/01ML-B-05-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/01ML-B-05-3.D/01ML-B-05-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/04ML-B-11-2-1.D/04ML-B-11-2-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/04ML-B-11-2-2.D/04ML-B-11-2-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/04ML-B-11-2-3.D/04ML-B-11-2-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/06VZ-N-36-1.D/06VZ-N-36-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/06VZ-N-36-2.D/06VZ-N-36-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/06VZ-N-36-3.D/06VZ-N-36-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07AU-N-09-1.D/07AU-N-09-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07AU-N-09-2.D/07AU-N-09-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07AU-N-09-3.D/07AU-N-09-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07ML-B-50-1.D/07ML-B-50-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07ML-B-50-2.D/07ML-B-50-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07ML-B-50-3.D/07ML-B-50-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07RVD-N-01-1.D/07RVD-N-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07RVD-N-01-2.D/07RVD-N-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07RVD-N-01-3.D/07RVD-N-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07VM-B-02-1.D/07VM-B-02-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07VM-B-02-2.D/07VM-B-02-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/07VM-B-02-3.D/07VM-B-02-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08AU-N-16-1.D/08AU-N-16-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08AU-N-16-2.D/08AU-N-16-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08AU-N-16-3.D/08AU-N-16-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08BZ-N-01-1.D/08BZ-N-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08BZ-N-01-2.D/08BZ-N-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08BZ-N-01-3.D/08BZ-N-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08ML-B-06-1.D/08ML-B-06-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08ML-B-06-2.D/08ML-B-06-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08ML-B-06-3.D/08ML-B-06-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08VM-B-01-1.D/08VM-B-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08VM-B-01-2.D/08VM-B-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08VM-B-01-3.D/08VM-B-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08VZ-N-03-1.D/08VZ-N-03-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08VZ-N-03-2.D/08VZ-N-03-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/08VZ-N-03-3.D/08VZ-N-03-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09AU-N-70-1.D/09AU-N-70-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09AU-N-70-2.D/09AU-N-70-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09AU-N-70-3.D/09AU-N-70-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09AY-N-01-1.D/09AY-N-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09AY-N-01-2.D/09AY-N-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09AY-N-01-3.D/09AY-N-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09CR-B-08-1.D/09CR-B-08-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09CR-B-08-2.D/09CR-B-08-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09CR-B-08-3.D/09CR-B-08-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09ML-B-20-1.D/09ML-B-20-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09ML-B-20-2.D/09ML-B-20-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09ML-B-20-3.D/09ML-B-20-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09VM-B-03-1.D/09VM-B-03-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09VM-B-03-2.D/09VM-B-03-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/09VM-B-03-3.D/09VM-B-03-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10AY-N-01-1.D/10AY-N-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10AY-N-01-2.D/10AY-N-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10AY-N-01-3.D/10AY-N-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10BZ-N-02-2-1.D/10BZ-N-02-2-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10BZ-N-02-2-2.D/10BZ-N-02-2-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10BZ-N-02-2-3.D/10BZ-N-02-2-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10CR-B-03-1.D/10CR-B-03-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10CR-B-03-2.D/10CR-B-03-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10CR-B-03-3.D/10CR-B-03-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10VD-N-01-1-1.D/10VD-N-01-1-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10VD-N-01-1-2.D/10VD-N-01-1-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10VD-N-01-1-3.D/10VD-N-01-1-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10VZ-N-22-1.D/10VZ-N-22-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10VZ-N-22-2.D/10VZ-N-22-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/10VZ-N-22-3.D/10VZ-N-22-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12AU-N-20-1.D/12AU-N-20-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12AU-N-20-2.D/12AU-N-20-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12AU-N-20-3.D/12AU-N-20-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12BZ-N-03-6-1.D/12BZ-N-03-6-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12BZ-N-03-6-2.D/12BZ-N-03-6-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12BZ-N-03-6-3.D/12BZ-N-03-6-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12CR-B-01-1.D/12CR-B-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12CR-B-01-2.D/12CR-B-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12CR-B-01-3.D/12CR-B-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12ML-B-54-1.D/12ML-B-54-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12ML-B-54-2.D/12ML-B-54-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12ML-B-54-3.D/12ML-B-54-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12RVD-N-20-1.D/12RVD-N-20-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12RVD-N-20-2.D/12RVD-N-20-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/12RVD-N-20-3.D/12RVD-N-20-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13AU-N-13-1.D/13AU-N-13-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13AU-N-13-2.D/13AU-N-13-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13AU-N-13-3.D/13AU-N-13-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13AY-N-02-5-1.D/13AY-N-02-5-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13AY-N-02-5-2.D/13AY-N-02-5-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13AY-N-02-5-3.D/13AY-N-02-5-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13BSS-N-26-1.D/13BSS-N-26-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13BSS-N-26-2.D/13BSS-N-26-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13BSS-N-26-3.D/13BSS-N-26-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13BZ-N-03-3-1.D/13BZ-N-03-3-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13BZ-N-03-3-2.D/13BZ-N-03-3-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13BZ-N-03-3-3.D/13BZ-N-03-3-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13ML-B-04-1-1.D/13ML-B-04-1-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13ML-B-04-1-2.D/13ML-B-04-1-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13ML-B-04-1-3.D/13ML-B-04-1-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13TT-N-36-1.D/13TT-N-36-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13TT-N-36-2.D/13TT-N-36-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13TT-N-36-3.D/13TT-N-36-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13VD-N-21-1.D/13VD-N-21-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13VD-N-21-2.D/13VD-N-21-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13VD-N-21-3.D/13VD-N-21-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13VM-B-76-1.D/13VM-B-76-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13VM-B-76-2.D/13VM-B-76-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13VM-B-76-3.D/13VM-B-76-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13VZ-N-55-1.D/13VZ-N-55-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13VZ-N-55-2.D/13VZ-N-55-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/13VZ-N-55-3.D/13VZ-N-55-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/141T-N-17-1.D/141T-N-17-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/141T-N-17-2.D/141T-N-17-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/141T-N-17-3.D/141T-N-17-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/141T-N-27-1.D/141T-N-27-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/141T-N-27-2.D/141T-N-27-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/141T-N-27-3.D/141T-N-27-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14AU-N-20-1.D/14AU-N-20-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14AU-N-20-2.D/14AU-N-20-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14AU-N-20-3.D/14AU-N-20-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14AU-N-22-1.D/14AU-N-22-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14AU-N-22-2.D/14AU-N-22-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14AU-N-22-3.D/14AU-N-22-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14AY-N-01-1.D/14AY-N-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14AY-N-01-2.D/14AY-N-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14AY-N-01-3.D/14AY-N-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14BZ-N-01-1.D/14BZ-N-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14BZ-N-01-2.D/14BZ-N-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14BZ-N-01-3.D/14BZ-N-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14RVD-N-20-1.D/14RVD-N-20-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14RVD-N-20-2.D/14RVD-N-20-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14RVD-N-20-3.D/14RVD-N-20-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14VM-B-70P-1.D/14VM-B-70P-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14VM-B-70P-2.D/14VM-B-70P-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14VM-B-70P-3.D/14VM-B-70P-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14VZ-N-01-1.D/14VZ-N-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14VZ-N-01-2.D/14VZ-N-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/14VZ-N-01-3.D/14VZ-N-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/88CR-B-01-1.D/88CR-B-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/88CR-B-01-2.D/88CR-B-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/88CR-B-01-3.D/88CR-B-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/90AY-N-01-1.D/90AY-N-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/90AY-N-01-2.D/90AY-N-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/90AY-N-01-3.D/90AY-N-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/96AU-N-01-1.D/96AU-N-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/96AU-N-01-2.D/96AU-N-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/96AU-N-01-3.D/96AU-N-01-3_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/99CR-B-01-1.D/99CR-B-01-1_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/99CR-B-01-2.D/99CR-B-01-2_cached.npy
+Loaded cached data from /home/luiscamara/Documents/datasets/Champagnes/HETEROCYC/99CR-B-01-3.D/99CR-B-01-3_cached.npy
+Chromatogram length: 13211
+Chromatogram length after decimation: 1321
+Warning: No chromatograms found for sample 142T-N-02
+Warning: No chromatograms found for sample 142T-N-02
+Warning: No chromatograms found for sample 142T-N-02
+Warning: No chromatograms found for sample 142T-N-02
+Warning: No chromatograms found for sample 142T-N-02
+Warning: No chromatograms found for sample 142T-N-02
+Warning: No chromatograms found for sample 142T-N-02
+Warning: No chromatograms found for sample 142T-N-02
+Warning: No chromatograms found for sample 142T-N-02
+Warning: No chromatograms found for sample 142T-N-02
+Warning: No chromatograms found for sample 14BZ-N-70P
+Warning: No chromatograms found for sample 14BZ-N-70P
+Warning: No chromatograms found for sample 14BZ-N-70P
+Warning: No chromatograms found for sample 14BZ-N-70P
+Warning: No chromatograms found for sample 14BZ-N-70P
+Warning: No chromatograms found for sample 14BZ-N-70P
+Warning: No chromatograms found for sample 14BZ-N-70P
+Warning: No chromatograms found for sample 14BZ-N-70P
+Warning: No chromatograms found for sample 14BZ-N-70P
+Warning: No chromatograms found for sample 14BZ-N-70P
+Warning: No chromatograms found for sample 14CR-B-03
+Warning: No chromatograms found for sample 14CR-B-03
+Warning: No chromatograms found for sample 14CR-B-03
+Warning: No chromatograms found for sample 14CR-B-03
+Warning: No chromatograms found for sample 14CR-B-03
+Warning: No chromatograms found for sample 14CR-B-03
+Warning: No chromatograms found for sample 14CR-B-03
+Warning: No chromatograms found for sample 14CR-B-03
+Warning: No chromatograms found for sample 14CR-B-03
+Warning: No chromatograms found for sample 14CR-B-03
+Warning: No chromatograms found for sample 14ML-B-50P
+Warning: No chromatograms found for sample 14ML-B-50P
+Warning: No chromatograms found for sample 14ML-B-50P
+Warning: No chromatograms found for sample 14ML-B-50P
+Warning: No chromatograms found for sample 14ML-B-50P
+Warning: No chromatograms found for sample 14ML-B-50P
+Warning: No chromatograms found for sample 14ML-B-50P
+Warning: No chromatograms found for sample 14ML-B-50P
+Warning: No chromatograms found for sample 14ML-B-50P
+Warning: No chromatograms found for sample 14ML-B-50P
+Warning: No chromatograms found for sample 14VZ-N-76P
+Warning: No chromatograms found for sample 14VZ-N-76P
+Warning: No chromatograms found for sample 14VZ-N-76P
+Warning: No chromatograms found for sample 14VZ-N-76P
+Warning: No chromatograms found for sample 14VZ-N-76P
+Warning: No chromatograms found for sample 14VZ-N-76P
+Warning: No chromatograms found for sample 14VZ-N-76P
+Warning: No chromatograms found for sample 14VZ-N-76P
+Warning: No chromatograms found for sample 14VZ-N-76P
+Warning: No chromatograms found for sample 14VZ-N-76P
+
+Total samples skipped due to missing chromatograms: 50
