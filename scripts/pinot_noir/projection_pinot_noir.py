@@ -125,7 +125,7 @@ if __name__ == "__main__":
 
     if cv_type == "LOOPC":
         # Run training and collect score vectors
-        mean_acc, std_acc, scores, all_labels, test_samples_names= cls.train_and_evaluate_all_channels(
+        mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_all_channels(
             num_repeats=num_repeats,
             test_size=0.2,
             normalize=normalize_flag,
@@ -137,7 +137,7 @@ if __name__ == "__main__":
             projection_source=projection_source
         )
     elif cv_type == "LOO":
-        mean_acc, std_acc, scores, all_labels, test_samples_names= cls.train_and_evaluate_leave_one_out_all_samples(
+        mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_leave_one_out_all_samples(
             normalize=normalize_flag,
             scaler_type='standard',
             region=region,

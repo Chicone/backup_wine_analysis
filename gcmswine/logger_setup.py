@@ -17,3 +17,11 @@ if not logger.hasHandlers():
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
+
+def logger_raw(message: str):
+    """Append raw message without timestamp to the log buffer file."""
+    try:
+        with open("log_buffer.txt", "a", encoding="utf-8") as f:
+            f.write(message + "\n")
+    except Exception as e:
+        logger.error(f"Failed to write raw log: {e}")

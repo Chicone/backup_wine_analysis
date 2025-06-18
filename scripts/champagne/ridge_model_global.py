@@ -96,7 +96,8 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import cross_val_predict, GroupKFold
 from gcmswine.wine_analysis import ChromatogramAnalysis, GCMSDataProcessor
-from gcmswine.logger_setup import logger
+from gcmswine.logger_setup import logger, logger_raw
+from collections import Counter
 
 # Define helper functions
 def build_feature_target_arrays(metadata, sensory_cols, data_dict):
@@ -238,7 +239,7 @@ def compare_self_vs_group_models_per_taster(
     rows = []
 
     for taster in unique_tasters:
-        logger.info(f"\n--- Evaluating taster: {taster} ---")
+        # logger.info(f"--- Evaluating taster: {taster} ---")
 
         # === SELF MODEL ===
         mask_self = (taster_ids == taster)
@@ -291,8 +292,10 @@ def compare_self_vs_group_models_per_taster(
 
     df = pd.DataFrame(rows).set_index("taster")
     logger.info("\n=== Comparison of self vs group models ===")
-    logger.info(df[['mean_r2_self', 'mean_r2_group']].round(3))
-    logger.info (df[['mean_r2_self', 'mean_r2_group']].mean())
+    df_to_log = df[['mean_r2_self', 'mean_r2_group']].round(3).reset_index()
+    logger_raw(df_to_log.to_string(index=False))
+    means = df[['mean_r2_self', 'mean_r2_group']].mean()
+    logger_raw(f"Mean r2_self: {means['mean_r2_self']:.3f}\nMean r2_group: {means['mean_r2_group']:.3f}")
     return df
 
 
@@ -505,6 +508,36 @@ def train_and_evaluate_model(X_input, y, taster_ids, sample_ids, model, *,
 
     return all_mae, all_rmse, taster_mae_summary, last_y_test, last_y_pred, last_sample_ids, last_taster_ids
 
+def plot_wine_across_tasters(y_true, y_pred, sample_ids, taster_ids, wine_code, sensory_cols):
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        indices = np.where(sample_ids == wine_code)[0]
+        if len(indices) < 2:
+            logger.info(f"Wine {wine_code} is not rated by multiple tasters in the test set.\n")
+            return
+
+        n = len(indices)
+        fig, axes = plt.subplots(1, n, figsize=(n * 4, 4), sharey=True)
+
+        if n == 1:
+            axes = [axes]
+
+        for i, idx in enumerate(indices):
+            ax = axes[i]
+            taster = taster_ids[idx]
+            ax.plot(y_true[idx], label="True", color="black", linewidth=2)
+            ax.plot(y_pred[idx], label="Pred", color="red", linestyle="--")
+            ax.set_title(f"Taster {taster}\nMAE: {np.mean(np.abs(y_true[idx] - y_pred[idx])):.2f}")
+            ax.set_xticks(range(len(sensory_cols)))
+            ax.set_xticklabels(sensory_cols, rotation=90, fontsize=6)
+            ax.set_ylim(0, 100)
+            ax.grid(True)
+
+        plt.suptitle(f"Wine {wine_code}: Sensory predictions across tasters", fontsize=14)
+        plt.tight_layout(rect=[0, 0, 1, 0.92])
+        plt.legend()
+        plt.show()
 
 
 # Main logic
@@ -539,7 +572,11 @@ if __name__ == "__main__":
     # Select the model based on user input
     model = get_model(model_name, random_seed=random_seed)
     # print(f'Regressor is {model_name}')
+    logger_raw("\n")# Blank line with no timestamp
+    logger.info('------------------------ RUN SCRIPT -------------------------')
     logger.info(f'Regressor is {model_name}')
+    if taster_scaling:
+        logger.info("Taster Scaling selected")
 
     # --- Load chromatograms ---
     data_dict, chome_length = load_chromatograms_decimated(
@@ -563,6 +600,7 @@ if __name__ == "__main__":
     X_raw, y, taster_ids, sample_ids = build_feature_target_arrays(metadata, sensory_cols, data_dict)
 
     if shuffle_labels:
+        logger.info("Shuffle Labels selected")
         np.random.seed(random_seed)
         y = y.copy()
         np.random.shuffle(y)
@@ -587,6 +625,7 @@ if __name__ == "__main__":
     saved_model_coefs = []
 
     if test_average_scores:
+        logger.info("Average Scores selected")
         results = train_and_evaluate_average_scores_model(
             X_input=X_input,
             y=y,
@@ -603,22 +642,24 @@ if __name__ == "__main__":
         y_test_all = np.vstack(all_y_test)
         y_pred_all = np.vstack(all_y_pred)
 
-        logger.info("\nPer-attribute R² for averaged model (robust across all splits):")
         r2_per_attr = []
+        lines = ["\nPer-attribute R² for averaged model (robust across all splits):"]
         for i, col in enumerate(sensory_cols):
             try:
                 r2 = r2_score(y_test_all[:, i], y_pred_all[:, i])
             except ValueError:
-                r2 = float('nan')
+                r2 = float("nan")
             r2_per_attr.append(r2)
-            logger.info(f"{col:>12s}: R² = {r2:.2f}")
+            # Pad the name to 25 characters and right-align the R² value
+            lines.append(f"{col:<20}   R² = {r2:>6.2f}")
 
+        logger.info("\n".join(lines))
         overall_avg_r2 = np.nanmean(r2_per_attr)
-        logger.info(f"\nOverall average R² across attributes: {overall_avg_r2:.3f}")
+        logger_raw(f"Overall average R² across attributes: {overall_avg_r2:.3f}\n")
         sys.exit(0)
 
-
     if taster_vs_mean:
+        logger.info("Taster vs Mean selected")
         unique_tasters = np.unique(taster_ids)
         results = []
 
@@ -627,6 +668,7 @@ if __name__ == "__main__":
             model=Ridge(alpha=1.0),
             sensory_cols=sensory_cols
         )
+        sys.exit(0)
 
     results = train_and_evaluate_model(
         X_input=X_input,
@@ -643,42 +685,8 @@ if __name__ == "__main__":
     )
     all_mae, all_rmse, taster_mae_summary, last_y_test, last_y_pred, last_sample_ids, last_taster_ids = results
 
-    from collections import Counter
-
     wine_counts = Counter(last_sample_ids)
     multi_taster_wines = [wine for wine, count in wine_counts.items() if count > 1]
-
-
-    def plot_wine_across_tasters(y_true, y_pred, sample_ids, taster_ids, wine_code, sensory_cols):
-        import matplotlib.pyplot as plt
-        import numpy as np
-
-        indices = np.where(sample_ids == wine_code)[0]
-        if len(indices) < 2:
-            logger.info(f"Wine {wine_code} is not rated by multiple tasters in the test set.")
-            return
-
-        n = len(indices)
-        fig, axes = plt.subplots(1, n, figsize=(n * 4, 4), sharey=True)
-
-        if n == 1:
-            axes = [axes]
-
-        for i, idx in enumerate(indices):
-            ax = axes[i]
-            taster = taster_ids[idx]
-            ax.plot(y_true[idx], label="True", color="black", linewidth=2)
-            ax.plot(y_pred[idx], label="Pred", color="red", linestyle="--")
-            ax.set_title(f"Taster {taster}\nMAE: {np.mean(np.abs(y_true[idx] - y_pred[idx])):.2f}")
-            ax.set_xticks(range(len(sensory_cols)))
-            ax.set_xticklabels(sensory_cols, rotation=90, fontsize=6)
-            ax.set_ylim(0, 100)
-            ax.grid(True)
-
-        plt.suptitle(f"Wine {wine_code}: Sensory predictions across tasters", fontsize=14)
-        plt.tight_layout(rect=[0, 0, 1, 0.92])
-        plt.legend()
-        plt.show()
 
     mean_mae = np.mean(all_mae, axis=0)
     mean_rmse = np.mean(all_rmse, axis=0)
@@ -697,28 +705,19 @@ if __name__ == "__main__":
         return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', t)]
     unique_tasters = sorted(set(taster_ids), key=natural_key)
 
-    logger.info("\nPer-attribute average errors over multiple splits:")
+    logger.info("\nPer-attribute average errors over multiple splits:\n")
     for i, col in enumerate(sensory_cols):
-        logger.info(f"{col:>12s}: MAE = {mean_mae[i]:5.2f}, RMSE = {mean_rmse[i]:5.2f} ({rmse_pct[i]:.1f}% of scale)")
+        logger_raw(f"{col:>12s}: MAE = {mean_mae[i]:5.2f}, RMSE = {mean_rmse[i]:5.2f} ({rmse_pct[i]:.1f}% of scale)")
 
-    logger.info(f"\nOverall RMSE across repeats: {np.sqrt(np.mean(mean_rmse**2)):.4f}")
+    logger_raw(f"Overall RMSE across repeats: {np.sqrt(np.mean(mean_rmse**2)):.4f}")
 
-    logger.info("\nPer-taster average MAE (across all attributes):")
-    for taster in sorted(taster_mae_summary.keys(), key=natural_key):
-        all_errors = np.array(taster_mae_summary[taster])
-        avg_mae_per_attr = np.mean(all_errors, axis=0)
-        overall_avg = np.mean(avg_mae_per_attr)
-        print(f"Taster {taster}: MAE = {overall_avg:.2f}")
-
-
-    # R^2 estimation
     if not test_average_scores:
         logger.info("\nPer-taster average MAE (across all attributes):")
         for taster in sorted(taster_mae_summary.keys(), key=natural_key):
             all_errors = np.array(taster_mae_summary[taster])
             avg_mae_per_attr = np.mean(all_errors, axis=0)
             overall_avg = np.mean(avg_mae_per_attr)
-            logger.info(f"Taster {taster}: MAE = {overall_avg:.2f}")
+            logger_raw(f"Taster {taster}: MAE = {overall_avg:.2f}")
 
         # R² estimation
         taster_r2_summary = defaultdict(list)
@@ -738,11 +737,11 @@ if __name__ == "__main__":
             r2_list = np.array(taster_r2_summary[taster])
             r2_list = r2_list[~np.isnan(r2_list)]
             avg_r2 = np.mean(r2_list) if len(r2_list) > 0 else float('nan')
-            logger.info(f"Taster {taster}: R² = {avg_r2:.2f}")
+            logger_raw(f"Taster {taster}: R² = {avg_r2:.2f}")
             all_r2_values.extend(r2_list)
 
         overall_avg_r2 = np.mean(all_r2_values) if len(all_r2_values) > 0 else float('nan')
-        logger.info(f"\nOverall average R² across all tasters: {overall_avg_r2:.3f}")
+        logger_raw(f"Overall average R² across all tasters: {overall_avg_r2:.3f}")
     else:
         logger.info("\nSkipped per-taster MAE and R² because test_average_scores=True")
 

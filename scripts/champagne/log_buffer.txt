@@ -203,3 +203,9 @@ Warning: No chromatograms found for sample 14VZ-N-76P
 Warning: No chromatograms found for sample 14VZ-N-76P
 
 Total samples skipped due to missing chromatograms: 50
+[08:46:43] Regressor is ridge
+
+
+[09:38:46] ------------------------ RUN SCRIPT -------------------------
+[09:38:46] Regressor is ridge
+[09:39:04] Taster vs Mean selected

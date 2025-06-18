@@ -111,16 +111,21 @@ From the root of the repository, run:
 
    python scripts/pinot_noir/train_test_pinot_noir.py
 """
+import numpy as np
+import os
+import yaml
+import matplotlib.pyplot as plt
+from gcmswine.classification import Classifier
+from gcmswine import utils
+from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
+from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind
+from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
+from gcmswine.logger_setup import logger, logger_raw
+from sklearn.preprocessing import normalize
+from gcmswine.dimensionality_reduction import DimensionalityReducer
+from scripts.pinot_noir.plotting_pinot_noir import plot_pinot_noir
 
 if __name__ == "__main__":
-    import numpy as np
-    import os
-    import yaml
-    from gcmswine.classification import Classifier
-    from gcmswine import utils
-    from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
-    from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind
-    from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
 
     # # Use this function to convert the printed confusion matrix to a latex confusion matrix
     # # Copy the matrix into data_str using """ """ and create the list of headers, then call the function
@@ -151,16 +156,52 @@ if __name__ == "__main__":
     # Infer wine_kind from selected dataset paths
     wine_kind = utils.infer_wine_kind(selected_datasets, config["datasets"])
 
+    # Plot parameters
+    plot_projection = config.get("plot_projection", False)
+    projection_method = config.get("projection_method", "UMAP").upper()
+    # projection_source = config.get("projection_source", False)
+    projection_source = config.get("projection_source", False) if plot_projection else False
+    projection_dim = config.get("projection_dim", 2)
+    n_neighbors = config.get("n_neighbors", 30)
+    random_state = config.get("random_state", 42)
+    color_by_country = config["color_by_country"]
+    show_sample_names = config["show_sample_names"]
+
+    # Run Parameters
     feature_type = config["feature_type"]
     classifier = config["classifier"]
     num_repeats = config["num_repeats"]
-    normalize = config["normalize"]
+    normalize_flag = config["normalize"]
     n_decimation = config["n_decimation"]
     sync_state = config["sync_state"]
     region = config["region"]
     # wine_kind = config["wine_kind"]
     show_confusion_matrix = config['show_confusion_matrix']
     retention_time_range = config['rt_range']
+    cv_type = config['cv_type']
+    task="classification"  # hard-coded for now
+
+    summary = {
+        "Task": task,
+        "Wine kind": wine_kind,
+        "Datasets": ", ".join(selected_datasets),
+        "Feature type": config["feature_type"],
+        "Classifier": config["classifier"],
+        "Repeats": config["num_repeats"],
+        "Normalize": config["normalize"],
+        "Decimation": config["n_decimation"],
+        "Sync": config["sync_state"],
+        "Region": config["region"],
+        "CV type": config["cv_type"],
+        "RT range": config["rt_range"],
+        "Confusion matrix": config["show_confusion_matrix"]
+    }
+
+    logger_raw("\n")# Blank line with no timestamp
+    logger.info('------------------------ RUN SCRIPT -------------------------')
+    logger.info("Configuration Parameters")
+    for k, v in summary.items():
+        logger_raw(f"{k:>16s}: {v}")
 
     # strategy = get_strategy_by_wine_kind(wine_kind, get_custom_order_func=utils.get_custom_order_for_pinot_noir_region())
     strategy = get_strategy_by_wine_kind(
@@ -176,13 +217,13 @@ if __name__ == "__main__":
     selected_paths = {name: dataset_directories[name] for name in selected_datasets}
     data_dict, dataset_origins = utils.join_datasets(selected_datasets, dataset_directories, n_decimation)
     chrom_length = len(list(data_dict.values())[0])
-    print(f'Chromatogram length: {chrom_length}')
+    # print(f'Chromatogram length: {chrom_length}')
 
     if retention_time_range:
         min_rt = retention_time_range['min'] // n_decimation
         raw_max_rt = retention_time_range['max'] // n_decimation
         max_rt = min(raw_max_rt, chrom_length)
-        print(f"Applying RT range: {min_rt} to {max_rt} (capped at {chrom_length})")
+        logger.info(f"Applying RT range: {min_rt} to {max_rt} (capped at {chrom_length})")
         data_dict = {key: value[min_rt:max_rt] for key, value in data_dict.items()}
 
     data_dict, _ = utils.remove_zero_variance_channels(data_dict)
@@ -194,6 +235,7 @@ if __name__ == "__main__":
 
     # Extract data matrix (samples × channels) and associated labels
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
+    raw_sample_labels = labels.copy()  # Save raw labels for annotation
 
     # Extract only Burgundy if region is "burgundy"
     if wine_kind == "pinot_noir" and region == "burgundy":
@@ -211,26 +253,160 @@ if __name__ == "__main__":
         classifier_type=classifier,
         wine_kind=wine_kind,
         year_labels=np.array(year_labels),
-        strategy=strategy
+        strategy=strategy,
+        sample_labels=raw_sample_labels
     )
 
-    # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
-    cls.train_and_evaluate_all_channels(
-        num_repeats=num_repeats,
-        random_seed=42,
-        test_size=0.2,
-        normalize=normalize,
-        scaler_type='standard',
-        use_pca=False,
-        vthresh=0.97,
-        region=region,
-        print_results=True,
-        n_jobs=20,
-        feature_type=feature_type,
-        classifier_type=classifier,
-        LOOPC=True , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
-        projection_source=False,
-        show_confusion_matrix=show_confusion_matrix
-    )
+    if cv_type == "LOOPC":
+        # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
+        mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_all_channels(
+            num_repeats=num_repeats,
+            random_seed=42,
+            test_size=0.2,
+            normalize=normalize_flag,
+            scaler_type='standard',
+            use_pca=False,
+            vthresh=0.97,
+            region=region,
+            print_results=True,
+            n_jobs=20,
+            feature_type=feature_type,
+            classifier_type=classifier,
+            LOOPC=True , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
+            projection_source=projection_source,
+            show_confusion_matrix=show_confusion_matrix
+        )
+    elif cv_type == "LOO":
+        mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_leave_one_out_all_samples(
+            normalize=normalize_flag,
+            scaler_type='standard',
+            region=region,
+            feature_type=feature_type,
+            classifier_type=classifier,
+            projection_source=projection_source,
+            show_confusion_matrix=show_confusion_matrix,
+        )
+
+    else:
+        raise ValueError(f"Invalid cross-validation type: '{cv_type}'. Expected 'LOO' or 'LOOPC'.")
+
+    logger.info(f"Mean Balanced Accuracy: {mean_acc:.3f} ± {std_acc:.3f}")
+
+
+    if plot_projection:
+        ordered_labels = [
+            "D", "E", "Q", "P", "R", "Z", "C", "W", "Y", "M", "N", "J", "L", "H", "U", "X"
+        ]
+        if region == "winery":
+            legend_labels = {
+                "D": "D = Clos Des Mouches Drouhin (FR)",
+                "E": "E = Vigne de l’Enfant Jésus Bouchard (FR)",
+                "Q": "Q = Nuit Saint Georges - Les Cailles Bouchard (FR)",
+                "P": "P = Bressandes Jadot (FR)",
+                "R": "R = Les Petits Monts Jadot (FR)",
+                "Z": "Z = Nuit Saint Georges - Les Boudots Drouhin (FR)",
+                "C": "C = Domaine Schlumberger (FR)",
+                "W": "W = Domaine Jean Sipp (FR)",
+                "Y": "Y = Domaine Weinbach (FR)",
+                "M": "M = Domaine Brunner (CH)",
+                "N": "N = Vin des Croisés (CH)",
+                "J": "J = Domaine Villard et Fils (CH)",
+                "L": "L = Domaine de la République (CH)",
+                "H": "H = Les Maladaires (CH)",
+                "U": "U = Marimar Estate (US)",
+                "X": "X = Domaine Drouhin (US)"
+        }
+        elif region == "origin":
+            legend_labels = {
+                "A": "Alsace",
+                "B": "Burgundy",
+                "N": "Neuchatel",
+                "G": "Geneva",
+                "V": "Valais",
+                "C": "California",
+                "O": "Oregon",
+            }
+        elif region == "country":
+            legend_labels = {
+                "F": "France",
+                "S": "Switzerland",
+                "U": "US"
+            }
+        elif region == "continent":
+            legend_labels = {
+                "E": "Europe",
+                "N": "America"
+            }
+        elif region == "burgundy":
+            legend_labels = {
+                "N": "Côte de Nuits (north)",
+                "S": "Côte de Beaune (south)"
+            }
+        else:
+            legend_labels = utils.get_custom_order_for_pinot_noir_region(region)
+
+        # Manage plot titles
+        if projection_source == "scores":
+            data_for_umap = normalize(scores)
+            projection_labels = all_labels
+        elif projection_source in {"tic", "tis", "tic_tis"}:
+            channels = list(range(data.shape[2]))  # use all channels
+            data_for_umap = utils.compute_features(data, feature_type=projection_source)
+            data_for_umap = normalize(data_for_umap)
+            projection_labels = labels  # use raw labels from data
+        else:
+            raise ValueError(f"Unknown projection source: {projection_source}")
+
+        # Generate title dynamically
+        pretty_source = {
+            "scores": "Classification Scores",
+            "tic": "TIC",
+            "tis": "TIS",
+            "tic_tis": "TIC + TIS"
+        }.get(projection_source, projection_source)
+
+        pretty_method = {
+            "UMAP": "UMAP",
+            "T-SNE": "t-SNE",
+            "PCA": "PCA"
+        }.get(projection_method, projection_method)
+
+        pretty_region = {
+            "winery": "Winery",
+            "origin": "Origin",
+            "country": "Country",
+            "continent": "Continent",
+            "burgundy": "N/S Burgundy"
+        }.get(region, region)
+
+        if region:
+            plot_title = f"{pretty_method} of {pretty_source} ({pretty_region})"
+        else:
+            plot_title = f"{pretty_method} of {pretty_source}"
+
+        # Disable showing sample names
+        if not show_sample_names:
+            test_samples_names = None
+
+        if data_for_umap is not None:
+            reducer = DimensionalityReducer(data_for_umap)
+            if projection_method == "UMAP":
+                plot_pinot_noir(
+                    reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
+                    plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names,
+                    unique_samples_only=True, n_neighbors=n_neighbors, random_state=random_state
+                )
+            elif projection_method == "PCA":
+                plot_pinot_noir(reducer.pca(components=projection_dim),plot_title, projection_labels, legend_labels,
+                                color_by_country, test_sample_names=test_samples_names)
+            elif projection_method == "T-SNE":
+                plot_pinot_noir(reducer.tsne(components=projection_dim, perplexity=5, random_state=random_state),
+                        plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names
+                        )
+            else:
+                raise ValueError(f"Unsupported projection method: {projection_method}")
+
+
+        plt.show()
 
 
