@@ -31,7 +31,7 @@ scripts = {
     "champagne_per_taster_model": "scripts/champagne/ridge_model_per_taster.py",
 
     "bordeaux_projection": "scripts/bordeaux/projection_bordeaux.py",
-    # "pinot_projection": "scripts/pinot_noir/projection_pinot_noir.py",
+    # "pinot_projection": "scripts/pinot_noir/old_projection_pinot_noir.py",
     "pinot_projection": "scripts/pinot_noir/train_test_pinot_noir.py",
     "press_projection": "scripts/press_wines/projection_press_wines.py",
 }

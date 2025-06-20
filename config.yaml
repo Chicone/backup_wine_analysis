@@ -1,6 +1,6 @@
 chrom_cap: 35000
-class_by_year: true
-classifier: LR
+class_by_year: false
+classifier: RGC
 color_by_country: false
 cv_type: LOOPC
 datasets:

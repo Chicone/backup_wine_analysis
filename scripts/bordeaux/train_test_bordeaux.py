@@ -120,6 +120,7 @@ if __name__ == "__main__":
     from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
     from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind, WineKindStrategy
     from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
+    from gcmswine.logger_setup import logger, logger_raw
 
     # # Use this function to convert the printed confusion matrix to a latex confusion matrix
     # # Copy the matrix into data_str using """ """ and create the list of headers, then call the function
@@ -153,7 +154,6 @@ if __name__ == "__main__":
     # Plot parameters
     plot_projection = config.get("plot_projection", False)
     projection_method = config.get("projection_method", "UMAP").upper()
-    # projection_source = config.get("projection_source", False)
     projection_source = config.get("projection_source", False) if plot_projection else False
     projection_dim = config.get("projection_dim", 2)
     n_neighbors = config.get("n_neighbors", 30)
@@ -170,7 +170,6 @@ if __name__ == "__main__":
     sync_state = config["sync_state"]
     class_by_year = config['class_by_year']
     region = config["region"]
-    # wine_kind = config["wine_kind"]
     show_confusion_matrix = config['show_confusion_matrix']
     retention_time_range = config['rt_range']
     cv_type = config['cv_type']
@@ -190,6 +189,29 @@ if __name__ == "__main__":
     # show_confusion_matrix = config['show_confusion_matrix']
     # retention_time_range = config['rt_range']
     # cv_type = config['cv_type']
+
+
+    summary = {
+        "Task": task,
+        "Wine kind": wine_kind,
+        "Datasets": ", ".join(selected_datasets),
+        "Feature type": config["feature_type"],
+        "Classifier": config["classifier"],
+        "Repeats": config["num_repeats"],
+        "Normalize": config["normalize"],
+        "Decimation": config["n_decimation"],
+        "Sync": config["sync_state"],
+        "Region": config["region"],
+        "CV type": config["cv_type"],
+        "RT range": config["rt_range"],
+        "Confusion matrix": config["show_confusion_matrix"]
+    }
+
+    logger_raw("\n")# Blank line with no timestamp
+    logger.info('------------------------ RUN SCRIPT -------------------------')
+    logger.info("Configuration Parameters")
+    for k, v in summary.items():
+        logger_raw(f"{k:>16s}: {v}")
 
 
     # Load dataset, removing zero-variance channels
@@ -229,12 +251,15 @@ if __name__ == "__main__":
         strategy=strategy,
         class_by_year=class_by_year,
         labels_raw=labels_raw,
-        sample_labels=labels_raw
+        sample_labels=labels_raw,
+        dataset_origins=dataset_origins,
     )
 
-    if cv_type == "LOOPC":
+    if cv_type == "LOOPC" or cv_type == "stratified":
+        loopc = False if cv_type == "stratified" else True
+
         # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
-        cls.train_and_evaluate_all_channels(
+        mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_all_channels(
             num_repeats=num_repeats,
             random_seed=42,
             test_size=0.2,
@@ -247,9 +272,9 @@ if __name__ == "__main__":
             n_jobs=20,
             feature_type=feature_type,
             classifier_type=classifier,
-            LOOPC=True, # whether to use stratified splitting (False) or Leave One Out Per Class (True),
+            LOOPC=loopc, # whether to use stratified splitting (False) or Leave One Out Per Class (True),
             projection_source=projection_source,
-            show_confusion_matrix=show_confusion_matrix
+            show_confusion_matrix=show_confusion_matrix,
         )
 
     elif cv_type == "LOO":
@@ -265,3 +290,4 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Invalid cross-validation type: '{cv_type}'. Expected 'LOO' or 'LOOPC'.")
 
+    logger.info(f"Mean Balanced Accuracy: {mean_acc:.3f} ± {std_acc:.3f}")

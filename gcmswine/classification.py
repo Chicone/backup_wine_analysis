@@ -1781,6 +1781,8 @@ class Classifier:
 
         feature_matrix = compute_features(list(range(num_channels)))
 
+        dataset_origins_list = [self.dataset_origins[name] for name in self.sample_labels]
+
         for repeat_idx in range(num_repeats):
             print(f"\nRepeat {repeat_idx + 1}/{num_repeats}")
             try:
@@ -1795,11 +1797,11 @@ class Classifier:
                     labels=labels,
                     classifier_type=classifier_type,
                     year_labels=year_labels,
-                    dataset_origins=self.dataset_origins if hasattr(self, 'dataset_origins') else None,
+                    dataset_origins=dataset_origins_list if hasattr(self, 'dataset_origins') else None,
                     strategy=strategy,
                     class_by_year=self.class_by_year,
                     labels_raw=self.labels_raw,
-                    sample_labels=self.sample_labels
+                    sample_labels=self.sample_labels,
                 )
 
                 results, scores, projection_labels, raw_test_labels = cls.train_and_evaluate_balanced(
@@ -1809,7 +1811,7 @@ class Classifier:
                     random_seed=random_seed + repeat_idx,
                     test_size=test_size,
                     LOOPC=LOOPC,
-                    projection_source=projection_source
+                    projection_source=projection_source,
                 )
                 if scores is not None:
                     all_scores.append(scores)
