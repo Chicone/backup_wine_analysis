@@ -42,6 +42,475 @@ from gcmswine.wine_analysis import ChromatogramAnalysis, GCMSDataProcessor
 from gcmswine.helpers import (
     load_config, get_model, load_chromatograms_decimated, load_and_clean_metadata, build_feature_target_arrays
 )
+from scipy.ndimage import gaussian_filter1d
+
+
+def plot_top_peaks_selected_attributes(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot,
+                                       maxima_rank=1):
+    window_size = 5
+    use_absolute = True
+    n_chromatogram_features = X_raw_shape[1]
+    unique_tasters = sorted(per_taster_weights.keys())
+    colors = cm.get_cmap('tab20', len(unique_tasters))
+
+    n_cols = 3
+    n_rows = int(np.ceil(len(attributes_to_plot) / n_cols))
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 5, n_rows * 4))
+    axes = axes.flatten()
+
+    for i, attribute_to_plot in enumerate(attributes_to_plot):
+        if attribute_to_plot not in sensory_cols:
+            print(f"Warning: Attribute '{attribute_to_plot}' not found, skipping...")
+            continue
+
+        ax = axes[i]
+        attr_idx = sensory_cols.index(attribute_to_plot)
+
+        for idx, taster in enumerate(unique_tasters):
+            weights = per_taster_weights[taster]
+            chromatogram_weights = weights[attr_idx, :n_chromatogram_features]
+
+            if use_absolute:
+                chromatogram_weights = np.abs(chromatogram_weights)
+
+            sorted_indices = np.argsort(chromatogram_weights)[-maxima_rank:][::-1]
+            if len(sorted_indices) < maxima_rank:
+                top_idx = sorted_indices[-1]
+            else:
+                top_idx = sorted_indices[maxima_rank - 1]
+
+            top_value = chromatogram_weights[top_idx]
+
+            # Scatter point
+            ax.scatter(top_idx, top_value, label=f"Taster {taster}", s=60, alpha=0.7, color=colors(idx))
+
+            # Label above the dot
+            ax.text(top_idx, top_value + 0.01 * np.max(chromatogram_weights), taster, fontsize=10, ha='center',
+                    va='bottom')
+
+        ax.set_title(f"{attribute_to_plot} (Top-{maxima_rank} peak)", fontsize=14)
+        ax.set_xlabel("Chromatogram position")
+        ax.set_ylabel("Abs Ridge weight")
+        ax.grid(True)
+
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.suptitle(f"Top-{maxima_rank} chromatogram peaks across tasters (selected attributes)", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.show(block=False)
+
+def plot_strongest_focus_per_attribute(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot,
+                                       maxima_rank=1):
+    n_chromatogram_features = X_raw_shape[1]
+    unique_tasters = sorted(per_taster_weights.keys())
+
+    n_cols = 3
+    n_rows = int(np.ceil(len(attributes_to_plot) / n_cols))
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 5, n_rows * 4))
+    axes = axes.flatten()
+
+    cmap = cm.get_cmap('tab20', len(unique_tasters))
+    taster_to_color_idx = {taster: idx for idx, taster in enumerate(unique_tasters)}
+
+    for i, attribute_to_plot in enumerate(attributes_to_plot):
+        if attribute_to_plot not in sensory_cols:
+            print(f"Warning: Attribute '{attribute_to_plot}' not found, skipping...")
+            continue
+
+        ax = axes[i]
+        attr_idx = sensory_cols.index(attribute_to_plot)
+
+        peak_positions = []
+        taster_labels = []
+
+        for taster in unique_tasters:
+            weights = per_taster_weights[taster]
+            chromatogram_weights = weights[attr_idx, :n_chromatogram_features]
+            chromatogram_weights = np.abs(chromatogram_weights)
+
+            sorted_peak_indices = np.argsort(chromatogram_weights)[-maxima_rank:][::-1]
+
+            if len(sorted_peak_indices) < maxima_rank:
+                peak_idx = sorted_peak_indices[-1]
+            else:
+                peak_idx = sorted_peak_indices[maxima_rank - 1]
+
+            peak_positions.append(peak_idx)
+            taster_labels.append(taster)
+
+        # Sort tasters by peak position
+        peak_positions = np.array(peak_positions)
+        taster_labels = np.array(taster_labels)
+        sort_idx = np.argsort(peak_positions)
+        peak_positions = peak_positions[sort_idx]
+        taster_labels = taster_labels[sort_idx]
+
+        # Plot points
+        for idx, (pos, taster) in enumerate(zip(peak_positions, taster_labels)):
+            color_idx = taster_to_color_idx[taster]
+            ax.scatter(pos, idx, color=cmap(color_idx), s=40)
+            ax.text(pos + 6, idx, taster, fontsize=10, va='center', ha='left')
+
+        ax.set_title(f"{attribute_to_plot} (Top-{maxima_rank} peak)", fontsize=10)
+        # ax.set_xlabel("Chromatogram position (proxy for retention time)")
+        ax.set_yticks([])
+        ax.set_ylim(-1, len(taster_labels))
+        ax.grid(True)
+
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.suptitle(f"Strongest chromatogram focus per attribute – Top-{maxima_rank} peak", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.show(block=False)
+
+def plot_vertical_focus_map_multiple_attributes(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot,
+                                                maxima_rank=1):
+    """
+    Plot vertical focus maps for multiple attributes (one subplot per attribute).
+
+    Args:
+        per_taster_weights: dict {taster: Ridge coefficients matrix (n_attributes x n_features)}
+        sensory_cols: list of attribute names
+        X_raw_shape: shape of the X_raw matrix
+        attributes_to_plot: list of attributes to plot
+        maxima_rank: number of top peaks to show (default = 1)
+    """
+    n_chromatogram_features = X_raw_shape[1]
+    unique_tasters = sorted(per_taster_weights.keys())
+
+    n_cols = 3
+    n_rows = int(np.ceil(len(attributes_to_plot) / n_cols))
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 6, n_rows * 5))
+    axes = axes.flatten()
+
+    colors = cm.get_cmap('tab20', len(unique_tasters))
+    taster_to_y = {taster: i for i, taster in enumerate(unique_tasters)}
+
+    for i, attribute_to_plot in enumerate(attributes_to_plot):
+        if attribute_to_plot not in sensory_cols:
+            print(f"Warning: Attribute '{attribute_to_plot}' not found, skipping...")
+            continue
+
+        attr_idx = sensory_cols.index(attribute_to_plot)
+
+        taster_positions = []
+        taster_labels = []
+        taster_peak_ranks = []
+
+        for taster in unique_tasters:
+            weights = per_taster_weights[taster]
+            chromatogram_weights = weights[attr_idx, :n_chromatogram_features]
+            chromatogram_weights = np.abs(chromatogram_weights)
+
+            # Find top maxima_rank peaks
+            sorted_peak_indices = np.argsort(chromatogram_weights)[-maxima_rank:][::-1]
+
+            for rank, peak_idx in enumerate(sorted_peak_indices):
+                taster_positions.append(peak_idx)
+                taster_labels.append(taster)
+                taster_peak_ranks.append(rank + 1)
+
+        ax = axes[i]
+
+        for taster, peak_pos, rank in zip(taster_labels, taster_positions, taster_peak_ranks):
+            y = taster_to_y[taster]
+            color_idx = unique_tasters.index(taster)
+            ax.scatter(peak_pos, y, s=80 / (rank ** 0.7), color=colors(color_idx), alpha=0.8, edgecolors='black')
+
+        ax.set_yticks(range(len(unique_tasters)))
+        ax.set_yticklabels(unique_tasters, fontsize=8)
+        ax.invert_yaxis()
+        ax.set_title(f"{attribute_to_plot}", fontsize=12)
+        ax.grid(True, axis='x')
+        ax.grid(False, axis='y')
+        ax.set_xlim(0, n_chromatogram_features)
+        if i % n_cols == 0:
+            ax.set_ylabel("Tasters")
+        else:
+            ax.set_yticklabels([])  # Hide Y-ticks for internal plots
+        ax.set_xlabel("Chromatogram position")
+
+    # Delete empty subplots if needed
+    for j in range(len(attributes_to_plot), len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.suptitle(f"Vertical focus maps (Top-{maxima_rank} peaks per taster)", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.show(block=False)
+
+
+def plot_focus_heatmap(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot, maxima_rank=3, n_bins=50,
+                       smoothing_sigma=1.5, rt_min=None, rt_max=None):
+    """
+       Plot smooth heatmaps showing where taster-specific models focus their attention
+       (via regression weights) along chromatogram retention times for selected sensory attributes.
+
+       Each taster contributes their top-N highest-weighted chromatogram positions per attribute.
+       These positions are histogrammed, smoothed, and visualized as a heatmap to highlight
+       regions of frequent model focus across tasters.
+
+       Parameters
+       ----------
+       per_taster_weights : dict
+           Dictionary mapping taster identifiers to arrays of shape (n_attributes, n_features),
+           representing the regression weights for each attribute and chromatographic feature.
+
+       sensory_cols : list of str
+           Names of sensory attributes, used to index weights and match requested attributes.
+
+       X_raw_shape : tuple of int
+           Shape of the original chromatogram input matrix, used to determine number of features.
+
+       attributes_to_plot : list of str
+           Subset of sensory attributes to visualize in the heatmap. Must be in `sensory_cols`.
+
+       maxima_rank : int, optional (default=3)
+           Number of top-weighted chromatogram positions (peaks) to consider per taster and attribute.
+           Each peak is weighted inversely by its rank (1/rank).
+
+       n_bins : int, optional (default=50)
+           Number of bins used to aggregate chromatogram positions across all tasters.
+
+       smoothing_sigma : float, optional (default=1.5)
+           Standard deviation of the Gaussian smoothing kernel applied to the histogram.
+           Set to 0 for no smoothing.
+
+       rt_min : int or float, optional
+           Minimum chromatogram index (or retention time) to include in the heatmap.
+           If None, defaults to 0.
+
+       rt_max : int or float, optional
+           Maximum chromatogram index (or retention time) to include in the heatmap.
+           If None, defaults to the number of chromatogram features.
+
+       Returns
+       -------
+       None
+           Displays a matplotlib figure with one heatmap per selected sensory attribute.
+       """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    n_chromatogram_features = X_raw_shape[1]
+    unique_tasters = sorted(per_taster_weights.keys())
+
+    # Determine chromatogram plotting limits
+    if rt_min is None:
+        rt_min = 0
+    if rt_max is None:
+        rt_max = n_chromatogram_features
+
+    # Prepare binning
+    bin_edges = np.linspace(0, n_chromatogram_features, n_bins + 1)
+    bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+    n_cols = 3
+    n_rows = int(np.ceil(len(attributes_to_plot) / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 6, n_rows * 5))
+
+    axes = axes.flatten()
+
+    # Prepare to store one last image for colorbar
+    im = None
+
+    for i, attribute_to_plot in enumerate(attributes_to_plot):
+        if attribute_to_plot not in sensory_cols:
+            print(f"Warning: Attribute '{attribute_to_plot}' not found, skipping...")
+            continue
+
+        attr_idx = sensory_cols.index(attribute_to_plot)
+        heatmap_bins = np.zeros(n_bins)
+
+        for taster in unique_tasters:
+            weights = per_taster_weights[taster]
+            chromatogram_weights = weights[attr_idx, :n_chromatogram_features]
+            chromatogram_weights = np.abs(chromatogram_weights)
+
+            sorted_peak_indices = np.argsort(chromatogram_weights)[-maxima_rank:][::-1]
+
+            for rank, peak_idx in enumerate(sorted_peak_indices):
+                contribution = 1.0 / (rank + 1)
+                bin_idx = np.searchsorted(bin_edges, peak_idx, side='right') - 1
+                if 0 <= bin_idx < n_bins:
+                    heatmap_bins[bin_idx] += contribution
+
+        # Smoothing
+        if smoothing_sigma > 0:
+            heatmap_bins_smoothed = gaussian_filter1d(heatmap_bins, sigma=smoothing_sigma)
+        else:
+            heatmap_bins_smoothed = heatmap_bins.copy()  # no smoothing
+
+        # Select bins within the desired retention time range
+        valid_bins = (bin_centers >= rt_min) & (bin_centers <= rt_max)
+        heatmap_bins_to_plot = heatmap_bins_smoothed[valid_bins]
+        bin_centers_to_plot = bin_centers[valid_bins]
+
+        # Plot
+        ax = axes[i]
+        extent = [rt_min, rt_max, 0, 1]
+        heatmap = heatmap_bins_to_plot[np.newaxis, :]
+        im = ax.imshow(heatmap, cmap='viridis', aspect='auto', extent=extent, origin='lower')
+        ax.set_title(f"{attribute_to_plot}", fontsize=12)
+        # ax.set_xlabel("Chromatogram position")
+        ax.set_yticks([])
+
+        # Remove unused axes
+    for j in range(len(attributes_to_plot), len(axes)):
+        fig.delaxes(axes[j])
+
+    # --- Correct space for colorbar ---
+    fig.subplots_adjust(right=0.85)  # Make room on the right side
+    cbar_ax = fig.add_axes([0.88, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
+    fig.colorbar(im, cax=cbar_ax)
+
+    plt.suptitle(f"Focus density heatmaps (Top-{maxima_rank} peaks per taster) – Smoothed", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 0.85, 0.96], h_pad=5.0)  # Don't overlap the colorbar
+    plt.show(block=False)
+
+def plot_focus_heatmap_per_taster_multiple_attributes(
+        per_taster_weights,
+        sensory_cols,
+        X_raw_shape,
+        attributes_to_plot,
+        maxima_rank=3,
+        n_bins=50,
+        smoothing_sigma=1.5,
+        cmap='viridis',
+        rt_min=None,
+        rt_max=None
+):
+    """
+    Plot per-taster heatmaps showing where regression models focus their attention
+    (via highest-magnitude weights) across chromatogram retention times, for multiple
+    sensory attributes.
+
+    Each heatmap visualizes focus density across tasters for one attribute, based on each
+    taster’s top-N chromatogram positions with the highest absolute regression weights.
+    These positions are histogrammed across bins, smoothed, and stacked vertically by taster.
+
+    Parameters
+    ----------
+    per_taster_weights : dict
+        Dictionary mapping taster IDs to arrays of shape (n_attributes, n_features), representing
+        the regression coefficients for each attribute and feature.
+
+    sensory_cols : list of str
+        List of all sensory attribute names (column order must match weight matrix rows).
+
+    X_raw_shape : tuple of int
+        Shape of the original chromatogram feature matrix, used to determine number of chromatographic features.
+
+    attributes_to_plot : list of str
+        Subset of sensory attributes to visualize. Each will be rendered in a separate subplot.
+
+    maxima_rank : int, optional (default=3)
+        Number of top-weighted chromatogram positions (peaks) to consider per taster and attribute.
+        Each rank receives a decreasing contribution weight (1/rank).
+
+    n_bins : int, optional (default=50)
+        Number of bins used to discretize the chromatogram axis for aggregation.
+
+    smoothing_sigma : float, optional (default=1.5)
+        Standard deviation of the Gaussian filter applied to smooth each taster’s histogram.
+
+    cmap : str, optional (default='viridis')
+        Matplotlib colormap to use for the heatmaps.
+
+    rt_min : int or float, optional
+        Minimum chromatogram position (e.g. retention time index) to include in the plots.
+        If None, uses 0.
+
+    rt_max : int or float, optional
+        Maximum chromatogram position to include. If None, uses full chromatogram length.
+
+    Returns
+    -------
+    None
+        Displays a matplotlib figure with one heatmap per sensory attribute. Each heatmap
+        shows focus locations for all tasters along the chromatogram axis.
+    """
+    n_chromatogram_features = X_raw_shape[1]
+    unique_tasters = sorted(per_taster_weights.keys())
+    n_tasters = len(unique_tasters)
+
+    if rt_min is None:
+        rt_min = 0
+    if rt_max is None:
+        rt_max = n_chromatogram_features
+
+    bin_edges = np.linspace(0, n_chromatogram_features, n_bins + 1)
+    bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+    # Subplot layout
+    n_cols = 3
+    n_rows = int(np.ceil(len(attributes_to_plot) / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 6, n_rows * 5))
+    axes = axes.flatten()
+
+    im = None  # store the last imshow for colorbar
+
+    for i, attribute_to_plot in enumerate(attributes_to_plot):
+        if attribute_to_plot not in sensory_cols:
+            print(f"Warning: Attribute '{attribute_to_plot}' not found, skipping...")
+            continue
+
+        heatmap_array = np.zeros((n_tasters, n_bins))
+        attr_idx = sensory_cols.index(attribute_to_plot)
+
+        for t, taster in enumerate(unique_tasters):
+            weights = per_taster_weights[taster]
+            chromatogram_weights = weights[attr_idx, :n_chromatogram_features]
+            chromatogram_weights = np.abs(chromatogram_weights)
+
+            sorted_peak_indices = np.argsort(chromatogram_weights)[-maxima_rank:][::-1]
+
+            for rank, peak_idx in enumerate(sorted_peak_indices):
+                contribution = 1.0 / (rank + 1)
+                bin_idx = np.searchsorted(bin_edges, peak_idx, side='right') - 1
+                if 0 <= bin_idx < n_bins:
+                    heatmap_array[t, bin_idx] += contribution
+
+        # Smooth if needed
+        if smoothing_sigma > 0:
+            for t in range(n_tasters):
+                heatmap_array[t, :] = gaussian_filter1d(heatmap_array[t, :], sigma=smoothing_sigma)
+
+        # Select bins within retention time range
+        valid_bins = (bin_centers >= rt_min) & (bin_centers <= rt_max)
+        heatmap_array = heatmap_array[:, valid_bins]
+        bin_centers_to_plot = bin_centers[valid_bins]
+
+        # Plot into correct subplot
+        ax = axes[i]
+        extent = [rt_min, rt_max, -0.5, n_tasters - 0.5]
+        im = ax.imshow(heatmap_array, cmap=cmap, aspect='auto', extent=extent, origin='lower')
+
+        ax.set_yticks(np.arange(n_tasters))
+        ax.set_yticklabels(unique_tasters, fontsize=7)
+        ax.invert_yaxis()
+        ax.set_title(f"{attribute_to_plot}", fontsize=10)
+        # ax.set_xlabel("Chromatogram position")
+
+    # Remove unused axes
+    for j in range(len(attributes_to_plot), len(axes)):
+        fig.delaxes(axes[j])
+
+    # Adjust layout and colorbar
+    fig.subplots_adjust(right=0.85)
+    cbar_ax = fig.add_axes([0.88, 0.15, 0.02, 0.7])
+    fig.colorbar(im, cax=cbar_ax)
+
+    plt.suptitle(f"Taster focus heatmaps per attribute (Top-{maxima_rank} peaks)", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 0.85, 0.96], h_pad=5.0)
+
+    print(f"Heatmaps plotted: Top-{maxima_rank} peaks per taster used for each attribute.")
+
+    plt.show(block=False)
 
 if __name__ == "__main__":
     # Load configuration parameters from YAML
@@ -199,59 +668,7 @@ if __name__ == "__main__":
     # attributes_to_plot  = ['fruity', 'citrus', 'maturated fruits', 'candied citrus', 'toasted',  'nuts', 'spicy', 'petroleum', 'undergroth']
     # attributes_to_plot  = ['undergroth', 'babery', 'honey', 'diary', 'herbal', 'tobaco', 'texture', 'acid', 'ageing']
 
-    def plot_top_peaks_selected_attributes(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot, maxima_rank=1):
-        window_size = 5
-        use_absolute = True
-        n_chromatogram_features = X_raw_shape[1]
-        unique_tasters = sorted(per_taster_weights.keys())
-        colors = cm.get_cmap('tab20', len(unique_tasters))
 
-        n_cols = 3
-        n_rows = int(np.ceil(len(attributes_to_plot) / n_cols))
-
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 5, n_rows * 4))
-        axes = axes.flatten()
-
-        for i, attribute_to_plot in enumerate(attributes_to_plot):
-            if attribute_to_plot not in sensory_cols:
-                print(f"Warning: Attribute '{attribute_to_plot}' not found, skipping...")
-                continue
-
-            ax = axes[i]
-            attr_idx = sensory_cols.index(attribute_to_plot)
-
-            for idx, taster in enumerate(unique_tasters):
-                weights = per_taster_weights[taster]
-                chromatogram_weights = weights[attr_idx, :n_chromatogram_features]
-
-                if use_absolute:
-                    chromatogram_weights = np.abs(chromatogram_weights)
-
-                sorted_indices = np.argsort(chromatogram_weights)[-maxima_rank:][::-1]
-                if len(sorted_indices) < maxima_rank:
-                    top_idx = sorted_indices[-1]
-                else:
-                    top_idx = sorted_indices[maxima_rank-1]
-
-                top_value = chromatogram_weights[top_idx]
-
-                # Scatter point
-                ax.scatter(top_idx, top_value, label=f"Taster {taster}", s=60, alpha=0.7, color=colors(idx))
-
-                # Label above the dot
-                ax.text(top_idx, top_value + 0.01 * np.max(chromatogram_weights), taster, fontsize=10, ha='center', va='bottom')
-
-            ax.set_title(f"{attribute_to_plot} (Top-{maxima_rank} peak)", fontsize=14)
-            ax.set_xlabel("Chromatogram position")
-            ax.set_ylabel("Abs Ridge weight")
-            ax.grid(True)
-
-        for j in range(i + 1, len(axes)):
-            fig.delaxes(axes[j])
-
-        plt.suptitle(f"Top-{maxima_rank} chromatogram peaks across tasters (selected attributes)", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.show(block=False)
     # plot_top_peaks_selected_attributes(
     #     per_taster_weights=per_taster_weights,
     #     sensory_cols=sensory_cols,
@@ -260,70 +677,7 @@ if __name__ == "__main__":
     #     maxima_rank=1
     # )
 
-    def plot_strongest_focus_per_attribute(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot, maxima_rank=1):
-        n_chromatogram_features = X_raw_shape[1]
-        unique_tasters = sorted(per_taster_weights.keys())
 
-        n_cols = 3
-        n_rows = int(np.ceil(len(attributes_to_plot) / n_cols))
-
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 5, n_rows * 4))
-        axes = axes.flatten()
-
-        cmap = cm.get_cmap('tab20', len(unique_tasters))
-        taster_to_color_idx = {taster: idx for idx, taster in enumerate(unique_tasters)}
-
-        for i, attribute_to_plot in enumerate(attributes_to_plot):
-            if attribute_to_plot not in sensory_cols:
-                print(f"Warning: Attribute '{attribute_to_plot}' not found, skipping...")
-                continue
-
-            ax = axes[i]
-            attr_idx = sensory_cols.index(attribute_to_plot)
-
-            peak_positions = []
-            taster_labels = []
-
-            for taster in unique_tasters:
-                weights = per_taster_weights[taster]
-                chromatogram_weights = weights[attr_idx, :n_chromatogram_features]
-                chromatogram_weights = np.abs(chromatogram_weights)
-
-                sorted_peak_indices = np.argsort(chromatogram_weights)[-maxima_rank:][::-1]
-
-                if len(sorted_peak_indices) < maxima_rank:
-                    peak_idx = sorted_peak_indices[-1]
-                else:
-                    peak_idx = sorted_peak_indices[maxima_rank-1]
-
-                peak_positions.append(peak_idx)
-                taster_labels.append(taster)
-
-            # Sort tasters by peak position
-            peak_positions = np.array(peak_positions)
-            taster_labels = np.array(taster_labels)
-            sort_idx = np.argsort(peak_positions)
-            peak_positions = peak_positions[sort_idx]
-            taster_labels = taster_labels[sort_idx]
-
-            # Plot points
-            for idx, (pos, taster) in enumerate(zip(peak_positions, taster_labels)):
-                color_idx = taster_to_color_idx[taster]
-                ax.scatter(pos, idx, color=cmap(color_idx), s=40)
-                ax.text(pos + 6, idx, taster, fontsize=10, va='center', ha='left')
-
-            ax.set_title(f"{attribute_to_plot} (Top-{maxima_rank} peak)", fontsize=10)
-            # ax.set_xlabel("Chromatogram position (proxy for retention time)")
-            ax.set_yticks([])
-            ax.set_ylim(-1, len(taster_labels))
-            ax.grid(True)
-
-        for j in range(i + 1, len(axes)):
-            fig.delaxes(axes[j])
-
-        plt.suptitle(f"Strongest chromatogram focus per attribute – Top-{maxima_rank} peak", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.show(block=False)
     # plot_strongest_focus_per_attribute(
     #     per_taster_weights=per_taster_weights,
     #     sensory_cols=sensory_cols,
@@ -333,81 +687,6 @@ if __name__ == "__main__":
     # )
 
 
-    def plot_vertical_focus_map_multiple_attributes(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot,
-                                                    maxima_rank=1):
-        """
-        Plot vertical focus maps for multiple attributes (one subplot per attribute).
-
-        Args:
-            per_taster_weights: dict {taster: Ridge coefficients matrix (n_attributes x n_features)}
-            sensory_cols: list of attribute names
-            X_raw_shape: shape of the X_raw matrix
-            attributes_to_plot: list of attributes to plot
-            maxima_rank: number of top peaks to show (default = 1)
-        """
-        n_chromatogram_features = X_raw_shape[1]
-        unique_tasters = sorted(per_taster_weights.keys())
-
-        n_cols = 3
-        n_rows = int(np.ceil(len(attributes_to_plot) / n_cols))
-
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 6, n_rows * 5))
-        axes = axes.flatten()
-
-        colors = cm.get_cmap('tab20', len(unique_tasters))
-        taster_to_y = {taster: i for i, taster in enumerate(unique_tasters)}
-
-        for i, attribute_to_plot in enumerate(attributes_to_plot):
-            if attribute_to_plot not in sensory_cols:
-                print(f"Warning: Attribute '{attribute_to_plot}' not found, skipping...")
-                continue
-
-            attr_idx = sensory_cols.index(attribute_to_plot)
-
-            taster_positions = []
-            taster_labels = []
-            taster_peak_ranks = []
-
-            for taster in unique_tasters:
-                weights = per_taster_weights[taster]
-                chromatogram_weights = weights[attr_idx, :n_chromatogram_features]
-                chromatogram_weights = np.abs(chromatogram_weights)
-
-                # Find top maxima_rank peaks
-                sorted_peak_indices = np.argsort(chromatogram_weights)[-maxima_rank:][::-1]
-
-                for rank, peak_idx in enumerate(sorted_peak_indices):
-                    taster_positions.append(peak_idx)
-                    taster_labels.append(taster)
-                    taster_peak_ranks.append(rank + 1)
-
-            ax = axes[i]
-
-            for taster, peak_pos, rank in zip(taster_labels, taster_positions, taster_peak_ranks):
-                y = taster_to_y[taster]
-                color_idx = unique_tasters.index(taster)
-                ax.scatter(peak_pos, y, s=80 / (rank ** 0.7), color=colors(color_idx), alpha=0.8, edgecolors='black')
-
-            ax.set_yticks(range(len(unique_tasters)))
-            ax.set_yticklabels(unique_tasters, fontsize=8)
-            ax.invert_yaxis()
-            ax.set_title(f"{attribute_to_plot}", fontsize=12)
-            ax.grid(True, axis='x')
-            ax.grid(False, axis='y')
-            ax.set_xlim(0, n_chromatogram_features)
-            if i % n_cols == 0:
-                ax.set_ylabel("Tasters")
-            else:
-                ax.set_yticklabels([])  # Hide Y-ticks for internal plots
-            ax.set_xlabel("Chromatogram position")
-
-        # Delete empty subplots if needed
-        for j in range(len(attributes_to_plot), len(axes)):
-            fig.delaxes(axes[j])
-
-        plt.suptitle(f"Vertical focus maps (Top-{maxima_rank} peaks per taster)", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.show(block=False)
 
     # plot_vertical_focus_map_multiple_attributes(
     #     per_taster_weights=per_taster_weights,
@@ -417,94 +696,7 @@ if __name__ == "__main__":
     #     maxima_rank=5  # Top-3 peaks
     # )
 
-    from scipy.ndimage import gaussian_filter1d
 
-
-    def plot_focus_heatmap(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot, maxima_rank=3, n_bins=50,
-                           smoothing_sigma=1.5, rt_min=None, rt_max=None):
-        """
-        Plot smooth heatmaps of focus density across chromatogram positions for multiple attributes.
-        """
-        import numpy as np
-        import matplotlib.pyplot as plt
-
-        n_chromatogram_features = X_raw_shape[1]
-        unique_tasters = sorted(per_taster_weights.keys())
-
-        # Determine chromatogram plotting limits
-        if rt_min is None:
-            rt_min = 0
-        if rt_max is None:
-            rt_max = n_chromatogram_features
-
-        # Prepare binning
-        bin_edges = np.linspace(0, n_chromatogram_features, n_bins + 1)
-        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-
-
-        n_cols = 3
-        n_rows = int(np.ceil(len(attributes_to_plot) / n_cols))
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 6, n_rows * 5))
-
-        axes = axes.flatten()
-
-
-        # Prepare to store one last image for colorbar
-        im = None
-
-        for i, attribute_to_plot in enumerate(attributes_to_plot):
-            if attribute_to_plot not in sensory_cols:
-                print(f"Warning: Attribute '{attribute_to_plot}' not found, skipping...")
-                continue
-
-            attr_idx = sensory_cols.index(attribute_to_plot)
-            heatmap_bins = np.zeros(n_bins)
-
-            for taster in unique_tasters:
-                weights = per_taster_weights[taster]
-                chromatogram_weights = weights[attr_idx, :n_chromatogram_features]
-                chromatogram_weights = np.abs(chromatogram_weights)
-
-                sorted_peak_indices = np.argsort(chromatogram_weights)[-maxima_rank:][::-1]
-
-                for rank, peak_idx in enumerate(sorted_peak_indices):
-                    contribution = 1.0 / (rank + 1)
-                    bin_idx = np.searchsorted(bin_edges, peak_idx, side='right') - 1
-                    if 0 <= bin_idx < n_bins:
-                        heatmap_bins[bin_idx] += contribution
-
-            # Smoothing
-            if smoothing_sigma > 0:
-                heatmap_bins_smoothed = gaussian_filter1d(heatmap_bins, sigma=smoothing_sigma)
-            else:
-                heatmap_bins_smoothed = heatmap_bins.copy()  # no smoothing
-
-            # Select bins within the desired retention time range
-            valid_bins = (bin_centers >= rt_min) & (bin_centers <= rt_max)
-            heatmap_bins_to_plot = heatmap_bins_smoothed[valid_bins]
-            bin_centers_to_plot = bin_centers[valid_bins]
-
-            # Plot
-            ax = axes[i]
-            extent = [rt_min, rt_max, 0, 1]
-            heatmap = heatmap_bins_to_plot[np.newaxis, :]
-            im = ax.imshow(heatmap, cmap='viridis', aspect='auto', extent=extent, origin='lower')
-            ax.set_title(f"{attribute_to_plot}", fontsize=12)
-            # ax.set_xlabel("Chromatogram position")
-            ax.set_yticks([])
-
-            # Remove unused axes
-        for j in range(len(attributes_to_plot), len(axes)):
-            fig.delaxes(axes[j])
-
-        # --- Correct space for colorbar ---
-        fig.subplots_adjust(right=0.85)  # Make room on the right side
-        cbar_ax = fig.add_axes([0.88, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
-        fig.colorbar(im, cax=cbar_ax)
-
-        plt.suptitle(f"Focus density heatmaps (Top-{maxima_rank} peaks per taster) – Smoothed", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 0.85, 0.96], h_pad=5.0)  # Don't overlap the colorbar
-        plt.show(block=False)
     plot_focus_heatmap(
         per_taster_weights=per_taster_weights,
         sensory_cols=sensory_cols,
@@ -517,111 +709,6 @@ if __name__ == "__main__":
     )
 
 
-    def plot_focus_heatmap_per_taster_multiple_attributes(
-            per_taster_weights,
-            sensory_cols,
-            X_raw_shape,
-            attributes_to_plot,
-            maxima_rank=3,
-            n_bins=50,
-            smoothing_sigma=1.5,
-            cmap='viridis',
-            rt_min=None,
-            rt_max=None
-    ):
-        """
-        Plot heatmaps per taster for multiple attributes.
-        Each subplot = one attribute.
-
-        Args:
-            per_taster_weights: dict {taster: Ridge coefficients matrix}
-            sensory_cols: list of attribute names
-            X_raw_shape: shape of X_raw (n_samples, n_features)
-            attributes_to_plot: list of attributes to plot
-            maxima_rank: number of top peaks per taster
-            n_bins: number of bins across chromatogram
-            smoothing_sigma: Gaussian smoothing parameter
-            cmap: colormap
-            rt_min: minimum retention time (position)
-            rt_max: maximum retention time (position)
-        """
-        n_chromatogram_features = X_raw_shape[1]
-        unique_tasters = sorted(per_taster_weights.keys())
-        n_tasters = len(unique_tasters)
-
-        if rt_min is None:
-            rt_min = 0
-        if rt_max is None:
-            rt_max = n_chromatogram_features
-
-        bin_edges = np.linspace(0, n_chromatogram_features, n_bins + 1)
-        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-
-        # Subplot layout
-        n_cols = 3
-        n_rows = int(np.ceil(len(attributes_to_plot) / n_cols))
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 6, n_rows * 5))
-        axes = axes.flatten()
-
-        im = None  # store the last imshow for colorbar
-
-        for i, attribute_to_plot in enumerate(attributes_to_plot):
-            if attribute_to_plot not in sensory_cols:
-                print(f"Warning: Attribute '{attribute_to_plot}' not found, skipping...")
-                continue
-
-            heatmap_array = np.zeros((n_tasters, n_bins))
-            attr_idx = sensory_cols.index(attribute_to_plot)
-
-            for t, taster in enumerate(unique_tasters):
-                weights = per_taster_weights[taster]
-                chromatogram_weights = weights[attr_idx, :n_chromatogram_features]
-                chromatogram_weights = np.abs(chromatogram_weights)
-
-                sorted_peak_indices = np.argsort(chromatogram_weights)[-maxima_rank:][::-1]
-
-                for rank, peak_idx in enumerate(sorted_peak_indices):
-                    contribution = 1.0 / (rank + 1)
-                    bin_idx = np.searchsorted(bin_edges, peak_idx, side='right') - 1
-                    if 0 <= bin_idx < n_bins:
-                        heatmap_array[t, bin_idx] += contribution
-
-            # Smooth if needed
-            if smoothing_sigma > 0:
-                for t in range(n_tasters):
-                    heatmap_array[t, :] = gaussian_filter1d(heatmap_array[t, :], sigma=smoothing_sigma)
-
-            # Select bins within retention time range
-            valid_bins = (bin_centers >= rt_min) & (bin_centers <= rt_max)
-            heatmap_array = heatmap_array[:, valid_bins]
-            bin_centers_to_plot = bin_centers[valid_bins]
-
-            # Plot into correct subplot
-            ax = axes[i]
-            extent = [rt_min, rt_max, -0.5, n_tasters - 0.5]
-            im = ax.imshow(heatmap_array, cmap=cmap, aspect='auto', extent=extent, origin='lower')
-
-            ax.set_yticks(np.arange(n_tasters))
-            ax.set_yticklabels(unique_tasters, fontsize=7)
-            ax.invert_yaxis()
-            ax.set_title(f"{attribute_to_plot}", fontsize=10)
-            # ax.set_xlabel("Chromatogram position")
-
-        # Remove unused axes
-        for j in range(len(attributes_to_plot), len(axes)):
-            fig.delaxes(axes[j])
-
-        # Adjust layout and colorbar
-        fig.subplots_adjust(right=0.85)
-        cbar_ax = fig.add_axes([0.88, 0.15, 0.02, 0.7])
-        fig.colorbar(im, cax=cbar_ax)
-
-        plt.suptitle(f"Taster focus heatmaps per attribute (Top-{maxima_rank} peaks)", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 0.85, 0.96], h_pad=5.0)
-
-        print(f"Heatmaps plotted: Top-{maxima_rank} peaks per taster used for each attribute.")
-
-        plt.show(block=False)
     plot_focus_heatmap_per_taster_multiple_attributes(
         per_taster_weights=per_taster_weights,
         sensory_cols=sensory_cols,
@@ -636,72 +723,3 @@ if __name__ == "__main__":
     )
 
     plt.show()
-
-    # print("\nTraining one Ridge model per taster...")
-    #
-    # # --- Settings ---
-    # attribute_to_plot = 'toasted'   # << Attribute you want to analyze
-    # window_size = 5                 # << Smoothing window size
-    # top_k = 5                       # << Number of important peaks to highlight
-    # min_samples_per_taster = 5       # << Minimum samples per taster to be considered
-    #
-    # # Find attribute index
-    # if attribute_to_plot not in sensory_cols:
-    #     print(f"Attribute {attribute_to_plot} not found!")
-    # else:
-    #     attr_idx = sensory_cols.index(attribute_to_plot)
-    #
-    #     # Group data by taster
-    #     taster_data = defaultdict(list)
-    #     for i, taster in enumerate(taster_ids):
-    #         taster_data[taster].append(i)
-    #
-    #     # Prepare plot
-    #     unique_tasters = sorted(taster_data.keys())
-    #     colors = cm.get_cmap('tab20', len(unique_tasters))
-    #
-    #     plt.figure(figsize=(14, 7))
-    #
-    #     for idx, taster in enumerate(unique_tasters):
-    #         sample_indices = taster_data[taster]
-    #
-    #         if len(sample_indices) < min_samples_per_taster:
-    #             continue  # Skip tasters with too few samples
-    #
-    #         # Prepare data for this taster
-    #         X_taster = X_input[sample_indices]
-    #         y_taster = y[sample_indices]
-    #
-    #         # Train/test split (not really needed, just train on all their samples)
-    #         X_train = X_taster
-    #         y_train = y_taster
-    #
-    #         # Scale
-    #         scaler = StandardScaler()
-    #         X_train_scaled = scaler.fit_transform(X_train)
-    #
-    #         # Train Ridge
-    #         model = Ridge()
-    #         model.fit(X_train_scaled, y_train)
-    #
-    #         # Extract chromatogram weights
-    #         n_chromatogram_features = X_raw.shape[1]
-    #         chromatogram_weights_taster = model.coef_[attr_idx, :n_chromatogram_features]
-    #
-    #         # Take absolute value if desired
-    #         chromatogram_weights_taster = np.abs(chromatogram_weights_taster)
-    #
-    #         # Optional: smoothing
-    #         smoothed_weights = np.convolve(chromatogram_weights_taster, np.ones(window_size)/window_size, mode='same')
-    #
-    #         # Plot
-    #         plt.plot(smoothed_weights, label=f"Taster {taster}", color=colors(idx), linewidth=2, alpha=0.8)
-    #
-    #     # Highlight strongest peaks based on one random taster (optional)
-    #     plt.title(f"ABSOLUTE Chromatogram feature importance for '{attribute_to_plot}' across tasters")
-    #     # plt.xlabel("Chromatogram position (proxy for retention time)")
-    #     plt.ylabel("Absolute Ridge Weight")
-    #     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
-    #     plt.grid(True)
-    #     plt.tight_layout()
-    #     plt.show()

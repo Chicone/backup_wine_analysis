@@ -1,6 +1,6 @@
 chrom_cap: 35000
-class_by_year: false
-classifier: RGC
+class_by_year: true
+classifier: LR
 color_by_country: false
 cv_type: LOOPC
 datasets:
@@ -14,23 +14,23 @@ datasets:
   pinot_noir_changins: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom_CDF/
   pinot_noir_isvv_dllme: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/
   pinot_noir_isvv_lle: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/
-feature_type: tic
+feature_type: tic_tis
 group_wines: false
 label_target: prod area
 label_targets:
 - taster
 n_decimation: 10
-n_neighbors: 10
+n_neighbors: 30
 normalize: true
-num_repeats: 10
+num_repeats: 200
 num_splits: 1
-plot_projection: scores
+plot_projection: false
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
 projection_source: scores
 random_state: 42
-region: origin
+region: ''
 regressor: null
 retention_time_range:
   max: 30000
@@ -39,18 +39,18 @@ rt_range:
   max: 30000
   min: 0
 selected_datasets:
-- pinot_noir_changins
+- bordeaux_oak
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
 show_confusion_matrix: false
 show_pred_plot: false
 show_predicted_profiles: false
-show_sample_names: true
+show_sample_names: false
 shuffle_labels: false
 sync_state: false
 taster_scaling: false
-taster_vs_mean: true
+taster_vs_mean: false
 test_average_scores: false
 umap_dim: 2
 umap_source: tic_tis

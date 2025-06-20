@@ -1,201 +1,716 @@
-[12:40:32] Configuration Parameters
+
+
+[09:26:15] ------------------------ RUN SCRIPT -------------------------
+[09:26:15] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+  Show taster profiles: False
+[09:26:27] 
+Per-attribute average errors over multiple splits:
+          fruity: MAE = 13.07, RMSE = 16.29 (16.3% of scale)
+          citrus: MAE = 13.55, RMSE = 16.89 (16.9% of scale)
+maturated fruits: MAE = 14.28, RMSE = 17.95 (17.9% of scale)
+  candied citrus: MAE = 12.59, RMSE = 15.69 (15.7% of scale)
+         toasted: MAE = 13.78, RMSE = 17.53 (17.5% of scale)
+            nuts: MAE = 12.79, RMSE = 15.81 (15.8% of scale)
+           spicy: MAE = 12.73, RMSE = 16.15 (16.2% of scale)
+       petroleum: MAE = 13.15, RMSE = 17.24 (17.2% of scale)
+      undergroth: MAE = 11.69, RMSE = 15.35 (15.3% of scale)
+          babery: MAE = 11.96, RMSE = 15.48 (15.5% of scale)
+           honey: MAE = 12.67, RMSE = 15.91 (15.9% of scale)
+           diary: MAE = 10.98, RMSE = 14.18 (14.2% of scale)
+          herbal: MAE = 11.49, RMSE = 15.46 (15.5% of scale)
+          tobaco: MAE = 12.24, RMSE = 16.05 (16.1% of scale)
+         texture: MAE = 13.04, RMSE = 16.56 (16.6% of scale)
+            acid: MAE = 11.73, RMSE = 15.00 (15.0% of scale)
+          ageing: MAE = 15.76, RMSE = 19.89 (19.9% of scale)
+Overall RMSE across repeats: 16.3686
+[09:26:27] 
+Per-taster average MAE (across all attributes):
+Taster D1: MAE = 10.94
+Taster D2: MAE = 13.02
+Taster D3: MAE = 11.90
+Taster D4: MAE = 15.64
+Taster D5: MAE = 13.47
+Taster D6: MAE = 11.95
+Taster D7: MAE = 11.42
+Taster D8: MAE = 13.60
+Taster D9: MAE = 11.36
+Taster D10: MAE = 14.63
+[09:26:27] 
+Per-taster average R² (across all attributes):
+Taster D1: R² = 0.15
+Taster D2: R² = 0.54
+Taster D3: R² = 0.57
+Taster D4: R² = 0.43
+Taster D5: R² = 0.32
+Taster D6: R² = 0.58
+Taster D7: R² = 0.27
+Taster D8: R² = 0.32
+Taster D9: R² = 0.43
+Taster D10: R² = 0.41
+Overall average R² across all tasters: 0.403
+
+
+[09:27:48] ------------------------ RUN SCRIPT -------------------------
+[09:27:48] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+  Show taster profiles: False
+[09:27:49] Average Scores selected
+[09:27:50] 
+Per-attribute R² for averaged model (robust across all splits):
+fruity                 R² =   0.32
+citrus                 R² =   0.09
+maturated fruits       R² =  -0.00
+candied citrus         R² =   0.51
+toasted                R² =   0.59
+nuts                   R² =   0.55
+spicy                  R² =   0.70
+petroleum              R² =   0.19
+undergroth             R² =   0.52
+babery                 R² =  -0.30
+honey                  R² =   0.57
+diary                  R² =   0.06
+herbal                 R² =   0.26
+tobaco                 R² =   0.46
+texture                R² =   0.18
+acid                   R² =  -0.46
+ageing                 R² =  -0.04
+Overall average R² across attributes: 0.248
+
+
+
+[10:19:14] ------------------------ RUN SCRIPT -------------------------
+[10:19:14] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+[10:19:14] Taster vs Mean selected
+[10:19:15] 
+=== Comparison of self vs group models ===
+taster  mean_r2_self  mean_r2_group
+    D1        -0.839         -0.836
+   D10        -1.118         -0.736
+    D2        -0.688         -0.821
+    D3        -0.703         -1.149
+    D4        -1.375         -0.727
+    D5        -1.293         -0.763
+    D6        -0.603         -2.149
+    D7        -0.810         -1.437
+    D8        -1.939         -3.016
+    D9        -1.147         -0.689
+Mean r2_self: -1.051
+Mean r2_group: -1.232
+
+
+[10:45:33] ------------------------ RUN SCRIPT -------------------------
+[10:45:33] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+[10:45:33] Taster vs Mean selected
+[10:45:35] 
+=== Comparison of self vs group models ===
+taster  mean_r2_self  mean_r2_group
+    D1        -0.839         -0.115
+   D10        -1.118         -0.050
+    D2        -0.688         -0.040
+    D3        -0.703         -0.059
+    D4        -1.375         -0.103
+    D5        -1.293         -0.058
+    D6        -0.603         -0.055
+    D7        -0.810         -0.111
+    D8        -1.939          0.041
+    D9        -1.147         -0.031
+Mean r2_self: -1.051
+Mean r2_group: -0.058
+
+
+[11:02:46] ------------------------ RUN SCRIPT -------------------------
+[11:02:46] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+  Show taster profiles: False
+[11:02:59] 
+Per-attribute average errors over multiple splits:
+          fruity: MAE = 13.07, RMSE = 16.29 (16.3% of scale)
+          citrus: MAE = 13.55, RMSE = 16.89 (16.9% of scale)
+maturated fruits: MAE = 14.28, RMSE = 17.95 (17.9% of scale)
+  candied citrus: MAE = 12.59, RMSE = 15.69 (15.7% of scale)
+         toasted: MAE = 13.78, RMSE = 17.53 (17.5% of scale)
+            nuts: MAE = 12.79, RMSE = 15.81 (15.8% of scale)
+           spicy: MAE = 12.73, RMSE = 16.15 (16.2% of scale)
+       petroleum: MAE = 13.15, RMSE = 17.24 (17.2% of scale)
+      undergroth: MAE = 11.69, RMSE = 15.35 (15.3% of scale)
+          babery: MAE = 11.96, RMSE = 15.48 (15.5% of scale)
+           honey: MAE = 12.67, RMSE = 15.91 (15.9% of scale)
+           diary: MAE = 10.98, RMSE = 14.18 (14.2% of scale)
+          herbal: MAE = 11.49, RMSE = 15.46 (15.5% of scale)
+          tobaco: MAE = 12.24, RMSE = 16.05 (16.1% of scale)
+         texture: MAE = 13.04, RMSE = 16.56 (16.6% of scale)
+            acid: MAE = 11.73, RMSE = 15.00 (15.0% of scale)
+          ageing: MAE = 15.76, RMSE = 19.89 (19.9% of scale)
+Overall RMSE across repeats: 16.3686
+[11:02:59] 
+Per-taster average MAE (across all attributes):
+Taster D1: MAE = 10.94
+Taster D2: MAE = 13.02
+Taster D3: MAE = 11.90
+Taster D4: MAE = 15.64
+Taster D5: MAE = 13.47
+Taster D6: MAE = 11.95
+Taster D7: MAE = 11.42
+Taster D8: MAE = 13.60
+Taster D9: MAE = 11.36
+Taster D10: MAE = 14.63
+[11:02:59] 
+Per-taster average R² (across all attributes):
+Taster D1: R² = 0.15
+Taster D2: R² = 0.54
+Taster D3: R² = 0.57
+Taster D4: R² = 0.43
+Taster D5: R² = 0.32
+Taster D6: R² = 0.58
+Taster D7: R² = 0.27
+Taster D8: R² = 0.32
+Taster D9: R² = 0.43
+Taster D10: R² = 0.41
+Overall average R² across all tasters: 0.403
+
+
+[11:03:52] ------------------------ RUN SCRIPT -------------------------
+[11:03:52] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+  Show taster profiles: False
+[11:03:53] Average Scores selected
+[11:03:55] 
+Per-attribute R² for averaged model (robust across all splits):
+fruity                 R² =   0.32
+citrus                 R² =   0.09
+maturated fruits       R² =  -0.00
+candied citrus         R² =   0.51
+toasted                R² =   0.59
+nuts                   R² =   0.55
+spicy                  R² =   0.70
+petroleum              R² =   0.19
+undergroth             R² =   0.52
+babery                 R² =  -0.30
+honey                  R² =   0.57
+diary                  R² =   0.06
+herbal                 R² =   0.26
+tobaco                 R² =   0.46
+texture                R² =   0.18
+acid                   R² =  -0.46
+ageing                 R² =  -0.04
+Overall average R² across attributes: 0.248
+
+
+
+[11:05:05] ------------------------ RUN SCRIPT -------------------------
+[11:05:05] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+[11:05:05] Taster vs Mean selected
+[11:05:08] 
+=== Comparison of self vs group models ===
+taster  mean_r2_self  mean_r2_group
+    D1        -0.839         -0.115
+   D10        -1.118         -0.050
+    D2        -0.688         -0.040
+    D3        -0.703         -0.059
+    D4        -1.375         -0.103
+    D5        -1.293         -0.058
+    D6        -0.603         -0.055
+    D7        -0.810         -0.111
+    D8        -1.939          0.041
+    D9        -1.147         -0.031
+Mean r2_self: -1.051
+Mean r2_group: -0.058
+
+
+[11:31:37] ------------------------ RUN SCRIPT -------------------------
+[11:31:37] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+[11:31:37] Taster vs Mean selected
+
+
+[11:32:07] ------------------------ RUN SCRIPT -------------------------
+[11:32:07] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+[11:32:07] Taster vs Mean selected
+
+
+[11:39:25] ------------------------ RUN SCRIPT -------------------------
+[11:39:25] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+[11:39:25] Taster vs Mean selected
+
+
+[11:48:41] ------------------------ RUN SCRIPT -------------------------
+[11:48:41] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+[11:48:41] Taster vs Mean selected
+[11:48:42] 
+=== Comparison of self vs group models ===
+taster  mean_r2_self  mean_r2_group
+    D1        -0.839          0.202
+   D10        -1.118          0.200
+    D2        -0.688          0.208
+    D3        -0.703          0.202
+    D4        -1.375          0.246
+    D5        -1.293          0.237
+    D6        -0.603          0.201
+    D7        -0.810          0.206
+    D8        -1.939          0.304
+    D9        -1.147          0.191
+Mean r2_self: -1.051
+Mean r2_group: 0.220
+
+
+[11:49:18] ------------------------ RUN SCRIPT -------------------------
+[11:49:18] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+  Show taster profiles: False
+[11:49:18] Average Scores selected
+[11:49:21] 
+Per-attribute R² for averaged model (robust across all splits):
+fruity                 R² =   0.32
+citrus                 R² =   0.09
+maturated fruits       R² =  -0.00
+candied citrus         R² =   0.51
+toasted                R² =   0.59
+nuts                   R² =   0.55
+spicy                  R² =   0.70
+petroleum              R² =   0.19
+undergroth             R² =   0.52
+babery                 R² =  -0.30
+honey                  R² =   0.57
+diary                  R² =   0.06
+herbal                 R² =   0.26
+tobaco                 R² =   0.46
+texture                R² =   0.18
+acid                   R² =  -0.46
+ageing                 R² =  -0.04
+Overall average R² across attributes: 0.248
+
+
+
+[11:54:03] ------------------------ RUN SCRIPT -------------------------
+[11:54:03] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+  Show taster profiles: False
+[11:54:03] Average Scores selected
+[11:54:04] 
+Per-attribute R² for averaged model (robust across all splits):
+fruity                 R² =   0.32
+citrus                 R² =   0.09
+maturated fruits       R² =  -0.00
+candied citrus         R² =   0.51
+toasted                R² =   0.59
+nuts                   R² =   0.55
+spicy                  R² =   0.70
+petroleum              R² =   0.19
+undergroth             R² =   0.52
+babery                 R² =  -0.30
+honey                  R² =   0.57
+diary                  R² =   0.06
+herbal                 R² =   0.26
+tobaco                 R² =   0.46
+texture                R² =   0.18
+acid                   R² =  -0.46
+ageing                 R² =  -0.04
+Overall average R² across attributes: 0.248
+
+
+
+[08:54:29] ------------------------ RUN SCRIPT -------------------------
+[08:54:29] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 1000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+  Show taster profiles: False
+[08:54:29] 
+Per-attribute average errors over multiple splits:
+          fruity: MAE = 12.67, RMSE = 15.85 (15.8% of scale)
+          citrus: MAE = 13.29, RMSE = 16.50 (16.5% of scale)
+maturated fruits: MAE = 14.87, RMSE = 18.66 (18.7% of scale)
+  candied citrus: MAE = 12.82, RMSE = 15.96 (16.0% of scale)
+         toasted: MAE = 13.45, RMSE = 17.17 (17.2% of scale)
+            nuts: MAE = 12.55, RMSE = 15.44 (15.4% of scale)
+           spicy: MAE = 12.82, RMSE = 16.48 (16.5% of scale)
+       petroleum: MAE = 13.37, RMSE = 17.69 (17.7% of scale)
+      undergroth: MAE = 10.92, RMSE = 14.44 (14.4% of scale)
+          babery: MAE = 11.64, RMSE = 14.92 (14.9% of scale)
+           honey: MAE = 12.82, RMSE = 16.05 (16.0% of scale)
+           diary: MAE = 11.16, RMSE = 14.42 (14.4% of scale)
+          herbal: MAE = 11.85, RMSE = 15.67 (15.7% of scale)
+          tobaco: MAE = 12.15, RMSE = 15.83 (15.8% of scale)
+         texture: MAE = 12.58, RMSE = 15.96 (16.0% of scale)
+            acid: MAE = 12.10, RMSE = 15.43 (15.4% of scale)
+          ageing: MAE = 15.46, RMSE = 19.72 (19.7% of scale)
+Overall RMSE across repeats: 16.3036
+[08:54:29] 
+Per-taster average MAE (across all attributes):
+Taster D1: MAE = 10.44
+Taster D2: MAE = 12.64
+Taster D3: MAE = 11.33
+Taster D4: MAE = 15.55
+Taster D5: MAE = 13.16
+Taster D6: MAE = 12.02
+Taster D7: MAE = 11.97
+Taster D8: MAE = 13.74
+Taster D9: MAE = 11.42
+Taster D10: MAE = 13.98
+[08:54:29] 
+Per-taster average R² (across all attributes):
+Taster D1: R² = 0.58
+Taster D2: R² = 0.67
+Taster D3: R² = 0.64
+Taster D4: R² = 0.49
+Taster D5: R² = 0.22
+Taster D6: R² = 0.48
+Taster D7: R² = 0.15
+Taster D8: R² = 0.34
+Taster D9: R² = 0.11
+Taster D10: R² = 0.34
+Overall average R² across all tasters: 0.370
+
+
+[08:54:55] ------------------------ RUN SCRIPT -------------------------
+[08:54:55] Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+  Show taster profiles: False
+[08:54:56] 
+Per-attribute average errors over multiple splits:
+          fruity: MAE = 12.75, RMSE = 15.96 (16.0% of scale)
+          citrus: MAE = 13.35, RMSE = 16.59 (16.6% of scale)
+maturated fruits: MAE = 14.92, RMSE = 18.71 (18.7% of scale)
+  candied citrus: MAE = 12.86, RMSE = 16.02 (16.0% of scale)
+         toasted: MAE = 13.51, RMSE = 17.22 (17.2% of scale)
+            nuts: MAE = 12.59, RMSE = 15.50 (15.5% of scale)
+           spicy: MAE = 12.84, RMSE = 16.51 (16.5% of scale)
+       petroleum: MAE = 13.45, RMSE = 17.76 (17.8% of scale)
+      undergroth: MAE = 10.96, RMSE = 14.49 (14.5% of scale)
+          babery: MAE = 11.69, RMSE = 14.98 (15.0% of scale)
+           honey: MAE = 12.88, RMSE = 16.13 (16.1% of scale)
+           diary: MAE = 11.19, RMSE = 14.46 (14.5% of scale)
+          herbal: MAE = 11.89, RMSE = 15.71 (15.7% of scale)
+          tobaco: MAE = 12.18, RMSE = 15.86 (15.9% of scale)
+         texture: MAE = 12.60, RMSE = 16.00 (16.0% of scale)
+            acid: MAE = 12.17, RMSE = 15.50 (15.5% of scale)
+          ageing: MAE = 15.53, RMSE = 19.79 (19.8% of scale)
+Overall RMSE across repeats: 16.3623
+[08:54:56] 
+Per-taster average MAE (across all attributes):
+Taster D1: MAE = 10.51
+Taster D2: MAE = 12.67
+Taster D3: MAE = 11.40
+Taster D4: MAE = 15.58
+Taster D5: MAE = 13.19
+Taster D6: MAE = 12.11
+Taster D7: MAE = 12.05
+Taster D8: MAE = 13.81
+Taster D9: MAE = 11.47
+Taster D10: MAE = 13.98
+[08:54:56] 
+Per-taster average R² (across all attributes):
+Taster D1: R² = 0.58
+Taster D2: R² = 0.67
+Taster D3: R² = 0.64
+Taster D4: R² = 0.49
+Taster D5: R² = 0.22
+Taster D6: R² = 0.47
+Taster D7: R² = 0.13
+Taster D8: R² = 0.34
+Taster D9: R² = 0.11
+Taster D10: R² = 0.33
+Overall average R² across all tasters: 0.365
+
+
+2025-06-20 08:57:00 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 08:57:00 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+  Show taster profiles: False
+2025-06-20 08:57:00 — INFO — 
+Per-attribute average errors over multiple splits:
+          fruity: MAE = 12.75, RMSE = 15.96 (16.0% of scale)
+          citrus: MAE = 13.35, RMSE = 16.59 (16.6% of scale)
+maturated fruits: MAE = 14.92, RMSE = 18.71 (18.7% of scale)
+  candied citrus: MAE = 12.86, RMSE = 16.02 (16.0% of scale)
+         toasted: MAE = 13.51, RMSE = 17.22 (17.2% of scale)
+            nuts: MAE = 12.59, RMSE = 15.50 (15.5% of scale)
+           spicy: MAE = 12.84, RMSE = 16.51 (16.5% of scale)
+       petroleum: MAE = 13.45, RMSE = 17.76 (17.8% of scale)
+      undergroth: MAE = 10.96, RMSE = 14.49 (14.5% of scale)
+          babery: MAE = 11.69, RMSE = 14.98 (15.0% of scale)
+           honey: MAE = 12.88, RMSE = 16.13 (16.1% of scale)
+           diary: MAE = 11.19, RMSE = 14.46 (14.5% of scale)
+          herbal: MAE = 11.89, RMSE = 15.71 (15.7% of scale)
+          tobaco: MAE = 12.18, RMSE = 15.86 (15.9% of scale)
+         texture: MAE = 12.60, RMSE = 16.00 (16.0% of scale)
+            acid: MAE = 12.17, RMSE = 15.50 (15.5% of scale)
+          ageing: MAE = 15.53, RMSE = 19.79 (19.8% of scale)
+Overall RMSE across repeats: 16.3623
+2025-06-20 08:57:00 — INFO — 
+Per-taster average MAE (across all attributes):
+Taster D1: MAE = 10.51
+Taster D2: MAE = 12.67
+Taster D3: MAE = 11.40
+Taster D4: MAE = 15.58
+Taster D5: MAE = 13.19
+Taster D6: MAE = 12.11
+Taster D7: MAE = 12.05
+Taster D8: MAE = 13.81
+Taster D9: MAE = 11.47
+Taster D10: MAE = 13.98
+2025-06-20 08:57:00 — INFO — 
+Per-taster average R² (across all attributes):
+Taster D1: R² = 0.58
+Taster D2: R² = 0.67
+Taster D3: R² = 0.64
+Taster D4: R² = 0.49
+Taster D5: R² = 0.22
+Taster D6: R² = 0.47
+Taster D7: R² = 0.13
+Taster D8: R² = 0.34
+Taster D9: R² = 0.11
+Taster D10: R² = 0.33
+Overall average R² across all tasters: 0.365
+
+
+2025-06-20 10:15:02 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 10:15:02 — INFO — Configuration Parameters
             Task: classification
        Wine kind: pinot_noir
         Datasets: pinot_noir_changins
-    Feature type: tic
+    Feature type: tic_tis
       Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-
-
-[12:40:32] ------------------------ RUN SCRIPT -------------------------
-[12:46:08] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-
-
-[12:46:08] ------------------------ RUN SCRIPT -------------------------
-[12:46:10] Applying RT range: 0 to 2904 (capped at 2904)
-[12:46:18] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[12:47:29] ------------------------ RUN SCRIPT -------------------------
-[12:47:29] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[12:47:31] Applying RT range: 0 to 2904 (capped at 2904)
-[12:47:40] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[12:48:14] ------------------------ RUN SCRIPT -------------------------
-[12:48:14] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
+         Repeats: 200
        Normalize: True
       Decimation: 10
             Sync: False
           Region: origin
          CV type: LOOPC
         RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[12:48:16] Applying RT range: 0 to 2904 (capped at 2904)
-[12:48:18] Mean Balanced Accuracy: 0.786 ± 0.115
+Confusion matrix: True
+2025-06-20 10:15:04 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 10:15:18 — INFO — Mean Balanced Accuracy: 0.772 ± 0.135
 
 
-[12:52:22] ------------------------ RUN SCRIPT -------------------------
-[12:52:22] Configuration Parameters
+2025-06-20 10:15:31 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 10:15:31 — INFO — Configuration Parameters
             Task: classification
        Wine kind: pinot_noir
         Datasets: pinot_noir_changins
-    Feature type: tic
+    Feature type: tic_tis
       Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOOPC
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[12:52:24] Applying RT range: 0 to 2904 (capped at 2904)
-[12:52:26] Mean Balanced Accuracy: 0.786 ± 0.115
-
-
-[12:53:34] ------------------------ RUN SCRIPT -------------------------
-[12:53:34] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOOPC
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[12:53:36] Applying RT range: 0 to 2904 (capped at 2904)
-[12:53:38] Mean Balanced Accuracy: 0.786 ± 0.115
-
-
-[12:59:18] ------------------------ RUN SCRIPT -------------------------
-[12:59:18] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOOPC
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[12:59:20] Applying RT range: 0 to 2904 (capped at 2904)
-[12:59:22] Mean Balanced Accuracy: 0.786 ± 0.115
-
-
-[13:13:28] ------------------------ RUN SCRIPT -------------------------
-[13:13:28] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOOPC
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[13:13:31] Applying RT range: 0 to 2904 (capped at 2904)
-[13:13:32] Mean Balanced Accuracy: 0.786 ± 0.115
-
-
-[13:39:34] ------------------------ RUN SCRIPT -------------------------
-[13:39:34] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOOPC
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[13:39:36] Applying RT range: 0 to 2904 (capped at 2904)
-[13:39:38] Mean Balanced Accuracy: 0.786 ± 0.115
-
-
-[13:39:49] ------------------------ RUN SCRIPT -------------------------
-[13:39:49] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[13:39:51] Applying RT range: 0 to 2904 (capped at 2904)
-[13:40:00] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[13:40:16] ------------------------ RUN SCRIPT -------------------------
-[13:40:16] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
+         Repeats: 200
        Normalize: True
       Decimation: 10
             Sync: False
@@ -203,208 +718,18 @@ Confusion matrix: False
          CV type: LOO
         RT range: {'max': 30000, 'min': 0}
 Confusion matrix: True
-[13:40:18] Applying RT range: 0 to 2904 (capped at 2904)
-[13:40:26] Mean Balanced Accuracy: 0.859 ± 0.348
+2025-06-20 10:15:34 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 10:15:48 — INFO — Mean Balanced Accuracy: 0.000 ± 0.000
 
 
-[13:40:48] ------------------------ RUN SCRIPT -------------------------
-[13:40:48] Configuration Parameters
+2025-06-20 10:17:12 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 10:17:12 — INFO — Configuration Parameters
             Task: classification
        Wine kind: pinot_noir
         Datasets: pinot_noir_changins
-    Feature type: tic
+    Feature type: tic_tis
       Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOOPC
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: True
-[13:40:50] Applying RT range: 0 to 2904 (capped at 2904)
-[13:40:59] Mean Balanced Accuracy: 0.786 ± 0.115
-
-
-[13:42:30] ------------------------ RUN SCRIPT -------------------------
-[13:42:30] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: True
-[13:42:32] Applying RT range: 0 to 2904 (capped at 2904)
-[13:42:44] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[13:42:54] ------------------------ RUN SCRIPT -------------------------
-[13:42:54] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 10000, 'min': 0}
-Confusion matrix: True
-[13:42:56] Applying RT range: 0 to 1000 (capped at 2904)
-[13:43:07] Mean Balanced Accuracy: 0.881 ± 0.323
-
-
-[13:45:52] ------------------------ RUN SCRIPT -------------------------
-[13:45:52] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[13:45:54] Applying RT range: 0 to 2904 (capped at 2904)
-[13:46:00] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[13:48:38] ------------------------ RUN SCRIPT -------------------------
-[13:48:38] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[13:48:40] Applying RT range: 0 to 2904 (capped at 2904)
-[13:48:49] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[13:50:32] ------------------------ RUN SCRIPT -------------------------
-[13:50:32] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[13:50:34] Applying RT range: 0 to 2904 (capped at 2904)
-[13:50:41] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[13:54:24] ------------------------ RUN SCRIPT -------------------------
-[13:54:24] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[13:54:26] Applying RT range: 0 to 2904 (capped at 2904)
-[13:54:34] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[13:54:42] ------------------------ RUN SCRIPT -------------------------
-[13:54:42] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[13:54:45] Applying RT range: 0 to 2904 (capped at 2904)
-[13:54:53] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[14:06:27] ------------------------ RUN SCRIPT -------------------------
-[14:06:27] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[14:06:29] Applying RT range: 0 to 2904 (capped at 2904)
-[14:06:37] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[14:06:55] ------------------------ RUN SCRIPT -------------------------
-[14:06:55] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
-       Normalize: True
-      Decimation: 10
-            Sync: False
-          Region: origin
-         CV type: LOO
-        RT range: {'max': 30000, 'min': 0}
-Confusion matrix: False
-[14:06:57] Applying RT range: 0 to 2904 (capped at 2904)
-[14:07:05] Mean Balanced Accuracy: 0.859 ± 0.348
-
-
-[14:07:27] ------------------------ RUN SCRIPT -------------------------
-[14:07:27] Configuration Parameters
-            Task: classification
-       Wine kind: pinot_noir
-        Datasets: pinot_noir_changins
-    Feature type: tic
-      Classifier: RGC
-         Repeats: 10
+         Repeats: 200
        Normalize: True
       Decimation: 10
             Sync: False
@@ -412,18 +737,94 @@ Confusion matrix: False
          CV type: LOOPC
         RT range: {'max': 30000, 'min': 0}
 Confusion matrix: False
-[14:07:29] Applying RT range: 0 to 2904 (capped at 2904)
-[14:07:31] Mean Balanced Accuracy: 0.786 ± 0.115
+2025-06-20 10:17:14 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 10:17:27 — INFO — Mean Balanced Accuracy: 0.772 ± 0.135
 
 
-[14:07:46] ------------------------ RUN SCRIPT -------------------------
-[14:07:46] Configuration Parameters
+2025-06-20 10:17:38 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 10:17:38 — INFO — Configuration Parameters
             Task: classification
        Wine kind: pinot_noir
         Datasets: pinot_noir_changins
-    Feature type: tic
+    Feature type: tic_tis
       Classifier: RGC
-         Repeats: 10
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 10:17:41 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 10:17:49 — INFO — Mean Balanced Accuracy: 0.000 ± 0.000
+
+
+2025-06-20 10:20:42 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 10:20:42 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 10:20:45 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 10:20:52 — INFO — Mean Balanced Accuracy: 0.000 ± 0.000
+
+
+2025-06-20 10:21:45 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 10:21:45 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 10:21:48 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 10:21:54 — INFO — Mean Balanced Accuracy: 0.000 ± 0.000
+
+
+2025-06-20 11:00:28 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:00:28 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:00:30 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 11:00:39 — INFO — Mean Balanced Accuracy: 0.859 ± 0.348
+
+
+2025-06-20 11:00:58 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:00:58 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
        Normalize: True
       Decimation: 10
             Sync: False
@@ -431,5 +832,118 @@ Confusion matrix: False
          CV type: LOOPC
         RT range: {'max': 30000, 'min': 0}
 Confusion matrix: False
-[14:07:48] Applying RT range: 0 to 2904 (capped at 2904)
-[14:07:50] Mean Balanced Accuracy: 0.786 ± 0.115
+2025-06-20 11:01:00 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-06-20 11:11:08 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:11:08 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOOPC
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:11:10 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 11:11:24 — INFO — Mean Balanced Accuracy: 0.772 ± 0.135
+
+
+2025-06-20 11:14:44 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:14:44 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:14:47 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 11:14:57 — INFO — Mean Balanced Accuracy: 0.000 ± 0.000
+
+
+2025-06-20 11:17:55 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:17:55 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:17:57 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 11:18:06 — INFO — Mean Balanced Accuracy: 0.859 ± 0.348
+
+
+2025-06-20 11:23:10 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:23:10 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:23:12 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 11:23:22 — INFO — Mean Balanced Accuracy: 0.859 ± 0.348
+
+
+2025-06-20 11:41:30 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:41:30 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:41:32 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 11:41:41 — INFO — Mean Balanced Accuracy: 0.859 ± 0.348
+
+
+2025-06-20 11:43:50 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:43:50 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOOPC
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:43:53 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-06-20 11:44:05 — INFO — Mean Balanced Accuracy: 0.772 ± 0.135

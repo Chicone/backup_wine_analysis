@@ -149,17 +149,48 @@ if __name__ == "__main__":
 
     # Infer wine_kind from selected dataset paths
     wine_kind = utils.infer_wine_kind(selected_datasets, config["datasets"])
+
+    # Plot parameters
+    plot_projection = config.get("plot_projection", False)
+    projection_method = config.get("projection_method", "UMAP").upper()
+    # projection_source = config.get("projection_source", False)
+    projection_source = config.get("projection_source", False) if plot_projection else False
+    projection_dim = config.get("projection_dim", 2)
+    n_neighbors = config.get("n_neighbors", 30)
+    random_state = config.get("random_state", 42)
+    color_by_country = config["color_by_country"]
+    show_sample_names = config["show_sample_names"]
+
+    # Run Parameters
     feature_type = config["feature_type"]
     classifier = config["classifier"]
     num_repeats = config["num_repeats"]
-    normalize = config["normalize"]
+    normalize_flag = config["normalize"]
     n_decimation = config["n_decimation"]
     sync_state = config["sync_state"]
+    class_by_year = config['class_by_year']
     region = config["region"]
     # wine_kind = config["wine_kind"]
-    class_by_year = config['class_by_year']
     show_confusion_matrix = config['show_confusion_matrix']
     retention_time_range = config['rt_range']
+    cv_type = config['cv_type']
+    task="classification"  # hard-coded for now
+
+    # # Infer wine_kind from selected dataset paths
+    # wine_kind = utils.infer_wine_kind(selected_datasets, config["datasets"])
+    # feature_type = config["feature_type"]
+    # classifier = config["classifier"]
+    # num_repeats = config["num_repeats"]
+    # normalize = config["normalize"]
+    # n_decimation = config["n_decimation"]
+    # sync_state = config["sync_state"]
+    # region = config["region"]
+    # # wine_kind = config["wine_kind"]
+    # class_by_year = config['class_by_year']
+    # show_confusion_matrix = config['show_confusion_matrix']
+    # retention_time_range = config['rt_range']
+    # cv_type = config['cv_type']
+
 
     # Load dataset, removing zero-variance channels
     cl = ChromatogramAnalysis(ndec=n_decimation)
@@ -197,25 +228,40 @@ if __name__ == "__main__":
         year_labels=np.array(year_labels),
         strategy=strategy,
         class_by_year=class_by_year,
-        labels_raw=labels_raw
+        labels_raw=labels_raw,
+        sample_labels=labels_raw
     )
 
-    # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
-    cls.train_and_evaluate_all_channels(
-        num_repeats=num_repeats,
-        random_seed=42,
-        test_size=0.2,
-        normalize=normalize,
-        scaler_type='standard',
-        use_pca=False,
-        vthresh=0.97,
-        region=region,
-        print_results=True,
-        n_jobs=20,
-        feature_type=feature_type,
-        classifier_type=classifier,
-        LOOPC=True , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
-        projection_source=False,
-        show_confusion_matrix=show_confusion_matrix
-    )
+    if cv_type == "LOOPC":
+        # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
+        cls.train_and_evaluate_all_channels(
+            num_repeats=num_repeats,
+            random_seed=42,
+            test_size=0.2,
+            normalize=normalize_flag,
+            scaler_type='standard',
+            use_pca=False,
+            vthresh=0.97,
+            region=region,
+            print_results=True,
+            n_jobs=20,
+            feature_type=feature_type,
+            classifier_type=classifier,
+            LOOPC=True, # whether to use stratified splitting (False) or Leave One Out Per Class (True),
+            projection_source=projection_source,
+            show_confusion_matrix=show_confusion_matrix
+        )
+
+    elif cv_type == "LOO":
+        mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_leave_one_out_all_samples(
+            normalize=normalize_flag,
+            scaler_type='standard',
+            region=region,
+            feature_type=feature_type,
+            classifier_type=classifier,
+            projection_source=projection_source,
+            show_confusion_matrix=show_confusion_matrix,
+        )
+    else:
+        raise ValueError(f"Invalid cross-validation type: '{cv_type}'. Expected 'LOO' or 'LOOPC'.")
 

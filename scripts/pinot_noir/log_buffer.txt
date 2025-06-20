@@ -130,3 +130,183 @@ Confusion matrix: False
 Confusion matrix: False
 [14:02:37] Applying RT range: 0 to 2904 (capped at 2904)
 [14:02:49] Mean Balanced Accuracy: 0.859 ± 0.348
+
+
+2025-06-20 10:22:15 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 10:22:15 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 10:22:17 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-06-20 10:23:20 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 10:23:20 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 10:23:23 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-06-20 10:34:20 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 10:34:20 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 10:34:22 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-06-20 11:02:40 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:02:40 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOOPC
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:02:43 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-06-20 11:05:21 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:05:21 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOOPC
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:05:23 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-06-20 11:11:53 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:11:53 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOOPC
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:11:56 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-06-20 11:15:43 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:15:43 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:15:46 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-06-20 11:23:55 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:23:55 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:23:58 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-06-20 11:35:55 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:35:55 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:35:57 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-06-20 11:42:37 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-20 11:42:37 — INFO — Configuration Parameters
+            Task: classification
+       Wine kind: pinot_noir
+        Datasets: pinot_noir_changins
+    Feature type: tic_tis
+      Classifier: RGC
+         Repeats: 200
+       Normalize: True
+      Decimation: 10
+            Sync: False
+          Region: origin
+         CV type: LOO
+        RT range: {'max': 30000, 'min': 0}
+Confusion matrix: False
+2025-06-20 11:42:39 — INFO — Applying RT range: 0 to 2904 (capped at 2904)

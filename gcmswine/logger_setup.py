@@ -1,6 +1,16 @@
 # logger_setup.py
 import logging
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s — %(levelname)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",  # <--- Add this line
+    handlers=[
+        logging.FileHandler("log_buffer.txt", mode="a"),
+        logging.StreamHandler()
+    ]
+)
+
 logger = logging.getLogger("wine_analysis")
 logger.setLevel(logging.INFO)
 

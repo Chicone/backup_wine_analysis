@@ -361,20 +361,29 @@ class Classifier:
             left_out_index,
             normalize=False,
             scaler_type='standard',
-            projection_source=False
+            projection_source=False,
     ):
         # Step 1: label preprocessing
         labels_used = self.strategy.extract_labels(self.labels)
         use_composites = self.strategy.use_composite_labels(self.labels)
         custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
 
-        # Step 2: leave out one sample
+        # Step 2: leave out one composite group
+        split_labels = self.strategy.get_split_labels(self.labels_raw, self.class_by_year)
+
         n_samples = len(self.data)
         if not (0 <= left_out_index < n_samples):
             raise ValueError(f"Invalid left_out_index: {left_out_index} (must be in [0, {n_samples - 1}])")
 
-        train_idx = np.delete(np.arange(n_samples), left_out_index)
-        test_idx = np.array([left_out_index])
+        if use_composites:
+            left_out_label = split_labels[left_out_index]
+            test_idx = np.where(split_labels == left_out_label)[0]
+        else:
+            test_idx = np.array([left_out_index])
+
+        all_indices = np.arange(len(self.data))
+        train_idx = np.setdiff1d(all_indices, test_idx)
+
 
         # Step 3: data preparation
         X_train, X_test = self.data[train_idx], self.data[test_idx]
@@ -428,7 +437,6 @@ class Classifier:
         # Step 1: label preprocessing
         labels_used = self.strategy.extract_labels(self.labels)
         use_composites = self.strategy.use_composite_labels(self.labels)
-
         custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
 
         # Step 2: split
@@ -1651,7 +1659,7 @@ class Classifier:
                     left_out_index=idx,
                     normalize=normalize,
                     scaler_type=scaler_type,
-                    projection_source=projection_source
+                    projection_source=projection_source,
                 )
 
                 if 'accuracy' in results:
