@@ -1,5 +1,6 @@
 > 📦 **Note:** This documentation refers to the `wine-analysis-package` branch, which contains the most accessible and minimal version of the GC-MS Wine Analysis tools. 
 > It is intended for testing and basic usage.  
+> The branch `wine_analysis_web_interface` contains an interactive web-based utility  tha allows to configure models, run analyses, and interpret results within the GUI
 > Other branches may contain experimental or extended versions
 
 # General Documentation
