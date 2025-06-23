@@ -849,3 +849,79 @@ D7         -0.868
 D8         -3.026
 D9         -0.897
 Overall average R² across all tasters: -1.208
+
+
+2025-06-23 12:18:06 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 12:18:06 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: bordeaux
+            Datasets: bordeaux_oak
+        Feature type: tic
+          Classifier: RGC
+             Repeats: 100
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: 
+             CV type: LOOPC
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-06-23 12:18:12 — INFO — Mean Balanced Accuracy: 0.926 ± 0.081
+
+
+2025-06-23 12:33:48 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 12:33:48 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: bordeaux
+            Datasets: bordeaux_oak
+        Feature type: tic_tis
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: True
+              Region: 
+             CV type: LOOPC
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-06-23 12:33:49 — INFO — Mean Balanced Accuracy: 0.275 ± 0.152
+
+
+2025-06-23 12:34:08 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 12:34:08 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: bordeaux
+            Datasets: bordeaux_oak
+        Feature type: tic_tis
+          Classifier: RGC
+             Repeats: 1
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: True
+              Region: 
+             CV type: LOOPC
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-06-23 12:34:10 — INFO — Mean Balanced Accuracy: 0.417 ± 0.000
+
+
+2025-06-23 12:34:26 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 12:34:26 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: bordeaux
+            Datasets: bordeaux_oak
+        Feature type: tic_tis
+          Classifier: RGC
+             Repeats: 1
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: True
+              Region: 
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-06-23 12:34:31 — INFO — Mean Balanced Accuracy: 0.377 ± 0.447

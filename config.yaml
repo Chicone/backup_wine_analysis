@@ -1,8 +1,8 @@
 chrom_cap: 35000
-class_by_year: false
-classifier: null
+class_by_year: true
+classifier: RGC
 color_by_country: false
-cv_type: LOOPC
+cv_type: LOO
 datasets:
   bordeaux_oak: /home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/
   cab_sauv_2021: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/
@@ -15,7 +15,7 @@ datasets:
   pinot_noir_isvv_dllme: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/
   pinot_noir_isvv_lle: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/
 downsample_group: true
-feature_type: tic
+feature_type: tic_tis
 global_focus_heatmap: false
 group_wines: false
 invert_x: false
@@ -26,16 +26,16 @@ label_targets:
 n_decimation: 10
 n_neighbors: 30
 normalize: true
-num_repeats: 100
+num_repeats: 1
 num_splits: 1
-plot_projection: false
+plot_projection: scores
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
 projection_source: scores
 random_state: 42
 region: ''
-regressor: ridge
+regressor: null
 retention_time_range:
   max: 30000
   min: 0
@@ -43,7 +43,7 @@ rt_range:
   max: 30000
   min: 0
 selected_datasets:
-- heterocyc
+- bordeaux_oak
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
