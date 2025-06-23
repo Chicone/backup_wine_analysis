@@ -43,6 +43,7 @@ from gcmswine.helpers import (
     load_config, get_model, load_chromatograms_decimated, load_and_clean_metadata, build_feature_target_arrays
 )
 from scipy.ndimage import gaussian_filter1d
+from gcmswine.logger_setup import logger, logger_raw
 
 
 def plot_top_peaks_selected_attributes(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot,
@@ -527,13 +528,35 @@ if __name__ == "__main__":
     metadata_path = "/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv"
 
     # Load user-defined options
-    normalize = config.get("normalize", True)
-    retention_time_range = config.get("rt_range", None)
-    show_taster_predictions = config.get("show_predicted_profiles", False)
-    taster_scaling = config.get("taster_scaling", False)
+    wine_kind = "Champagne"
+    task= "Model per Taster"  # hard-coded for now
+    dataset = os.path.split(directory)[1]
     model_name = config.get("regressor", "ridge").lower()
+    feature_type = config["feature_type"]
+    cv_type = config['cv_type']
     num_repeats = config.get("num_repeats", 10)
-    shuffle_labels = config.get("shuffle_labels", False)
+    retention_time_range = config.get("rt_range", None)
+    normalize = config.get("normalize", True)
+    global_focus_heatamp = config.get("global_focus_heatmap", False)
+    taster_focus_heatamp = config.get("taster_focus_heatmap", False)
+
+    summary = {
+        "Wine kind": wine_kind,
+        "Task": task,
+        "Dataset": dataset,
+        "Regressor": model_name,
+        "Feature type": feature_type,
+        "CV type": cv_type,
+        "Repeats": num_repeats,
+        "RT range": retention_time_range,
+        "Normalize": normalize,
+    }
+
+    logger_raw("\n")  # Blank line without timestamp
+    logger.info('------------------------ RUN SCRIPT -------------------------')
+    logger.info(f"Configuration Parameters ({task})")
+    for k, v in summary.items():
+        logger_raw(f"{k:>22s}: {v}")
 
     # Select the model based on user input
     model = get_model(model_name, random_seed=random_seed)
@@ -555,12 +578,15 @@ if __name__ == "__main__":
     # Convert sensory columns to numeric
     metadata[sensory_cols] = metadata[sensory_cols].apply(pd.to_numeric, errors='coerce')
 
-    print("\nVariability of sensory attributes (standard deviation):")
+    lines = ["\nVariability of sensory attributes (standard deviation):"]
     for col in sensory_cols:
         std_dev = metadata[col].std()
         min_val = metadata[col].min()
         max_val = metadata[col].max()
-        print(f"{col:>20s}: Std = {std_dev:6.2f}   Range = ({min_val:.1f}–{max_val:.1f})")
+        lines.append(f"{col:>20s}: Std = {std_dev:6.2f}   Range = ({min_val:.1f}–{max_val:.1f})")
+        # print(f"{col:>20s}: Std = {std_dev:6.2f}   Range = ({min_val:.1f}–{max_val:.1f})")
+    logger.info("\n".join(lines))
+
 
     # # --- Prepare sensory columns ---
     # known_metadata = ['code vin', 'taster', 'prod area', 'variety', 'cave', 'age']
@@ -602,37 +628,33 @@ if __name__ == "__main__":
         coef_list = []  # <--- save all coefficients here
         r2_list = []
 
-        n_splits = 5
         for repeat in range(num_repeats):
-            kf = KFold(n_splits=n_splits, shuffle=True, random_state=random_seed + repeat)
+            train_idx, test_idx = train_test_split(
+                np.arange(len(X_taster)), test_size=0.2, random_state=random_seed + repeat
+            )
 
-            for train_idx, test_idx in kf.split(X_taster):
-                X_train, X_test = X_taster[train_idx], X_taster[test_idx]
-                y_train, y_test = y_taster[train_idx], y_taster[test_idx]
+            X_train, X_test = X_taster[train_idx], X_taster[test_idx]
+            y_train, y_test = y_taster[train_idx], y_taster[test_idx]
 
+            if normalize:
                 scaler = StandardScaler()
-                X_train_scaled = scaler.fit_transform(X_train)
-                X_test_scaled = scaler.transform(X_test)
+                X_train = scaler.fit_transform(X_train)
+                X_test = scaler.transform(X_test)
 
-                # model = Ridge()
-                model.fit(X_train_scaled, y_train)
-                y_pred = model.predict(X_test_scaled)
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
 
-                mae = mean_absolute_error(y_test, y_pred, multioutput='raw_values')
-                rmse = np.sqrt(mean_squared_error(y_test, y_pred, multioutput='raw_values'))
+            # Per-attribute error
+            mae = mean_absolute_error(y_test, y_pred, multioutput='raw_values')
+            rmse = np.sqrt(mean_squared_error(y_test, y_pred, multioutput='raw_values'))
 
-                mae_list.append(mae)
-                rmse_list.append(rmse)
+            mae_list.append(mae)
+            rmse_list.append(rmse)
+            coef_list.append(model.coef_)
 
-                coef_list.append(model.coef_)  # <--- save model coefficients
-
-                # Compute multivariate R² as:
-                # 1 - (sum of squared errors) / (total variance of true values)
-                ss_res = np.sum((y_test - y_pred) ** 2)
-                y_test_mean = np.mean(y_test, axis=0)
-                ss_tot = np.sum((y_test - y_test_mean) ** 2)
-                r2_multivariate = 1 - ss_res / ss_tot
-                r2_list.append(r2_multivariate)
+            # Multivariate R²
+            r2_multivariate = r2_score(y_test, y_pred)
+            r2_list.append(r2_multivariate)
 
         # Average errors
         mean_mae = np.mean(mae_list, axis=0)
@@ -651,15 +673,19 @@ if __name__ == "__main__":
 
     # --- Example: Print summary of per-taster performance ---
     print("\nPer-taster average MAE (across all sensory attributes):")
+    lines = ["\nPer-taster average MAE (across all sensory attributes):"]
     for taster, mae in per_taster_mae.items():
         print(f"Taster {taster}: MAE = {np.mean(mae):.2f}")
 
-    print("\nR² score per taster (multivariate):\n")
+    print("\nR² score per taster:\n")
     print(f"{'Taster':<10} R²")
     print("-" * 20)
+    lines = ["\nR² score per taster (multivariate):"]
     for taster, r2_val in per_taster_r2.items():
         print(f"{taster:<10} {r2_val:6.3f}")
-
+        lines.append(f"{taster:<10} {r2_val:6.3f}")
+    logger.info("\n".join(lines))
+    logger_raw(f"Overall average R² across all tasters: {np.mean(list(per_taster_r2.values())):.3f}")
 
     attributes_to_plot = ['fruity', 'citrus', 'maturated fruits', 'candied citrus', 'toasted',
            'nuts', 'spicy', 'petroleum', 'undergroth', 'babery', 'honey', 'diary',
@@ -696,30 +722,30 @@ if __name__ == "__main__":
     #     maxima_rank=5  # Top-3 peaks
     # )
 
+    if global_focus_heatamp:
+        plot_focus_heatmap(
+            per_taster_weights=per_taster_weights,
+            sensory_cols=sensory_cols,
+            X_raw_shape=X_raw.shape,
+            attributes_to_plot=attributes_to_plot,  # your list
+            maxima_rank=5,                           # Top-3 peaks
+            n_bins=800,                                # 50 bins across chromatogram
+            smoothing_sigma=3,
+            rt_min=0, rt_max=2500
+        )
 
-    plot_focus_heatmap(
-        per_taster_weights=per_taster_weights,
-        sensory_cols=sensory_cols,
-        X_raw_shape=X_raw.shape,
-        attributes_to_plot=attributes_to_plot,  # your list
-        maxima_rank=5,                           # Top-3 peaks
-        n_bins=800,                                # 50 bins across chromatogram
-        smoothing_sigma=3,
-        rt_min=0, rt_max=2500
-    )
-
-
-    plot_focus_heatmap_per_taster_multiple_attributes(
-        per_taster_weights=per_taster_weights,
-        sensory_cols=sensory_cols,
-        X_raw_shape=X_raw.shape,
-        attributes_to_plot=attributes_to_plot,
-        maxima_rank=5,
-        n_bins=800,
-        smoothing_sigma=1.5,
-        cmap='viridis',
-        rt_min=0,
-        rt_max=800
-    )
+    if taster_focus_heatamp:
+        plot_focus_heatmap_per_taster_multiple_attributes(
+            per_taster_weights=per_taster_weights,
+            sensory_cols=sensory_cols,
+            X_raw_shape=X_raw.shape,
+            attributes_to_plot=attributes_to_plot,
+            maxima_rank=5,
+            n_bins=800,
+            smoothing_sigma=1.5,
+            cmap='viridis',
+            rt_min=0,
+            rt_max=800
+        )
 
     plt.show()

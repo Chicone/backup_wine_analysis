@@ -132,7 +132,7 @@ def build_feature_target_arrays(metadata, sensory_cols, data_dict):
 
 def compare_self_vs_group_models_per_taster(
     X_input, y, sample_ids, taster_ids, model, sensory_cols,
-    num_repeats=5, test_size=0.2, normalize=True, random_seed=42
+    num_repeats=5, test_size=0.2, normalize=True, random_seed=42,
 ):
     """
     For each taster:
@@ -179,6 +179,7 @@ def compare_self_vs_group_models_per_taster(
         X_sub = X_input[mask]
         y_sub = y[mask]
         sample_ids_sub = sample_ids[mask]
+
         results = train_and_evaluate_average_scores_model(
             X_input=X_sub,
             y=y_sub,
@@ -348,7 +349,11 @@ def train_and_evaluate_model(X_input, y, taster_ids, sample_ids, model, *,
         Whether to normalize features before training.
     taster_scaling : bool
         Whether to apply per-taster prediction scaling.
-    group_wines : bool
+    useEffect(() => {
+  if (tasterTests.length > 0 && groupWines) {
+    setGroupWines(false);
+  }
+}, [tasterTests]); : bool
         Whether to group folds by wine ID.
     random_seed : int
         Random seed for reproducibility.
@@ -616,8 +621,9 @@ if __name__ == "__main__":
 
         results_df = compare_self_vs_group_models_per_taster(
             X_input, y, sample_ids, taster_ids,
-            model=Ridge(alpha=1.0),
-            sensory_cols=sensory_cols
+            model=model,
+            sensory_cols=sensory_cols,
+            num_repeats=num_repeats
         )
         sys.exit(0)
 

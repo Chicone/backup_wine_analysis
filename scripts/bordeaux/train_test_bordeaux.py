@@ -114,13 +114,18 @@ From the root of the repository, run:
 if __name__ == "__main__":
     import numpy as np
     import os
+    import sys
     import yaml
+    import matplotlib.pyplot as plt
     from gcmswine.classification import Classifier
     from gcmswine import utils
     from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
     from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind, WineKindStrategy
     from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
     from gcmswine.logger_setup import logger, logger_raw
+    from sklearn.preprocessing import normalize
+    from gcmswine.dimensionality_reduction import DimensionalityReducer
+    from scripts.bordeaux.plotting_bordeaux import plot_bordeaux
 
     # # Use this function to convert the printed confusion matrix to a latex confusion matrix
     # # Copy the matrix into data_str using """ """ and create the list of headers, then call the function
@@ -160,6 +165,8 @@ if __name__ == "__main__":
     random_state = config.get("random_state", 42)
     color_by_country = config["color_by_country"]
     show_sample_names = config["show_sample_names"]
+    invert_x =  config["invert_x"]
+    invert_y =  config["invert_y"]
 
     # Run Parameters
     feature_type = config["feature_type"]
@@ -201,6 +208,7 @@ if __name__ == "__main__":
         "Normalize": config["normalize"],
         "Decimation": config["n_decimation"],
         "Sync": config["sync_state"],
+        "Year Classification": config["class_by_year"],
         "Region": config["region"],
         "CV type": config["cv_type"],
         "RT range": config["rt_range"],
@@ -211,7 +219,7 @@ if __name__ == "__main__":
     logger.info('------------------------ RUN SCRIPT -------------------------')
     logger.info("Configuration Parameters")
     for k, v in summary.items():
-        logger_raw(f"{k:>16s}: {v}")
+        logger_raw(f"{k:>20s}: {v}")
 
 
     # Load dataset, removing zero-variance channels
@@ -291,3 +299,67 @@ if __name__ == "__main__":
         raise ValueError(f"Invalid cross-validation type: '{cv_type}'. Expected 'LOO' or 'LOOPC'.")
 
     logger.info(f"Mean Balanced Accuracy: {mean_acc:.3f} ± {std_acc:.3f}")
+
+
+    if plot_projection:
+        if projection_source == "scores":
+            data_for_projection = normalize(scores)
+            projection_labels = all_labels
+        elif projection_source in {"tic", "tis", "tic_tis"}:
+            channels = list(range(data.shape[2]))  # use all channels
+            data_for_projection = utils.compute_features(data, feature_type=projection_source)
+            data_for_projection = normalize(data_for_projection)
+            projection_labels = labels  # use raw labels from data
+            if year_labels is not None and all(str(label).isdigit() for label in year_labels):
+                projection_labels = year_labels
+            else:
+                projection_labels = labels
+        else:
+            raise ValueError(f"Unknown projection source: {projection_source}")
+
+        # Generate title dynamically
+        pretty_source = {
+            "scores": "Classification Scores",
+            "tic": "TIC",
+            "tis": "TIS",
+            "tic_tis": "TIC + TIS"
+        }.get(projection_source, projection_source)
+
+        pretty_method = {
+            "UMAP": "UMAP",
+            "T-SNE": "t-SNE",
+            "PCA": "PCA"
+        }.get(projection_method, projection_method)
+
+        pretty_region = {
+            "winery": "Winery",
+            "origin": "Origin",
+            "country": "Country",
+            "continent": "Continent",
+            "burgundy": "N/S Burgundy"
+        }.get(region, region)
+
+        plot_title = f"{pretty_method} of {pretty_source}"
+        sys.stdout.flush()
+
+
+        if data_for_projection is not None:
+            reducer = DimensionalityReducer(data_for_projection)
+            if projection_method == "UMAP":
+                plot_bordeaux(
+                    reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
+                    plot_title, projection_labels, labels, color_by_country, invert_x=invert_x, invert_y=invert_y
+                )
+            elif projection_method == "PCA":
+                plot_bordeaux(
+                    reducer.pca(components=projection_dim),
+                    plot_title, projection_labels, labels, color_by_country, invert_x=invert_x, invert_y=invert_y
+                )
+            elif projection_method == "T-SNE":
+                plot_bordeaux(
+                    reducer.tsne(components=projection_dim, perplexity=5, random_state=random_state),
+                        plot_title, projection_labels, labels, color_by_country, invert_x=invert_x, invert_y=invert_y
+                        )
+            else:
+                raise ValueError(f"Unsupported projection method: {projection_method}")
+        plt.show()

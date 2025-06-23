@@ -456,7 +456,7 @@ class Classifier:
                 y=self.labels,
                 test_size=test_size,
                 random_state=random_seed,
-                group_duplicates=True,
+                group_duplicates=use_composites,
                 dataset_origins=self.dataset_origins)
 
         # Step 3: data preparation

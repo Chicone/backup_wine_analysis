@@ -166,6 +166,8 @@ if __name__ == "__main__":
     random_state = config.get("random_state", 42)
     color_by_country = config["color_by_country"]
     show_sample_names = config["show_sample_names"]
+    invert_x =  config["invert_x"]
+    invert_y =  config["invert_y"]
 
     # Run Parameters
     feature_type = config["feature_type"]
@@ -191,6 +193,7 @@ if __name__ == "__main__":
         "Normalize": config["normalize"],
         "Decimation": config["n_decimation"],
         "Sync": config["sync_state"],
+        "Year Classification": config["class_by_year"],
         "Region": config["region"],
         "CV type": config["cv_type"],
         "RT range": config["rt_range"],
@@ -201,7 +204,7 @@ if __name__ == "__main__":
     logger.info('------------------------ RUN SCRIPT -------------------------')
     logger.info("Configuration Parameters")
     for k, v in summary.items():
-        logger_raw(f"{k:>16s}: {v}")
+        logger_raw(f"{k:>20s}: {v}")
 
     # strategy = get_strategy_by_wine_kind(wine_kind, get_custom_order_func=utils.get_custom_order_for_pinot_noir_region())
     strategy = get_strategy_by_wine_kind(
@@ -254,10 +257,12 @@ if __name__ == "__main__":
         wine_kind=wine_kind,
         year_labels=np.array(year_labels),
         strategy=strategy,
-        sample_labels=raw_sample_labels
+        sample_labels=raw_sample_labels,
+        dataset_origins=dataset_origins,
     )
 
-    if cv_type == "LOOPC":
+    if cv_type == "LOOPC" or cv_type == "stratified":
+        loopc = False if cv_type == "stratified" else True
         # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
         mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_all_channels(
             num_repeats=num_repeats,
@@ -272,7 +277,7 @@ if __name__ == "__main__":
             n_jobs=20,
             feature_type=feature_type,
             classifier_type=classifier,
-            LOOPC=True , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
+            LOOPC=loopc , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
             projection_source=projection_source,
             show_confusion_matrix=show_confusion_matrix
         )
@@ -394,7 +399,8 @@ if __name__ == "__main__":
                 plot_pinot_noir(
                     reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
                     plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names,
-                    unique_samples_only=True, n_neighbors=n_neighbors, random_state=random_state
+                    unique_samples_only=True, n_neighbors=n_neighbors, random_state=random_state,
+                    invert_x=invert_x, invert_y=invert_y
                 )
             elif projection_method == "PCA":
                 plot_pinot_noir(reducer.pca(components=projection_dim),plot_title, projection_labels, legend_labels,

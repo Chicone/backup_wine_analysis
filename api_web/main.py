@@ -30,10 +30,12 @@ scripts = {
     "champagne_global_model": "scripts/champagne/ridge_model_global.py",
     "champagne_per_taster_model": "scripts/champagne/ridge_model_per_taster.py",
 
-    "bordeaux_projection": "scripts/bordeaux/projection_bordeaux.py",
-    # "pinot_projection": "scripts/pinot_noir/old_projection_pinot_noir.py",
+    "bordeaux_projection": "scripts/bordeaux/train_test_bordeaux.py",
+    # "bordeaux_projection": "scripts/bordeaux/projection_bordeaux.py",
     "pinot_projection": "scripts/pinot_noir/train_test_pinot_noir.py",
-    "press_projection": "scripts/press_wines/projection_press_wines.py",
+    # "pinot_projection": "scripts/pinot_noir/old_projection_pinot_noir.py",
+    "press_projection": "scripts/press_wines/train_test_press_wines.py",
+    # "press_projection": "scripts/press_wines/projection_press_wines.py",
 }
 
 from typing import List, Optional
@@ -136,6 +138,10 @@ async def run_script(payload: dict):
         ("taster_vs_mean", False),
         ("group_wines", False),
         ("cv_type", "LOOPC"),
+        ("invert_x", "invert_x"),
+        ("invert_y", "invert_y"),
+        ("global_focus_heatmap", "global_focus_heatmap"),
+        ("taster_focus_heatmap", "taster_focus_heatmap"),
 
 
     ]

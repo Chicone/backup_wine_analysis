@@ -369,3 +369,259 @@ Total samples skipped due to missing chromatograms: 50
         Taster vs mean: True
   Show taster profiles: False
 [11:47:32] Taster vs Mean selected
+
+
+2025-06-23 05:58:56 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 05:58:56 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: lasso
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+2025-06-23 05:59:45 — INFO — Taster vs Mean selected
+
+
+2025-06-23 06:00:49 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 06:00:49 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: lasso
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+2025-06-23 06:01:15 — INFO — Taster vs Mean selected
+
+
+2025-06-23 06:17:25 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 06:17:25 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+2025-06-23 06:17:32 — INFO — Taster vs Mean selected
+
+
+2025-06-23 07:04:55 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 07:04:55 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+      Downsample group: True
+  Show taster profiles: False
+2025-06-23 07:05:05 — INFO — Taster vs Mean selected
+
+
+2025-06-23 07:20:55 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 07:20:55 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+      Downsample group: True
+  Show taster profiles: False
+2025-06-23 07:20:58 — INFO — Taster vs Mean selected
+
+
+2025-06-23 07:21:59 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 07:21:59 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+      Downsample group: True
+  Show taster profiles: False
+2025-06-23 07:22:07 — INFO — Taster vs Mean selected
+
+
+2025-06-23 07:32:10 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 07:32:10 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+2025-06-23 07:32:10 — INFO — Taster vs Mean selected
+
+
+2025-06-23 07:58:11 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 07:58:11 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: True
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+  Show taster profiles: False
+2025-06-23 07:58:51 — INFO — Average Scores selected
+
+
+2025-06-23 09:15:57 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 09:16:16 — INFO — Configuration Parameters (Model per Taster)
+
+
+2025-06-23 09:17:08 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 09:17:21 — INFO — 
+2025-06-23 09:27:47 — INFO — ------------------------ RUN SCRIPT -------------------------
+
+
+2025-06-23 09:39:28 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 09:39:28 — INFO — Configuration Parameters (Model per Taster)
+             Wine kind: Champagne
+                  Task: Model per Taster
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+2025-06-23 09:39:28 — INFO — 
+Variability of sensory attributes (standard deviation):
+              fruity: Std =  28.18   Range = (0.0–100.0)
+              citrus: Std =  28.46   Range = (0.0–100.0)
+    maturated fruits: Std =  24.72   Range = (0.0–139.0)
+      candied citrus: Std =  26.02   Range = (0.0–100.0)
+             toasted: Std =  28.45   Range = (0.0–99.0)
+                nuts: Std =  24.09   Range = (0.0–100.0)
+               spicy: Std =  24.64   Range = (0.0–100.0)
+           petroleum: Std =  25.43   Range = (0.0–100.0)
+          undergroth: Std =  23.32   Range = (0.0–101.0)
+              babery: Std =  22.24   Range = (0.0–98.0)
+               honey: Std =  24.04   Range = (0.0–100.0)
+               diary: Std =  23.85   Range = (0.0–100.0)
+              herbal: Std =  24.76   Range = (0.0–101.0)
+              tobaco: Std =  22.87   Range = (0.0–96.0)
+             texture: Std =  25.67   Range = (1.0–100.0)
+                acid: Std =  25.57   Range = (2.0–100.0)
+              ageing: Std =  29.77   Range = (0.0–101.0)
+
+
+2025-06-23 09:47:05 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 09:47:05 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+2025-06-23 09:47:06 — INFO — Taster vs Mean selected
+
+
+2025-06-23 09:47:28 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-23 09:47:28 — INFO — Configuration Parameters (Model per Taster)
+             Wine kind: Champagne
+                  Task: Model per Taster
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+2025-06-23 09:48:02 — INFO — 
+Variability of sensory attributes (standard deviation):
+              fruity: Std =  28.18   Range = (0.0–100.0)
+              citrus: Std =  28.46   Range = (0.0–100.0)
+    maturated fruits: Std =  24.72   Range = (0.0–139.0)
+      candied citrus: Std =  26.02   Range = (0.0–100.0)
+             toasted: Std =  28.45   Range = (0.0–99.0)
+                nuts: Std =  24.09   Range = (0.0–100.0)
+               spicy: Std =  24.64   Range = (0.0–100.0)
+           petroleum: Std =  25.43   Range = (0.0–100.0)
+          undergroth: Std =  23.32   Range = (0.0–101.0)
+              babery: Std =  22.24   Range = (0.0–98.0)
+               honey: Std =  24.04   Range = (0.0–100.0)
+               diary: Std =  23.85   Range = (0.0–100.0)
+              herbal: Std =  24.76   Range = (0.0–101.0)
+              tobaco: Std =  22.87   Range = (0.0–96.0)
+             texture: Std =  25.67   Range = (1.0–100.0)
+                acid: Std =  25.57   Range = (2.0–100.0)
+              ageing: Std =  29.77   Range = (0.0–101.0)

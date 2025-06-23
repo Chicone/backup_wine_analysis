@@ -9,7 +9,9 @@ from matplotlib import cm
 
 
 
-def plot_bordeaux(embedding, title, labels, label_dict, group_by_country=False):
+def plot_bordeaux(
+        embedding, title, labels, label_dict, group_by_country=False, invert_x=False, invert_y=False
+):
     """
     Plot a 2D or 3D scatter plot of embedded data with labeled points.
     Automatically applies Bordeaux-specific coloring if labels match Bordeaux format.
@@ -31,10 +33,17 @@ def plot_bordeaux(embedding, title, labels, label_dict, group_by_country=False):
     group_by_country : bool
         If True, color by country (only used for winery/burgundy-style labels).
 
+    invert_x : bool
+        If True, inverts the x-axis (multiplies x-coordinates by -1).
+
+    invert_y : bool
+        If True, inverts the y-axis (multiplies y-coordinates by -1).
+
     Returns
     -------
     None. Displays a matplotlib plot.
     """
+
     labels = np.array(labels)
     is_3d = embedding.shape[1] == 3
 
@@ -53,7 +62,11 @@ def plot_bordeaux(embedding, title, labels, label_dict, group_by_country=False):
     color_lookup = {}
 
     for i, label in enumerate(labels):
-        coords = embedding[i]
+        coords = embedding[i].copy()
+        if invert_x:
+            coords[0] *= -1
+        if invert_y:
+            coords[1] *= -1
         if not all_digits:
             mod_label, color = change_letter_and_color_bordeaux(label)
             if color not in used_colors:
