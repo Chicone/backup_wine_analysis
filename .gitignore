@@ -1,5 +1,8 @@
 # Ignore raw data and outputs
+*.py[cod]
 src/
 wine_analysis/
 logs/
 __pycache__/
+frontend/
+api_web/
