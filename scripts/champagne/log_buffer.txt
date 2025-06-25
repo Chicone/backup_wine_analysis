@@ -625,3 +625,336 @@ Variability of sensory attributes (standard deviation):
              texture: Std =  25.67   Range = (1.0–100.0)
                 acid: Std =  25.57   Range = (2.0–100.0)
               ageing: Std =  29.77   Range = (0.0–101.0)
+
+
+2025-06-24 08:57:04 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-24 08:57:04 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: True
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+  Show taster profiles: False
+2025-06-24 08:58:21 — INFO — 
+Per-attribute average errors over multiple splits:
+          fruity: MAE = 34.72, RMSE = 44.76 (44.8% of scale)
+          citrus: MAE = 31.10, RMSE = 41.71 (41.7% of scale)
+maturated fruits: MAE = 43.88, RMSE = 53.23 (53.2% of scale)
+  candied citrus: MAE = 45.96, RMSE = 57.16 (57.2% of scale)
+         toasted: MAE = 45.76, RMSE = 58.82 (58.8% of scale)
+            nuts: MAE = 46.67, RMSE = 55.10 (55.1% of scale)
+           spicy: MAE = 43.04, RMSE = 52.50 (52.5% of scale)
+       petroleum: MAE = 33.75, RMSE = 46.07 (46.1% of scale)
+      undergroth: MAE = 27.17, RMSE = 37.21 (37.2% of scale)
+          babery: MAE = 31.14, RMSE = 38.24 (38.2% of scale)
+           honey: MAE = 30.09, RMSE = 39.84 (39.8% of scale)
+           diary: MAE = 31.15, RMSE = 40.28 (40.3% of scale)
+          herbal: MAE = 24.35, RMSE = 34.75 (34.8% of scale)
+          tobaco: MAE = 29.15, RMSE = 37.73 (37.7% of scale)
+         texture: MAE = 57.84, RMSE = 69.21 (69.2% of scale)
+            acid: MAE = 61.68, RMSE = 73.00 (73.0% of scale)
+          ageing: MAE = 51.82, RMSE = 66.44 (66.4% of scale)
+Overall RMSE across repeats: 51.1284
+2025-06-24 08:58:21 — INFO — 
+Per-taster average MAE (across all attributes):
+Taster D1: MAE = 40.18
+Taster D2: MAE = 32.91
+Taster D3: MAE = 35.42
+Taster D4: MAE = 45.90
+Taster D5: MAE = 45.94
+Taster D6: MAE = 47.81
+Taster D7: MAE = 43.57
+Taster D8: MAE = 25.71
+Taster D9: MAE = 34.65
+Taster D10: MAE = 42.10
+2025-06-24 08:59:34 — INFO — 
+Per-taster average R² (across all attributes):
+Taster D1: R² = -2.22
+Taster D2: R² = -1.03
+Taster D3: R² = -2.76
+Taster D4: R² = -11.16
+Taster D5: R² = -6.65
+Taster D6: R² = -5.38
+Taster D7: R² = -11.05
+Taster D8: R² = -2.32
+Taster D9: R² = -7.15
+Taster D10: R² = -6.07
+Overall average R² across all tasters: -6.108
+
+
+2025-06-24 09:03:55 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-24 09:03:55 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: True
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+  Show taster profiles: False
+2025-06-24 09:04:01 — INFO — 
+Per-attribute average errors over multiple splits:
+          fruity: MAE = 34.72, RMSE = 44.76 (44.8% of scale)
+          citrus: MAE = 31.10, RMSE = 41.71 (41.7% of scale)
+maturated fruits: MAE = 43.88, RMSE = 53.23 (53.2% of scale)
+  candied citrus: MAE = 45.96, RMSE = 57.16 (57.2% of scale)
+         toasted: MAE = 45.76, RMSE = 58.82 (58.8% of scale)
+            nuts: MAE = 46.67, RMSE = 55.10 (55.1% of scale)
+           spicy: MAE = 43.04, RMSE = 52.50 (52.5% of scale)
+       petroleum: MAE = 33.75, RMSE = 46.07 (46.1% of scale)
+      undergroth: MAE = 27.17, RMSE = 37.21 (37.2% of scale)
+          babery: MAE = 31.14, RMSE = 38.24 (38.2% of scale)
+           honey: MAE = 30.09, RMSE = 39.84 (39.8% of scale)
+           diary: MAE = 31.15, RMSE = 40.28 (40.3% of scale)
+          herbal: MAE = 24.35, RMSE = 34.75 (34.8% of scale)
+          tobaco: MAE = 29.15, RMSE = 37.73 (37.7% of scale)
+         texture: MAE = 57.84, RMSE = 69.21 (69.2% of scale)
+            acid: MAE = 61.68, RMSE = 73.00 (73.0% of scale)
+          ageing: MAE = 51.82, RMSE = 66.44 (66.4% of scale)
+Overall RMSE across repeats: 51.1284
+2025-06-24 09:04:01 — INFO — 
+Per-taster average MAE (across all attributes):
+Taster D1: MAE = 40.18
+Taster D2: MAE = 32.91
+Taster D3: MAE = 35.42
+Taster D4: MAE = 45.90
+Taster D5: MAE = 45.94
+Taster D6: MAE = 47.81
+Taster D7: MAE = 43.57
+Taster D8: MAE = 25.71
+Taster D9: MAE = 34.65
+Taster D10: MAE = 42.10
+2025-06-24 09:04:01 — INFO — 
+Per-taster average R² (across all attributes):
+Taster D1: R² = -2.22
+Taster D2: R² = -1.03
+Taster D3: R² = -2.76
+Taster D4: R² = -11.16
+Taster D5: R² = -6.65
+Taster D6: R² = -5.38
+Taster D7: R² = -11.05
+Taster D8: R² = -2.32
+Taster D9: R² = -7.15
+Taster D10: R² = -6.07
+Overall average R² across all tasters: -6.108
+
+
+2025-06-24 09:05:33 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-24 09:05:33 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: True
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+  Show taster profiles: False
+2025-06-24 09:05:38 — INFO — 
+Per-attribute average errors over multiple splits:
+          fruity: MAE = 34.72, RMSE = 44.76 (44.8% of scale)
+          citrus: MAE = 31.10, RMSE = 41.71 (41.7% of scale)
+maturated fruits: MAE = 43.88, RMSE = 53.23 (53.2% of scale)
+  candied citrus: MAE = 45.96, RMSE = 57.16 (57.2% of scale)
+         toasted: MAE = 45.76, RMSE = 58.82 (58.8% of scale)
+            nuts: MAE = 46.67, RMSE = 55.10 (55.1% of scale)
+           spicy: MAE = 43.04, RMSE = 52.50 (52.5% of scale)
+       petroleum: MAE = 33.75, RMSE = 46.07 (46.1% of scale)
+      undergroth: MAE = 27.17, RMSE = 37.21 (37.2% of scale)
+          babery: MAE = 31.14, RMSE = 38.24 (38.2% of scale)
+           honey: MAE = 30.09, RMSE = 39.84 (39.8% of scale)
+           diary: MAE = 31.15, RMSE = 40.28 (40.3% of scale)
+          herbal: MAE = 24.35, RMSE = 34.75 (34.8% of scale)
+          tobaco: MAE = 29.15, RMSE = 37.73 (37.7% of scale)
+         texture: MAE = 57.84, RMSE = 69.21 (69.2% of scale)
+            acid: MAE = 61.68, RMSE = 73.00 (73.0% of scale)
+          ageing: MAE = 51.82, RMSE = 66.44 (66.4% of scale)
+Overall RMSE across repeats: 51.1284
+2025-06-24 09:05:38 — INFO — 
+Per-taster average MAE (across all attributes):
+Taster D1: MAE = 40.18
+Taster D2: MAE = 32.91
+Taster D3: MAE = 35.42
+Taster D4: MAE = 45.90
+Taster D5: MAE = 45.94
+Taster D6: MAE = 47.81
+Taster D7: MAE = 43.57
+Taster D8: MAE = 25.71
+Taster D9: MAE = 34.65
+Taster D10: MAE = 42.10
+2025-06-24 09:05:38 — INFO — 
+Per-taster average R² (across all attributes):
+Taster D1: R² = -2.22
+Taster D2: R² = -1.03
+Taster D3: R² = -2.76
+Taster D4: R² = -11.16
+Taster D5: R² = -6.65
+Taster D6: R² = -5.38
+Taster D7: R² = -11.05
+Taster D8: R² = -2.32
+Taster D9: R² = -7.15
+Taster D10: R² = -6.07
+Overall average R² across all tasters: -6.108
+
+
+2025-06-24 09:12:50 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-24 09:12:50 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: True
+           Avg. scores: False
+        Taster vs mean: False
+  Show taster profiles: False
+2025-06-24 09:12:50 — INFO — Shuffle Labels selected
+2025-06-24 09:13:04 — INFO — 
+Per-attribute average errors over multiple splits:
+          fruity: MAE = 21.38, RMSE = 25.82 (25.8% of scale)
+          citrus: MAE = 22.40, RMSE = 26.70 (26.7% of scale)
+maturated fruits: MAE = 16.97, RMSE = 21.11 (21.1% of scale)
+  candied citrus: MAE = 19.10, RMSE = 23.33 (23.3% of scale)
+         toasted: MAE = 22.86, RMSE = 27.29 (27.3% of scale)
+            nuts: MAE = 17.28, RMSE = 21.22 (21.2% of scale)
+           spicy: MAE = 19.17, RMSE = 23.46 (23.5% of scale)
+       petroleum: MAE = 19.43, RMSE = 24.05 (24.0% of scale)
+      undergroth: MAE = 17.50, RMSE = 22.01 (22.0% of scale)
+          babery: MAE = 15.63, RMSE = 19.49 (19.5% of scale)
+           honey: MAE = 17.91, RMSE = 22.25 (22.3% of scale)
+           diary: MAE = 17.96, RMSE = 22.07 (22.1% of scale)
+          herbal: MAE = 16.68, RMSE = 20.68 (20.7% of scale)
+          tobaco: MAE = 17.82, RMSE = 22.20 (22.2% of scale)
+         texture: MAE = 18.04, RMSE = 22.23 (22.2% of scale)
+            acid: MAE = 19.65, RMSE = 23.89 (23.9% of scale)
+          ageing: MAE = 21.90, RMSE = 26.94 (26.9% of scale)
+Overall RMSE across repeats: 23.3278
+2025-06-24 09:13:04 — INFO — 
+Per-taster average MAE (across all attributes):
+Taster D1: MAE = 19.63
+Taster D2: MAE = 20.33
+Taster D3: MAE = 18.40
+Taster D4: MAE = 17.37
+Taster D5: MAE = 18.09
+Taster D6: MAE = 19.40
+Taster D7: MAE = 18.56
+Taster D8: MAE = 19.14
+Taster D9: MAE = 18.62
+Taster D10: MAE = 19.58
+2025-06-24 09:13:04 — INFO — 
+Per-taster average R² (across all attributes):
+Taster D1: R² = -0.51
+Taster D2: R² = -0.12
+Taster D3: R² = -0.21
+Taster D4: R² = -0.45
+Taster D5: R² = -0.05
+Taster D6: R² = -0.99
+Taster D7: R² = -0.00
+Taster D8: R² = -0.15
+Taster D9: R² = -0.25
+Taster D10: R² = -0.09
+Overall average R² across all tasters: -0.258
+
+
+2025-06-24 09:14:52 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-24 09:14:52 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 200
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+  Show taster profiles: False
+2025-06-24 09:14:52 — INFO — Average Scores selected
+2025-06-24 09:16:58 — INFO — 
+Per-attribute R² for averaged model (robust across all splits):
+fruity                 R² =   0.32
+citrus                 R² =   0.09
+maturated fruits       R² =  -0.00
+candied citrus         R² =   0.51
+toasted                R² =   0.59
+nuts                   R² =   0.55
+spicy                  R² =   0.70
+petroleum              R² =   0.19
+undergroth             R² =   0.52
+babery                 R² =  -0.30
+honey                  R² =   0.57
+diary                  R² =   0.06
+herbal                 R² =   0.26
+tobaco                 R² =   0.46
+texture                R² =   0.18
+acid                   R² =  -0.46
+ageing                 R² =  -0.04
+Overall average R² across attributes: 0.248
+
+
+
+2025-06-24 09:38:06 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-06-24 09:38:06 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: True
+  Show taster profiles: False
+2025-06-24 09:38:07 — INFO — Taster vs Mean selected
+2025-06-24 09:39:23 — INFO — 
+=== Comparison of self vs group models ===
+taster  mean_r2_self  mean_r2_group
+    D1        -0.780          0.239
+   D10        -0.993          0.244
+    D2        -0.544          0.232
+    D3        -0.822          0.244
+    D4        -1.388          0.295
+    D5        -1.058          0.266
+    D6        -0.708          0.229
+    D7        -1.059          0.238
+    D8        -1.887          0.331
+    D9        -1.174          0.225
+Mean r2_self: -1.041
+Mean r2_group: 0.254

@@ -1,8 +1,8 @@
 chrom_cap: 35000
-class_by_year: true
+class_by_year: false
 classifier: RGC
 color_by_country: false
-cv_type: LOO
+cv_type: LOOPC
 datasets:
   bordeaux_oak: /home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/
   cab_sauv_2021: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/
@@ -15,7 +15,7 @@ datasets:
   pinot_noir_isvv_dllme: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/
   pinot_noir_isvv_lle: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/
 downsample_group: true
-feature_type: tic_tis
+feature_type: tic
 global_focus_heatmap: false
 group_wines: false
 invert_x: false
@@ -26,9 +26,10 @@ label_targets:
 n_decimation: 10
 n_neighbors: 30
 normalize: true
-num_repeats: 1
+num_repeats: 10
 num_splits: 1
-plot_projection: scores
+plot_projection: false
+plot_r2: false
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
@@ -47,7 +48,7 @@ selected_datasets:
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
-show_confusion_matrix: false
+show_confusion_matrix: true
 show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false
@@ -55,7 +56,7 @@ shuffle_labels: false
 sync_state: false
 taster_focus_heatmap: false
 taster_scaling: false
-taster_vs_mean: true
+taster_vs_mean: false
 test_average_scores: false
 umap_dim: 2
 umap_source: tic_tis
