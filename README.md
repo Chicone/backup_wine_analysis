@@ -6,7 +6,6 @@ This project provides a portable Dockerized version of the Wine Analysis Web Int
 - A FastAPI backend  
 - A static frontend  
 - Python scripts for classification, visualization, and model evaluation  
-- Embedded GC-MS datasets  
 - Dockerfile to package and deploy everything in a consistent way  
 
 For more general information and for a guide on how to use the interface, refer to the documentation in the *wine-analysis-package* and *wine-analysis-web-interface* branches.
@@ -32,12 +31,26 @@ docker build -t wine-analysis-interface .
 This will install dependencies, copy source code, and prepare the static files and datasets needed to run the application.
 
 ## How to Run the Docker Container
-Since the wine dataset is larger (>50GB), we must mount it at runtime into the container
+There are two options depending on how you want to handle the dataset:
+
+#### Option 1 — Dataset *is already included* in the Docker image
+
+This is useful if are running a Docker container that already includes the dataset. 
+
+Run the Docker image:
+   ```bash
+   docker build -t wine-analysis-interface .
+   ```
+
+#### Option 2 — Dataset is provided at runtime (not included in Docker image)
+If you are building the container using Dockerfile, then you will have to 
+mount the dataset folder at runtime into the container.
 ```bash
 docker run -v /absolute/path/to/datasets:/app/datasets -p 8080:8000 wine-analysis-interface
 ```
 This command exposes the dataset under */app/datasets* and maps the internal port 8000 (used by the FastAPI server) to your local machine’s port 8080.
-Once running, open a browser and visit:
+
+Once the container is running, open a browser and visit:
 ```arduino
 http://localhost:8080
 ```

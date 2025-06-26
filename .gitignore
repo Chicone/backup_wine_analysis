@@ -6,7 +6,7 @@ __pycache__/
 *.egg
 *.egg-info/
 dist/
-build/
+#build/
 
 # FastAPI and backend project structure
 logs/
@@ -15,7 +15,7 @@ config.yaml
 
 # Node + React frontend
 node_modules/
-build/
+#build/
 dist/
 
 # Venvs
@@ -38,7 +38,7 @@ Thumbs.db
 *.npy
 
 # Ignore local source dirs if not versioned
-src/
+/src/
 wine_analysis/
 
 node_modules/
