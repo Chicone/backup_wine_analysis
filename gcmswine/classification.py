@@ -1733,7 +1733,11 @@ class Classifier:
             plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
             plt.setp(ax.get_yticklabels(), fontsize=12)
             plt.tight_layout()
-            plt.show()
+            # plt.show()
+            import matplotlib
+            matplotlib.use('Agg')
+            plt.savefig("frontend-build/static/plot.png")
+            plt.close(fig)
 
         return mean_acc, std_acc, all_scores, all_labels, test_sample_names
 
@@ -1891,7 +1895,11 @@ class Classifier:
             plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
             plt.setp(ax.get_yticklabels(), fontsize=12)
             plt.tight_layout()
-            plt.show()
+            # plt.show()
+            import matplotlib
+            matplotlib.use('Agg')
+            plt.savefig("frontend-build/static/plot.png")
+            plt.close(fig)
 
         if projection_source == "scores":
             return mean_test_accuracy, std_test_accuracy, all_scores, all_labels, test_samples_names

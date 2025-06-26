@@ -198,7 +198,11 @@ if __name__ == "__main__":
             axes[i].set_title(f"Confusion Matrix – {title}")
 
         plt.tight_layout()
-        plt.show()
+        # plt.show()
+        import matplotlib
+        matplotlib.use('Agg')
+        plt.savefig("frontend-build/static/plot.png")
+        plt.close(fig)
 
     print("\n📋 Overall Summary:")
     for label, mean_bal, std_bal, mean_raw, std_raw in summary_stats:

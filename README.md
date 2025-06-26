@@ -33,22 +33,22 @@ This will install dependencies, copy source code, and prepare the static files a
 ## How to Run the Docker Container
 There are two options depending on how you want to handle the dataset:
 
-#### Option 1 — Dataset *is already included* in the Docker image
-
-This is useful if are running a Docker container that already includes the dataset. 
-
-Run the Docker image:
-   ```bash
-   docker build -t wine-analysis-interface .
-   ```
-
-#### Option 2 — Dataset is provided at runtime (not included in Docker image)
+#### Option 1 (preferred)— Dataset is provided at runtime (not included in Docker image)
 If you are building the container using Dockerfile, then you will have to 
 mount the dataset folder at runtime into the container.
 ```bash
 docker run -v /absolute/path/to/datasets:/app/datasets -p 8080:8000 wine-analysis-interface
 ```
 This command exposes the dataset under */app/datasets* and maps the internal port 8000 (used by the FastAPI server) to your local machine’s port 8080.
+
+#### Option 2 — Dataset *is already included* in the Docker image
+
+This is useful if you are running a (provided) Docker container that already includes the dataset. 
+
+Run the Docker image:
+   ```bash
+ docker run -p 8080:8000 wine-analysis-interface
+   ```
 
 Once the container is running, open a browser and visit:
 ```arduino

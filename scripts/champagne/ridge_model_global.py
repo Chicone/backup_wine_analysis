@@ -482,7 +482,11 @@ def plot_wine_across_tasters(y_true, y_pred, sample_ids, taster_ids, wine_code, 
         plt.suptitle(f"Wine {wine_code}: Sensory predictions across tasters", fontsize=14)
         plt.tight_layout(rect=[0, 0, 1, 0.92])
         plt.legend()
-        plt.show()
+        # plt.show()
+        import matplotlib
+        matplotlib.use('Agg')
+        plt.savefig("frontend-build/static/plot.png")
+        plt.close(fig)
 
 def plot_single_wine(y_true, y_pred, sample_ids, wine_code):
     import matplotlib.pyplot as plt
@@ -507,9 +511,12 @@ def plot_single_wine(y_true, y_pred, sample_ids, wine_code):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.show(block=False)
+    # plt.show(block=False)
+    import matplotlib
+    matplotlib.use('Agg')
+    plt.savefig("frontend-build/static/plot.png")
 # plot_single_wine(last_y_test, last_y_pred, last_sample_ids, wine_code='141T-N-27')
-plt.show()
+# plt.show()
 
 
 def plot_profiles_grouped_by_taster(y_true, y_pred, sample_ids, taster_ids, n_cols=10):
@@ -554,7 +561,11 @@ def plot_profiles_grouped_by_taster(y_true, y_pred, sample_ids, taster_ids, n_co
 
         plt.suptitle("All predicted sensory profiles by taster (true in black, predicted in red)", fontsize=14)
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.show(block=False)
+        # plt.show(block=False)
+        import matplotlib
+        matplotlib.use('Agg')
+        plt.savefig("frontend-build/static/plot.png")
+        plt.close(fig)
 
 def natural_key(t):
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', t)]
@@ -591,7 +602,10 @@ def plot_r2_per_taster(taster_r2_summary, title="Average R² per Taster"):
     plt.legend()
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.show()
+    # plt.show()
+    import matplotlib
+    matplotlib.use('Agg')
+    plt.savefig("frontend-build/static/plot.png")
 
 def plot_self_vs_group_r2_df(df, save_path=None):
     """
@@ -655,7 +669,11 @@ def plot_self_vs_group_r2_df(df, save_path=None):
         plt.savefig(save_path, dpi=300)
         print(f"Saved plot to {save_path}")
     else:
-        plt.show()
+        # plt.show()
+        import matplotlib
+        matplotlib.use('Agg')
+        plt.savefig("frontend-build/static/plot.png")
+        plt.close(fig)
 
 # Main logic
 if __name__ == "__main__":
@@ -902,7 +920,7 @@ if __name__ == "__main__":
             taster_ids=last_taster_ids,
             n_cols=10
         )
-        plt.show()
+        # plt.show()
 
 
 

@@ -118,4 +118,8 @@ def plot_projection_with_labels(X, labels, method="UMAP", label_encoder=None, ti
         ax.set_zlabel(f"{method} 3")
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
+    import matplotlib
+    matplotlib.use('Agg')
+    plt.savefig("frontend-build/static/plot.png")
+    plt.close(fig)

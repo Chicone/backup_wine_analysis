@@ -413,6 +413,6 @@ if __name__ == "__main__":
                 raise ValueError(f"Unsupported projection method: {projection_method}")
 
 
-        plt.show()
+        # plt.show()
 
 

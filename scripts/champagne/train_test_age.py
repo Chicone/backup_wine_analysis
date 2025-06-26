@@ -146,7 +146,11 @@ if __name__ == "__main__":
             plt.legend(fontsize='small', loc='upper right')
             plt.grid(True)
             plt.tight_layout()
-            plt.show()
+            # plt.show()
+            import matplotlib
+            matplotlib.use('Agg')
+            plt.savefig("frontend-build/static/plot.png")
+            plt.close(fig)
 
         plot_chromatograms(data_dict, keys=None, max_traces=None, title="Chromatograms", decimation_factor=1)
 
@@ -315,4 +319,8 @@ if __name__ == "__main__":
             plot_idx += 1
 
         plt.tight_layout()
-        plt.show()
+        # plt.show()
+        import matplotlib
+        matplotlib.use('Agg')
+        plt.savefig("frontend-build/static/plot.png")
+        plt.close(fig)

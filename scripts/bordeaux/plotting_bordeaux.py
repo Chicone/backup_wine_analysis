@@ -97,7 +97,6 @@ def plot_bordeaux(
     import os
     import matplotlib
     matplotlib.use('Agg')
-    # os.makedirs("frontend-build/static", exist_ok=True)
     plt.savefig("frontend-build/static/plot.png")
     plt.close(fig)
 

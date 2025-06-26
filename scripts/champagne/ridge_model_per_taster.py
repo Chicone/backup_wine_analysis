@@ -100,8 +100,11 @@ def plot_top_peaks_selected_attributes(per_taster_weights, sensory_cols, X_raw_s
 
     plt.suptitle(f"Top-{maxima_rank} chromatogram peaks across tasters (selected attributes)", fontsize=16)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.show(block=False)
-
+    # plt.show(block=False)
+    import matplotlib
+    matplotlib.use('Agg')
+    plt.savefig("frontend-build/static/plot.png")
+    plt.close(fig)
 def plot_strongest_focus_per_attribute(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot,
                                        maxima_rank=1):
     n_chromatogram_features = X_raw_shape[1]
@@ -166,7 +169,11 @@ def plot_strongest_focus_per_attribute(per_taster_weights, sensory_cols, X_raw_s
 
     plt.suptitle(f"Strongest chromatogram focus per attribute – Top-{maxima_rank} peak", fontsize=16)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.show(block=False)
+    # plt.show(block=False)
+    import matplotlib
+    matplotlib.use('Agg')
+    plt.savefig("frontend-build/static/plot.png")
+    plt.close(fig)
 
 def plot_vertical_focus_map_multiple_attributes(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot,
                                                 maxima_rank=1):
@@ -242,8 +249,11 @@ def plot_vertical_focus_map_multiple_attributes(per_taster_weights, sensory_cols
 
     plt.suptitle(f"Vertical focus maps (Top-{maxima_rank} peaks per taster)", fontsize=16)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.show(block=False)
-
+    # plt.show(block=False)
+    import matplotlib
+    matplotlib.use('Agg')
+    plt.savefig("frontend-build/static/plot.png")
+    plt.close(fig)
 
 def plot_focus_heatmap(per_taster_weights, sensory_cols, X_raw_shape, attributes_to_plot, maxima_rank=3, n_bins=50,
                        smoothing_sigma=1.5, rt_min=None, rt_max=None):
@@ -371,7 +381,11 @@ def plot_focus_heatmap(per_taster_weights, sensory_cols, X_raw_shape, attributes
 
     plt.suptitle(f"Focus density heatmaps (Top-{maxima_rank} peaks per taster) – Smoothed", fontsize=16)
     plt.tight_layout(rect=[0, 0, 0.85, 0.96], h_pad=5.0)  # Don't overlap the colorbar
-    plt.show(block=False)
+    # plt.show(block=False)
+    import matplotlib
+    matplotlib.use('Agg')
+    plt.savefig("frontend-build/static/plot.png")
+    plt.close(fig)
 
 def plot_focus_heatmap_per_taster_multiple_attributes(
         per_taster_weights,
@@ -511,7 +525,11 @@ def plot_focus_heatmap_per_taster_multiple_attributes(
 
     print(f"Heatmaps plotted: Top-{maxima_rank} peaks per taster used for each attribute.")
 
-    plt.show(block=False)
+    # plt.show(block=False)
+    import matplotlib
+    matplotlib.use('Agg')
+    plt.savefig("frontend-build/static/plot.png")
+    plt.close(fig)
 
 if __name__ == "__main__":
     # Load configuration parameters from YAML
@@ -748,4 +766,4 @@ if __name__ == "__main__":
             rt_max=800
         )
 
-    plt.show()
+    # plt.show()
