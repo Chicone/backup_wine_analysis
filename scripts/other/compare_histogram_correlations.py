@@ -16,7 +16,7 @@ import numpy as np
 import itertools
 import pandas as pd
 
-base_path = "/home/luiscamara/PycharmProjects/wine_analysis/data/press_wines/"
+base_path = "/app/data/press_wines/"
 
 file_names = [
     "hist_5ch_greedy_add_ranked_merlot.csv",

@@ -92,7 +92,15 @@ def plot_bordeaux(
         labels_, handles = zip(*sorted_pairs)
         ax.legend(handles, labels_, title="Mapped group", loc="best", fontsize='large')
         plt.tight_layout()
-    plt.show(block=False)
+    # plt.show(block=False)
+    # Ensure static dir exists
+    import os
+    import matplotlib
+    matplotlib.use('Agg')
+    # os.makedirs("frontend-build/static", exist_ok=True)
+    plt.savefig("frontend-build/static/plot.png")
+    plt.close(fig)
+
 
 def change_letter_and_color_bordeaux(label):
     """

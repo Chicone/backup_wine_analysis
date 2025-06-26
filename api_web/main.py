@@ -2,6 +2,9 @@ import subprocess
 import os
 import time
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import yaml
@@ -11,6 +14,12 @@ import subprocess
 import datetime
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="frontend-build/static"), name="static")
+
+@app.get("/")
+def root():
+    return FileResponse("frontend-build/index.html")
+
 log_queue = asyncio.Queue()
 
 app.add_middleware(

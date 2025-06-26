@@ -666,9 +666,9 @@ if __name__ == "__main__":
     N_DECIMATION = 10
     TEST_SIZE = 0.2
     CHROM_CAP = None
-    directory = "/home/luiscamara/Documents/datasets/Champagnes/HETEROCYC"
-    # directory = "/home/luiscamara/Documents/datasets/Champagnes/DMS"
-    metadata_path = "/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv"
+    directory = "/app/datasets/Champagnes/HETEROCYC"
+    # directory = "/app/datasets/Champagnes/DMS"
+    metadata_path = "/app/datasets/Champagnes/sensory_scores.csv"
     random_seed = 42                   # For reproducibility
     column_indices = None  # or specify which columns to use
     row_start, row_end = 0, None  # if you want to trim rows

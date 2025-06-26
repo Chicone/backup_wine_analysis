@@ -4,16 +4,16 @@ classifier: RGC
 color_by_country: false
 cv_type: LOOPC
 datasets:
-  bordeaux_oak: /home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/
-  cab_sauv_2021: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/
-  cab_sauv_2022: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/
-  cab_sauv_2023: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/
-  merlot_2021: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/MERLOT/
-  merlot_2022: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/MERLOT/
-  merlot_2023: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/MERLOT/
-  pinot_noir_changins: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom_CDF/
-  pinot_noir_isvv_dllme: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/
-  pinot_noir_isvv_lle: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/
+  bordeaux_oak: /app/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/
+  cab_sauv_2021: /app/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/
+  cab_sauv_2022: /app/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/
+  cab_sauv_2023: /app/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/
+  merlot_2021: /app/datasets/3D_data/PRESS_WINES/Esters21/MERLOT/
+  merlot_2022: /app/datasets/3D_data/PRESS_WINES/Esters22/MERLOT/
+  merlot_2023: /app/datasets/3D_data/PRESS_WINES/Esters23/MERLOT/
+  pinot_noir_changins: /app/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom_CDF/
+  pinot_noir_isvv_dllme: /app/datasets/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/
+  pinot_noir_isvv_lle: /app/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/
 downsample_group: true
 feature_type: tic
 global_focus_heatmap: false

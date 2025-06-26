@@ -44,3 +44,5 @@ wine_analysis/
 node_modules/
 *.iml
 .idea/
+
+datasets/

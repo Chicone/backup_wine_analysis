@@ -54,8 +54,8 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
 
     # ------------------ Parameters ------------------
-    directory = "/home/luiscamara/Documents/datasets/Champagnes/HETEROCYC"
-    csv_path = "/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv"
+    directory = "/app/datasets/Champagnes/HETEROCYC"
+    csv_path = "/app/datasets/Champagnes/sensory_scores.csv"
     n_splits = 5                      # Number of CV folds
     random_seed = 42                   # For reproducibility
     N_DECIMATION = 10                  # Downsampling factor

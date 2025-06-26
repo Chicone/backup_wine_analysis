@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
     # --- Parameters ---
     print(f"Using label target from config.yaml: {label_columns}")
-    csv_path = "/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv"
+    csv_path = "/app/datasets/Champagnes/sensory_scores.csv"
     n_splits = 10
     # n_repeats = 20 # Repeat the cross validation to stabilize results
     random_seed = 42
