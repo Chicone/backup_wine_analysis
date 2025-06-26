@@ -150,7 +150,6 @@ if __name__ == "__main__":
             import matplotlib
             matplotlib.use('Agg')
             plt.savefig("frontend-build/static/plot.png")
-            plt.close(fig)
 
         plot_chromatograms(data_dict, keys=None, max_traces=None, title="Chromatograms", decimation_factor=1)
 

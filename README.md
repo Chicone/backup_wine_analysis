@@ -8,7 +8,8 @@ This project provides a portable Dockerized version of the Wine Analysis Web Int
 - Python scripts for classification, visualization, and model evaluation  
 - Dockerfile to package and deploy everything in a consistent way  
 
-For more general information and for a guide on how to use the interface, refer to the documentation in the *wine-analysis-package* and *wine-analysis-web-interface* branches.
+For more information refer to the documentation in the *wine-analysis-package* branch. For a guide on how to use the interface 
+look at the *Docs* panel of the interface itself.
 
 ---
 
@@ -19,8 +20,7 @@ You need to have Docker installed on your machine.
 Installation guide: https://docs.docker.com/get-docker
 
 
-## How to Build the Docker Image
-
+## How to build the Docker image
 
 From the root directory of this repository (where the Dockerfile is located), build the image by running:
 
@@ -30,11 +30,11 @@ docker build -t wine-analysis-interface .
 
 This will install dependencies, copy source code, and prepare the static files and datasets needed to run the application.
 
-## How to Run the Docker Container
+## How to run the Docker container
 There are two options depending on how you want to handle the dataset:
 
-#### Option 1 (preferred)— Dataset is provided at runtime (not included in Docker image)
-If you are building the container using Dockerfile, then you will have to 
+#### Option 1 — Dataset is provided at runtime (not included in Docker image)
+If you are building the Docker image using Dockerfile (like above), then you will have to 
 mount the dataset folder at runtime into the container.
 ```bash
 docker run -v /absolute/path/to/datasets:/app/datasets -p 8080:8000 wine-analysis-interface
@@ -43,18 +43,26 @@ This command exposes the dataset under */app/datasets* and maps the internal por
 
 #### Option 2 — Dataset *is already included* in the Docker image
 
-This is useful if you are running a (provided) Docker container that already includes the dataset. 
+In this case, you don't have to build the image as it will be provided. The dataset is also included in the image so there is
+no need to mount the dataset folder. The image is most likely 
+given as a *.tar* file (there is one in the Dropbox account at *Wine_database/docker*).
+Download the tar file and run:
+```bash
+docker load -i wine-analysis-interface.tar
+````
+This will make the image available in your local Docker registry.
 
-Run the Docker image:
+Once loaded, run the Docker image:
    ```bash
  docker run -p 8080:8000 wine-analysis-interface
    ```
 
-Once the container is running, open a browser and visit:
+Then, open a browser and visit:
 ```arduino
 http://localhost:8080
 ```
-This will load the frontend interface.
+This will load the frontend interface so you can start running experiments.
+Look at the Logs panel after each experiment to see the configuration and results.
 
 ## Plotting Behavior Inside Docker
 The app includes scripts that generate plots using matplotlib.
