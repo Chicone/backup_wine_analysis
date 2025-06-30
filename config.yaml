@@ -1,6 +1,6 @@
 chrom_cap: 35000
 class_by_year: false
-classifier: RGC
+classifier: null
 color_by_country: false
 cv_type: LOOPC
 datasets:
@@ -29,14 +29,14 @@ normalize: true
 num_repeats: 10
 num_splits: 1
 plot_projection: false
-plot_r2: false
+plot_r2: true
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
 projection_source: scores
 random_state: 42
 region: ''
-regressor: null
+regressor: ridge
 retention_time_range:
   max: 30000
   min: 0
@@ -44,7 +44,7 @@ rt_range:
   max: 30000
   min: 0
 selected_datasets:
-- bordeaux_oak
+- heterocyc
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
@@ -56,7 +56,7 @@ shuffle_labels: false
 sync_state: false
 taster_focus_heatmap: false
 taster_scaling: false
-taster_vs_mean: false
+taster_vs_mean: true
 test_average_scores: false
 umap_dim: 2
 umap_source: tic_tis
