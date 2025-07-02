@@ -26,15 +26,18 @@ label_targets:
 n_decimation: 10
 n_neighbors: 30
 normalize: true
-num_repeats: 10
+num_repeats: 250
 num_splits: 1
 plot_projection: false
-plot_r2: true
+plot_r2: false
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
 projection_source: scores
 random_state: 42
+reduce_dims: false
+reduction_dims: 2
+reduction_method: pca
 region: ''
 regressor: ridge
 retention_time_range:
@@ -48,7 +51,7 @@ selected_datasets:
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
-show_confusion_matrix: true
+show_confusion_matrix: false
 show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false
@@ -56,7 +59,7 @@ shuffle_labels: false
 sync_state: false
 taster_focus_heatmap: false
 taster_scaling: false
-taster_vs_mean: true
-test_average_scores: false
+taster_vs_mean: false
+test_average_scores: true
 umap_dim: 2
 umap_source: tic_tis

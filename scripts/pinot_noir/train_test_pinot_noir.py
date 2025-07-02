@@ -399,7 +399,7 @@ if __name__ == "__main__":
                 plot_pinot_noir(
                     reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
                     plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names,
-                    unique_samples_only=True, n_neighbors=n_neighbors, random_state=random_state,
+                    unique_samples_only=False, n_neighbors=n_neighbors, random_state=random_state,
                     invert_x=invert_x, invert_y=invert_y
                 )
             elif projection_method == "PCA":

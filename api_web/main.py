@@ -143,6 +143,9 @@ async def run_script(payload: dict):
         ("global_focus_heatmap", "global_focus_heatmap"),
         ("taster_focus_heatmap", "taster_focus_heatmap"),
         ("plot_r2", "plot_r2"),
+        ("reduce_dims", "reduce_dims"),
+        ("reduction_method", "reduction_method"),
+        ("reduction_dims", "reduction_dims"),
 
 
     ]

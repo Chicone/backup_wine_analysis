@@ -119,6 +119,9 @@ function App() {
   const [showGlobalFocusHeatmap, setShowGlobalFocusHeatmap] = useState(false);
   const [showTasterFocusHeatmap, setShowTasterFocusHeatmap] = useState(false);
   const [plotR2, setPlotR2] = useState(false);
+  const [reduceDims, setReduceDims] = React.useState(false);
+  const [reductionMethod, setReductionMethod] = React.useState("pca");
+  const [reductionDims, setReductionDims] = React.useState(2);
   const [showChampPredictedProfiles, setShowChampPredictedProfiles] =
     useState(false);
   //   const [useChampTasterScaling, setUseChampTasterScaling] = useState(false);
@@ -309,8 +312,8 @@ function App() {
     let eventSource;
 
     if (selectedMenu === "Logs") {
-      eventSource = new EventSource("/logs");
-//       eventSource = new EventSource("http://localhost:8000/logs");
+//       eventSource = new EventSource("/logs");
+      eventSource = new EventSource("http://localhost:8000/logs");
       eventSource.onmessage = (e) => {
         setLogs((prev) => prev + e.data + "\n");
       };
@@ -404,6 +407,9 @@ function App() {
       payload.shuffle_labels = shuffleLabels;
       payload.test_average_scores = testAverageScores;
       payload.taster_vs_mean = tasterVsMean;
+      payload.reduce_dims = reduceDims;
+      payload.reduction_method = reductionMethod;
+      payload.reduction_dims = reductionDims;
     }
 
     if (wineFamily === "champagne" && selectedTask === "Model per Taster") {
@@ -942,10 +948,62 @@ function App() {
                           label="Normalize"
                         />
                       </Grid>
+
                       {/*               {!(wineFamily === "champagne" && selectedTask === "Predict Labels") && ( */}
                       {wineFamily === "champagne" &&
                       selectedTask === "Model Global" ? (
                         <>
+                          <Grid item xs={12} md={3}>
+                      <Tooltip title="Apply dimensionality reduction to sensory attributes">
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={reduceDims}
+                              onChange={() => setReduceDims(!reduceDims)}
+                            />
+                          }
+                          label="Reduce Dims"
+                        />
+                      </Tooltip>
+                    </Grid>
+
+                    {reduceDims && (
+                      <>
+                        <Grid item xs={12} md={3}>
+                          <FormControl fullWidth sx={{ width: 100 }}>
+                            <InputLabel id="reduction-method-label">Method</InputLabel>
+                            <Select
+                              labelId="reduction-method-label"
+                              value={reductionMethod}
+                              label="Reduction Method"
+                              onChange={(e) => setReductionMethod(e.target.value)}
+                            >
+                              <MenuItem value="pca">PCA</MenuItem>
+                              <MenuItem value="umap">UMAP</MenuItem>
+                              <MenuItem value="tsne">t-SNE</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
+
+                        <Grid item xs={12} md={3}>
+                          <FormControl fullWidth sx={{ width: 70 }}>
+                            <InputLabel id="output-dims-label">Dims</InputLabel>
+                            <Select
+                              labelId="output-dims-label"
+                              value={reductionDims}
+                              label="Output Dimensions"
+                              onChange={(e) => setReductionDims(Number(e.target.value))}
+                            >
+                              {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map((dim) => (
+                                <MenuItem key={dim} value={dim}>
+                                  {dim}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                      </>
+                    )}
                           <Grid item xs={12} md={3}>
                             <Tooltip title="Shows taster's prediction profiles for the last repeat">
                               <FormControlLabel
