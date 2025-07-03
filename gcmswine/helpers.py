@@ -34,7 +34,7 @@ def get_model(name, random_seed=42):
     elif name == "elasticnet":
         return ElasticNet()
     elif name == "rf":
-        return RandomForestRegressor(n_estimators=100, random_state=random_seed)
+        return RandomForestRegressor(n_estimators=100, random_state=random_seed, n_jobs=-1)
     elif name == "gbr":
         return GradientBoostingRegressor(random_state=random_seed)
     elif name == "hgb":
@@ -46,7 +46,7 @@ def get_model(name, random_seed=42):
     elif name == "dt":
         return DecisionTreeRegressor(random_state=random_seed)
     elif name == "xgb" and xgb_available:
-        return XGBRegressor(random_state=random_seed)
+        return XGBRegressor(random_state=random_seed, n_jobs=-1)
     else:
         raise ValueError(f"Unsupported or unavailable model: {name}")
 

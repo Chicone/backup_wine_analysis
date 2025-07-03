@@ -136,6 +136,7 @@ async def run_script(payload: dict):
         ("shuffle_labels", False),
         ("test_average_scores", False),
         ("taster_vs_mean", False),
+        ("plot_all_tests", "plot_all_tests"),
         ("group_wines", False),
         ("cv_type", "LOOPC"),
         ("invert_x", "invert_x"),

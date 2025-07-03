@@ -214,6 +214,11 @@ function App() {
       label: "Taster vs Mean",
       tooltip: "Compares each individual taster with the average of the rest",
     },
+    {
+      value: "plotallr2",
+      label: "Compare All Tests",
+      tooltip: "Plots R² of each test for comparison",
+    },
   ];
 
   useEffect(() => {
@@ -337,6 +342,7 @@ function App() {
   const shuffleLabels = tasterTests.includes("shuffle");
   const testAverageScores = tasterTests.includes("average");
   const tasterVsMean = tasterTests.includes("vsmean");
+  const plotAllTests = tasterTests.includes("plotallr2");
 
   const run = async () => {
     setLoading(true);
@@ -407,6 +413,7 @@ function App() {
       payload.shuffle_labels = shuffleLabels;
       payload.test_average_scores = testAverageScores;
       payload.taster_vs_mean = tasterVsMean;
+      payload.plot_all_tests = plotAllTests;
       payload.reduce_dims = reduceDims;
       payload.reduction_method = reductionMethod;
       payload.reduction_dims = reductionDims;
@@ -799,7 +806,7 @@ function App() {
                             <MenuItem value="lasso">Lasso</MenuItem>
                             <MenuItem value="elasticnet">ElasticNet</MenuItem>
                             <MenuItem value="rf">Random Forest</MenuItem>
-                            <MenuItem value="gbr">Gradient Boosting</MenuItem>
+{/*                             <MenuItem value="gbr">Gradient Boosting</MenuItem> */}
                             <MenuItem value="hgb">
                               HistGradient Boosting
                             </MenuItem>

@@ -101,6 +101,8 @@ from sklearn.model_selection import cross_val_predict, GroupKFold
 from gcmswine.wine_analysis import ChromatogramAnalysis, GCMSDataProcessor
 from gcmswine.logger_setup import logger, logger_raw
 from collections import Counter
+from scipy.optimize import minimize
+
 
 # Define helper functions
 def build_feature_target_arrays(metadata, sensory_cols, data_dict):
@@ -154,6 +156,7 @@ def compare_self_vs_group_models_per_taster(
     n_splits = int(1 / test_size)
 
     for target_taster in unique_tasters:
+        # === SELF MODEL ===
         mask_self = (taster_ids == target_taster)
         X_self = X_input[mask_self]
         y_self = y[mask_self]
@@ -597,6 +600,7 @@ def average_predictions_across_repeats(all_y_test, all_y_pred, all_sample_ids, a
 
     return y_true_avg, y_pred_avg, sample_ids_avg, taster_ids_avg
 
+
 def train_and_evaluate_model(
         X_input, y, taster_ids, sample_ids, model, *,
         num_repeats=5, test_size=0.2, normalize=True,
@@ -733,35 +737,65 @@ def train_and_evaluate_model(
 
                 # Predict on training data
                 if group_wines:
-                    # If ratings are averaged across tasters, use direct prediction
-                    y_train_pred = model.predict(X_train)
+                    # Perform nested GroupKFold on training set to get y_train_pred
+                    inner_gkf = GroupKFold(n_splits=5)
+                    y_train_pred = np.zeros_like(y_train)
+
+                    for inner_train_idx, inner_val_idx in inner_gkf.split(X_train, y_train, groups=sample_ids[train_idx]):
+                        model.fit(X_train[inner_train_idx], y_train[inner_train_idx])
+                        y_train_pred[inner_val_idx] = model.predict(X_train[inner_val_idx])
+                    # y_train_pred = model.predict(X_train)
                 else:
-                    # Otherwise, use cross-validated predictions to avoid overfitting to tasters
                     y_train_pred = cross_val_predict(model, X_train, y_train, cv=5)
 
-                # Loop over all unique tasters in the training set
                 for t in np.unique(t_train):
-                    mask = (t_train == t)  # Select samples from taster `t`
-
+                    mask = (t_train == t)
                     if np.sum(mask) < 2:
-                        continue  # Not enough samples to compute a reliable scaling
+                        continue  # Not enough samples to compute reliable scaling
 
-                    # Fit a linear model (no intercept) to map predicted to true scores
-                    # One model per attribute (MultiOutputRegressor)
-                    scaler_model = MultiOutputRegressor(LinearRegression(fit_intercept=False))
-                    scaler_model.fit(y_train_pred[mask], y_train[mask])
+                    scales = compute_positive_scales(y_train_pred[mask], y_train[mask])
+                    taster_scalers[t] = scales
 
-                    # Extract scaling coefficients (slopes) for each attribute
-                    scale = np.array([est.coef_[0] for est in scaler_model.estimators_])
-
-                    # Store the scaling factor for this taster
-                    taster_scalers[t] = scale
-
-                # Apply the learned taster-specific scaling to test predictions
+                # Apply learned scales to test predictions
                 for i, t in enumerate(t_test):
                     if t in taster_scalers:
-                        # Scale each prediction vector by the taster-specific factor
                         y_pred[i] *= taster_scalers[t]
+
+            # if taster_scaling:
+            #     taster_scalers = {}
+            #
+            #     # Predict on training data
+            #     if group_wines:
+            #         # If ratings are averaged across tasters, use direct prediction
+            #         y_train_pred = model.predict(X_train)
+            #     else:
+            #         # Otherwise, use cross-validated predictions to avoid overfitting to tasters
+            #         y_train_pred = cross_val_predict(model, X_train, y_train, cv=5)
+            #
+            #     # Loop over all unique tasters in the training set
+            #     for t in np.unique(t_train):
+            #         mask = (t_train == t)  # Select samples from taster `t`
+            #
+            #         if np.sum(mask) < 2:
+            #             continue  # Not enough samples to compute a reliable scaling
+            #
+            #         # Fit a linear model (no intercept) to map predicted to true scores
+            #         # One model per attribute (MultiOutputRegressor)
+            #         scaler_model = MultiOutputRegressor(Ridge(alpha=1, fit_intercept=False))
+            #         # scaler_model = MultiOutputRegressor(LinearRegression(fit_intercept=False))
+            #         scaler_model.fit(y_train_pred[mask], y_train[mask])
+            #
+            #         # Extract scaling coefficients (slopes) for each attribute
+            #         scale = np.array([est.coef_[0] for est in scaler_model.estimators_])
+            #
+            #         # Store the scaling factor for this taster
+            #         taster_scalers[t] = scale
+            #
+            #     # Apply the learned taster-specific scaling to test predictions
+            #     for i, t in enumerate(t_test):
+            #         if t in taster_scalers:
+            #             # Scale each prediction vector by the taster-specific factor
+            #             y_pred[i] *= taster_scalers[t]
 
             mae = mean_absolute_error(y_test, y_pred, multioutput='raw_values')
             rmse = np.sqrt(mean_squared_error(y_test, y_pred, multioutput='raw_values'))
@@ -806,6 +840,36 @@ def reduce_targets(y, method='pca', n_components=2):
 
     y_reduced = reducer.fit_transform(y)
     return y_reduced
+
+
+def compute_positive_scales(y_pred_taster, y_true_taster):
+    """
+    Compute positive scaling factors per attribute for a single taster.
+
+    Parameters
+    ----------
+    y_pred_taster : np.ndarray, shape (n_samples, n_attributes)
+        Predictions for samples of this taster.
+    y_true_taster : np.ndarray, shape (n_samples, n_attributes)
+        True targets for samples of this taster.
+
+    Returns
+    -------
+    scales : np.ndarray, shape (n_attributes,)
+        Positive scaling factors per attribute.
+    """
+    def mse_loss(scales):
+        # scales is 1D array of length n_attributes
+        y_scaled = y_pred_taster * scales  # broadcast multiply
+        return np.mean((y_true_taster - y_scaled) ** 2)
+
+    n_attributes = y_true_taster.shape[1]
+    initial_scales = np.ones(n_attributes)
+
+    bounds = [(0, None)] * n_attributes  # positive constraints
+
+    result = minimize(mse_loss, initial_scales, bounds=bounds, method='L-BFGS-B')
+    return result.x
 
 def plot_wine_across_tasters(y_true, y_pred, sample_ids, taster_ids, wine_code, sensory_cols):
         import matplotlib.pyplot as plt
@@ -1028,6 +1092,147 @@ def plot_self_vs_group_r2_df(df, save_path=None):
     else:
         plt.show()
 
+def plot_r2_comparison():
+    # Hardcoded R² values: rows = models, columns = methods
+    methods = [
+        "OHE",
+        "OHE + Taster Scaling",
+        "OHE + Shuffle Labels",
+        "Average Scores",
+        "Individual Tasters",
+        "N-1 Tasters"
+    ]
+
+    models = [
+        "Ridge",
+        "Random Forest",
+        "SVR"
+    ]
+
+    # Example R² scores (shape: len(models) x len(methods))
+    r2_scores = np.array([
+        [0.248, 0.257, -0.153, 0.383, -1.041, 0.365],  # Ridge
+        [0.265, 0.270, -0.140, 0.395, -0.950, 0.370],  # Random Forest
+        [0.230, 0.245, -0.170, 0.375, -1.100, 0.350],  # SVR
+    ])
+
+    x = np.arange(len(models))
+    width = 0.13  # width of each bar
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Plot bars for each method
+    for i, method in enumerate(methods):
+        ax.bar(x + i * width, r2_scores[:, i], width, label=method)
+
+    # Labels, title, and legend
+    ax.set_xticks(x + width * (len(methods) - 1) / 2)
+    ax.set_xticklabels(models)
+    ax.set_ylabel("R² Value")
+    ax.set_title("R² Comparison Across Regression Models and Test Methods")
+    ax.legend(loc="upper right", bbox_to_anchor=(1.15, 1))
+    plt.xticks(rotation=0)
+
+    # Annotate bars with R² values
+    for i in range(len(models)):
+        for j in range(len(methods)):
+            height = r2_scores[i, j]
+            ax.text(
+                x[i] + j * width,
+                height + 0.02 if height >= 0 else height - 0.05,
+                f"{height:.2f}",
+                ha="center",
+                va="bottom" if height >= 0 else "top",
+                fontsize=8
+            )
+
+    plt.tight_layout()
+    plt.show()
+
+import seaborn as sns
+def plot_r2_comparison_heatmap():
+    data = {
+        "Individual Tasters": {
+            "Ridge": -0.894,
+            "ElasticNet": -0.513,
+            "Lasso": -0.612,
+            "Random Forest": 0.086,
+            "XGBoost": 0.0,
+        },
+        "Shuffle Labels": {
+            "Ridge": -0.158,
+            "ElasticNet": -0.029,
+            "Lasso": -0.015,
+            "Random Forest": -0.006,
+            "XGBoost": 0.0,
+        },
+        "OHE": {
+            "Ridge": 0.233,
+            "ElasticNet": 0.329,
+            "Lasso": 0.344,
+            "Random Forest": 0.403,
+            "XGBoost": 0.0,
+        },
+        "OHE + Taster Scaling": {
+            "Ridge": 0.242,
+            "ElasticNet": 0.354,
+            "Lasso": 0.357,
+            "Random Forest": 0.400,
+            "XGBoost": 0.0,
+        },
+        "N-1 Group Avg": {
+            "Ridge": 0.345,
+            "ElasticNet": 0.563,
+            "Lasso": 0.569,
+            "Random Forest": 0.575,
+            "XGBoost": 0.0,
+        },
+        "Average Scores": {
+            "Ridge": 0.364,
+            "ElasticNet": 0.578,
+            "Lasso": 0.583,
+            "Random Forest": 0.591,
+            "XGBoost": 0.0,
+        },
+    }
+
+    df = pd.DataFrame(data).T  # Transpose so methods are rows, regressors are columns
+
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(df, annot=True, fmt=".3f", cmap="Blues", linewidths=0.5, linecolor='gray')
+    plt.title("R² Comparison Across Test Methods and Regression Models")
+    plt.ylabel("Test Method")
+    plt.xlabel("Regression Model")
+    plt.tight_layout()
+    plt.show()
+
+# def plot_r2_comparison():
+#     r2_values = {
+#         "OHE": 0.248,
+#         "OHE + Taster Scaling": 0.257,
+#         "OHE + Shuffle Labels": -0.153,
+#         "Average Scores": 0.383,
+#         "Individual Tasters": -1.041,
+#         "N-1 Tasters": 0.365
+#     }
+#
+#     methods = list(r2_values.keys())
+#     scores = list(r2_values.values())
+#
+#     plt.figure(figsize=(8, 5))
+#     bars = plt.bar(methods, scores)
+#     # plt.ylim(0, 1)
+#     plt.ylabel("R² Value")
+#     plt.title("Comparison of average R² for Different Test Methods")
+#     plt.xticks(rotation=30, ha='right')
+#
+#     for bar in bars:
+#         height = bar.get_height()
+#         plt.text(bar.get_x() + bar.get_width()/2, height + 0.02, f"{height:.2f}", ha='center', va='bottom')
+#
+#     plt.tight_layout()
+#     plt.show()
+
 # Main logic
 if __name__ == "__main__":
     # Load configuration parameters from YAML
@@ -1060,6 +1265,7 @@ if __name__ == "__main__":
     shuffle_labels = config.get("shuffle_labels", False)
     test_average_scores = config.get("test_average_scores", False)
     taster_vs_mean = config.get("taster_vs_mean", False)
+    plot_all_tests = config.get("plot_all_tests", False)
     plot_r2 = config.get("plot_r2", False)
     reduce_targets_flag = config.get("reduce_dims", False)
     reduce_method = config.get("reduction_method", "pca")  # 'pca', 'umap', or 'tsne'
@@ -1082,7 +1288,15 @@ if __name__ == "__main__":
         "Avg. scores": test_average_scores,
         "Taster vs mean": taster_vs_mean,
         "Show taster profiles": show_taster_predictions,
+        "Plot all tests": plot_all_tests
     }
+
+    if plot_all_tests:
+        # plot_r2_comparison()
+        plot_r2_comparison_heatmap()
+        plt.show()
+        sys.exit(0)
+
 
     logger_raw("\n")  # Blank line without timestamp
     logger.info('------------------------ RUN SCRIPT -------------------------')
@@ -1273,6 +1487,7 @@ if __name__ == "__main__":
 
         # R² estimation
         overall_avg_r2 = np.mean(all_r2_values) if len(all_r2_values) > 0 else float('nan')
+        print(f"Overall average R² (all tasters combined): {overall_avg_r2:.3f}")
         logger_raw(f"Overall average R² (all tasters combined): {overall_avg_r2:.3f}")
 
         if plot_r2:

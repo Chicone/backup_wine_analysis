@@ -296,14 +296,27 @@ if __name__ == "__main__":
             plot_idx += 1
 
         if plots_to_show["scatter"]:
-            axes[plot_idx].scatter(y_true_all, y_pred_all, color='#1f77b4',
-                                   alpha=0.5, edgecolors='none')
-            axes[plot_idx].plot([min(y_true_all), max(y_true_all)],
-                                [min(y_true_all), max(y_true_all)], 'r--', lw=2)
-            axes[plot_idx].set_xlabel("True Age")
-            axes[plot_idx].set_ylabel("Predicted Age")
-            axes[plot_idx].set_title("True vs Predicted Age")
-            axes[plot_idx].grid(True)
+            # Calculate relative error: abs(pred - true) / true (avoid division by zero)
+            y_pred_all = np.array(y_pred_all)
+            y_true_all = np.array(y_true_all)
+            relative_error = np.abs(y_pred_all - y_true_all) / np.where(y_true_all != 0, y_true_all, 1)
+
+            plt.scatter(y_true_all, y_pred_all, c=relative_error, s=50, cmap='coolwarm', alpha=0.8, edgecolors='none')
+            plt.colorbar(label='Relative Error')
+            plt.plot([min(y_true_all), max(y_true_all)], [min(y_true_all), max(y_true_all)], 'r--', lw=2)
+            plt.xlabel("True Age")
+            plt.ylabel("Predicted Age")
+            plt.title("True vs Predicted Age with Relative Error Coloring")
+            plt.grid(True)
+
+            # axes[plot_idx].scatter(y_true_all, y_pred_all, color='#1f77b4',
+            #                        alpha=0.5, edgecolors='none')
+            # axes[plot_idx].plot([min(y_true_all), max(y_true_all)],
+            #                     [min(y_true_all), max(y_true_all)], 'r--', lw=2)
+            # axes[plot_idx].set_xlabel("True Age")
+            # axes[plot_idx].set_ylabel("Predicted Age")
+            # axes[plot_idx].set_title("True vs Predicted Age")
+            # axes[plot_idx].grid(True)
             plot_idx += 1
 
         if plots_to_show["histogram"]:

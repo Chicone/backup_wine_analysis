@@ -17,7 +17,7 @@ datasets:
 downsample_group: true
 feature_type: tic
 global_focus_heatmap: false
-group_wines: false
+group_wines: true
 invert_x: false
 invert_y: false
 label_target: prod area
@@ -26,14 +26,15 @@ label_targets:
 n_decimation: 10
 n_neighbors: 30
 normalize: true
-num_repeats: 250
+num_repeats: 25
 num_splits: 1
+plot_all_tests: false
 plot_projection: false
 plot_r2: false
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
-projection_source: scores
+projection_source: sensory
 random_state: 42
 reduce_dims: false
 reduction_dims: 2
@@ -52,7 +53,7 @@ show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
 show_confusion_matrix: false
-show_pred_plot: false
+show_pred_plot: true
 show_predicted_profiles: false
 show_sample_names: false
 shuffle_labels: false
@@ -60,6 +61,6 @@ sync_state: false
 taster_focus_heatmap: false
 taster_scaling: false
 taster_vs_mean: false
-test_average_scores: true
+test_average_scores: false
 umap_dim: 2
 umap_source: tic_tis
