@@ -1815,3 +1815,29 @@ Overall average R² (all tasters combined): 0.230
         Taster vs mean: False
   Show taster profiles: False
         Plot all tests: False
+
+
+2025-07-09 11:07:34 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-09 11:07:34 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 10
+              RT range: {'max': 3000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+2025-07-09 11:07:45 — INFO — 
+Cross-validated Regression Performance:
+Regressor: ridge
+MAE:  2.20 ± 0.10
+RMSE: 2.74 ± 0.14
+R²:   0.711 ± 0.040
+Rounded Accuracy (Exact): 0.162 ± 0.026
+Rounded Accuracy (±1 yrs): 0.400 ± 0.041
+Rounded Accuracy (±2 yrs): 0.638 ± 0.054
+Rounded Accuracy (±3 yrs): 0.808 ± 0.026
+Rounded Accuracy (±4 yrs): 0.886 ± 0.024
+Rounded Accuracy (±5 yrs): 0.944 ± 0.027

@@ -409,25 +409,40 @@ if __name__ == "__main__":
             y_true_all = np.array(y_true_all)
             if do_classification:
                 error_distance = np.abs(y_pred_all - y_true_all)
-                plt.scatter(y_true_all, y_pred_all, c=error_distance, s=50, cmap='coolwarm', alpha=0.8,
-                            edgecolors='none')
-                plt.colorbar(label='Absolute Class Difference')
-                plt.xlabel("True Age Bin")
-                plt.ylabel("Predicted Age Bin")
+                sc = axes[plot_idx].scatter(
+                    y_true_all, y_pred_all, c=error_distance, s=50, cmap='coolwarm', alpha=0.8, edgecolors='none'
+                )
+                fig.colorbar(sc, ax=axes[plot_idx], label='Absolute Class Difference')
+                axes[plot_idx].plot(
+                    [min(y_true_all), max(y_true_all)],
+                    [min(y_true_all), max(y_true_all)],
+                    'r--', lw=2
+                )
+                axes[plot_idx].set_xlabel("True Age Bin")
+                axes[plot_idx].set_ylabel("Predicted Age Bin")
+
             else:
                 relative_error = np.abs(y_pred_all - y_true_all) / np.where(y_true_all != 0, y_true_all, 1)
-                plt.scatter(y_true_all, y_pred_all, c=relative_error, s=50, cmap='coolwarm', alpha=0.8, edgecolors='none')
-                plt.colorbar(label='Relative Error')
-                plt.plot([min(y_true_all), max(y_true_all)], [min(y_true_all), max(y_true_all)], 'r--', lw=2)
-                plt.xlabel("True Age")
-                plt.ylabel("Predicted Age")
-            plt.title("True vs Predicted Age")
-            plt.grid(True)
+                sc = axes[plot_idx].scatter(
+                    y_true_all, y_pred_all, c=relative_error, s=50, cmap='coolwarm', alpha=0.8, edgecolors='none'
+                )
+                fig.colorbar(sc, ax=axes[plot_idx], label='Relative Error')
+                axes[plot_idx].plot(
+                    [min(y_true_all), max(y_true_all)],
+                    [min(y_true_all), max(y_true_all)],
+                    'r--', lw=2
+                )
+                axes[plot_idx].set_xlabel("True Age")
+                axes[plot_idx].set_ylabel("Predicted Age")
+            axes[plot_idx].set_title("True vs Predicted Age")
+            axes[plot_idx].grid(True)
             plot_idx += 1
 
         if plots_to_show["histogram"]:
-            axes[plot_idx].hist(y, bins=np.arange(np.floor(y.min()), np.ceil(y.max()) + 1),
-                                color="gray", edgecolor="black")
+            axes[plot_idx].hist(
+                y, bins=np.arange(np.floor(y.min()), np.ceil(y.max()) + 1),
+                color="gray", edgecolor="black"
+            )
             axes[plot_idx].set_title("Age Distribution")
             axes[plot_idx].set_xlabel("True Age")
             axes[plot_idx].set_ylabel("Count")

@@ -349,6 +349,7 @@ function App() {
   }, [logs]);
 
 
+
   const useChampTasterScaling = tasterTests.includes("scaling");
   const shuffleLabels = tasterTests.includes("shuffle");
   const testAverageScores = tasterTests.includes("average");
@@ -364,8 +365,24 @@ function App() {
     // Build payload first, excluding region by default
     const payload = {
       script_key: wineFamily,
-      classifier: isChampagneAgePrediction && doClassification ? classifier : null,
-      regressor: isChampagneAgePrediction && doClassification ? null : regressor,
+    classifier:
+      wineFamily !== "champagne" || // All non-Champagnes always classify
+      (wineFamily === "champagne" && (
+        selectedTask === "Predict Labels" ||
+        (selectedTask === "Predict Age" && doClassification)
+      ))
+        ? classifier
+        : null,
+
+    regressor:
+      wineFamily === "champagne" && (
+      selectedTask !== "Predict Labels" &&
+      (selectedTask !== "Predict Age" || !doClassification)
+    )
+    ? regressor
+    : null,
+//       classifier: isChampagneAgePrediction && doClassification ? classifier : null,
+//       regressor: isChampagneAgePrediction && doClassification ? null : regressor,
 //       classifier:
 //         isChampagneAgePrediction ||
 //         isChampagneModelGlobal ||
@@ -809,55 +826,59 @@ function App() {
                           </FormControl>
                         </Grid>
                       )}
-                  {(wineFamily !== "champagne") || (wineFamily === "champagne" && selectedTask === "Predict Age" && doClassification) ? (
-  // Classifier dropdown for:
-  // - all non-Champagne wines, OR
-  // - Champagne + Predict Age + doClassification = true
-  <Grid item xs={12} md={3}>
-    <FormControl fullWidth variant="outlined">
-      <InputLabel shrink>Classifier</InputLabel>
-      <Select
-        value={classifier || ""}
-        onChange={(e) => setClassifier(e.target.value)}
-        label="Classifier"
-      >
-        <MenuItem value="DTC">Decision Tree</MenuItem>
-        <MenuItem value="GNB">Gaussian Naive Bayes</MenuItem>
-        <MenuItem value="KNN">K-Nearest Neighbors</MenuItem>
-        <MenuItem value="LDA">Linear Discriminant Analysis</MenuItem>
-        <MenuItem value="LR">Logistic Regression</MenuItem>
-        <MenuItem value="PAC">Passive Aggressive</MenuItem>
-        <MenuItem value="PER">Perceptron</MenuItem>
-        <MenuItem value="RFC">Random Forest</MenuItem>
-        <MenuItem value="RGC">Ridge Classifier</MenuItem>
-        <MenuItem value="SGD">Stochastic Gradient Descent</MenuItem>
-        <MenuItem value="SVM">Support Vector Machine</MenuItem>
-      </Select>
-    </FormControl>
-  </Grid>
-) : (
-  // Regressor dropdown for:
-  // - Champagne + other tasks (or doClassification = false)
-  <Grid item xs={12} md={3}>
-    <FormControl fullWidth variant="outlined">
-      <InputLabel shrink>Regressor</InputLabel>
-      <Select
-        value={regressor || ""}
-        onChange={(e) => setRegressor(e.target.value)}
-        label="Regressor"
-      >
-        <MenuItem value="ridge">Ridge</MenuItem>
-        <MenuItem value="lasso">Lasso</MenuItem>
-        <MenuItem value="elasticnet">ElasticNet</MenuItem>
-        <MenuItem value="rf">Random Forest</MenuItem>
-        <MenuItem value="hgb">HistGradient Boosting</MenuItem>
-        <MenuItem value="svr">Support Vector Regr.</MenuItem>
-        <MenuItem value="knn">KNN</MenuItem>
-        <MenuItem value="dt">Decision Tree</MenuItem>
-        <MenuItem value="xgb">XGBoost</MenuItem>
-      </Select>
-    </FormControl>
-  </Grid>
+                  {(
+                      wineFamily !== "champagne" ||
+                      (wineFamily === "champagne" &&
+                          ((selectedTask === "Predict Age" && doClassification) || selectedTask === "Predict Labels"))
+                          ) ? (
+                  // Classifier dropdown for:
+                  // - all non-Champagne wines, OR
+                  // - Champagne + Predict Age + doClassification = true
+                  <Grid item xs={12} md={3}>
+                    <FormControl fullWidth variant="outlined">
+                      <InputLabel shrink>Classifier</InputLabel>
+                      <Select
+                        value={classifier || ""}
+                        onChange={(e) => setClassifier(e.target.value)}
+                        label="Classifier"
+                      >
+                        <MenuItem value="DTC">Decision Tree</MenuItem>
+                        <MenuItem value="GNB">Gaussian Naive Bayes</MenuItem>
+                        <MenuItem value="KNN">K-Nearest Neighbors</MenuItem>
+                        <MenuItem value="LDA">Linear Discriminant Analysis</MenuItem>
+                        <MenuItem value="LR">Logistic Regression</MenuItem>
+                        <MenuItem value="PAC">Passive Aggressive</MenuItem>
+                        <MenuItem value="PER">Perceptron</MenuItem>
+                        <MenuItem value="RFC">Random Forest</MenuItem>
+                        <MenuItem value="RGC">Ridge Classifier</MenuItem>
+                        <MenuItem value="SGD">Stochastic Gradient Descent</MenuItem>
+                        <MenuItem value="SVM">Support Vector Machine</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                ) : (
+                  // Regressor dropdown for:
+                  // - Champagne + other tasks (or doClassification = false)
+                  <Grid item xs={12} md={3}>
+                    <FormControl fullWidth variant="outlined">
+                      <InputLabel shrink>Regressor</InputLabel>
+                      <Select
+                        value={regressor || ""}
+                        onChange={(e) => setRegressor(e.target.value)}
+                        label="Regressor"
+                      >
+                        <MenuItem value="ridge">Ridge</MenuItem>
+                        <MenuItem value="lasso">Lasso</MenuItem>
+                        <MenuItem value="elasticnet">ElasticNet</MenuItem>
+                        <MenuItem value="rf">Random Forest</MenuItem>
+                        <MenuItem value="hgb">HistGradient Boosting</MenuItem>
+                        <MenuItem value="svr">Support Vector Regr.</MenuItem>
+                        <MenuItem value="knn">KNN</MenuItem>
+                        <MenuItem value="dt">Decision Tree</MenuItem>
+                        <MenuItem value="xgb">XGBoost</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
 )}
 {/*                     {wineFamily === "champagne" && */}
 {/*                     (selectedTask === "Predict Age" || */}
