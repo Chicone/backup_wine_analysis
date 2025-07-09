@@ -1153,46 +1153,104 @@ import seaborn as sns
 def plot_r2_comparison_heatmap():
     data = {
         "Individual Tasters": {
+            "KNN": -0.141,
             "Ridge": -0.894,
             "ElasticNet": -0.513,
             "Lasso": -0.612,
             "Random Forest": 0.086,
-            "XGBoost": 0.0,
         },
         "Shuffle Labels": {
+            "KNN": -0.186,
             "Ridge": -0.158,
             "ElasticNet": -0.029,
             "Lasso": -0.015,
             "Random Forest": -0.006,
-            "XGBoost": 0.0,
         },
         "OHE": {
+            "KNN": -0.025,
             "Ridge": 0.233,
             "ElasticNet": 0.329,
             "Lasso": 0.344,
             "Random Forest": 0.403,
-            "XGBoost": 0.0,
         },
         "OHE + Taster Scaling": {
+            "KNN": 0.146,
             "Ridge": 0.242,
             "ElasticNet": 0.354,
             "Lasso": 0.357,
             "Random Forest": 0.400,
-            "XGBoost": 0.0,
         },
         "N-1 Group Avg": {
+            "KNN": 0.400,
             "Ridge": 0.345,
             "ElasticNet": 0.563,
             "Lasso": 0.569,
             "Random Forest": 0.575,
-            "XGBoost": 0.0,
         },
         "Average Scores": {
+            "KNN": 0.408,
             "Ridge": 0.364,
             "ElasticNet": 0.578,
             "Lasso": 0.583,
             "Random Forest": 0.591,
-            "XGBoost": 0.0,
+        },
+    }
+    data = {
+        "Individual Tasters": {
+            "KNN": -0.152,
+            "Ridge": -1.208,
+            "ElasticNet": -0.556,
+            "Lasso": -0.774,
+            "Random Forest": 0.026,
+        },
+        "Subtract Avg Scores": {
+            "KNN": -0.567,
+            "Ridge": -0.372,
+            "ElasticNet": -0.109,
+            "Lasso": -0.121,
+            "Random Forest": -0.063,
+        },
+        "Shuffle Labels": {
+            "KNN": -0.193,
+            "Ridge": -0.155,
+            "ElasticNet": -0.024,
+            "Lasso": -0.027,
+            "Random Forest": -0.006,
+        },
+        "Constant OHE": {
+            "KNN": -0.117,
+            "Ridge": 0.044,
+            "ElasticNet": 0.157,
+            "Lasso": 0.152,
+            "Random Forest": 0.185,
+        },
+        "OHE": {
+            "KNN": -0.025,
+            "Ridge": 0.245,
+            "ElasticNet": 0.334,
+            "Lasso": 0.342,
+            "Random Forest": 0.408,
+        },
+        "OHE + Taster Scaling": {
+            "KNN": 0.148,
+            "Ridge": 0.253,
+            "ElasticNet": 0.360,
+            "Lasso": 0.355,
+            "Random Forest": 0.405,
+        },
+        "N-1 Group Avg": {
+            "KNN": 0.422,
+            "Ridge": 0.343,
+            "ElasticNet": 0.557,
+            "Lasso": 0.588,
+            "Random Forest": 0.596,
+        },
+        "Average Scores": {
+            "KNN": 0.431,
+            "Ridge": 0.361,
+            "ElasticNet": 0.592,
+            "Lasso": 0.601,
+            "Random Forest": 0.608,
         },
     }
 
@@ -1201,8 +1259,8 @@ def plot_r2_comparison_heatmap():
     plt.figure(figsize=(10, 6))
     sns.heatmap(df, annot=True, fmt=".3f", cmap="Blues", linewidths=0.5, linecolor='gray')
     plt.title("R² Comparison Across Test Methods and Regression Models")
-    plt.ylabel("Test Method")
-    plt.xlabel("Regression Model")
+    plt.ylabel("Test Method", size=14)
+    plt.xlabel("Regression Model", size=14)
     plt.tight_layout()
     plt.show()
 
@@ -1270,6 +1328,8 @@ if __name__ == "__main__":
     reduce_targets_flag = config.get("reduce_dims", False)
     reduce_method = config.get("reduction_method", "pca")  # 'pca', 'umap', or 'tsne'
     reduce_dim = config.get("reduction_dims", 2)
+    remove_avg_scores= config.get("remove_avg_scores", False)
+    constant_ohe= config.get("constant_ohe", False)
 
 
     summary = {
@@ -1287,6 +1347,8 @@ if __name__ == "__main__":
         "Shuffle labels": shuffle_labels,
         "Avg. scores": test_average_scores,
         "Taster vs mean": taster_vs_mean,
+        "Remove average scores": remove_avg_scores,
+        "Use constant OHE": constant_ohe,
         "Show taster profiles": show_taster_predictions,
         "Plot all tests": plot_all_tests
     }
@@ -1338,6 +1400,9 @@ if __name__ == "__main__":
     # One-hot encode taster identities
     encoder = OneHotEncoder(sparse_output=False)
     taster_onehot = encoder.fit_transform(np.array(taster_ids).reshape(-1, 1))
+    if constant_ohe:
+        taster_onehot = np.ones_like(taster_onehot)
+
     X_input = np.concatenate([X_raw, taster_onehot], axis=1)
 
     # Create a mask to filter out any samples with NaNs in input or output
@@ -1410,6 +1475,24 @@ if __name__ == "__main__":
             plot_self_vs_group_r2_df(results_df)
 
         sys.exit(0)
+
+    if remove_avg_scores:
+        logger.info("Removing average scores per taster from targets.")
+        import pandas as pd
+
+        # Convert to DataFrame for easier grouping
+        y_df = pd.DataFrame(y, columns=sensory_cols)
+        y_df['taster'] = taster_ids
+
+        # Compute per-taster mean per attribute
+        taster_means = y_df.groupby('taster')[sensory_cols].transform('mean')
+
+        # Subtract taster means to center scores
+        y_centered = y_df[sensory_cols] - taster_means
+
+        # Convert back to numpy array for training
+        y = y_centered.values
+
 
     results = train_and_evaluate_model(
         X_input=X_input,

@@ -147,6 +147,11 @@ async def run_script(payload: dict):
         ("reduce_dims", "reduce_dims"),
         ("reduction_method", "reduction_method"),
         ("reduction_dims", "reduction_dims"),
+        ("remove_avg_scores", "remove_avg_scores"),
+        ("constant_ohe", "constant_ohe"),
+        ("do_classification", False),
+
+
 
 
     ]

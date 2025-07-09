@@ -122,6 +122,7 @@ function App() {
   const [reduceDims, setReduceDims] = React.useState(false);
   const [reductionMethod, setReductionMethod] = React.useState("pca");
   const [reductionDims, setReductionDims] = React.useState(2);
+  const [doClassification, setDoClassification] = useState(false);
   const [showChampPredictedProfiles, setShowChampPredictedProfiles] =
     useState(false);
   //   const [useChampTasterScaling, setUseChampTasterScaling] = useState(false);
@@ -213,6 +214,16 @@ function App() {
       value: "vsmean",
       label: "Taster vs Mean",
       tooltip: "Compares each individual taster with the average of the rest",
+    },
+    {
+      value: "removeavg",
+      label: "OHE Subtract Score Avgs",
+      tooltip: "Removes average scores across wines for each attribute for each taster before training",
+    },
+   {
+      value: "constantohe",
+      label: "Constant OHE ",
+      tooltip: "Adds a dummy One-hot encoding vector with all zero",
     },
     {
       value: "plotallr2",
@@ -343,6 +354,8 @@ function App() {
   const testAverageScores = tasterTests.includes("average");
   const tasterVsMean = tasterTests.includes("vsmean");
   const plotAllTests = tasterTests.includes("plotallr2");
+  const removeAvgScores = tasterTests.includes("removeavg");
+  const constantohe = tasterTests.includes("constantohe");
 
   const run = async () => {
     setLoading(true);
@@ -351,18 +364,20 @@ function App() {
     // Build payload first, excluding region by default
     const payload = {
       script_key: wineFamily,
-      classifier:
-        isChampagneAgePrediction ||
-        isChampagneModelGlobal ||
-        isChampagneModelPerTaster
-          ? null
-          : classifier,
-      regressor:
-        isChampagneAgePrediction ||
-        isChampagneModelGlobal ||
-        isChampagneModelPerTaster
-          ? regressor
-          : null,
+      classifier: isChampagneAgePrediction && doClassification ? classifier : null,
+      regressor: isChampagneAgePrediction && doClassification ? null : regressor,
+//       classifier:
+//         isChampagneAgePrediction ||
+//         isChampagneModelGlobal ||
+//         isChampagneModelPerTaster
+//           ? null
+//           : classifier,
+//       regressor:
+//         isChampagneAgePrediction ||
+//         isChampagneModelGlobal ||
+//         isChampagneModelPerTaster
+//           ? regressor
+//           : null,
       feature_type: featureType,
       num_repeats: numRepeats,
       chrom_cap: chromCap,
@@ -384,6 +399,7 @@ function App() {
       show_pred_plot: showPredPlot,
       show_age_histogram: showAgeHist,
       show_chromatograms: showChroms,
+      do_classification: doClassification,
       rt_range: { min: rtRange[0], max: rtRange[1] },
       cv_type: cvType,
       invert_x: invertX,
@@ -414,9 +430,12 @@ function App() {
       payload.test_average_scores = testAverageScores;
       payload.taster_vs_mean = tasterVsMean;
       payload.plot_all_tests = plotAllTests;
+      payload.remove_avg_scores = removeAvgScores;
+      payload.constant_ohe = constantohe;
       payload.reduce_dims = reduceDims;
       payload.reduction_method = reductionMethod;
       payload.reduction_dims = reductionDims;
+
     }
 
     if (wineFamily === "champagne" && selectedTask === "Model per Taster") {
@@ -790,67 +809,117 @@ function App() {
                           </FormControl>
                         </Grid>
                       )}
-                    {wineFamily === "champagne" &&
-                    (selectedTask === "Predict Age" ||
-                      selectedTask === "Model Global" ||
-                      selectedTask === "Model per Taster") ? (
-                      <Grid item xs={12} md={3}>
-                        <FormControl fullWidth variant="outlined">
-                          <InputLabel shrink>Regressor</InputLabel>
-                          <Select
-                            value={regressor || ""}
-                            onChange={(e) => setRegressor(e.target.value)}
-                            label="Regressor"
-                          >
-                            <MenuItem value="ridge">Ridge</MenuItem>
-                            <MenuItem value="lasso">Lasso</MenuItem>
-                            <MenuItem value="elasticnet">ElasticNet</MenuItem>
-                            <MenuItem value="rf">Random Forest</MenuItem>
+                  {(wineFamily !== "champagne") || (wineFamily === "champagne" && selectedTask === "Predict Age" && doClassification) ? (
+  // Classifier dropdown for:
+  // - all non-Champagne wines, OR
+  // - Champagne + Predict Age + doClassification = true
+  <Grid item xs={12} md={3}>
+    <FormControl fullWidth variant="outlined">
+      <InputLabel shrink>Classifier</InputLabel>
+      <Select
+        value={classifier || ""}
+        onChange={(e) => setClassifier(e.target.value)}
+        label="Classifier"
+      >
+        <MenuItem value="DTC">Decision Tree</MenuItem>
+        <MenuItem value="GNB">Gaussian Naive Bayes</MenuItem>
+        <MenuItem value="KNN">K-Nearest Neighbors</MenuItem>
+        <MenuItem value="LDA">Linear Discriminant Analysis</MenuItem>
+        <MenuItem value="LR">Logistic Regression</MenuItem>
+        <MenuItem value="PAC">Passive Aggressive</MenuItem>
+        <MenuItem value="PER">Perceptron</MenuItem>
+        <MenuItem value="RFC">Random Forest</MenuItem>
+        <MenuItem value="RGC">Ridge Classifier</MenuItem>
+        <MenuItem value="SGD">Stochastic Gradient Descent</MenuItem>
+        <MenuItem value="SVM">Support Vector Machine</MenuItem>
+      </Select>
+    </FormControl>
+  </Grid>
+) : (
+  // Regressor dropdown for:
+  // - Champagne + other tasks (or doClassification = false)
+  <Grid item xs={12} md={3}>
+    <FormControl fullWidth variant="outlined">
+      <InputLabel shrink>Regressor</InputLabel>
+      <Select
+        value={regressor || ""}
+        onChange={(e) => setRegressor(e.target.value)}
+        label="Regressor"
+      >
+        <MenuItem value="ridge">Ridge</MenuItem>
+        <MenuItem value="lasso">Lasso</MenuItem>
+        <MenuItem value="elasticnet">ElasticNet</MenuItem>
+        <MenuItem value="rf">Random Forest</MenuItem>
+        <MenuItem value="hgb">HistGradient Boosting</MenuItem>
+        <MenuItem value="svr">Support Vector Regr.</MenuItem>
+        <MenuItem value="knn">KNN</MenuItem>
+        <MenuItem value="dt">Decision Tree</MenuItem>
+        <MenuItem value="xgb">XGBoost</MenuItem>
+      </Select>
+    </FormControl>
+  </Grid>
+)}
+{/*                     {wineFamily === "champagne" && */}
+{/*                     (selectedTask === "Predict Age" || */}
+{/*                       selectedTask === "Model Global" || */}
+{/*                       selectedTask === "Model per Taster") ? ( */}
+{/*                       <Grid item xs={12} md={3}> */}
+{/*                         <FormControl fullWidth variant="outlined"> */}
+{/*                           <InputLabel shrink>Regressor</InputLabel> */}
+{/*                           <Select */}
+{/*                             value={regressor || ""} */}
+{/*                             onChange={(e) => setRegressor(e.target.value)} */}
+{/*                             label="Regressor" */}
+{/*                           > */}
+{/*                             <MenuItem value="ridge">Ridge</MenuItem> */}
+{/*                             <MenuItem value="lasso">Lasso</MenuItem> */}
+{/*                             <MenuItem value="elasticnet">ElasticNet</MenuItem> */}
+{/*                             <MenuItem value="rf">Random Forest</MenuItem> */}
 {/*                             <MenuItem value="gbr">Gradient Boosting</MenuItem> */}
-                            <MenuItem value="hgb">
-                              HistGradient Boosting
-                            </MenuItem>
-                            <MenuItem value="svr">
-                              Support Vector Regr.
-                            </MenuItem>
-                            <MenuItem value="knn">KNN</MenuItem>
-                            <MenuItem value="dt">Decision Tree</MenuItem>
-                            <MenuItem value="xgb">XGBoost</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                    ) : (
-                      <Grid item xs={12} md={3}>
-                        <FormControl fullWidth variant="outlined">
-                          <InputLabel shrink>Classifier</InputLabel>
-                          <Select
-                            value={classifier || ""}
-                            onChange={(e) => setClassifier(e.target.value)}
-                            label="Classifier"
-                          >
-                            <MenuItem value="DTC">Decision Tree</MenuItem>
-                            <MenuItem value="GNB">
-                              Gaussian Naive Bayes
-                            </MenuItem>
-                            <MenuItem value="KNN">K-Nearest Neighbors</MenuItem>
-                            <MenuItem value="LDA">
-                              Linear Discriminant Analysis
-                            </MenuItem>
-                            <MenuItem value="LR">Logistic Regression</MenuItem>
-                            <MenuItem value="PAC">Passive Aggressive</MenuItem>
-                            <MenuItem value="PER">Perceptron</MenuItem>
-                            <MenuItem value="RFC">Random Forest</MenuItem>
-                            <MenuItem value="RGC">Ridge Classifier</MenuItem>
-                            <MenuItem value="SGD">
-                              Stochastic Gradient Descent
-                            </MenuItem>
-                            <MenuItem value="SVM">
-                              Support Vector Machine
-                            </MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                    )}
+{/*                             <MenuItem value="hgb"> */}
+{/*                               HistGradient Boosting */}
+{/*                             </MenuItem> */}
+{/*                             <MenuItem value="svr"> */}
+{/*                               Support Vector Regr. */}
+{/*                             </MenuItem> */}
+{/*                             <MenuItem value="knn">KNN</MenuItem> */}
+{/*                             <MenuItem value="dt">Decision Tree</MenuItem> */}
+{/*                             <MenuItem value="xgb">XGBoost</MenuItem> */}
+{/*                           </Select> */}
+{/*                         </FormControl> */}
+{/*                       </Grid> */}
+{/*                     ) : ( */}
+{/*                       <Grid item xs={12} md={3}> */}
+{/*                         <FormControl fullWidth variant="outlined"> */}
+{/*                           <InputLabel shrink>Classifier</InputLabel> */}
+{/*                           <Select */}
+{/*                             value={classifier || ""} */}
+{/*                             onChange={(e) => setClassifier(e.target.value)} */}
+{/*                             label="Classifier" */}
+{/*                           > */}
+{/*                             <MenuItem value="DTC">Decision Tree</MenuItem> */}
+{/*                             <MenuItem value="GNB"> */}
+{/*                               Gaussian Naive Bayes */}
+{/*                             </MenuItem> */}
+{/*                             <MenuItem value="KNN">K-Nearest Neighbors</MenuItem> */}
+{/*                             <MenuItem value="LDA"> */}
+{/*                               Linear Discriminant Analysis */}
+{/*                             </MenuItem> */}
+{/*                             <MenuItem value="LR">Logistic Regression</MenuItem> */}
+{/*                             <MenuItem value="PAC">Passive Aggressive</MenuItem> */}
+{/*                             <MenuItem value="PER">Perceptron</MenuItem> */}
+{/*                             <MenuItem value="RFC">Random Forest</MenuItem> */}
+{/*                             <MenuItem value="RGC">Ridge Classifier</MenuItem> */}
+{/*                             <MenuItem value="SGD"> */}
+{/*                               Stochastic Gradient Descent */}
+{/*                             </MenuItem> */}
+{/*                             <MenuItem value="SVM"> */}
+{/*                               Support Vector Machine */}
+{/*                             </MenuItem> */}
+{/*                           </Select> */}
+{/*                         </FormControl> */}
+{/*                       </Grid> */}
+{/*                     )} */}
                     {!(
                       wineFamily === "champagne" &&
                       selectedTask === "Predict Labels"
@@ -1116,6 +1185,7 @@ function App() {
                             </Tooltip>
                           </Grid>
 
+
                           {/*     <Grid item xs={12} md={3}> */}
                           {/*       <Tooltip title="Adds a scaling layer (sensitivity) for each taster during learning"> */}
                           {/*       <FormControlLabel */}
@@ -1274,6 +1344,15 @@ function App() {
                             }
                             label="Show Chromatograms"
                           />
+                          <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={doClassification}
+                              onChange={(e) => setDoClassification(e.target.checked)}
+                            />
+                          }
+                          label="Do Classification Instead"
+                        />
                         </>
                       )}
                     </Grid>
