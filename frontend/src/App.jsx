@@ -123,6 +123,7 @@ function App() {
   const [reductionMethod, setReductionMethod] = React.useState("pca");
   const [reductionDims, setReductionDims] = React.useState(2);
   const [doClassification, setDoClassification] = useState(false);
+  const [plotShap, setPlotShap] = useState(false);
   const [showChampPredictedProfiles, setShowChampPredictedProfiles] =
     useState(false);
   //   const [useChampTasterScaling, setUseChampTasterScaling] = useState(false);
@@ -422,6 +423,7 @@ function App() {
       invert_x: invertX,
       invert_y: invertY,
       plot_r2: plotR2,
+      plot_shap: plotShap,
     };
 
     // ✅ Conditionally add region only for pinot
@@ -1189,23 +1191,36 @@ function App() {
                               </Select>
                             </FormControl>
                           </Grid>
-                          <Grid item xs={12} md={3}>
-                            <Tooltip
-                              title="Shows a plot of R² values"
-                            >
-                              <FormControlLabel
-                                control={
-                                  <Checkbox
-                                    checked={plotR2}
-                                    onChange={(e) => setPlotR2(e.target.checked)}
-                                    disabled={tasterTests === "average"}
+                            {wineFamily === "champagne" && tasterTests === "average" ? (
+                              <Grid item xs={12} md={3}>
+                                <Tooltip title="Show SHAP value plots instead of R² metrics">
+                                  <FormControlLabel
+                                    control={
+                                      <Checkbox
+                                        checked={plotShap}
+                                        onChange={(e) => setPlotShap(e.target.checked)}
+                                      />
+                                    }
+                                    label="Plot SHAP"
                                   />
-                                }
-                                label="Plot R²"
-                              />
-                            </Tooltip>
-                          </Grid>
-
+                                </Tooltip>
+                              </Grid>
+                            ) : (
+                              <Grid item xs={12} md={3}>
+                                <Tooltip title="Shows a plot of R² values">
+                                  <FormControlLabel
+                                    control={
+                                      <Checkbox
+                                        checked={plotR2}
+                                        onChange={(e) => setPlotR2(e.target.checked)}
+                                        disabled={tasterTests === "average"}
+                                      />
+                                    }
+                                    label="Plot R²"
+                                  />
+                                </Tooltip>
+                              </Grid>
+                            )}
 
                           {/*     <Grid item xs={12} md={3}> */}
                           {/*       <Tooltip title="Adds a scaling layer (sensitivity) for each taster during learning"> */}

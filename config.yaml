@@ -18,7 +18,7 @@ datasets:
 do_classification: false
 downsample_group: true
 feature_type: tic
-global_focus_heatmap: false
+global_focus_heatmap: true
 group_wines: false
 invert_x: false
 invert_y: false
@@ -28,11 +28,12 @@ label_targets:
 n_decimation: 10
 n_neighbors: 30
 normalize: true
-num_repeats: 100
+num_repeats: 10
 num_splits: 1
-plot_all_tests: true
+plot_all_tests: false
 plot_projection: false
-plot_r2: false
+plot_r2: true
+plot_shap: false
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
@@ -48,20 +49,20 @@ retention_time_range:
   max: 30000
   min: 0
 rt_range:
-  max: 3000
+  max: 30000
   min: 0
 selected_datasets:
 - heterocyc
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
-show_confusion_matrix: true
-show_pred_plot: true
+show_confusion_matrix: false
+show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false
 shuffle_labels: false
 sync_state: false
-taster_focus_heatmap: true
+taster_focus_heatmap: false
 taster_scaling: false
 taster_vs_mean: false
 test_average_scores: false

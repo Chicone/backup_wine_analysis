@@ -102,6 +102,7 @@ from gcmswine.wine_analysis import ChromatogramAnalysis, GCMSDataProcessor
 from gcmswine.logger_setup import logger, logger_raw
 from collections import Counter
 from scipy.optimize import minimize
+from gcmswine.helpers import average_by_wine
 
 
 # Define helper functions
@@ -371,19 +372,8 @@ def train_and_evaluate_average_scores_model(
     Returns updated to include R² scores averaged across repeats.
     """
     # Average feature vectors and targets by wine code
-    unique_wines = np.unique(sample_ids)
-    X_avg, y_avg, wine_ids = [], [], []
-
-    for wine in unique_wines:
-        indices = np.where(sample_ids == wine)[0]
-        X_avg.append(np.mean(X_input[indices], axis=0))
-        y_avg.append(np.mean(y[indices], axis=0))
-        wine_ids.append(wine)
-
-    X_input = np.array(X_avg)
-    y = np.array(y_avg)
-    sample_ids = np.array(wine_ids)
-    taster_ids = None  # dropped for average model
+    X_input, y, sample_ids = average_by_wine(X_input, y, sample_ids)
+    taster_ids = None  # drop taster info for average model
 
     all_mae, all_rmse = [], []
     all_r2 = []   # to accumulate R²
@@ -871,6 +861,76 @@ def compute_positive_scales(y_pred_taster, y_true_taster):
     result = minimize(mse_loss, initial_scales, bounds=bounds, method='L-BFGS-B')
     return result.x
 
+def compute_shap(X, y, model, sensory_cols, retention_time_range=None, decimation_factor=10, normalize=True):
+    """
+    Compute and plot SHAP values for a multi-output regression model trained on GC-MS TIC features.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Feature matrix (e.g., averaged TICs), shape (n_samples, n_features)
+    y : np.ndarray
+        Target matrix (e.g., averaged sensory scores), shape (n_samples, n_attributes)
+    model : sklearn regressor
+        A multi-output-compatible model (e.g., Ridge, XGBRegressor).
+    sensory_cols : list of str
+        List of names for each sensory attribute (used in plot titles).
+    retention_time_range : tuple (float, float) or None
+        Optional start and end RT in minutes, overrides default from decimation.
+    decimation_factor : int
+        Number of seconds between TIC samples (used if RT range not provided).
+    normalize : bool
+        Whether to standardize features before SHAP (matches training).
+    """
+    import shap
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import math
+    from sklearn.preprocessing import StandardScaler
+
+    # Normalize if requested
+    if normalize:
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+    else:
+        X_scaled = X
+
+    # Train model on full data
+    model.fit(X_scaled, y)
+
+    # Compute SHAP values
+    explainer = shap.Explainer(model, X_scaled)
+    shap_values = explainer(X_scaled)
+
+    # Retention time axis
+    n_features = X.shape[1]
+    retention_times = np.arange(n_features)
+
+    # Plot SHAP profiles for all attributes in a grid of subplots
+    n_attrs = y.shape[1]
+    n_cols = 3
+    n_rows = math.ceil(n_attrs / n_cols)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 3 * n_rows), sharex=True)
+
+    axes = axes.flatten()
+    for i in range(n_attrs):
+        mean_shap = shap_values.values[:, :, i].mean(axis=0)
+        ax = axes[i]
+        ax.plot(retention_times, mean_shap)
+        title = sensory_cols[i] if sensory_cols else f"Attribute {i}"
+        ax.set_title(title)
+        ax.set_xlabel("Retention Time Index")
+        ax.set_ylabel("SHAP Value")
+        ax.grid(True)
+
+    # Hide unused subplots
+    for j in range(n_attrs, len(axes)):
+        axes[j].axis("off")
+
+    plt.tight_layout()
+    plt.suptitle("SHAP Profiles by Sensory Attribute", fontsize=16, y=1.02)
+    plt.show()
+
 def plot_wine_across_tasters(y_true, y_pred, sample_ids, taster_ids, wine_code, sensory_cols):
         import matplotlib.pyplot as plt
         import numpy as np
@@ -1264,33 +1324,6 @@ def plot_r2_comparison_heatmap():
     plt.tight_layout()
     plt.show()
 
-# def plot_r2_comparison():
-#     r2_values = {
-#         "OHE": 0.248,
-#         "OHE + Taster Scaling": 0.257,
-#         "OHE + Shuffle Labels": -0.153,
-#         "Average Scores": 0.383,
-#         "Individual Tasters": -1.041,
-#         "N-1 Tasters": 0.365
-#     }
-#
-#     methods = list(r2_values.keys())
-#     scores = list(r2_values.values())
-#
-#     plt.figure(figsize=(8, 5))
-#     bars = plt.bar(methods, scores)
-#     # plt.ylim(0, 1)
-#     plt.ylabel("R² Value")
-#     plt.title("Comparison of average R² for Different Test Methods")
-#     plt.xticks(rotation=30, ha='right')
-#
-#     for bar in bars:
-#         height = bar.get_height()
-#         plt.text(bar.get_x() + bar.get_width()/2, height + 0.02, f"{height:.2f}", ha='center', va='bottom')
-#
-#     plt.tight_layout()
-#     plt.show()
-
 # Main logic
 if __name__ == "__main__":
     # Load configuration parameters from YAML
@@ -1325,6 +1358,7 @@ if __name__ == "__main__":
     taster_vs_mean = config.get("taster_vs_mean", False)
     plot_all_tests = config.get("plot_all_tests", False)
     plot_r2 = config.get("plot_r2", False)
+    plot_shap = config.get("plot_shap", False)
     reduce_targets_flag = config.get("reduce_dims", False)
     reduce_method = config.get("reduction_method", "pca")  # 'pca', 'umap', or 'tsne'
     reduce_dim = config.get("reduction_dims", 2)
@@ -1411,6 +1445,21 @@ if __name__ == "__main__":
     y = y[mask]
     taster_ids = np.array(taster_ids)[mask]
     sample_ids = np.array(sample_ids)[mask]
+
+    if plot_shap:
+        # Average all tasters
+        X_avg, y_avg, wine_ids = average_by_wine(X_input, y, sample_ids)
+
+        compute_shap(
+        X=X_avg,
+        y=y_avg,
+        model=model,
+        sensory_cols=sensory_cols,
+        retention_time_range=retention_time_range,  # from config or None
+        decimation_factor=N_DECIMATION,
+        normalize=normalize
+        )
+        sys.exit(0)
 
     print(f"Removed {np.sum(~mask)} samples with NaNs.")
 

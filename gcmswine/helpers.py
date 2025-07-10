@@ -105,3 +105,36 @@ def build_feature_target_arrays(metadata, sensory_cols, data_dict):
 
     print(f"\nTotal samples skipped due to missing chromatograms: {skipped_count}")
     return np.array(X_raw), np.array(y), np.array(taster_ids), np.array(sample_ids)
+
+def average_by_wine(X_input, y, sample_ids):
+    """
+    Average input features and target labels across replicate measurements of the same wine.
+
+    Parameters
+    ----------
+    X_input : np.ndarray
+        Feature matrix where each row corresponds to a (wine, taster) pair.
+    y : np.ndarray
+        Target matrix with sensory scores, aligned with X_input.
+    sample_ids : np.ndarray
+        Array of wine identifiers, aligned with rows in X_input and y.
+
+    Returns
+    -------
+    X_avg : np.ndarray
+        Averaged feature matrix (one row per unique wine).
+    y_avg : np.ndarray
+        Averaged target matrix (one row per unique wine).
+    wine_ids : np.ndarray
+        Array of unique wine codes corresponding to the averaged rows.
+    """
+    unique_wines = np.unique(sample_ids)
+    X_avg, y_avg, wine_ids = [], [], []
+
+    for wine in unique_wines:
+        indices = np.where(sample_ids == wine)[0]
+        X_avg.append(np.mean(X_input[indices], axis=0))
+        y_avg.append(np.mean(y[indices], axis=0))
+        wine_ids.append(wine)
+
+    return np.array(X_avg), np.array(y_avg), np.array(wine_ids)
