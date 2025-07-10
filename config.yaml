@@ -32,8 +32,8 @@ num_repeats: 10
 num_splits: 1
 plot_all_tests: false
 plot_projection: false
-plot_r2: true
-plot_shap: false
+plot_r2: false
+plot_shap: true
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
@@ -65,6 +65,6 @@ sync_state: false
 taster_focus_heatmap: false
 taster_scaling: false
 taster_vs_mean: false
-test_average_scores: false
+test_average_scores: true
 umap_dim: 2
 umap_source: tic_tis
