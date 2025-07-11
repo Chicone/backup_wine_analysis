@@ -863,9 +863,18 @@ def compute_positive_scales(y_pred_taster, y_true_taster):
     result = minimize(mse_loss, initial_scales, bounds=bounds, method='L-BFGS-B')
     return result.x
 
-def compute_shap(X, y, model, sensory_cols, retention_time_range=None, decimation_factor=10, normalize=True):
+def compute_shap(
+    X,
+    y,
+    model,
+    sensory_cols,
+    retention_time_range=None,
+    decimation_factor=10,
+    normalize=True,
+    return_values_only=False
+):
     """
-    Compute and plot SHAP values for a multi-output regression model trained on GC-MS TIC features.
+    Compute and optionally plot SHAP values for a multi-output regression model trained on GC-MS TIC features.
 
     Parameters
     ----------
@@ -883,6 +892,18 @@ def compute_shap(X, y, model, sensory_cols, retention_time_range=None, decimatio
         Number of seconds between TIC samples (used if RT range not provided).
     normalize : bool
         Whether to standardize features before SHAP (matches training).
+    return_values_only : bool
+        If True, returns SHAP values and skips plotting.
+
+    Returns
+    -------
+    If return_values_only:
+        shap_values.values : np.ndarray
+            SHAP values of shape (n_samples, n_features, n_attributes)
+        retention_times : np.ndarray
+            Index or time values for x-axis (e.g., retention time bins)
+    Else:
+        None (shows plots)
     """
     import shap
     import matplotlib.pyplot as plt
@@ -890,25 +911,28 @@ def compute_shap(X, y, model, sensory_cols, retention_time_range=None, decimatio
     import math
     from sklearn.preprocessing import StandardScaler
 
-    # Normalize if requested
     if normalize:
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
     else:
         X_scaled = X
 
-    # Train model on full data
     model.fit(X_scaled, y)
 
-    # Compute SHAP values
     explainer = shap.Explainer(model, X_scaled)
     shap_values = explainer(X_scaled)
 
-    # Retention time axis
     n_features = X.shape[1]
-    retention_times = np.arange(n_features)
+    if retention_time_range:
+        start_rt, end_rt = retention_time_range
+        retention_times = np.linspace(start_rt, end_rt, n_features)
+    else:
+        retention_times = np.arange(n_features)
 
-    # Plot SHAP profiles for all attributes in a grid of subplots
+    if return_values_only:
+        return shap_values.values, retention_times
+
+    # Plotting block
     n_attrs = y.shape[1]
     n_cols = 3
     n_rows = math.ceil(n_attrs / n_cols)
@@ -925,13 +949,13 @@ def compute_shap(X, y, model, sensory_cols, retention_time_range=None, decimatio
         ax.set_ylabel("SHAP Value")
         ax.grid(True)
 
-    # Hide unused subplots
     for j in range(n_attrs, len(axes)):
         axes[j].axis("off")
 
     plt.tight_layout()
     plt.suptitle("SHAP Profiles by Sensory Attribute", fontsize=16, y=1.02)
     plt.show()
+
 
 def plot_wine_across_tasters(y_true, y_pred, sample_ids, taster_ids, wine_code, sensory_cols):
         import matplotlib.pyplot as plt
@@ -1599,33 +1623,67 @@ if __name__ == "__main__":
                 data_for_projection = StandardScaler().fit_transform(X_avg)
                 reducer = DimensionalityReducer(data_for_projection)
 
-                if projection_method == "UMAP":
-                    embedding = reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state)
-                elif projection_method == "PCA":
-                    embedding = reducer.pca(components=projection_dim)
-                elif projection_method == "T-SNE":
-                    embedding = reducer.tsne(components=projection_dim, perplexity=perplexity, random_state=random_state)
-                else:
-                    raise ValueError(f"Unsupported projection method: {projection_method}")
-
                 show_sample_names = True
                 plot_title = f"{projection_method} of Averaged TICs"
-
                 color_values = y_avg[:, sensory_cols.index(selected_attribute)] if selected_attribute in sensory_cols else None
 
-                plot_champagne_projection(
-                    embedding,
-                    title=plot_title,
-                    wine_ids=wine_ids,
-                    color_values=color_values,
-                    attribute_name=selected_attribute,
-                    test_sample_names=wine_ids if show_sample_names else None,
-                    unique_samples_only=False,
-                    n_neighbors=n_neighbors,
-                    random_state=random_state,
-                    invert_x=False,
-                    invert_y=False
-                )
+            elif projection_source == "shap":
+                X_avg, y_avg, wine_ids = average_by_wine(X_input, y, sample_ids)
+                shap_array, rt = compute_shap(X_avg, y_avg, model, sensory_cols=sensory_cols,  return_values_only=True)
+
+                # Collapse SHAP to 2D (samples x features) by averaging over attributes
+                attr_idx = sensory_cols.index(selected_attribute)
+                data_for_projection = shap_array[:, :, attr_idx]
+                # data_for_projection = shap_array.mean(axis=2)  # this would be for general SHAP for all attributes
+                data_for_projection = StandardScaler().fit_transform(data_for_projection)
+
+                reducer = DimensionalityReducer(data_for_projection)
+                color_values = y_avg[:, attr_idx]  # color using same attribute
+                show_sample_names = True
+                plot_title = f"{projection_method} of SHAP (Attribute = {selected_attribute})"
+
+            elif projection_source == "pscores":
+                X_avg, y_avg, wine_ids = average_by_wine(X_input, y, sample_ids)
+
+                # Train and predict with model
+                model.fit(X_avg, y_avg)
+                y_pred = model.predict(X_avg)  # shape (n_samples, n_attributes)
+
+                # Use predicted scores as projection features
+                data_for_projection = StandardScaler().fit_transform(y_pred)
+
+                reducer = DimensionalityReducer(data_for_projection)
+                attr_idx = sensory_cols.index(selected_attribute)
+                color_values = y_avg[:, attr_idx]  # coloring by ground truth of selected attribute
+
+                show_sample_names = True
+                plot_title = f"{projection_method} of Predicted Scores (Attribute = {selected_attribute})"
+
+            else:
+                raise ValueError(f"Unknown projection source: {projection_source}")
+
+            if projection_method == "UMAP":
+                embedding = reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state)
+            elif projection_method == "PCA":
+                embedding = reducer.pca(components=projection_dim)
+            elif projection_method == "T-SNE":
+                embedding = reducer.tsne(components=projection_dim, perplexity=perplexity, random_state=random_state)
+            else:
+                raise ValueError(f"Unsupported projection method: {projection_method}")
+
+            plot_champagne_projection(
+                embedding,
+                title=plot_title,
+                wine_ids=wine_ids,
+                color_values=color_values,
+                attribute_name=selected_attribute,
+                test_sample_names=wine_ids if show_sample_names else None,
+                unique_samples_only=False,
+                n_neighbors=n_neighbors,
+                random_state=random_state,
+                invert_x=False,
+                invert_y=False
+            )
             print("Entered Plot Projection with averaged TICs")
             sys.exit(0)
 

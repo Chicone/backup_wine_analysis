@@ -1955,3 +1955,72 @@ Rounded Accuracy (±5 yrs): 0.944 ± 0.027
   Show taster profiles: False
         Plot all tests: False
 2025-07-11 11:19:00 — INFO — Average Scores selected
+
+
+2025-07-11 13:31:59 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-11 13:31:59 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-07-11 13:32:01 — INFO — Average Scores selected
+
+
+2025-07-11 14:02:02 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-11 14:02:02 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-07-11 14:02:05 — INFO — Average Scores selected
+
+
+2025-07-11 14:08:52 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-11 14:08:52 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOOPC
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-07-11 14:08:53 — INFO — Average Scores selected
