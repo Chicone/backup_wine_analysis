@@ -124,6 +124,7 @@ function App() {
   const [reductionDims, setReductionDims] = React.useState(2);
   const [doClassification, setDoClassification] = useState(false);
   const [plotShap, setPlotShap] = useState(false);
+  const [selectedAttribute, setSelectedAttribute] = useState("fruity");
   const [showChampPredictedProfiles, setShowChampPredictedProfiles] =
     useState(false);
   //   const [useChampTasterScaling, setUseChampTasterScaling] = useState(false);
@@ -133,6 +134,11 @@ function App() {
   const champagnePredictLabelsProjectionOptions = [
     { value: "scores", label: "Class. Scores" },
     { value: "sensory", label: "Sensory Features" },
+  ];
+  const champagneAverageProjectionOptions = [
+  { value: "avgtics", label: "Averaged TICs" },
+  { value: "shap", label: "SHAP Values" },
+  { value: "pscores", label: "Predicted Scores" },
   ];
   const [showPredPlot, setShowPredPlot] = useState(false);
   const [showAgeHist, setShowAgeHist] = useState(false);
@@ -350,6 +356,12 @@ function App() {
   }, [logs]);
 
 
+useEffect(() => {
+  if (wineFamily === "champagne" && selectedTask === "Model Global" && tasterTests === "average") {
+    setProjectionSource("avgtics");  // only if compatible
+  }
+}, [wineFamily, selectedTask, tasterTests]);
+
 
   const useChampTasterScaling = tasterTests.includes("scaling");
   const shuffleLabels = tasterTests.includes("shuffle");
@@ -423,7 +435,6 @@ function App() {
       invert_x: invertX,
       invert_y: invertY,
       plot_r2: plotR2,
-      plot_shap: plotShap,
     };
 
     // ✅ Conditionally add region only for pinot
@@ -454,6 +465,9 @@ function App() {
       payload.reduce_dims = reduceDims;
       payload.reduction_method = reductionMethod;
       payload.reduction_dims = reductionDims;
+      payload.plot_shap = plotShap;
+      payload.plot_shap = plotShap;
+      payload.selected_attribute = selectedAttribute;
 
     }
 
@@ -1192,6 +1206,7 @@ function App() {
                             </FormControl>
                           </Grid>
                             {wineFamily === "champagne" && tasterTests === "average" ? (
+                             <>
                               <Grid item xs={12} md={3}>
                                 <Tooltip title="Show SHAP value plots instead of R² metrics">
                                   <FormControlLabel
@@ -1205,6 +1220,20 @@ function App() {
                                   />
                                 </Tooltip>
                               </Grid>
+{/*                               <Grid item xs={12} md={3}> */}
+{/*                               <Tooltip title="Show UMAP/t-SNE/PCA projection of TICs or SHAP profiles"> */}
+{/*                                 <FormControlLabel */}
+{/*                                   control={ */}
+{/*                                     <Checkbox */}
+{/*                                       checked={plotProjection} */}
+{/*                                       onChange={(e) => setPlotProjection(e.target.checked)} */}
+{/*                                     /> */}
+{/*                                   } */}
+{/*                                   label="Plot Projection" */}
+{/*                                 /> */}
+{/*                               </Tooltip> */}
+{/*                               </Grid> */}
+                             </>
                             ) : (
                               <Grid item xs={12} md={3}>
                                 <Tooltip title="Shows a plot of R² values">
@@ -1394,9 +1423,8 @@ function App() {
                     </Grid>
                   </Grid>
                   {!(
-                    (wineFamily === "champagne" &&
-                      selectedTask === "Predict Age") ||
-                    selectedTask === "Model Global" ||
+                    (wineFamily === "champagne" &&  selectedTask === "Predict Age") ||
+                    (selectedTask === "Model Global" && tasterTests !== "average") ||
                     selectedTask === "Model per Taster"
                   ) && (
                     <Grid
@@ -1815,7 +1843,10 @@ function App() {
                                     label="Projection Source"
                                   >
                                     {(wineFamily === "champagne" &&
-                                    selectedTask === "Predict Labels"
+                                     selectedTask === "Model Global" &&
+                                     tasterTests === "average"
+                                      ? champagneAverageProjectionOptions
+                                      : wineFamily === "champagne" && selectedTask === "Predict Labels"
                                       ? champagnePredictLabelsProjectionOptions
                                       : featureToProjectionOptions[featureType]
                                     ).map((option) => (
@@ -1824,6 +1855,27 @@ function App() {
                                         value={option.value}
                                       >
                                         {option.label}
+                                      </MenuItem>
+                                    ))}
+                                  </Select>
+                                </FormControl>
+                              </Grid>
+
+                              <Grid item xs={12} md={2}>
+                                <FormControl sx={{ width: 175 }}>
+                                  <InputLabel>Attribute</InputLabel>
+                                  <Select
+                                    value={selectedAttribute}
+                                    onChange={(e) => setSelectedAttribute(e.target.value)}
+                                    label="Attribute"
+                                  >
+                                    {[
+                                      'fruity', 'citrus', 'maturated fruits', 'candied citrus', 'toasted',
+                                      'nuts', 'spicy', 'petroleum', 'undergroth', 'babery', 'honey',
+                                      'diary', 'herbal', 'tobaco', 'texture', 'acid', 'ageing'
+                                    ].map((attr) => (
+                                      <MenuItem key={attr} value={attr}>
+                                        {attr}
                                       </MenuItem>
                                     ))}
                                   </Select>

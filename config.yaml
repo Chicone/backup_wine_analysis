@@ -26,18 +26,18 @@ label_target: prod area
 label_targets:
 - age
 n_decimation: 10
-n_neighbors: 30
+n_neighbors: null
 normalize: true
 num_repeats: 10
 num_splits: 1
 plot_all_tests: false
-plot_projection: false
+plot_projection: avgtics
 plot_r2: false
-plot_shap: true
+plot_shap: false
 plot_umap: scores
-projection_dim: 2
-projection_method: UMAP
-projection_source: scores
+projection_dim: 3
+projection_method: PCA
+projection_source: avgtics
 random_state: 42
 reduce_dims: false
 reduction_dims: 2
@@ -51,6 +51,7 @@ retention_time_range:
 rt_range:
   max: 30000
   min: 0
+selected_attribute: texture
 selected_datasets:
 - heterocyc
 show_age_histogram: false

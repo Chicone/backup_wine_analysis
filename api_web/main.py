@@ -36,6 +36,8 @@ scripts = {
     # "pinot_projection": "scripts/pinot_noir/old_projection_pinot_noir.py",
     "press_projection": "scripts/press_wines/train_test_press_wines.py",
     # "press_projection": "scripts/press_wines/projection_press_wines.py",
+    "champagne_global_model_projection":  "scripts/champagne/ridge_model_global.py",
+
 }
 
 from typing import List, Optional
@@ -151,6 +153,7 @@ async def run_script(payload: dict):
         ("remove_avg_scores", "remove_avg_scores"),
         ("constant_ohe", "constant_ohe"),
         ("do_classification", False),
+        ("selected_attribute", "fruity"),
 
 
 

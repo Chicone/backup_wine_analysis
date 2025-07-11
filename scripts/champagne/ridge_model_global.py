@@ -63,6 +63,7 @@ Example Output:
 - Prediction plots showing model quality for each taster
 """
 import sys
+from locale import normalize
 
 import numpy as np
 import pandas as pd
@@ -103,6 +104,7 @@ from gcmswine.logger_setup import logger, logger_raw
 from collections import Counter
 from scipy.optimize import minimize
 from gcmswine.helpers import average_by_wine
+from gcmswine.dimensionality_reduction import DimensionalityReducer
 
 
 # Define helper functions
@@ -1324,6 +1326,118 @@ def plot_r2_comparison_heatmap():
     plt.tight_layout()
     plt.show()
 
+from matplotlib import colormaps
+def plot_champagne_projection(
+    embedding,
+    title,
+    wine_ids,
+    color_values=None,         # Optional, e.g., sweetness or floral prediction
+    attribute_name=None,
+    test_sample_names=None,
+    unique_samples_only=False,
+    n_neighbors=None,
+    random_state=None,
+    invert_x=False,
+    invert_y=False
+):
+    """
+    Scatter plot of wines using UMAP/PCA/t-SNE projections.
+
+    Parameters
+    ----------
+    embedding : np.ndarray
+        Projected coordinates (n_samples, 2 or 3)
+    title : str
+        Title of the plot
+    wine_ids : list of str
+        Wine sample names (for hover/label)
+    color_values : np.ndarray, optional
+        Values to color the dots (e.g., predicted floral score)
+    test_sample_names : list of str
+        Names to annotate (usually same as wine_ids)
+    unique_samples_only : bool
+        If True, deduplicate based on name
+    n_neighbors, random_state : int, optional
+        For subtitle
+    invert_x, invert_y : bool
+        Flip axes
+    """
+    """
+       Scatter plot of wines using UMAP/PCA/t-SNE projections.
+
+       Parameters
+       ----------
+       embedding : np.ndarray
+           Projected coordinates (n_samples, 2 or 3)
+       title : str
+           Title of the plot
+       wine_ids : list of str
+           Wine sample names (for hover/label)
+       color_values : np.ndarray, optional
+           Values to color the dots (e.g., predicted floral score)
+       attribute_name : str, optional
+           Name of the sensory attribute used for coloring
+       test_sample_names : list of str
+           Names to annotate (usually same as wine_ids)
+       unique_samples_only : bool
+           If True, deduplicate based on name
+       n_neighbors, random_state : int, optional
+           For subtitle
+       invert_x, invert_y : bool
+           Flip axes
+       """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    is_3d = embedding.shape[1] == 3
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d' if is_3d else None)
+
+    if invert_x:
+        embedding[:, 0] *= -1
+    if invert_y:
+        embedding[:, 1] *= -1
+
+    if color_values is not None:
+        colorbar_label = f"{attribute_name} intensity" if attribute_name else "Color scale"
+        if is_3d:
+            scatter = ax.scatter(
+                embedding[:, 0], embedding[:, 1], embedding[:, 2],
+                c=color_values, cmap='viridis', s=80
+            )
+        else:
+            scatter = ax.scatter(
+                embedding[:, 0], embedding[:, 1],
+                c=color_values, cmap='viridis', s=80
+            )
+        plt.colorbar(scatter, ax=ax, label=colorbar_label)
+    else:
+        if is_3d:
+            ax.scatter(embedding[:, 0], embedding[:, 1], embedding[:, 2], color='dodgerblue', s=80)
+        else:
+            ax.scatter(embedding[:, 0], embedding[:, 1], color='dodgerblue', s=80)
+
+    if test_sample_names is not None:
+        for i, name in enumerate(test_sample_names):
+            ax.annotate(name, (embedding[i, 0], embedding[i, 1]), fontsize=9, alpha=0.6, xytext=(2, 2),
+                        textcoords="offset points")
+
+    subtitle = ""
+    if n_neighbors is not None:
+        subtitle += f"n_neighbors={n_neighbors}  "
+    if random_state is not None:
+        subtitle += f"random_state={random_state}"
+    full_title = title if subtitle == "" else f"{title}\n{subtitle.strip()}"
+
+    # Append attribute to title if provided
+    if attribute_name:
+        full_title += f"\nColored by: {attribute_name}"
+
+    ax.set_title(full_title, fontsize=14)
+    plt.tight_layout()
+    plt.show()
+
+
 # Main logic
 if __name__ == "__main__":
     # Load configuration parameters from YAML
@@ -1349,7 +1463,7 @@ if __name__ == "__main__":
     cv_type = config['cv_type']
     num_repeats = config.get("num_repeats", 10)
     retention_time_range = config.get("rt_range", None)
-    normalize = config.get("normalize", True)
+    normalize_flag = config.get("normalize", True)
     show_taster_predictions = config.get("show_predicted_profiles", False)
     group_wines = config.get("group_wines", False)
     taster_scaling = config.get("taster_scaling", False)
@@ -1364,6 +1478,15 @@ if __name__ == "__main__":
     reduce_dim = config.get("reduction_dims", 2)
     remove_avg_scores= config.get("remove_avg_scores", False)
     constant_ohe= config.get("constant_ohe", False)
+    plot_projection = config.get("plot_projection", False)
+    projection_method = config.get("projection_method", "UMAP").upper()
+    projection_source = config.get("projection_source", False) if plot_projection else False
+    projection_dim = config.get("projection_dim", 2)
+    n_neighbors = config.get("n_neighbors", 30)
+    perplexity = config.get("perplexity", 5)
+    random_state = config.get("random_state", 42)
+    selected_attribute = config.get("selected_attribute", "fruity")
+
 
 
     summary = {
@@ -1375,7 +1498,7 @@ if __name__ == "__main__":
         "CV type": cv_type,
         "Repeats": num_repeats,
         "RT range": retention_time_range,
-        "Normalize": normalize,
+        "Normalize": normalize_flag,
         "Group wines": group_wines,
         "Taster scaling": taster_scaling,
         "Shuffle labels": shuffle_labels,
@@ -1392,7 +1515,6 @@ if __name__ == "__main__":
         plot_r2_comparison_heatmap()
         plt.show()
         sys.exit(0)
-
 
     logger_raw("\n")  # Blank line without timestamp
     logger.info('------------------------ RUN SCRIPT -------------------------')
@@ -1457,7 +1579,7 @@ if __name__ == "__main__":
         sensory_cols=sensory_cols,
         retention_time_range=retention_time_range,  # from config or None
         decimation_factor=N_DECIMATION,
-        normalize=normalize
+        normalize=normalize_flag
         )
         sys.exit(0)
 
@@ -1470,6 +1592,44 @@ if __name__ == "__main__":
 
     if test_average_scores:
         logger.info("Average Scores selected")
+
+        if plot_projection:
+            if projection_source == "avgtics":
+                X_avg, y_avg, wine_ids = average_by_wine(X_input, y, sample_ids)
+                data_for_projection = StandardScaler().fit_transform(X_avg)
+                reducer = DimensionalityReducer(data_for_projection)
+
+                if projection_method == "UMAP":
+                    embedding = reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state)
+                elif projection_method == "PCA":
+                    embedding = reducer.pca(components=projection_dim)
+                elif projection_method == "T-SNE":
+                    embedding = reducer.tsne(components=projection_dim, perplexity=perplexity, random_state=random_state)
+                else:
+                    raise ValueError(f"Unsupported projection method: {projection_method}")
+
+                show_sample_names = True
+                plot_title = f"{projection_method} of Averaged TICs"
+
+                color_values = y_avg[:, sensory_cols.index(selected_attribute)] if selected_attribute in sensory_cols else None
+
+                plot_champagne_projection(
+                    embedding,
+                    title=plot_title,
+                    wine_ids=wine_ids,
+                    color_values=color_values,
+                    attribute_name=selected_attribute,
+                    test_sample_names=wine_ids if show_sample_names else None,
+                    unique_samples_only=False,
+                    n_neighbors=n_neighbors,
+                    random_state=random_state,
+                    invert_x=False,
+                    invert_y=False
+                )
+            print("Entered Plot Projection with averaged TICs")
+            sys.exit(0)
+
+
         results = train_and_evaluate_average_scores_model(
             X_input=X_input,
             y=y,
@@ -1477,7 +1637,7 @@ if __name__ == "__main__":
             model=model,
             num_repeats=num_repeats,
             test_size=TEST_SIZE,
-            normalize=normalize,
+            normalize=normalize_flag,
             random_seed=random_seed,
             reduce_targets=reduce_targets_flag,
             reduction_method=reduce_method,
@@ -1551,7 +1711,7 @@ if __name__ == "__main__":
         model=model,
         num_repeats=num_repeats,
         test_size=TEST_SIZE,
-        normalize=normalize,
+        normalize=normalize_flag,
         taster_scaling=taster_scaling,
         group_wines=group_wines,
         random_seed=random_seed,
