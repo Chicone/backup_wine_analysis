@@ -125,6 +125,10 @@ function App() {
   const [doClassification, setDoClassification] = useState(false);
   const [plotShap, setPlotShap] = useState(false);
   const [selectedAttribute, setSelectedAttribute] = useState("fruity");
+  const [sampleDisplayMode, setSampleDisplayMode] = useState("names");
+  const [colorByWinery, setColorByWinery] = useState(false);
+  const [colorByOrigin, setColorByOrigin] = useState(false);
+  const [excludeUS, setExcludeUS] = useState(false);
   const [showChampPredictedProfiles, setShowChampPredictedProfiles] =
     useState(false);
   //   const [useChampTasterScaling, setUseChampTasterScaling] = useState(false);
@@ -435,6 +439,10 @@ useEffect(() => {
       invert_x: invertX,
       invert_y: invertY,
       plot_r2: plotR2,
+      sample_display_mode: sampleDisplayMode,
+      color_by_winery: colorByWinery,
+      color_by_origin: colorByOrigin,
+      exclude_us: excludeUS,
     };
 
     // ✅ Conditionally add region only for pinot
@@ -1794,18 +1802,138 @@ useEffect(() => {
                                     label="Invert Y axis"
                                   />
                                 </FormGroup>
-                                <div>
-                                <label>
-                                  <input
-                                    type="checkbox"
-                                    checked={showSampleNames}
-                                    onChange={(e) =>
-                                      setShowSampleNames(e.target.checked)
-                                    }
-                                  />
-                                  Show sample names
-                                </label>
-                              </div>
+
+ {cvType === "LOO" ? (
+  <div className="flex flex-col mt-2">
+      {wineFamily === "pinot" && (
+  <>
+    <div>
+      {region === "origin" && (
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={colorByWinery}
+            onChange={(e) => setColorByWinery(e.target.checked)}
+          />
+          Color by winery
+        </label>
+      )}
+      {region === "winery" && (
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={colorByOrigin}
+            onChange={(e) => setColorByOrigin(e.target.checked)}
+          />
+          Color by origin
+        </label>
+      )}
+        <label className="flex items-center gap-2 ml-10">
+        <input
+          type="checkbox"
+          checked={excludeUS}
+          onChange={(e) => setExcludeUS(e.target.checked)}
+        />
+        Exclude US
+     </label>
+    </div>
+    {/* Spacer block */}
+    <div style={{ height: "20px" }}></div>  {/* You can increase to 48px or more if needed */}
+  </>
+)}
+    <label className="font-semibold mb-1">Sample Label Mode:</label>
+    <div className="flex flex-row items-start gap-8">
+      {/* Left: radio buttons */}
+      <div className="flex flex-col gap-2">
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            value="names"
+            checked={sampleDisplayMode === "names"}
+            onChange={() => setSampleDisplayMode("names")}
+          />
+          Sample Names
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            value="years"
+            checked={sampleDisplayMode === "years"}
+            onChange={() => setSampleDisplayMode("years")}
+          />
+          Year Labels
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            value="none"
+            checked={sampleDisplayMode === "none"}
+            onChange={() => setSampleDisplayMode("none")}
+          />
+          No Labels
+        </label>
+      </div>
+
+
+    </div>
+  </div>
+) : (
+  <div className="mt-2">
+    <label className="flex items-center gap-2">
+      <input
+        type="checkbox"
+        checked={showSampleNames}
+        onChange={(e) => setShowSampleNames(e.target.checked)}
+      />
+      Show sample names
+    </label>
+  </div>
+)}
+{/*                                 <div className="flex flex-col mt-2"> */}
+
+{/*     <label className="font-semibold mb-1">Sample Label Mode:</label> */}
+{/*     <div className="flex flex-col gap-2 pl-2"> */}
+{/*       <label className="flex items-center gap-2"> */}
+{/*         <input */}
+{/*           type="radio" */}
+{/*           value="names" */}
+{/*           checked={sampleDisplayMode === "names"} */}
+{/*           onChange={() => setSampleDisplayMode("names")} */}
+{/*         /> */}
+{/*         Sample Names */}
+{/*       </label> */}
+{/*       <label className="flex items-center gap-1"> */}
+{/*         <input */}
+{/*           type="radio" */}
+{/*           value="years" */}
+{/*           checked={sampleDisplayMode === "years"} */}
+{/*           onChange={() => setSampleDisplayMode("years")} */}
+{/*         /> */}
+{/*         Year Labels */}
+{/*       </label> */}
+{/*        <label className="flex items-center gap-2"> */}
+{/*       <input */}
+{/*         type="radio" */}
+{/*         value="none" */}
+{/*         checked={sampleDisplayMode === "none"} */}
+{/*         onChange={() => setSampleDisplayMode("none")} */}
+{/*       /> */}
+{/*       No Labels */}
+{/*     </label> */}
+{/*     </div> */}
+{/*   </div> */}
+{/*                                 <div> */}
+{/*                                 <label> */}
+{/*                                   <input */}
+{/*                                     type="checkbox" */}
+{/*                                     checked={showSampleNames} */}
+{/*                                     onChange={(e) => */}
+{/*                                       setShowSampleNames(e.target.checked) */}
+{/*                                     } */}
+{/*                                   /> */}
+{/*                                   Show sample names */}
+{/*                                 </label> */}
+{/*                               </div> */}
                             </>
                           )}
                         </>

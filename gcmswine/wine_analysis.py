@@ -2310,7 +2310,7 @@ def optimize_bayesian_params(data, labels, num_splits, ch_treat):
     print(f"Best score: {-result.fun}")
     return alpha, num_total_channels
 
-def process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, chromatograms):
+def process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, chromatograms, split_burgundy_ns=False):
     """
        Assign labels based on the type of wine and the desired classification region or scheme.
 
@@ -2346,7 +2346,7 @@ def process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, chroma
         elif region == 'country':
             processed_labels = assign_country_to_pinot_noir(labels)
         elif region == 'origin':
-            processed_labels = assign_origin_to_pinot_noir(labels)
+            processed_labels = assign_origin_to_pinot_noir(labels, split_burgundy_ns=split_burgundy_ns)
         elif region == 'winery':
             processed_labels = assign_winery_to_pinot_noir(labels)
         elif region == 'year':

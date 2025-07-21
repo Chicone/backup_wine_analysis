@@ -154,10 +154,10 @@ async def run_script(payload: dict):
         ("constant_ohe", "constant_ohe"),
         ("do_classification", False),
         ("selected_attribute", "fruity"),
-
-
-
-
+        ("sample_display_mode", "names"),
+        ("color_by_winery", False),
+        ("color_by_origin", False),
+        ("exclude_us", False),
     ]
     for key, default in optional_keys:
         if key in payload:

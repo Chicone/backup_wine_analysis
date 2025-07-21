@@ -124,6 +124,7 @@ from gcmswine.logger_setup import logger, logger_raw
 from sklearn.preprocessing import normalize
 from gcmswine.dimensionality_reduction import DimensionalityReducer
 from scripts.pinot_noir.plotting_pinot_noir import plot_pinot_noir
+from distinctipy import distinctipy
 
 if __name__ == "__main__":
 
@@ -168,6 +169,12 @@ if __name__ == "__main__":
     show_sample_names = config["show_sample_names"]
     invert_x =  config["invert_x"]
     invert_y =  config["invert_y"]
+    sample_display_mode = config["sample_display_mode"]
+    show_year = True if sample_display_mode == "years" else False
+    show_sample_names = True if sample_display_mode == "names" else False
+    color_by_winery = config.get("color_by_winery", False)
+    color_by_origin = config.get("color_by_origin", False)
+    exclude_us = config.get("exclude_us", False)
 
     # Run Parameters
     feature_type = config["feature_type"]
@@ -177,11 +184,17 @@ if __name__ == "__main__":
     n_decimation = config["n_decimation"]
     sync_state = config["sync_state"]
     region = config["region"]
+    # Enforce exclusivity logic
+    if region == "origin" and not color_by_winery:
+        color_by_origin = True
+    elif region == "winery" and not color_by_origin:
+        color_by_winery = True
     # wine_kind = config["wine_kind"]
     show_confusion_matrix = config['show_confusion_matrix']
     retention_time_range = config['rt_range']
     cv_type = config['cv_type']
     task="classification"  # hard-coded for now
+    split_burgundy_ns = True  # config.get("split_burgundy_north_south", False)
 
     summary = {
         "Task": task,
@@ -247,6 +260,8 @@ if __name__ == "__main__":
         data = data[mask]
         labels = labels[mask]
 
+    # labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, split_burgundy_ns, dataset_origins,
+    #                                                   split_burgundy_ns=split_burgundy_ns)
     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None)
 
     # Instantiate classifier with data and labels
@@ -393,6 +408,26 @@ if __name__ == "__main__":
         if not show_sample_names:
             test_samples_names = None
 
+
+        legend_labels = {
+            "D": "D = Clos Des Mouches Drouhin (FR)",
+            "E": "E = Vigne de l’Enfant Jésus Bouchard (FR)",
+            "Q": "Q = Nuit Saint Georges - Les Cailles Bouchard (FR)",
+            "P": "P = Bressandes Jadot (FR)",
+            "R": "R = Les Petits Monts Jadot (FR)",
+            "Z": "Z = Nuit Saint Georges - Les Boudots Drouhin (FR)",
+            "C": "C = Domaine Schlumberger (FR)",
+            "W": "W = Domaine Jean Sipp (FR)",
+            "Y": "Y = Domaine Weinbach (FR)",
+            "M": "M = Domaine Brunner (CH)",
+            "N": "N = Vin des Croisés (CH)",
+            "J": "J = Domaine Villard et Fils (CH)",
+            "L": "L = Domaine de la République (CH)",
+            "H": "H = Les Maladaires (CH)",
+            "U": "U = Marimar Estate (US)",
+            "X": "X = Domaine Drouhin (US)"
+        }
+
         if data_for_umap is not None:
             reducer = DimensionalityReducer(data_for_umap)
             if projection_method == "UMAP":
@@ -400,7 +435,9 @@ if __name__ == "__main__":
                     reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
                     plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names,
                     unique_samples_only=False, n_neighbors=n_neighbors, random_state=random_state,
-                    invert_x=invert_x, invert_y=invert_y
+                    invert_x=invert_x, invert_y=invert_y,
+                    color_by_winery=color_by_winery,  raw_sample_labels=raw_sample_labels,
+                    color_by_origin=color_by_origin, highlight_burgundy_ns=True, exclude_us=exclude_us, show_year=show_year
                 )
             elif projection_method == "PCA":
                 plot_pinot_noir(reducer.pca(components=projection_dim),plot_title, projection_labels, legend_labels,
@@ -409,6 +446,26 @@ if __name__ == "__main__":
                 plot_pinot_noir(reducer.tsne(components=projection_dim, perplexity=5, random_state=random_state),
                         plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names
                         )
+            # if projection_method == "UMAP":
+            #     plot_pinot_noir(
+            #         reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
+            #         plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names,
+            #         unique_samples_only=False, n_neighbors=n_neighbors, random_state=random_state,
+            #         invert_x=invert_x, invert_y=invert_y,
+            #         only_europe=False, split_burgundy_north_south=False, raw_sample_labels=raw_sample_labels, region=region
+            #     )
+            # elif projection_method == "PCA":
+            #     plot_pinot_noir(reducer.pca(components=projection_dim),plot_title, projection_labels, legend_labels,
+            #                     color_by_country, test_sample_names=test_samples_names,
+            #             unique_samples_only = False, n_neighbors = n_neighbors, random_state = random_state,
+            #             invert_x = invert_x, invert_y = invert_y
+            #             )
+            # elif projection_method == "T-SNE":
+            #     plot_pinot_noir(reducer.tsne(components=projection_dim, perplexity=5, random_state=random_state),
+            #             plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names,
+            #             unique_samples_only = False, n_neighbors = n_neighbors, random_state = random_state,
+            #             invert_x = invert_x, invert_y = invert_y
+            #             )
             else:
                 raise ValueError(f"Unsupported projection method: {projection_method}")
 

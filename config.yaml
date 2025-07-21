@@ -1,9 +1,11 @@
 chrom_cap: 35000
 class_by_year: false
-classifier: null
+classifier: RGC
 color_by_country: false
+color_by_origin: true
+color_by_winery: false
 constant_ohe: false
-cv_type: LOOPC
+cv_type: LOO
 datasets:
   bordeaux_oak: /home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/
   cab_sauv_2021: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/
@@ -17,7 +19,8 @@ datasets:
   pinot_noir_isvv_lle: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/
 do_classification: false
 downsample_group: true
-feature_type: tic
+exclude_us: true
+feature_type: tic_tis
 global_focus_heatmap: true
 group_wines: false
 invert_x: false
@@ -26,24 +29,24 @@ label_target: prod area
 label_targets:
 - age
 n_decimation: 10
-n_neighbors: 3
+n_neighbors: 30
 normalize: true
 num_repeats: 10
 num_splits: 1
-plot_all_tests: false
-plot_projection: shap
+plot_all_tests: true
+plot_projection: scores
 plot_r2: false
 plot_shap: false
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
-projection_source: shap
+projection_source: scores
 random_state: 42
 reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
-region: ''
-regressor: ridge
+region: winery
+regressor: null
 remove_avg_scores: false
 retention_time_range:
   max: 30000
@@ -51,9 +54,10 @@ retention_time_range:
 rt_range:
   max: 30000
   min: 0
-selected_attribute: citrus
+sample_display_mode: names
+selected_attribute: fruity
 selected_datasets:
-- heterocyc
+- pinot_noir_changins
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
@@ -66,6 +70,6 @@ sync_state: false
 taster_focus_heatmap: false
 taster_scaling: false
 taster_vs_mean: false
-test_average_scores: true
+test_average_scores: false
 umap_dim: 2
 umap_source: tic_tis

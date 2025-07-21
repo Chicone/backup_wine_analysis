@@ -2024,3 +2024,29 @@ Rounded Accuracy (±5 yrs): 0.944 ± 0.027
   Show taster profiles: False
         Plot all tests: False
 2025-07-11 14:08:53 — INFO — Average Scores selected
+
+
+2025-07-15 08:26:58 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-15 08:26:58 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 4
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+2025-07-15 08:26:59 — INFO — 
+Cross-validated Regression Performance:
+Regressor: ridge
+MAE:  2.27 ± 0.16
+RMSE: 3.06 ± 0.13
+R²:   0.650 ± 0.015
+Rounded Accuracy (Exact): 0.185 ± 0.048
+Rounded Accuracy (±1 yrs): 0.445 ± 0.075
+Rounded Accuracy (±2 yrs): 0.690 ± 0.041
+Rounded Accuracy (±3 yrs): 0.810 ± 0.017
+Rounded Accuracy (±4 yrs): 0.870 ± 0.010
+Rounded Accuracy (±5 yrs): 0.900 ± 0.024

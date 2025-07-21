@@ -364,9 +364,12 @@ class Classifier:
             projection_source=False,
     ):
         # Step 1: label preprocessing
-        labels_used = self.strategy.extract_labels(self.labels)
+        processed_labels = np.array(self.strategy.extract_labels(self.labels))  # ← same labels used for y_train/y_test
         use_composites = self.strategy.use_composite_labels(self.labels)
-        custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
+        custom_order = self.strategy.get_custom_order(processed_labels, self.year_labels)
+        # labels_used = self.strategy.extract_labels(self.labels)
+        # use_composites = self.strategy.use_composite_labels(self.labels)
+        # custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
 
         # Step 2: leave out one composite group
         split_labels = self.strategy.get_split_labels(self.labels_raw, self.class_by_year)
@@ -2276,7 +2279,7 @@ def assign_country_to_pinot_noir(original_keys):
     return country_keys
 
 
-def assign_origin_to_pinot_noir(original_keys):
+def assign_origin_to_pinot_noir(original_keys, split_burgundy_ns=False):
     """
     Map wine sample keys to their corresponding region of origin (Origine).
 
@@ -2326,20 +2329,42 @@ def assign_origin_to_pinot_noir(original_keys):
         'X': 'Oregon',
 
         # France
-        'D': 'Burgundy',
-        'E': 'Burgundy',
-        'Q': 'Burgundy',
-        'P': 'Burgundy',
-        'R': 'Burgundy',
-        'Z': 'Burgundy',
+        # 'D': 'Burgundy',
+        # 'E': 'Burgundy',
+        # 'Q': 'Burgundy',
+        # 'P': 'Burgundy',
+        # 'R': 'Burgundy',
+        # 'Z': 'Burgundy',
         'C': 'Alsace',
         'K': 'Alsace',
         'W': 'Alsace',
         'Y': 'Alsace'
     }
 
-    # Create a new list by mapping the first letter of each key to its specific "Origine"
-    origin_keys = [letter_to_origine[key[0]] for key in original_keys]
+    burgundy_north = {'D', 'E', 'Q'}
+    burgundy_south = {'P', 'R', 'Z'}
+
+    origin_keys = []
+    for key in original_keys:
+        first_letter = key[0]
+        if split_burgundy_ns:
+            if first_letter in burgundy_north:
+                origin_keys.append('Burgundy_North')
+            elif first_letter in burgundy_south:
+                origin_keys.append('Burgundy_South')
+            elif first_letter in letter_to_origine:
+                origin_keys.append(letter_to_origine[first_letter])
+            else:
+                origin_keys.append('Unknown')
+        else:
+            if first_letter in burgundy_north or first_letter in burgundy_south:
+                origin_keys.append('Burgundy')
+            elif first_letter in letter_to_origine:
+                origin_keys.append(letter_to_origine[first_letter])
+            else:
+                origin_keys.append('Unknown')
+    # # Create a new list by mapping the first letter of each key to its specific "Origine"
+    # origin_keys = [letter_to_origine[key[0]] for key in original_keys]
 
     return origin_keys
 
