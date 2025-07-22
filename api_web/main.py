@@ -158,6 +158,7 @@ async def run_script(payload: dict):
         ("color_by_winery", False),
         ("color_by_origin", False),
         ("exclude_us", False),
+        ("density_plot", False),
     ]
     for key, default in optional_keys:
         if key in payload:

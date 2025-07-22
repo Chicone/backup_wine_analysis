@@ -129,6 +129,7 @@ function App() {
   const [colorByWinery, setColorByWinery] = useState(false);
   const [colorByOrigin, setColorByOrigin] = useState(false);
   const [excludeUS, setExcludeUS] = useState(false);
+  const [densityPlot, setDensityPlot] = useState(false);
   const [showChampPredictedProfiles, setShowChampPredictedProfiles] =
     useState(false);
   //   const [useChampTasterScaling, setUseChampTasterScaling] = useState(false);
@@ -443,6 +444,7 @@ useEffect(() => {
       color_by_winery: colorByWinery,
       color_by_origin: colorByOrigin,
       exclude_us: excludeUS,
+      density_plot: densityPlot
     };
 
     // ✅ Conditionally add region only for pinot
@@ -1803,7 +1805,7 @@ useEffect(() => {
                                   />
                                 </FormGroup>
 
- {cvType === "LOO" ? (
+ {["LOO", "LOOPC", "stratified"].includes(cvType) ? (
   <div className="flex flex-col mt-2">
       {wineFamily === "pinot" && (
   <>
@@ -1829,13 +1831,21 @@ useEffect(() => {
         </label>
       )}
         <label className="flex items-center gap-2 ml-10">
-        <input
-          type="checkbox"
-          checked={excludeUS}
-          onChange={(e) => setExcludeUS(e.target.checked)}
-        />
+          <input
+            type="checkbox"
+            checked={excludeUS}
+            onChange={(e) => setExcludeUS(e.target.checked)}
+          />
         Exclude US
-     </label>
+       </label>
+       <label className="flex items-center gap-2 ml-10">
+          <input
+            type="checkbox"
+            checked={densityPlot}
+            onChange={(e) => setDensityPlot(e.target.checked)}
+          />
+        Density Plot
+       </label>
     </div>
     {/* Spacer block */}
     <div style={{ height: "20px" }}></div>  {/* You can increase to 48px or more if needed */}
