@@ -21,7 +21,7 @@ density_plot: false
 do_classification: false
 downsample_group: true
 exclude_us: false
-feature_type: tic_tis
+feature_type: tic
 global_focus_heatmap: true
 group_wines: false
 invert_x: false
@@ -32,7 +32,7 @@ label_targets:
 n_decimation: 10
 n_neighbors: 7
 normalize: true
-num_repeats: 50
+num_repeats: 10
 num_splits: 1
 plot_all_tests: false
 plot_projection: false
@@ -41,7 +41,7 @@ plot_shap: false
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
-projection_source: scores
+projection_source: tic
 random_state: 1
 reduce_dims: false
 reduction_dims: 2

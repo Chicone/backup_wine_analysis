@@ -1750,3 +1750,103 @@ Confusion matrix: False
             RT range: {'max': 30000, 'min': 0}
     Confusion matrix: True
 2025-07-28 14:15:24 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-07-28 17:45:00 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-28 17:45:00 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: tic
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: True
+              Region: burgundy
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-07-28 17:45:02 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-07-28 17:48:59 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-28 17:48:59 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: tic
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: True
+              Region: burgundy
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-07-28 17:49:01 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-07-28 17:56:22 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-28 17:56:22 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: tic
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: True
+              Region: burgundy
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-07-28 17:56:24 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-07-28 17:56:37 — INFO — === Iteration 1/23 ===
+
+
+2025-07-28 18:30:02 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-28 18:30:02 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: tic
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: True
+              Region: burgundy
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-07-28 18:30:04 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-07-28 18:30:05 — INFO — === Iteration 1/46 | Active bins: 50 ===
+2025-07-28 18:30:06 — INFO — Accuracy: 0.262 ± 0.440
+2025-07-28 18:30:24 — INFO — Removing bin 0: next accuracy would be 0.377
+2025-07-28 18:30:24 — INFO — === Iteration 2/46 | Active bins: 49 ===
+2025-07-28 18:30:26 — INFO — Accuracy: 0.246 ± 0.431
+2025-07-28 18:30:44 — INFO — Removing bin 19: next accuracy would be 0.434
+2025-07-28 18:30:44 — INFO — === Iteration 3/46 | Active bins: 48 ===
+2025-07-28 18:30:45 — INFO — Accuracy: 0.295 ± 0.456
+2025-07-28 18:31:03 — INFO — Removing bin 3: next accuracy would be 0.434
+2025-07-28 18:31:03 — INFO — === Iteration 4/46 | Active bins: 47 ===
+2025-07-28 18:31:04 — INFO — Accuracy: 0.246 ± 0.431
+2025-07-28 18:31:21 — INFO — Removing bin 21: next accuracy would be 0.434
+2025-07-28 18:31:21 — INFO — === Iteration 5/46 | Active bins: 46 ===
+2025-07-28 18:31:22 — INFO — Accuracy: 0.246 ± 0.431
+2025-07-28 18:31:40 — INFO — Removing bin 23: next accuracy would be 0.434
+2025-07-28 18:31:40 — INFO — === Iteration 6/46 | Active bins: 45 ===
+2025-07-28 18:31:41 — INFO — Accuracy: 0.279 ± 0.448
+2025-07-28 18:31:59 — INFO — Removing bin 14: next accuracy would be 0.467
+2025-07-28 18:31:59 — INFO — === Iteration 7/46 | Active bins: 44 ===
+2025-07-28 18:32:01 — INFO — Accuracy: 0.262 ± 0.440
+2025-07-28 18:32:18 — INFO — Removing bin 8: next accuracy would be 0.467
+2025-07-28 18:32:18 — INFO — === Iteration 8/46 | Active bins: 43 ===
+2025-07-28 18:32:21 — INFO — Accuracy: 0.295 ± 0.456
