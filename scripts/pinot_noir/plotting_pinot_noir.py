@@ -259,12 +259,17 @@ def plot_pinot_noir(
                 color = burgundy_to_color[burg_label]
                 marker = markers[i % len(markers)]
 
-                ax.scatter(coords[:, 0], coords[:, 1],
-                           label=burg_label,
-                           alpha=0.9,
-                           s=80,
-                           color=color,
-                           marker=marker)
+                if density_plot and not is_3d:
+                    # Plot Gaussian density cloud
+                    plot_gaussian_cloud_2d(ax, coords, color, marker, burg_label)
+                else:
+                    # Standard scatter
+                    ax.scatter(coords[:, 0], coords[:, 1],
+                               label=burg_label,
+                               alpha=0.9,
+                               s=80,
+                               color=color,
+                               marker=marker)
 
         elif isinstance(label_dict, list):
             label_dict = {label: label for label in label_dict}

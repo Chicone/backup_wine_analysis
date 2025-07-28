@@ -266,14 +266,7 @@ if __name__ == "__main__":
         data = data[mask]
         labels = labels[mask]
         raw_sample_labels = raw_sample_labels[mask]
-        # if burg_by_year:
-        #     try:
-        #         labels = np.array([str(int(label[1:])) for label in labels])
-        #     except ValueError:
-        #         raise ValueError("Failed to extract year from some Burgundy labels.")
-
-    # labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, split_burgundy_ns, dataset_origins,
-    #                                                   split_burgundy_ns=split_burgundy_ns)
+       
     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, None)
 
     # Instantiate classifier with data and labels
