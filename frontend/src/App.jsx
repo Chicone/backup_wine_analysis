@@ -1316,7 +1316,7 @@ useEffect(() => {
                                 />
                               </Grid>
                               <Grid item xs={12} md={2}>
-                                {["bordeaux", "press"].includes(wineFamily) && (
+                                {["bordeaux", "press", "pinot"].includes(wineFamily) && (
                                 <FormControlLabel
                                   control={
                                     <Checkbox
@@ -1811,6 +1811,7 @@ useEffect(() => {
   <>
     <div>
       {region === "origin" && (
+       <div className="mr-2">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -1819,8 +1820,10 @@ useEffect(() => {
           />
           Color by winery
         </label>
+       </div>
       )}
       {region === "winery" && (
+       <div className="mr-2">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -1829,7 +1832,9 @@ useEffect(() => {
           />
           Color by origin
         </label>
+       </div>
       )}
+       <div className="mr-2">
         <label className="flex items-center gap-2 ml-10">
           <input
             type="checkbox"
@@ -1838,6 +1843,7 @@ useEffect(() => {
           />
         Exclude US
        </label>
+      </div>
        <label className="flex items-center gap-2 ml-10">
           <input
             type="checkbox"

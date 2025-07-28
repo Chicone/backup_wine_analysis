@@ -184,19 +184,24 @@ if __name__ == "__main__":
     normalize_flag = config["normalize"]
     n_decimation = config["n_decimation"]
     sync_state = config["sync_state"]
+    class_by_year = config['class_by_year']
     region = config["region"]
     # Enforce exclusivity logic
     if region == "origin" and not color_by_winery:
         color_by_origin = True
     elif region == "winery" and not color_by_origin:
         color_by_winery = True
+    else:
+        color_by_origin = False
+        color_by_winery = False
+
     # wine_kind = config["wine_kind"]
     show_confusion_matrix = config['show_confusion_matrix']
     retention_time_range = config['rt_range']
     cv_type = config['cv_type']
     task="classification"  # hard-coded for now
     split_burgundy_ns = True  # config.get("split_burgundy_north_south", False)
-
+    burg_by_year = True
     summary = {
         "Task": task,
         "Wine kind": wine_kind,
@@ -260,10 +265,16 @@ if __name__ == "__main__":
         mask = np.array([label.startswith(burgundy_prefixes) for label in labels])
         data = data[mask]
         labels = labels[mask]
+        raw_sample_labels = raw_sample_labels[mask]
+        # if burg_by_year:
+        #     try:
+        #         labels = np.array([str(int(label[1:])) for label in labels])
+        #     except ValueError:
+        #         raise ValueError("Failed to extract year from some Burgundy labels.")
 
     # labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, split_burgundy_ns, dataset_origins,
     #                                                   split_burgundy_ns=split_burgundy_ns)
-    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, None, None)
+    labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, None)
 
     # Instantiate classifier with data and labels
     cls = Classifier(
@@ -271,9 +282,10 @@ if __name__ == "__main__":
         np.array(list(labels)),
         classifier_type=classifier,
         wine_kind=wine_kind,
+        class_by_year=class_by_year,
         year_labels=np.array(year_labels),
         strategy=strategy,
-        sample_labels=raw_sample_labels,
+        sample_labels=np.array(raw_sample_labels),
         dataset_origins=dataset_origins,
     )
 
@@ -439,7 +451,8 @@ if __name__ == "__main__":
                     invert_x=invert_x, invert_y=invert_y,
                     raw_sample_labels=raw_sample_labels, show_year=show_year,
                     color_by_origin=color_by_origin, color_by_winery=color_by_winery, highlight_burgundy_ns=True,
-                    exclude_us=exclude_us, density_plot=density_plot
+                    exclude_us=exclude_us, density_plot=density_plot,
+                    region=region
                 )
             elif projection_method == "PCA":
                 plot_pinot_noir(reducer.pca(components=projection_dim),plot_title, projection_labels, legend_labels,

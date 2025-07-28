@@ -66,6 +66,10 @@ class PinotNoirWineStrategy(WineKindStrategy):
         return labels  # No simplification for Pinot Noir
 
     def get_custom_order(self, labels, year_labels=None):
+        if year_labels is not None and np.ndim(year_labels) > 0:
+            valid_years = [y for y in year_labels if y is not None]
+            if valid_years:
+                return sorted(set(valid_years), key=int)
         return self.get_custom_order_func(self.region)
 
     def use_composite_labels(self, labels):

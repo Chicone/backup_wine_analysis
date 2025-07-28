@@ -1,5 +1,5 @@
 chrom_cap: 35000
-class_by_year: false
+class_by_year: true
 classifier: RGC
 color_by_country: false
 color_by_origin: false
@@ -34,7 +34,7 @@ n_neighbors: 6
 normalize: true
 num_repeats: 10
 num_splits: 1
-plot_all_tests: true
+plot_all_tests: false
 plot_projection: scores
 plot_r2: false
 plot_shap: false
@@ -46,7 +46,7 @@ random_state: 1
 reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
-region: winery
+region: burgundy
 regressor: null
 remove_avg_scores: false
 retention_time_range:
@@ -55,8 +55,8 @@ retention_time_range:
 rt_range:
   max: 30000
   min: 0
-sample_display_mode: names
-selected_attribute: fruity
+sample_display_mode: years
+selected_attribute: nuts
 selected_datasets:
 - pinot_noir_changins
 show_age_histogram: false
@@ -71,6 +71,6 @@ sync_state: false
 taster_focus_heatmap: false
 taster_scaling: false
 taster_vs_mean: false
-test_average_scores: false
+test_average_scores: true
 umap_dim: 2
 umap_source: tic_tis

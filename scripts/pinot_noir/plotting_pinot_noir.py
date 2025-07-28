@@ -113,8 +113,9 @@ def plot_pinot_noir(
     if exclude_us:
         if raw_sample_labels is None:
             raise ValueError("raw_sample_labels must be provided when exclude_us=True")
-        us_letters = {"U", "X"}
+        us_letters = {"U", "X",}
         # us_letters = {"C", "H"}
+        # us_letters = {"U", "X", "C", "H"}
         keep_mask = np.array([s[0] not in us_letters for s in raw_sample_labels])
 
         embedding = embedding[keep_mask]
@@ -218,46 +219,6 @@ def plot_pinot_noir(
                 if not is_3d:
                     plot_gaussian_cloud_2d(ax, coords, base_color, marker, readable_label)
 
-                    # # === 2. Compute empirical Gaussian ===
-                    # mean = np.mean(coords, axis=0)
-                    # cov = np.cov(coords.T)
-                    # cov *= 0.4  # Scale down — try 0.2 to 0.5
-                    # cov += np.eye(cov.shape[0]) * 1e-3  # regularize
-                    #
-                    # margin = 5
-                    # x_min, x_max = mean[0] - margin, mean[0] + margin
-                    # y_min, y_max = mean[1] - margin, mean[1] + margin
-                    # x = np.linspace(x_min, x_max, 500)
-                    # y = np.linspace(y_min, y_max, 500)
-                    # X, Y = np.meshgrid(x, y)
-                    # pos = np.dstack((X, Y))
-                    # rv = multivariate_normal(mean, cov)
-                    # Z = rv.pdf(pos)
-                    # Z = Z / Z.max()
-                    #
-                    # # Turn Z into an RGBA image
-                    # rgba = np.ones((*Z.shape, 4))
-                    # rgba[..., :3] = base_color  # RGB
-                    # rgba[..., 3] = Z * 0.7  # Alpha scaled
-                    #
-                    # # Plot using imshow for smooth blending
-                    # ax.imshow(rgba, extent=(x_min, x_max, y_min, y_max),
-                    #           origin='lower', aspect='auto', zorder=1)
-                    #
-                    # # Optional: add contour lines (discrete levels)
-                    # contour_levels = np.linspace(0.0, 1.0, 10)  # choose levels between 0 and 1
-                    # ax.contour(X, Y, Z, levels=contour_levels,
-                    #            colors=[base_color], linewidths=0.2, alpha=0.1, zorder=3)
-                    #
-                    # # === 1. Plot the actual points AFTER contourf ===
-                    # ax.scatter(coords[:, 0], coords[:, 1],
-                    #            label=readable_label,
-                    #            alpha=1.0,
-                    #            s=80,
-                    #            color=base_color,
-                    #            marker=marker,
-                    #            # edgecolors='black',
-                    #            zorder=2)
                 else:
                     # fallback for 3D
                     ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2],
@@ -281,35 +242,57 @@ def plot_pinot_noir(
                     ax.scatter(coords[:, 0], coords[:, 1], label=readable_label,
                                alpha=0.9, s=80, color=color, marker=marker)
 
-
     else:
-        if isinstance(label_dict, list):
+        # Default: Plot according to the selected region
+        if region == "burgundy":
+            # Burgundy North (NB) vs South (SB) is already encoded in `labels`
+            unique_burgundy = sorted(set(labels))  # should be ["NB", "SB"]
+
+            colors = distinctipy.get_colors(len(unique_burgundy))
+            burgundy_to_color = dict(zip(unique_burgundy, colors))
+
+            for i, burg_label in enumerate(unique_burgundy):
+                mask = np.array(labels) == burg_label
+                if not np.any(mask):
+                    continue
+                coords = embedding[mask]
+                color = burgundy_to_color[burg_label]
+                marker = markers[i % len(markers)]
+
+                ax.scatter(coords[:, 0], coords[:, 1],
+                           label=burg_label,
+                           alpha=0.9,
+                           s=80,
+                           color=color,
+                           marker=marker)
+
+        elif isinstance(label_dict, list):
             label_dict = {label: label for label in label_dict}
-        category_keys = list(label_dict.keys())
-        label_categories = np.array([lbl[0] for lbl in labels])
+            category_keys = list(label_dict.keys())
+            label_categories = np.array([lbl[0] for lbl in labels])
 
-        if group_by_country:
-            countries = sorted(set(label.split("(")[-1].strip(")") for label in label_dict.values()))
-            country_colors = {country: default_color_map(i / len(countries)) for i, country in enumerate(countries)}
+            if group_by_country:
+                countries = sorted(set(label.split("(")[-1].strip(")") for label in label_dict.values()))
+                country_colors = {country: default_color_map(i / len(countries)) for i, country in enumerate(countries)}
 
-        for i, cat in enumerate(category_keys):
-            mask = label_categories == cat
-            if not np.any(mask):
-                continue
-            readable_label = label_dict[cat]
-            marker = markers[i % len(markers)]
-            color = (
-                country_colors[readable_label.split("(")[-1].strip(")")]
-                if group_by_country
-                else default_color_map(i / len(category_keys))
-            )
-            coords = embedding[mask]
-            if is_3d:
-                ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], label=readable_label,
-                           alpha=0.9, s=80, color=color, marker=marker)
-            else:
-                ax.scatter(coords[:, 0], coords[:, 1], label=readable_label,
-                           alpha=0.9, s=80, color=color, marker=marker)
+            for i, cat in enumerate(category_keys):
+                mask = label_categories == cat
+                if not np.any(mask):
+                    continue
+                readable_label = label_dict[cat]
+                marker = markers[i % len(markers)]
+                color = (
+                    country_colors[readable_label.split("(")[-1].strip(")")]
+                    if group_by_country
+                    else default_color_map(i / len(category_keys))
+                )
+                coords = embedding[mask]
+                if is_3d:
+                    ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], label=readable_label,
+                               alpha=0.9, s=80, color=color, marker=marker)
+                else:
+                    ax.scatter(coords[:, 0], coords[:, 1], label=readable_label,
+                               alpha=0.9, s=80, color=color, marker=marker)
 
     if test_sample_names is not None:
         for i, name in enumerate(test_sample_names):

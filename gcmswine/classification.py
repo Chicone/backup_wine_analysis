@@ -1888,7 +1888,11 @@ class Classifier:
             fig, ax = plt.subplots(figsize=(8, 6))
             ax.set_xlabel('Predicted Label', fontsize=14)
             ax.set_ylabel('True Label', fontsize=14)
-            ax.set_title(f'Confusion Matrix by {region}')
+            if LOOPC:
+                cv_strategy = "LOOPC"
+            else:
+                cv_strategy = "Stratified"
+            ax.set_title(f'{cv_strategy} Confusion Matrix by {region}')
             disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=headers)
             disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
             plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)

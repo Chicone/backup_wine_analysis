@@ -2355,7 +2355,23 @@ def process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, chroma
             processed_labels = assign_north_south_to_burgundy(labels)
         else:
             raise ValueError("Invalid region. Options are 'winery', 'origin', 'country' or 'continent'")
-        return processed_labels, None
+
+        # Generate year labels for Pinot Noir if requested
+        if class_by_year:
+            year_labels = []
+            for label in labels:
+                year_suffix = int(label[1:])  # Extract the two-digit year
+                if year_suffix > 50:  # Assume anything >50 is from 1900s
+                    full_year = f"19{year_suffix:02d}"
+                else:  # Otherwise it's from 2000s
+                    full_year = f"20{year_suffix:02d}"
+                year_labels.append(full_year)
+            year_labels = np.array(year_labels)
+            # year_labels = assign_year_to_pinot_noir(labels)
+        else:
+            year_labels = None
+        return processed_labels, year_labels
+
     elif wine_kind == "press":
         year_labels = extract_year_from_samples(chromatograms.keys()) if class_by_year else None
         return assign_composite_label_to_press_wine(labels), year_labels
