@@ -1850,3 +1850,24 @@ Confusion matrix: False
 2025-07-28 18:32:18 — INFO — Removing bin 8: next accuracy would be 0.467
 2025-07-28 18:32:18 — INFO — === Iteration 8/46 | Active bins: 43 ===
 2025-07-28 18:32:21 — INFO — Accuracy: 0.295 ± 0.456
+
+
+2025-07-29 08:58:19 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-29 08:58:19 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: tic
+          Classifier: RGC
+             Repeats: 50
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: True
+              Region: burgundy
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-07-29 08:58:22 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-07-29 08:58:41 — INFO — === Iteration 1/50 | Active bins: 50 ===
+2025-07-29 09:07:23 — INFO — Accuracy: 0.262 ± 0.440

@@ -120,204 +120,238 @@ if __name__ == "__main__":
     from gcmswine.classification import Classifier
     from gcmswine import utils
     from gcmswine.wine_analysis import GCMSDataProcessor, ChromatogramAnalysis, process_labels_by_wine_kind
-    from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind, WineKindStrategy
-    from gcmswine.utils import string_to_latex_confusion_matrix, string_to_latex_confusion_matrix_modified
+    from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind
     from gcmswine.logger_setup import logger, logger_raw
     from sklearn.preprocessing import normalize
     from gcmswine.dimensionality_reduction import DimensionalityReducer
     from scripts.bordeaux.plotting_bordeaux import plot_bordeaux
 
-    # # Use this function to convert the printed confusion matrix to a latex confusion matrix
-    # # Copy the matrix into data_str using """ """ and create the list of headers, then call the function
-    # headers = ['Clos Des Mouches', 'Vigne Enfant J.', 'Les Cailles', 'Bressandes Jadot', 'Les Petits Monts',
-    #             'Les Boudots', 'Schlumberger', 'Jean Sipp', 'Weinbach', 'Brunner', 'Vin des Croisés',
-    #             'Villard et Fils', 'République', 'Maladaires', 'Marimar', 'Drouhin']
-    # headers = ["Beaune", "Alsace", "Neuchatel", "Genève", "Valais", "Californie", "Oregon"]
-    # headers = ["France", "Switzerland", "US"]
-    # string_to_latex_confusion_matrix_modified(data_str, headers)
+    # === Utility Functions ===
+    def split_into_bins(data, n_bins):
+        total_points = data.shape[1]
+        bin_edges = np.linspace(0, total_points, n_bins + 1, dtype=int)
+        return [(bin_edges[i], bin_edges[i+1]) for i in range(n_bins)]
 
-    # Load dataset paths from config.yaml
+    def remove_bins(data, bins_to_remove, bin_ranges):
+        """Remove (delete) specified bins in TIC by index."""
+        mask = np.ones(data.shape[1], dtype=bool)
+        for b in bins_to_remove:
+            start, end = bin_ranges[b]
+            mask[start:end] = False
+        return data[:, mask]
+
+    # === Load Config ===
     config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
-    config_path = os.path.abspath(config_path)
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
-    # Parameters from config file
+    # === Parameters ===
     dataset_directories = config["datasets"]
     selected_datasets = config["selected_datasets"]
+    selected_paths = [dataset_directories[name] for name in selected_datasets]
 
-    # Get the paths corresponding to the selected datasets
-    selected_paths = [config["datasets"][name] for name in selected_datasets]
-
-    # Check if all selected dataset contains "bordeaux"
     if not all("bordeaux" in path.lower() for path in selected_paths):
         raise ValueError("Please use this script for Bordeaux datasets.")
 
-    # Infer wine_kind from selected dataset paths
-    wine_kind = utils.infer_wine_kind(selected_datasets, config["datasets"])
-
-    # Plot parameters
-    plot_projection = config.get("plot_projection", False)
-    projection_method = config.get("projection_method", "UMAP").upper()
-    projection_source = config.get("projection_source", False) if plot_projection else False
-    projection_dim = config.get("projection_dim", 2)
-    n_neighbors = config.get("n_neighbors", 30)
-    random_state = config.get("random_state", 42)
-    color_by_country = config["color_by_country"]
-    show_sample_names = config["show_sample_names"]
-    invert_x =  config["invert_x"]
-    invert_y =  config["invert_y"]
-
-    # Run Parameters
+    wine_kind = utils.infer_wine_kind(selected_datasets, dataset_directories)
     feature_type = config["feature_type"]
     classifier = config["classifier"]
     num_repeats = config["num_repeats"]
     normalize_flag = config["normalize"]
     n_decimation = config["n_decimation"]
     sync_state = config["sync_state"]
-    class_by_year = config['class_by_year']
+    class_by_year = config["class_by_year"]
     region = config["region"]
-    show_confusion_matrix = config['show_confusion_matrix']
-    retention_time_range = config['rt_range']
-    cv_type = config['cv_type']
-    task="classification"  # hard-coded for now
+    show_confusion_matrix = config["show_confusion_matrix"]
+    retention_time_range = config["rt_range"]
+    cv_type = config["cv_type"]
 
-    # # Infer wine_kind from selected dataset paths
-    # wine_kind = utils.infer_wine_kind(selected_datasets, config["datasets"])
-    # feature_type = config["feature_type"]
-    # classifier = config["classifier"]
-    # num_repeats = config["num_repeats"]
-    # normalize = config["normalize"]
-    # n_decimation = config["n_decimation"]
-    # sync_state = config["sync_state"]
-    # region = config["region"]
-    # # wine_kind = config["wine_kind"]
-    # class_by_year = config['class_by_year']
-    # show_confusion_matrix = config['show_confusion_matrix']
-    # retention_time_range = config['rt_range']
-    # cv_type = config['cv_type']
+    # Survival parameters
+    n_bins = 50
+    min_bins = 1
+    survival_mode = True
 
+    # Projection plotting parameters
+    plot_projection = config.get("plot_projection", False)
+    projection_method = config.get("projection_method", "UMAP").upper()
+    projection_source = config.get("projection_source", False) if plot_projection else False
+    projection_dim = config.get("projection_dim", 2)
+    n_neighbors = config.get("n_neighbors", 30)
+    random_state = config.get("random_state", 42)
+    color_by_country = config.get("color_by_country", False)
+    show_sample_names = config.get("show_sample_names", False)
+    invert_x = config.get("invert_x", False)
+    invert_y = config.get("invert_y", False)
 
-    summary = {
-        "Task": task,
-        "Wine kind": wine_kind,
-        "Datasets": ", ".join(selected_datasets),
-        "Feature type": config["feature_type"],
-        "Classifier": config["classifier"],
-        "Repeats": config["num_repeats"],
-        "Normalize": config["normalize"],
-        "Decimation": config["n_decimation"],
-        "Sync": config["sync_state"],
-        "Year Classification": config["class_by_year"],
-        "Region": config["region"],
-        "CV type": config["cv_type"],
-        "RT range": config["rt_range"],
-        "Confusion matrix": config["show_confusion_matrix"]
-    }
-
-    logger_raw("\n")# Blank line with no timestamp
-    logger.info('------------------------ RUN SCRIPT -------------------------')
-    logger.info("Configuration Parameters")
-    for k, v in summary.items():
-        logger_raw(f"{k:>20s}: {v}")
-
-
-    # Load dataset, removing zero-variance channels
+    # === Load and preprocess data ===
     cl = ChromatogramAnalysis(ndec=n_decimation)
-    selected_paths = {name: dataset_directories[name] for name in selected_datasets}
     data_dict, dataset_origins = utils.join_datasets(selected_datasets, dataset_directories, n_decimation)
     chrom_length = len(list(data_dict.values())[0])
-    print(f'Chromatogram length: {chrom_length}')
+
     if retention_time_range:
         min_rt = retention_time_range['min'] // n_decimation
         raw_max_rt = retention_time_range['max'] // n_decimation
         max_rt = min(raw_max_rt, chrom_length)
-        print(f"Applying RT range: {min_rt} to {max_rt} (capped at {chrom_length})")
         data_dict = {key: value[min_rt:max_rt] for key, value in data_dict.items()}
-    data_dict, _ = utils.remove_zero_variance_channels(data_dict)
 
+    data_dict, _ = utils.remove_zero_variance_channels(data_dict)
     gcms = GCMSDataProcessor(data_dict)
     if sync_state:
-        tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=30000)
+        _, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=30000)
         gcms = GCMSDataProcessor(data_dict)
 
-    # Extract data matrix (samples × channels) and associated labels
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
-    labels_raw=labels
+    raw_sample_labels = labels.copy()
     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, None)
-
-    # Strategy setup
     strategy = get_strategy_by_wine_kind(wine_kind, class_by_year=class_by_year)
 
-    # Instantiate classifier with data and labels
-    cls = Classifier(
-        np.array(list(data)),
-        np.array(list(labels)),
-        classifier_type=classifier,
-        wine_kind=wine_kind,
-        year_labels=np.array(year_labels),
-        strategy=strategy,
-        class_by_year=class_by_year,
-        labels_raw=labels_raw,
-        sample_labels=labels_raw,
-        dataset_origins=dataset_origins,
-    )
+    # === Define binning ===
+    bin_ranges = split_into_bins(data, n_bins)
+    active_bins = list(range(n_bins))
+    n_iterations = n_bins - min_bins + 1 if survival_mode else 1
 
-    if cv_type == "LOOPC" or cv_type == "stratified":
-        loopc = False if cv_type == "stratified" else True
+    # Plot setup for survival mode
+    if survival_mode:
+        cv_label = "LOO" if cv_type == "LOO" else "LOOPC" if cv_type == "LOOPC" else "Stratified"
+        plt.ion()
+        fig, ax = plt.subplots(figsize=(8, 5))
+        line, = ax.plot([], [], marker='o')
+        ax.set_xlabel("Percentage of TIC Data Remaining (%)")
+        ax.set_ylabel("Balanced Accuracy")
+        ax.set_title(f"Greedy Survival: Accuracy vs TIC Data Remaining ({cv_label} CV)")
+        ax.grid(True)
+        ax.set_xlim(100, 0)
 
-        # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
-        mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_all_channels(
-            num_repeats=num_repeats,
-            random_seed=42,
-            test_size=0.2,
-            normalize=normalize_flag,
-            scaler_type='standard',
-            use_pca=False,
-            vthresh=0.97,
-            region=region,
-            print_results=True,
-            n_jobs=20,
-            feature_type=feature_type,
-            classifier_type=classifier,
-            LOOPC=loopc, # whether to use stratified splitting (False) or Leave One Out Per Class (True),
-            projection_source=projection_source,
-            show_confusion_matrix=show_confusion_matrix,
+    accuracies = []
+    percent_remaining = []
+    baseline_nonzero = np.count_nonzero(data)
+
+    # === Main loop ===
+    for step in range(n_iterations):
+        logger.info(f"=== Iteration {step+1}/{n_iterations} | Active bins: {len(active_bins)} ===")
+
+        masked_data = remove_bins(
+            data,
+            bins_to_remove=[b for b in range(n_bins) if b not in active_bins],
+            bin_ranges=bin_ranges
         )
 
-    elif cv_type == "LOO":
-        mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_leave_one_out_all_samples(
-            normalize=normalize_flag,
-            scaler_type='standard',
-            region=region,
-            feature_type=feature_type,
+        pct_data = (np.count_nonzero(masked_data) / baseline_nonzero) * 100
+        percent_remaining.append(pct_data)
+
+        cls = Classifier(
+            masked_data,
+            labels,
             classifier_type=classifier,
-            projection_source=projection_source,
-            show_confusion_matrix=show_confusion_matrix,
+            wine_kind=wine_kind,
+            class_by_year=class_by_year,
+            year_labels=np.array(year_labels),
+            strategy=strategy,
+            sample_labels=raw_sample_labels,
+            dataset_origins=dataset_origins,
         )
-    else:
-        raise ValueError(f"Invalid cross-validation type: '{cv_type}'. Expected 'LOO' or 'LOOPC'.")
 
-    logger.info(f"Mean Balanced Accuracy: {mean_acc:.3f} ± {std_acc:.3f}")
+        if cv_type in ["LOOPC", "stratified"]:
+            loopc = (cv_type == "LOOPC")
+            mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_all_channels(
+                num_repeats=num_repeats,
+                random_seed=42,
+                test_size=0.2,
+                normalize=normalize_flag,
+                scaler_type='standard',
+                use_pca=False,
+                vthresh=0.97,
+                region=region,
+                print_results=False,
+                n_jobs=20,
+                feature_type=feature_type,
+                classifier_type=classifier,
+                LOOPC=loopc,
+                projection_source=False,
+                show_confusion_matrix=False,
+            )
+        elif cv_type == "LOO":
+            mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_leave_one_out_all_samples(
+                normalize=normalize_flag,
+                scaler_type='standard',
+                region=region,
+                feature_type=feature_type,
+                classifier_type=classifier,
+                projection_source=False,
+                show_confusion_matrix=False,
+            )
+        else:
+            raise ValueError(f"Invalid CV type: {cv_type}")
 
+        accuracies.append(mean_acc)
+        logger.info(f"Accuracy: {mean_acc:.3f} ± {std_acc:.3f}")
 
+        if survival_mode:
+            line.set_data(percent_remaining, accuracies)
+            ax.set_xlim(100, min(percent_remaining) - 5)
+            ax.set_ylim(0, 1)
+            plt.draw()
+            plt.pause(0.2)
+
+        if survival_mode and len(active_bins) > min_bins:
+            candidate_accuracies = []
+            for b in active_bins:
+                temp_bins = [x for x in active_bins if x != b]
+                temp_masked_data = remove_bins(
+                    data,
+                    bins_to_remove=[x for x in range(n_bins) if x not in temp_bins],
+                    bin_ranges=bin_ranges
+                )
+                temp_cls = Classifier(
+                    temp_masked_data,
+                    labels,
+                    classifier_type=classifier,
+                    wine_kind=wine_kind,
+                    class_by_year=class_by_year,
+                    year_labels=np.array(year_labels),
+                    strategy=strategy,
+                    sample_labels=raw_sample_labels,
+                    dataset_origins=dataset_origins,
+                )
+                temp_acc, _, *_ = temp_cls.train_and_evaluate_all_channels(
+                    num_repeats=3,
+                    random_seed=42,
+                    test_size=0.2,
+                    normalize=normalize_flag,
+                    scaler_type='standard',
+                    use_pca=False,
+                    vthresh=0.97,
+                    region=region,
+                    print_results=False,
+                    n_jobs=10,
+                    feature_type=feature_type,
+                    classifier_type=classifier,
+                    LOOPC=(cv_type == "LOOPC"),
+                    projection_source=False,
+                    show_confusion_matrix=False,
+                )
+                candidate_accuracies.append((b, temp_acc))
+
+            best_bin, best_candidate_acc = max(candidate_accuracies, key=lambda x: x[1])
+            logger.info(f"Removing bin {best_bin}: next accuracy would be {best_candidate_acc:.3f}")
+            active_bins.remove(best_bin)
+
+    if survival_mode:
+        plt.ioff()
+        plt.show()
+
+    # === Projection Plotting ===
     if plot_projection:
         if projection_source == "scores":
             data_for_projection = normalize(scores)
             projection_labels = all_labels
         elif projection_source in {"tic", "tis", "tic_tis"}:
-            channels = list(range(data.shape[2]))  # use all channels
             data_for_projection = utils.compute_features(data, feature_type=projection_source)
             data_for_projection = normalize(data_for_projection)
-            projection_labels = labels  # use raw labels from data
-            if year_labels is not None and all(str(label).isdigit() for label in year_labels):
-                projection_labels = year_labels
-            else:
-                projection_labels = labels
+            projection_labels = year_labels if year_labels is not None else labels
         else:
             raise ValueError(f"Unknown projection source: {projection_source}")
 
-        # Generate title dynamically
         pretty_source = {
             "scores": "Classification Scores",
             "tic": "TIC",
@@ -331,35 +365,25 @@ if __name__ == "__main__":
             "PCA": "PCA"
         }.get(projection_method, projection_method)
 
-        pretty_region = {
-            "winery": "Winery",
-            "origin": "Origin",
-            "country": "Country",
-            "continent": "Continent",
-            "burgundy": "N/S Burgundy"
-        }.get(region, region)
-
         plot_title = f"{pretty_method} of {pretty_source}"
-        sys.stdout.flush()
+        reducer = DimensionalityReducer(data_for_projection)
 
+        if projection_method == "UMAP":
+            embedding = reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state)
+        elif projection_method == "PCA":
+            embedding = reducer.pca(components=projection_dim)
+        elif projection_method == "T-SNE":
+            embedding = reducer.tsne(components=projection_dim, perplexity=5, random_state=random_state)
+        else:
+            raise ValueError(f"Unsupported projection method: {projection_method}")
 
-        if data_for_projection is not None:
-            reducer = DimensionalityReducer(data_for_projection)
-            if projection_method == "UMAP":
-                plot_bordeaux(
-                    reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
-                    plot_title, projection_labels, labels, color_by_country, invert_x=invert_x, invert_y=invert_y
-                )
-            elif projection_method == "PCA":
-                plot_bordeaux(
-                    reducer.pca(components=projection_dim),
-                    plot_title, projection_labels, labels, color_by_country, invert_x=invert_x, invert_y=invert_y
-                )
-            elif projection_method == "T-SNE":
-                plot_bordeaux(
-                    reducer.tsne(components=projection_dim, perplexity=5, random_state=random_state),
-                        plot_title, projection_labels, labels, color_by_country, invert_x=invert_x, invert_y=invert_y
-                        )
-            else:
-                raise ValueError(f"Unsupported projection method: {projection_method}")
+        plot_bordeaux(
+            embedding,
+            plot_title,
+            projection_labels,
+            labels,
+            color_by_country,
+            invert_x=invert_x,
+            invert_y=invert_y,
+        )
         plt.show()

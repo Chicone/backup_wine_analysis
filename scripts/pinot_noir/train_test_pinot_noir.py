@@ -297,7 +297,7 @@ if __name__ == "__main__":
     bin_ranges = split_into_bins(data, n_bins)
     active_bins = list(range(n_bins))
 
-    survival_mode = True
+    survival_mode = False
 
     # === Iteration logic ===
     if survival_mode:
