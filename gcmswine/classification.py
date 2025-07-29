@@ -1721,6 +1721,25 @@ class Classifier:
         print("##################################")
         labels_used = year_labels if self.class_by_year else strategy.extract_labels(labels)
         custom_order = strategy.get_custom_order(labels_used, year_labels)
+        if region == "winery":
+            long_labels = [
+            "Clos Des Mouches. Drouhin (FR): D",
+            "Les Petits Monts. Drouhin (FR): R",
+            "Vigne de l’Enfant Jésus. Bouchard (FR): E",
+            "Les Cailles. Bouchard (FR): Q",
+            "Bressandes. Jadot (FR): P",
+            "Les Boudots. Jadot (FR): Z",
+            "Domaine Schlumberger (FR): C",
+            "Domaine Jean Sipp (FR): W",
+            "Domaine Weinbach (FR): Y",
+            "Domaine Brunner (CH): M",
+            "Vin des Croisés (CH): N",
+            "Domaine Villard et Fils (CH): J",
+            "Domaine de la République (CH): L",
+            "Les Maladaires (CH): H",
+            "Marimar Estate (US): U",
+            "Domaine Drouhin (US): X",
+        ]
         counts = Counter(labels_used)
 
         if show_confusion_matrix:
@@ -1730,11 +1749,20 @@ class Classifier:
             fig, ax = plt.subplots(figsize=(8, 6))
             ax.set_xlabel('Predicted Label', fontsize=14)
             ax.set_ylabel('True Label', fontsize=14)
-            ax.set_title(f'LOO Confusion Matrix by {region}')
+            ax.set_title(f'Confusion matrix by Cru')
+            # ax.set_title(f'LOO Confusion Matrix by {region}')
             disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=custom_order)
             disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
             plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
-            plt.setp(ax.get_yticklabels(), fontsize=12)
+            # Conditional y-axis labels:
+            if region == "winery":
+                ax.set_yticks(range(len(long_labels)))  # Ensure ticks align
+                ax.set_yticklabels(long_labels, fontsize=12)
+            else:
+                # Default: use the same custom_order for y-axis
+                ax.set_yticks(range(len(custom_order)))
+                ax.set_yticklabels(custom_order, fontsize=12)
+            # plt.setp(ax.get_yticklabels(), fontsize=12)
             plt.tight_layout()
             plt.show()
 
@@ -2322,14 +2350,14 @@ def assign_origin_to_pinot_noir(original_keys, split_burgundy_ns=False):
     # Dictionary to map letters to their specific regions (Origine)
     letter_to_origine = {
         # Switzerland
-        'M': 'Neuchatel',
-        'N': 'Neuchatel',
-        'J': 'Genève',
-        'L': 'Genève',
+        'M': 'Neuchâtel',
+        'N': 'Neuchâtel',
+        'J': 'Geneva',
+        'L': 'Geneva',
         'H': 'Valais',
 
         # US
-        'U': 'Californie',
+        'U': 'California',
         'X': 'Oregon',
 
         # France

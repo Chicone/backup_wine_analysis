@@ -158,12 +158,12 @@ if __name__ == "__main__":
     ]
     if region == "winery":
         legend_labels = {
-            "D": "D = Clos Des Mouches Drouhin (FR)",
-            "E": "E = Vigne de l’Enfant Jésus Bouchard (FR)",
-            "Q": "Q = Nuit Saint Georges - Les Cailles Bouchard (FR)",
-            "P": "P = Bressandes Jadot (FR)",
-            "R": "R = Les Petits Monts Jadot (FR)",
-            "Z": "Z = Nuit Saint Georges - Les Boudots Drouhin (FR)",
+            "D": "D = Clos Des Mouches. Drouhin (FR)",
+            "R": "R = Les Petits Monts. Drouhin (FR)",
+            "E": "E = Vigne de l’Enfant Jésus. Bouchard (FR)",
+            "Q": "Q = Les Cailles. Bouchard (FR)",
+            "P": "P = Bressandes. Jadot (FR)",
+            "Z": "Z = Les Boudots. Jadot (FR)",
             "C": "C = Domaine Schlumberger (FR)",
             "W": "W = Domaine Jean Sipp (FR)",
             "Y": "Y = Domaine Weinbach (FR)",
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         legend_labels = {
             "A": "Alsace",
             "B": "Burgundy",
-            "N": "Neuchatel",
+            "N": "Neuchâtel",
             "G": "Geneva",
             "V": "Valais",
             "C": "California",

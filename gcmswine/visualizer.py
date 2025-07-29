@@ -73,17 +73,17 @@ class Visualizer:
         elif label == 'US':
             color = 'r'
 
-        if label == 'Beaune':
+        if label == 'Burgundy':
             color = 'b'
         elif label == 'Alsace':
             color = 'g'
-        elif label == 'Neuchatel':
+        elif label == 'Neuchâtel':
             color = 'r'
-        elif label == 'Genève':
+        elif label == 'Geneva':
             color = 'k'
         elif label== 'Valais':
             color = 'y'
-        elif label == 'Californie':
+        elif label == 'California':
             color = 'c'
         elif label == 'Oregon':
             color = 'limegreen'

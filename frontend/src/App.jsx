@@ -86,7 +86,7 @@ function App() {
   const [logs, setLogs] = useState("");
   const defaultFeatureType = "tic_tis"; // or whatever default you expect
   const [featureType, setFeatureType] = useState("tic_tis");
-  const [cvType, setCvType] = useState("LOOPC");
+  const [cvType, setCvType] = useState("LOO");
   const [showConfusionMatrix, setShowConfusionMatrix] = useState(false);
   const [wineFamily, setWineFamily] = useState("bordeaux");
   const [task, setTask] = useState("classification");

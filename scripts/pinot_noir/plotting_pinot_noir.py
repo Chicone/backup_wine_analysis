@@ -95,8 +95,8 @@ def plot_pinot_noir(
     """
 
     letter_to_origin = {
-        'M': 'Neuchatel', 'N': 'Neuchatel', 'J': 'Genève', 'L': 'Genève', 'H': 'Valais',
-        'U': 'Californie', 'X': 'Oregon',
+        'M': 'Neuchâtel', 'N': 'Neuchâtel', 'J': 'Geneva', 'L': 'Geneva', 'H': 'Valais',
+        'U': 'California', 'X': 'Oregon',
         'D': 'Burgundy', 'E': 'Burgundy', 'Q': 'Burgundy', 'P': 'Burgundy', 'R': 'Burgundy', 'Z': 'Burgundy',
         'C': 'Alsace', 'K': 'Alsace', 'W': 'Alsace', 'Y': 'Alsace'
     }

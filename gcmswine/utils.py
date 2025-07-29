@@ -1938,10 +1938,28 @@ def get_custom_order_for_pinot_noir_region(region):
         list or None: Custom ordering of labels, or None if no custom order is needed.
     """
     if region == 'winery':
-        return ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+        # return [
+        #     "Clos Des Mouches. Drouhin (FR): D",
+        #     "Les Petits Monts. Drouhin (FR): R",
+        #     "Vigne de l’Enfant Jésus. Bouchard (FR): E",
+        #     "Les Cailles. Bouchard (FR): Q",
+        #     "Bressandes. Jadot (FR): P",
+        #     "Les Boudots. Jadot (FR): Z",
+        #     "Domaine Schlumberger (FR): C",
+        #     "Domaine Jean Sipp (FR): W",
+        #     "Domaine Weinbach (FR): Y",
+        #     "Domaine Brunner (CH): M",
+        #     "Vin des Croisés (CH): N",
+        #     "Domaine Villard et Fils (CH): J",
+        #     "Domaine de la République (CH): L",
+        #     "Les Maladaires (CH): H",
+        #     "Marimar Estate (US): U",
+        #     "Domaine Drouhin (US): X",
+        # ]
+        return ['D', 'R', 'E', 'Q', 'P', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
     elif region == 'origin':
         # return ['Burgundy_North', 'Burgundy_South', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
-        return ['Burgundy', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+        return ['Burgundy', 'Alsace', 'Neuchâtel', 'Geneva', 'Valais', 'California', 'Oregon']
     elif region == 'country':
         return ['France', 'Switzerland', 'US']
     elif region == 'continent':
@@ -2060,11 +2078,11 @@ import xml.etree.ElementTree as ET
 # print_letter_origine_and_date_from_sample_info(root_path)
 def print_letter_origine_and_date_from_sample_info(root_path):
     letter_to_origine = {
-        "P": "Burgundy", "D": "Burgundy", "M": "Neuchatel", "L": "Genève",
-        "X": "Oregon", "W": "Alsace", "C": "Alsace", "J": "Genève",
+        "P": "Burgundy", "D": "Burgundy", "M": "Neuchâtel", "L": "Geneva",
+        "X": "Oregon", "W": "Alsace", "C": "Alsace", "J": "Geneva",
         "Y": "Alsace", "K": "Alsace", "H": "Valais", "R": "Burgundy",
-        "U": "Californie", "Z": "Burgundy", "Q": "Burgundy", "E": "Burgundy",
-        "N": "Neuchatel",
+        "U": "California", "Z": "Burgundy", "Q": "Burgundy", "E": "Burgundy",
+        "N": "Neuchâtel",
     }
 
     root = Path(root_path)
