@@ -169,6 +169,7 @@ if __name__ == "__main__":
     show_sample_names = config["show_sample_names"]
     invert_x =  config["invert_x"]
     invert_y =  config["invert_y"]
+    rot_axes =  config["rot_axes"]
     sample_display_mode = config["sample_display_mode"]
     show_year = True if sample_display_mode == "years" else False
     show_sample_names = True if sample_display_mode == "names" else False
@@ -441,7 +442,7 @@ if __name__ == "__main__":
                     reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
                     plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names,
                     unique_samples_only=False, n_neighbors=n_neighbors, random_state=random_state,
-                    invert_x=invert_x, invert_y=invert_y,
+                    invert_x=invert_x, invert_y=invert_y, rot_axes=rot_axes,
                     raw_sample_labels=raw_sample_labels, show_year=show_year,
                     color_by_origin=color_by_origin, color_by_winery=color_by_winery, highlight_burgundy_ns=True,
                     exclude_us=exclude_us, density_plot=density_plot,

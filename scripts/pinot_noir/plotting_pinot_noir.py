@@ -81,6 +81,7 @@ def plot_pinot_noir(
     random_state=None,
     invert_x=False,
     invert_y=False,
+    rot_axes=False,
     raw_sample_labels=None,
     region="origin",
     show_year: bool = False,
@@ -128,12 +129,46 @@ def plot_pinot_noir(
         embedding[:, 0] *= -1
     if invert_y:
         embedding[:, 1] *= -1
+    if rot_axes:
+        # Clockwise 90° rotation
+        rotation_matrix_cw = np.array([[0, 1], [-1, 0]])
+        embedding = embedding @ rotation_matrix_cw  # or rotation_matrix_cw
+
 
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d' if is_3d else None)
 
     markers = ['o', 's', '^', 'v', 'D', 'X', '*', 'P', 'h', '8', '<', '>', 'p', 'H', 'd', '1']
-    default_color_map = colormaps.get_cmap("tab20")
+
+    # === Burgundy state grouping ===
+    burgundy_states = {
+        "Drouhin": ["D", "R"],
+        "Bouchard": ["E", "Q"],
+        "Jadot": ["P", "Z"]
+    }
+    state_base_colors = {
+        "Drouhin": (0.7, 0.1, 0.1),    # deep red
+        "Bouchard": (0.1, 0.5, 0.7),   # blue
+        "Jadot": (0.1, 0.6, 0.2)       # green
+    }
+
+    def adjust_color(color, factor):
+        """Lighten/darken a base color."""
+        return tuple(min(1, c + (1 - c) * factor) for c in color)
+
+    def build_burgundy_color_map(unique_codes):
+        """Return a dict {code: color} for Burgundy states + others."""
+        winery_to_color = {}
+
+        # Assign Burgundy state colors (shaded pairs)
+        for state, codes in burgundy_states.items():
+            base = state_base_colors[state]
+            for i, code in enumerate(codes):
+                if code in unique_codes:
+                    factor = 0.2 if i == 0 else 0.5  # first code darker, second lighter
+                    winery_to_color[code] = adjust_color(base, factor)
+
+        return winery_to_color
 
     if color_by_origin:
         if raw_sample_labels is None:
@@ -191,56 +226,45 @@ def plot_pinot_noir(
     elif color_by_winery:
         if raw_sample_labels is None:
             raise ValueError("raw_sample_labels must be provided when color_by_winery=True")
-
         import seaborn as sns
         from scipy.stats import multivariate_normal
-        from matplotlib.colors import LinearSegmentedColormap
         from matplotlib.colors import to_rgb
-
+        from matplotlib.cm import get_cmap
         winery_codes = np.array([s[0] for s in raw_sample_labels])
         unique_codes = sorted(set(winery_codes))
-        rng = distinctipy.random.Random(42)
-        distinct_colors = distinctipy.get_colors(len(unique_codes), rng=rng)
-        cmap_list = [sns.light_palette(color, as_cmap=True, input="rgb") for color in distinct_colors]
-
+        winery_to_color = build_burgundy_color_map(unique_codes)
+        non_burgundy = [c for c in unique_codes if c not in sum(burgundy_states.values(), [])]
+        num_non_burgundy = len(non_burgundy)
+        if num_non_burgundy > 0:
+            cmap = get_cmap("tab20", num_non_burgundy if num_non_burgundy > 0 else 1)
+            for i, code in enumerate(non_burgundy):
+                winery_to_color[code] = to_rgb(cmap(i))
         if density_plot:
             for i, code in enumerate(unique_codes):
                 mask = labels == code
-                # mask = winery_codes == code
                 coords = embedding[mask]
                 if coords.shape[0] < 2:
                     continue
-
                 marker = markers[i % len(markers)]
-                # base_color = distinct_colors[i]
-                base_color = to_rgb(distinct_colors[i])
+                base_color = winery_to_color[code]
                 readable_label = label_dict[code]
-
                 if not is_3d:
                     plot_gaussian_cloud_2d(ax, coords, base_color, marker, readable_label)
-
                 else:
-                    # fallback for 3D
-                    ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2],
-                               label=readable_label, alpha=0.8,
-                               color=base_color, s=90, marker=marker)
+                    ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], label=readable_label, alpha=0.8, color=base_color, s=90, marker=marker)
         else:
             for i, code in enumerate(unique_codes):
                 mask = labels == code
-                # mask = winery_codes == code
                 if not np.any(mask):
                     continue
                 coords = embedding[mask]
                 marker = markers[i % len(markers)]
-                color = distinct_colors[i]
+                color = winery_to_color[code]
                 readable_label = label_dict[code]
-
                 if is_3d:
-                    ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], label=readable_label,
-                               alpha=0.9, s=80, color=color, marker=marker)
+                    ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], label=readable_label, alpha=0.9, s=80, color=color, marker=marker)
                 else:
-                    ax.scatter(coords[:, 0], coords[:, 1], label=readable_label,
-                               alpha=0.9, s=80, color=color, marker=marker)
+                    ax.scatter(coords[:, 0], coords[:, 1], label=readable_label, alpha=0.9, s=80, color=color, marker=marker)
 
     else:
         # Default: Plot according to the selected region
@@ -266,6 +290,41 @@ def plot_pinot_noir(
                     # Standard scatter
                     ax.scatter(coords[:, 0], coords[:, 1],
                                label=burg_label,
+                               alpha=0.9,
+                               s=80,
+                               color=color,
+                               marker=marker)
+
+        elif region == "winery":
+            # === Winery mode with Burgundy state grouping ===
+            winery_codes = np.array([s[0] for s in raw_sample_labels])
+            unique_codes = sorted(set(winery_codes))
+
+            # Build Burgundy colors
+            winery_to_color = build_burgundy_color_map(unique_codes)
+
+            # Add distinct colors for non-Burgundy wineries
+            non_burgundy = [c for c in unique_codes if c not in sum(burgundy_states.values(), [])]
+            rng = distinctipy.random.Random(42)
+            distinct_colors = distinctipy.get_colors(len(non_burgundy), rng=rng)
+            for code, color in zip(non_burgundy, distinct_colors):
+                winery_to_color[code] = color
+
+            # === Plotting ===
+            for i, code in enumerate(unique_codes):
+                mask = labels == code
+                if not np.any(mask):
+                    continue
+                coords = embedding[mask]
+                color = winery_to_color[code]
+                marker = markers[i % len(markers)]
+                readable_label = label_dict[code]
+
+                if density_plot and not is_3d:
+                    plot_gaussian_cloud_2d(ax, coords, color, marker, readable_label)
+                else:
+                    ax.scatter(coords[:, 0], coords[:, 1],
+                               label=readable_label,
                                alpha=0.9,
                                s=80,
                                color=color,

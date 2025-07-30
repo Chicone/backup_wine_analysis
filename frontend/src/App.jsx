@@ -112,6 +112,7 @@ function App() {
   const [randomState, setRandomState] = useState(42);
   const [invertX, setInvertX] = useState(false);
   const [invertY, setInvertY] = useState(false);
+  const [rotAxes, setRotAxes] = useState(false);
   const [umapData, setUmapData] = useState(null);
   const [labelTargets, setLabelTargets] = useState(["taster"]);
   const [showSampleNames, setShowSampleNames] = useState(false);
@@ -439,6 +440,7 @@ useEffect(() => {
       cv_type: cvType,
       invert_x: invertX,
       invert_y: invertY,
+      rot_axes: rotAxes,
       plot_r2: plotR2,
       sample_display_mode: sampleDisplayMode,
       color_by_winery: colorByWinery,
@@ -1565,13 +1567,19 @@ useEffect(() => {
                                     control={
                                       <Checkbox checked={invertX} onChange={(e) => setInvertX(e.target.checked)} />
                                     }
-                                    label="Invert X axis"
+                                    label="-X"
                                   />
                                   <FormControlLabel
                                     control={
                                       <Checkbox checked={invertY} onChange={(e) => setInvertY(e.target.checked)} />
                                     }
-                                    label="Invert Y axis"
+                                    label="-Y"
+                                  />
+                                  <FormControlLabel
+                                    control={
+                                      <Checkbox checked={rotAxes} onChange={(e) => setRotAxes(e.target.checked)} />
+                                    }
+                                    label="Flip Axes"
                                   />
                                 </FormGroup>
                             </>
@@ -1795,13 +1803,19 @@ useEffect(() => {
                                     control={
                                       <Checkbox checked={invertX} onChange={(e) => setInvertX(e.target.checked)} />
                                     }
-                                    label="Invert X axis"
+                                    label="-X"
                                   />
                                   <FormControlLabel
                                     control={
                                       <Checkbox checked={invertY} onChange={(e) => setInvertY(e.target.checked)} />
                                     }
-                                    label="Invert Y axis"
+                                    label="-Y"
+                                  />
+                                   <FormControlLabel
+                                    control={
+                                      <Checkbox checked={rotAxes} onChange={(e) => setRotAxes(e.target.checked)} />
+                                    }
+                                    label="Rotate"
                                   />
                                 </FormGroup>
 
