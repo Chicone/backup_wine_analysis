@@ -188,13 +188,11 @@ if __name__ == "__main__":
     class_by_year = config['class_by_year']
     region = config["region"]
     # Enforce exclusivity logic
-    if region == "origin" and not color_by_winery:
-        color_by_origin = True
-    elif region == "winery" and not color_by_origin:
-        color_by_winery = True
-    else:
-        color_by_origin = False
-        color_by_winery = False
+    if not color_by_origin and not color_by_winery:
+        if region == "origin":
+            color_by_origin = True
+        elif region == "winery":
+            color_by_winery = True
 
     # wine_kind = config["wine_kind"]
     show_confusion_matrix = config['show_confusion_matrix']
@@ -444,7 +442,7 @@ if __name__ == "__main__":
                     unique_samples_only=False, n_neighbors=n_neighbors, random_state=random_state,
                     invert_x=invert_x, invert_y=invert_y, rot_axes=rot_axes,
                     raw_sample_labels=raw_sample_labels, show_year=show_year,
-                    color_by_origin=color_by_origin, color_by_winery=color_by_winery, highlight_burgundy_ns=True,
+                    color_by_origin=color_by_origin, color_by_winery=color_by_winery, highlight_burgundy_ns=False,
                     exclude_us=exclude_us, density_plot=density_plot,
                     region=region
                 )

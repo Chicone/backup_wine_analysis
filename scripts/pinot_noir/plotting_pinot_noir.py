@@ -10,30 +10,13 @@ from distinctipy import distinctipy
 from scipy.stats import multivariate_normal
 
 
-def plot_gaussian_cloud_2d(ax, coords, base_color, marker, readable_label, zorder_base=1):
+def plot_gaussian_cloud_2d(ax, coords, base_color, zorder_base=1):
     """
-    Plot a 2D Gaussian cloud using imshow, based on the empirical mean and covariance of coords.
-
-    Parameters
-    ----------
-    ax : matplotlib Axes
-        The axes to plot on.
-    coords : np.ndarray
-        Coordinates of the cluster points (n_samples, 2).
-    base_color : tuple
-        RGB tuple for the cluster color (3 floats).
-    marker : str
-        Marker symbol for scatter plot.
-    readable_label : str
-        Label to use in legend.
-    zorder_base : int
-        Z-order base value (will add +1 and +2 for scatter and contour).
+    Plot a 2D Gaussian density cloud (no scatter points).
     """
-    # === 2. Compute empirical Gaussian ===
     mean = np.mean(coords, axis=0)
-    cov = np.cov(coords.T)
-    cov *= 0.4  # optional scaling
-    cov += np.eye(cov.shape[0]) * 1e-3  # regularization
+    cov = np.cov(coords.T) * 0.4
+    cov += np.eye(cov.shape[0]) * 1e-3
 
     margin = 5
     x_min, x_max = mean[0] - margin, mean[0] + margin
@@ -41,33 +24,14 @@ def plot_gaussian_cloud_2d(ax, coords, base_color, marker, readable_label, zorde
     x = np.linspace(x_min, x_max, 500)
     y = np.linspace(y_min, y_max, 500)
     X, Y = np.meshgrid(x, y)
-    pos = np.dstack((X, Y))
-    rv = multivariate_normal(mean, cov)
-    Z = rv.pdf(pos)
-    Z = Z / Z.max()
+    Z = multivariate_normal(mean, cov).pdf(np.dstack((X, Y)))
+    Z /= Z.max()
 
-    # RGBA image
     rgba = np.ones((*Z.shape, 4))
     rgba[..., :3] = base_color
-    rgba[..., 3] = Z * 0.7  # opacity
-
-    # Plot Gaussian density as image
+    rgba[..., 3] = Z * 0.7
     ax.imshow(rgba, extent=(x_min, x_max, y_min, y_max),
               origin='lower', aspect='auto', zorder=zorder_base)
-
-    # Optional: faint contour lines
-    contour_levels = np.linspace(0.0, 1.0, 10)
-    ax.contour(X, Y, Z, levels=contour_levels,
-               colors=[base_color], linewidths=0.2, alpha=0.1, zorder=zorder_base + 2)
-
-    # === 1. Plot the actual points AFTER cloud ===
-    ax.scatter(coords[:, 0], coords[:, 1],
-               label=readable_label,
-               alpha=1.0,
-               s=80,
-               color=base_color,
-               marker=marker,
-               zorder=zorder_base + 1)
 
 def plot_pinot_noir(
     embedding,
@@ -173,55 +137,106 @@ def plot_pinot_noir(
     if color_by_origin:
         if raw_sample_labels is None:
             raise ValueError("raw_sample_labels must be provided when color_by_origin=True")
-        import random
         from matplotlib.colors import to_rgb
-        random.seed(42)
 
+        # Extract winery codes and map to origins
         winery_codes = np.array([s[0] for s in raw_sample_labels])
         origins = np.array([letter_to_origin.get(c, "Unknown") for c in winery_codes])
-        unique_codes = np.array([s[0] for s in raw_sample_labels])
-        unique_labels = sorted(set(unique_codes))
         unique_origins = sorted(set(origins))
+        unique_wineries = sorted(set(winery_codes))
 
         def soften_color(rgb, blend=0.5):
-            # Blend each RGB channel with white (1.0)
             return tuple(blend * c + (1 - blend) * 1.0 for c in rgb)
 
+        # Assign colors per origin
         base_colors = distinctipy.get_colors(len(unique_origins))
         soft_colors = [soften_color(c, blend=0.7) for c in base_colors]
         origin_to_color = dict(zip(unique_origins, soft_colors))
 
-        for i, code in enumerate(unique_labels):
-            mask = unique_codes == code
-            if not np.any(mask):
+        # === 1) DENSITY PLOTS per ORIGIN ===
+        for origin in unique_origins:
+            mask_origin = origins == origin
+            coords = embedding[mask_origin]
+            if not np.any(mask_origin):
                 continue
-            coords = embedding[mask]
-            marker = markers[i % len(markers)]
-            origin = letter_to_origin.get(code, "Unknown")
-            base_color = origin_to_color.get(origin, (0.5, 0.5, 0.5))
-
+            color = origin_to_color[origin]
+            marker = 'o'  # density blobs don't need marker differentiation
             if highlight_burgundy_ns and origin == "Burgundy":
-                ns = letter_to_burgundy_ns.get(code)
-                if ns == "North":
-                    color = tuple(c * 0.80 for c in base_color)  # darken
-                elif ns == "South":
-                    color = tuple(min(c * 1.2, 1.0) for c in base_color)  # brighten
-                else:
-                    color = base_color
-            else:
-                color = base_color
-
-            readable_label = label_dict[code]
-
-            if is_3d:
-                ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], label=readable_label,
-                           alpha=0.9, s=80, color=color, marker=marker)
+                # Split Burgundy densities by N/S shading
+                for code in set(winery_codes[mask_origin]):
+                    ns = letter_to_burgundy_ns.get(code)
+                    submask = (winery_codes == code)
+                    ns_color = tuple(c * 0.8 if ns == "North" else min(c * 1.2, 1.0) for c in color)
+                    plot_gaussian_cloud_2d(ax, embedding[submask], ns_color, marker, f"{origin} ({ns})")
             else:
                 if density_plot:
-                    plot_gaussian_cloud_2d(ax, coords, color, marker, readable_label)
+                    plot_gaussian_cloud_2d(ax, coords, color)
                 else:
-                    ax.scatter(coords[:, 0], coords[:, 1], label=readable_label,
-                               alpha=0.9, s=80, color=color, marker=marker)
+                    ax.scatter(coords[:, 0], coords[:, 1], color=color, alpha=0.2, s=50, label=origin)
+
+        # === 2) OVERLAY WINERIES WITH DISTINCT MARKERS ===
+        for i, code in enumerate(unique_wineries):
+            mask_winery = winery_codes == code
+            coords = embedding[mask_winery]
+            origin = letter_to_origin.get(code, "Unknown")
+            color = origin_to_color[origin]
+            marker = markers[i % len(markers)]  # unique marker per winery
+            readable_label = label_dict[code]
+
+            # Overlay scatter points for winery with marker shape
+            ax.scatter(coords[:, 0], coords[:, 1], color=color, marker=marker, s=80, alpha=0.9, label=readable_label)
+    # if color_by_origin:
+    #     if raw_sample_labels is None:
+    #         raise ValueError("raw_sample_labels must be provided when color_by_origin=True")
+    #     import random
+    #     from matplotlib.colors import to_rgb
+    #     random.seed(42)
+    #
+    #     winery_codes = np.array([s[0] for s in raw_sample_labels])
+    #     origins = np.array([letter_to_origin.get(c, "Unknown") for c in winery_codes])
+    #     unique_codes = np.array([s[0] for s in raw_sample_labels])
+    #     unique_labels = sorted(set(unique_codes))
+    #     unique_origins = sorted(set(origins))
+    #
+    #     def soften_color(rgb, blend=0.5):
+    #         # Blend each RGB channel with white (1.0)
+    #         return tuple(blend * c + (1 - blend) * 1.0 for c in rgb)
+    #
+    #     base_colors = distinctipy.get_colors(len(unique_origins))
+    #     soft_colors = [soften_color(c, blend=0.7) for c in base_colors]
+    #     origin_to_color = dict(zip(unique_origins, soft_colors))
+    #
+    #     for i, code in enumerate(unique_labels):
+    #         mask = unique_codes == code
+    #         if not np.any(mask):
+    #             continue
+    #         coords = embedding[mask]
+    #         marker = markers[i % len(markers)]
+    #         origin = letter_to_origin.get(code, "Unknown")
+    #         base_color = origin_to_color.get(origin, (0.5, 0.5, 0.5))
+    #
+    #         if highlight_burgundy_ns and origin == "Burgundy":
+    #             ns = letter_to_burgundy_ns.get(code)
+    #             if ns == "North":
+    #                 color = tuple(c * 0.80 for c in base_color)  # darken
+    #             elif ns == "South":
+    #                 color = tuple(min(c * 1.2, 1.0) for c in base_color)  # brighten
+    #             else:
+    #                 color = base_color
+    #         else:
+    #             color = base_color
+    #
+    #         readable_label = label_dict[code]
+    #
+    #         if is_3d:
+    #             ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], label=readable_label,
+    #                        alpha=0.9, s=80, color=color, marker=marker)
+    #         else:
+    #             if density_plot:
+    #                 plot_gaussian_cloud_2d(ax, coords, color, marker, readable_label)
+    #             else:
+    #                 ax.scatter(coords[:, 0], coords[:, 1], label=readable_label,
+    #                            alpha=0.9, s=80, color=color, marker=marker)
 
     elif color_by_winery:
         if raw_sample_labels is None:

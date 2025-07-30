@@ -1847,3 +1847,63 @@ Confusion matrix: False
     Confusion matrix: False
 2025-07-29 15:25:23 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
 2025-07-29 15:28:28 — INFO — Mean Balanced Accuracy: 0.726 ± 0.446
+
+
+2025-07-30 13:22:38 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-30 13:22:38 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: tic_tis
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-07-30 13:22:41 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-07-30 13:22:53 — INFO — Mean Balanced Accuracy: 0.770 ± 0.421
+
+
+2025-07-30 13:43:12 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-30 13:43:12 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: tic_tis
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-07-30 13:43:15 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-07-30 13:43:39 — INFO — Mean Balanced Accuracy: 0.770 ± 0.421
+
+
+2025-07-30 14:07:45 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-07-30 14:07:45 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: tic_tis
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-07-30 14:07:47 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-07-30 14:08:13 — INFO — Mean Balanced Accuracy: 0.770 ± 0.421

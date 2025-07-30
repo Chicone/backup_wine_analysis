@@ -2,7 +2,7 @@ chrom_cap: 35000
 class_by_year: false
 classifier: RGC
 color_by_country: false
-color_by_origin: false
+color_by_origin: true
 color_by_winery: false
 constant_ohe: false
 cv_type: LOO
@@ -21,7 +21,7 @@ density_plot: true
 do_classification: false
 downsample_group: true
 exclude_us: false
-feature_type: tic
+feature_type: tic_tis
 flip_axes: true
 global_focus_heatmap: true
 group_wines: false
@@ -31,7 +31,7 @@ label_target: prod area
 label_targets:
 - age
 n_decimation: 10
-n_neighbors: 5
+n_neighbors: 9
 normalize: true
 num_repeats: 10
 num_splits: 1
