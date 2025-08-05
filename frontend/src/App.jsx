@@ -48,7 +48,8 @@ const drawerWidth = 240;
 
 const projectionLabels = {
   scores: "Scores",
-  concatenated: "Concatenated",
+  concat_channels: "Concat channels",
+  best_channel: "Best channel",
   tic: "TIC",
   tis: "TIS",
   tic_tis: "TIC + TIS",
@@ -169,6 +170,14 @@ function App() {
     tic_tis: [
       { value: "scores", label: "Class. Scores" },
       { value: "tic_tis", label: "TIC + TIS" },
+    ],
+    concat_channels: [
+        { value: "scores", label: "Class. Scores" },
+        { value: "concat_channels", label: "Concat Channels" },
+      ],
+    best_channel: [
+        { value: "scores", label: "Class. Scores" },
+        { value: "best_channel", label: "Best Channel" },
     ],
   };
   const defaultProjectionOptions =
@@ -988,6 +997,8 @@ useEffect(() => {
                           <MenuItem value="tic">TIC</MenuItem>
                           <MenuItem value="tis" disabled={wineFamily === "champagne"}>TIS</MenuItem>
                           <MenuItem value="tic_tis" disabled={wineFamily === "champagne"}>TIC + TIS</MenuItem>
+                          <MenuItem value="concat_channels">Concat channels</MenuItem>
+                          <MenuItem value="best_channel">Best channel</MenuItem>
                           </Select>
                         </FormControl>
                       </Grid>

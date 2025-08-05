@@ -2057,7 +2057,7 @@ def compute_features(data, channels=None, feature_type="concatenated"):
     if channels is None:
         channels = list(range(data.shape[2]))
 
-    if feature_type == "concatenated":
+    if feature_type == "concat_channels":
         return np.hstack([data[:, :, ch].reshape(data.shape[0], -1) for ch in channels])
     elif feature_type == "tic":
         return np.sum(data[:, :, channels], axis=2)

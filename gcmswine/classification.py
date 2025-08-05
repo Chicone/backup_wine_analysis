@@ -255,25 +255,26 @@ class Classifier:
         elif classifier_type == 'RFC':
             return RandomForestClassifier(n_estimators=100)
         elif classifier_type == 'PAC':
-            return PassiveAggressiveClassifier()
+            return PassiveAggressiveClassifier(random_state=0)
         elif classifier_type == 'PER':
-            return Perceptron()
+            return Perceptron(random_state=0)
         elif classifier_type == 'RGC':
             return RidgeClassifier(alpha=self.alpha)
         elif classifier_type == 'SGD':
-            return SGDClassifier()
+            return SGDClassifier(random_state=0)
         elif classifier_type == 'SVM':
             return SVC(kernel='rbf', random_state=0)
         elif classifier_type == 'KNN':
             return KNeighborsClassifier(n_neighbors=3)
         elif classifier_type == 'DTC':
-            return DecisionTreeClassifier()
+            return DecisionTreeClassifier(random_state=0)
         elif classifier_type == 'GNB':
             return GaussianNB()
         elif classifier_type == 'GBC':
-            return GradientBoostingClassifier(n_estimators=50, max_depth=3, learning_rate=0.1)
+            return GradientBoostingClassifier(n_estimators=50, max_depth=3, learning_rate=0.1, random_state=0)
         elif classifier_type == 'HGBC':
-            return HistGradientBoostingClassifier(max_leaf_nodes=31, learning_rate=0.2, max_iter=50, max_bins=128)
+            return HistGradientBoostingClassifier(
+                max_leaf_nodes=31, learning_rate=0.2, max_iter=50, max_bins=128, random_state=0)
 
 
     # def extract_category_labels(self, composite_labels):
@@ -405,7 +406,21 @@ class Classifier:
         # Step 4: model training
         self.classifier.fit(X_train_proc, y_train)
         y_pred = self.classifier.predict(X_test_proc)
-        scores = self.classifier.decision_function(X_test_proc)
+
+        # === Handle decision_function or fallback ===
+        if hasattr(self.classifier, "decision_function"):
+            scores = self.classifier.decision_function(X_test_proc)
+        elif hasattr(self.classifier, "predict_proba"):
+            proba = self.classifier.predict_proba(X_test_proc)
+            # Convert probabilities to "score-like" format by using log-odds or raw probabilities
+            scores = proba  # shape (n_samples, n_classes)
+        else:
+            # Fallback: create a dummy 2-class score (useful for single sample LOO eval)
+            scores = np.zeros((len(y_pred), len(np.unique(y_train))))
+            for i, pred in enumerate(y_pred):
+                scores[i, np.where(np.unique(y_train) == pred)[0][0]] = 1.0
+
+        # scores = self.classifier.decision_function(X_test_proc)
 
         # create compatible format for binary classification
         if scores.ndim == 1:
@@ -479,7 +494,20 @@ class Classifier:
         # Step 4: model training
         self.classifier.fit(X_train_proc, y_train)
         y_pred = self.classifier.predict(X_test_proc)
-        scores = self.classifier.decision_function(X_test_proc)
+
+        # === Handle decision_function or fallback ===
+        if hasattr(self.classifier, "decision_function"):
+            scores = self.classifier.decision_function(X_test_proc)
+        elif hasattr(self.classifier, "predict_proba"):
+            proba = self.classifier.predict_proba(X_test_proc)
+            # Convert probabilities to "score-like" format by using log-odds or raw probabilities
+            scores = proba  # shape (n_samples, n_classes)
+        else:
+            # Fallback: create a dummy 2-class score (useful for single sample LOO eval)
+            scores = np.zeros((len(y_pred), len(np.unique(y_train))))
+            for i, pred in enumerate(y_pred):
+                scores[i, np.where(np.unique(y_train) == pred)[0][0]] = 1.0
+        # scores = self.classifier.decision_function(X_test_proc)
 
         # create compatible format for binary classification
         if scores.ndim == 1:
@@ -1602,7 +1630,7 @@ class Classifier:
             projection_source=False,
             classifier_type="RGC",
             feature_type="concatenated",
-            show_confusion_matrix=False
+            show_confusion_matrix=False,
     ):
         from collections import Counter
         from gcmswine import utils
@@ -1617,7 +1645,7 @@ class Classifier:
         num_samples, num_timepoints, num_channels = cls_data.shape
 
         def compute_features(channels):
-            if feature_type == "concatenated":
+            if feature_type == "concat_channels":
                 return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
             elif feature_type == "tic":
                 return np.sum(cls_data[:, :, channels], axis=2)
@@ -1627,22 +1655,143 @@ class Classifier:
                 tic = np.sum(cls_data[:, :, channels], axis=2)
                 tis = np.sum(cls_data[:, :, channels], axis=1)
                 return np.hstack([tic, tis])
+            elif feature_type == "best_channel":
+                # Placeholder: handled later
+                return None
             else:
-                raise ValueError("Invalid feature_type. Use 'concatenated', 'tic', 'tis', or 'tic_tis'.")
+                raise ValueError(
+                    "Invalid feature_type. Use 'concatenated', 'tic', 'tis', 'tic_tis', or 'best_channel'.")
 
-        feature_matrix = compute_features(list(range(num_channels)))
-
-        all_scores = []
-        all_labels = []
-        test_sample_names = []
-        confusion_matrices = []
-        accuracies = []
+        # === Handle normal multi-channel feature computation ===
+        if feature_type != "best_channel":
+            feature_matrix = compute_features(list(range(num_channels)))
+        else:
+            feature_matrix = None  # Computed per-channel later
 
         strategy = get_strategy_by_wine_kind(
             self.wine_kind, region,
             utils.get_custom_order_for_pinot_noir_region,
             class_by_year=self.class_by_year
         )
+
+        # === BEST CHANNEL MODE ===
+        if feature_type == "best_channel":
+            best_channel_results = []
+
+            for ch in range(num_channels):
+                print(f"\n=== Evaluating channel {ch} / {num_channels - 1} ===")
+                feature_matrix = cls_data[:, :, ch]  # Single-channel TIC trace
+                feature_matrix = feature_matrix.reshape(num_samples, -1)
+
+                all_scores, all_labels, test_sample_names = [], [], []
+                confusion_matrices, accuracies = [], []
+
+                # LOO evaluation for this channel
+                for idx in range(num_samples):
+                    try:
+                        cls = Classifier(
+                            data=feature_matrix,
+                            labels=labels,
+                            classifier_type=classifier_type,
+                            year_labels=year_labels,
+                            dataset_origins=self.dataset_origins if hasattr(self, 'dataset_origins') else None,
+                            strategy=strategy,
+                            class_by_year=self.class_by_year,
+                            labels_raw=self.labels_raw,
+                            sample_labels=self.sample_labels
+                        )
+
+                        results, scores, y_test, raw_test_labels = cls.train_and_evaluate_leave_one_out(
+                            left_out_index=idx,
+                            normalize=normalize,
+                            scaler_type=scaler_type,
+                            projection_source=projection_source,
+                        )
+
+                        if 'accuracy' in results:
+                            accuracies.append(results['accuracy'])
+                        else:
+                            print(f"⚠️ Accuracy missing for sample {idx}")
+
+                        if scores is not None:
+                            all_scores.append(scores[0])
+                            all_labels.append(y_test[0])
+                            test_sample_names.append(raw_test_labels[0])
+
+                        if 'confusion_matrix' in results:
+                            confusion_matrices.append(results['confusion_matrix'])
+
+                    except Exception as e:
+                        print(f"⚠️ Skipping sample {idx} due to error: {e}")
+
+                accuracies = np.array(accuracies)
+                mean_acc = np.mean(accuracies)
+                std_acc = np.std(accuracies)
+
+                if projection_source == "scores" and all_scores:
+                    all_scores = np.vstack(all_scores)
+                    all_labels = np.array(all_labels)
+                    test_sample_names = np.array(test_sample_names)
+                else:
+                    all_scores, all_labels, test_sample_names = None, None, np.array(list(self.sample_labels))
+
+                mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
+
+                # === Print summary for this channel ===
+                print("##################################")
+                print(f"Channel {ch}: Leave-One-Out Evaluation Finished")
+                print("##################################")
+                print(f"Mean Accuracy (LOO): {mean_acc:.3f} ± {std_acc:.3f}")
+
+                if self.class_by_year:
+                    labels_used = self.year_labels
+                else:
+                    labels_used = strategy.extract_labels(labels)
+
+                custom_order = strategy.get_custom_order(labels_used, year_labels)
+                counts = Counter(labels_used)
+
+                print("\nLabel order:")
+                if custom_order is not None:
+                    for label in custom_order:
+                        print(f"{label} ({counts.get(label, 0)})")
+                else:
+                    for label in sorted(counts.keys()):
+                        print(f"{label} ({counts[label]})")
+
+                print("\nFinal Averaged Normalized Confusion Matrix:")
+                print(mean_confusion_matrix)
+                print("##################################")
+
+                if show_confusion_matrix:
+                    import matplotlib.pyplot as plt
+                    from sklearn.metrics import ConfusionMatrixDisplay
+
+                    fig, ax = plt.subplots(figsize=(8, 6))
+                    ax.set_xlabel('Predicted Label', fontsize=14)
+                    ax.set_ylabel('True Label', fontsize=14)
+                    ax.set_title(f'Confusion matrix (Channel {ch})')
+                    disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=custom_order)
+                    disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
+                    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
+                    plt.tight_layout()
+                    plt.show()
+
+                best_channel_results.append((ch, mean_acc, std_acc, all_scores, all_labels, test_sample_names))
+
+            # Pick best channel
+            best_channel_results.sort(key=lambda x: x[1], reverse=True)
+            best_channel_idx, best_mean_acc, best_std_acc, best_scores, best_labels, best_names = best_channel_results[0]
+
+            print("\n########## BEST CHANNEL ##########")
+            print(f"Best Channel: {best_channel_idx} | Accuracy: {best_mean_acc:.3f} ± {best_std_acc:.3f}")
+
+            return best_mean_acc, best_std_acc, best_scores, best_labels, best_names
+            # return best_channel_results
+
+        # === STANDARD MULTI-CHANNEL FLOW (unchanged) ===
+        all_scores, all_labels, test_sample_names = [], [], []
+        confusion_matrices, accuracies = [], []
 
         for idx in range(num_samples):
             try:
@@ -1670,9 +1819,8 @@ class Classifier:
                 else:
                     print(f"⚠️ Accuracy missing for sample {idx}")
 
-
                 if scores is not None:
-                    all_scores.append(scores[0])  # scores is (1, C) for one sample
+                    all_scores.append(scores[0])
                     all_labels.append(y_test[0])
                     test_sample_names.append(raw_test_labels[0])
 
@@ -1685,19 +1833,20 @@ class Classifier:
         accuracies = np.array(accuracies)
         mean_acc = np.mean(accuracies)
         std_acc = np.std(accuracies)
+
         if projection_source == "scores" and all_scores:
             all_scores = np.vstack(all_scores)
             all_labels = np.array(all_labels)
             test_sample_names = np.array(test_sample_names)
         else:
             all_scores, all_labels, test_sample_names = None, None, np.array(list(self.sample_labels))
+
         mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
 
-        # Summary
+        # === Standard summary printing ===
         print("##################################")
         print("Leave-One-Out Evaluation Finished")
         print("##################################")
-        print("\n##################################")
         print(f"Mean Accuracy (LOO): {mean_acc:.3f} ± {std_acc:.3f}")
 
         if self.class_by_year:
@@ -1719,28 +1868,6 @@ class Classifier:
         print("\nFinal Averaged Normalized Confusion Matrix:")
         print(mean_confusion_matrix)
         print("##################################")
-        labels_used = year_labels if self.class_by_year else strategy.extract_labels(labels)
-        custom_order = strategy.get_custom_order(labels_used, year_labels)
-        if region == "winery":
-            long_labels = [
-            "Clos Des Mouches. Drouhin (FR): D",
-            "Les Petits Monts. Drouhin (FR): R",
-            "Vigne de l’Enfant Jésus. Bouchard (FR): E",
-            "Les Cailles. Bouchard (FR): Q",
-            "Bressandes. Jadot (FR): P",
-            "Les Boudots. Jadot (FR): Z",
-            "Domaine Schlumberger (FR): C",
-            "Domaine Jean Sipp (FR): W",
-            "Domaine Weinbach (FR): Y",
-            "Domaine Brunner (CH): M",
-            "Vin des Croisés (CH): N",
-            "Domaine Villard et Fils (CH): J",
-            "Domaine de la République (CH): L",
-            "Les Maladaires (CH): H",
-            "Marimar Estate (US): U",
-            "Domaine Drouhin (US): X",
-        ]
-        counts = Counter(labels_used)
 
         if show_confusion_matrix:
             import matplotlib.pyplot as plt
@@ -1749,24 +1876,188 @@ class Classifier:
             fig, ax = plt.subplots(figsize=(8, 6))
             ax.set_xlabel('Predicted Label', fontsize=14)
             ax.set_ylabel('True Label', fontsize=14)
-            ax.set_title(f'Confusion matrix by Cru')
-            # ax.set_title(f'LOO Confusion Matrix by {region}')
+            ax.set_title(f'Confusion matrix by region')
             disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=custom_order)
             disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
             plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
-            # Conditional y-axis labels:
-            if region == "winery":
-                ax.set_yticks(range(len(long_labels)))  # Ensure ticks align
-                ax.set_yticklabels(long_labels, fontsize=12)
-            else:
-                # Default: use the same custom_order for y-axis
-                ax.set_yticks(range(len(custom_order)))
-                ax.set_yticklabels(custom_order, fontsize=12)
-            # plt.setp(ax.get_yticklabels(), fontsize=12)
             plt.tight_layout()
             plt.show()
 
         return mean_acc, std_acc, all_scores, all_labels, test_sample_names
+
+    # def train_and_evaluate_leave_one_out_all_samples(
+    #         self,
+    #         normalize=False,
+    #         scaler_type='standard',
+    #         region=None,
+    #         projection_source=False,
+    #         classifier_type="RGC",
+    #         feature_type="concatenated",
+    #         show_confusion_matrix=False,
+    # ):
+    #     from collections import Counter
+    #     from gcmswine import utils
+    #     import numpy as np
+    #     from gcmswine.wine_kind_strategy import get_strategy_by_wine_kind
+    #     from sklearn.metrics import confusion_matrix
+    #
+    #     # Setup data and strategy
+    #     cls_data = self.data.copy()
+    #     labels = np.array(self.labels)
+    #     year_labels = np.array(self.year_labels) if hasattr(self, 'year_labels') else np.array([])
+    #     num_samples, num_timepoints, num_channels = cls_data.shape
+    #
+    #     def compute_features(channels):
+    #         if feature_type == "concat_channels":
+    #             return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
+    #         elif feature_type == "tic":
+    #             return np.sum(cls_data[:, :, channels], axis=2)
+    #         elif feature_type == "tis":
+    #             return np.sum(cls_data[:, :, channels], axis=1)
+    #         elif feature_type == "tic_tis":
+    #             tic = np.sum(cls_data[:, :, channels], axis=2)
+    #             tis = np.sum(cls_data[:, :, channels], axis=1)
+    #             return np.hstack([tic, tis])
+    #         else:
+    #             raise ValueError("Invalid feature_type. Use 'concatenated', 'tic', 'tis', or 'tic_tis'.")
+    #
+    #     feature_matrix = compute_features(list(range(num_channels)))
+    #
+    #     all_scores = []
+    #     all_labels = []
+    #     test_sample_names = []
+    #     confusion_matrices = []
+    #     accuracies = []
+    #
+    #     strategy = get_strategy_by_wine_kind(
+    #         self.wine_kind, region,
+    #         utils.get_custom_order_for_pinot_noir_region,
+    #         class_by_year=self.class_by_year
+    #     )
+    #
+    #     for idx in range(num_samples):
+    #         try:
+    #             cls = Classifier(
+    #                 data=feature_matrix,
+    #                 labels=labels,
+    #                 classifier_type=classifier_type,
+    #                 year_labels=year_labels,
+    #                 dataset_origins=self.dataset_origins if hasattr(self, 'dataset_origins') else None,
+    #                 strategy=strategy,
+    #                 class_by_year=self.class_by_year,
+    #                 labels_raw=self.labels_raw,
+    #                 sample_labels=self.sample_labels
+    #             )
+    #
+    #             results, scores, y_test, raw_test_labels = cls.train_and_evaluate_leave_one_out(
+    #                 left_out_index=idx,
+    #                 normalize=normalize,
+    #                 scaler_type=scaler_type,
+    #                 projection_source=projection_source,
+    #             )
+    #
+    #             if 'accuracy' in results:
+    #                 accuracies.append(results['accuracy'])
+    #             else:
+    #                 print(f"⚠️ Accuracy missing for sample {idx}")
+    #
+    #
+    #             if scores is not None:
+    #                 all_scores.append(scores[0])  # scores is (1, C) for one sample
+    #                 all_labels.append(y_test[0])
+    #                 test_sample_names.append(raw_test_labels[0])
+    #
+    #             if 'confusion_matrix' in results:
+    #                 confusion_matrices.append(results['confusion_matrix'])
+    #
+    #         except Exception as e:
+    #             print(f"⚠️ Skipping sample {idx} due to error: {e}")
+    #
+    #     accuracies = np.array(accuracies)
+    #     mean_acc = np.mean(accuracies)
+    #     std_acc = np.std(accuracies)
+    #     if projection_source == "scores" and all_scores:
+    #         all_scores = np.vstack(all_scores)
+    #         all_labels = np.array(all_labels)
+    #         test_sample_names = np.array(test_sample_names)
+    #     else:
+    #         all_scores, all_labels, test_sample_names = None, None, np.array(list(self.sample_labels))
+    #     mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
+    #
+    #     # Summary
+    #     print("##################################")
+    #     print("Leave-One-Out Evaluation Finished")
+    #     print("##################################")
+    #     print("\n##################################")
+    #     print(f"Mean Accuracy (LOO): {mean_acc:.3f} ± {std_acc:.3f}")
+    #
+    #     if self.class_by_year:
+    #         labels_used = self.year_labels
+    #     else:
+    #         labels_used = strategy.extract_labels(labels)
+    #
+    #     custom_order = strategy.get_custom_order(labels_used, year_labels)
+    #     counts = Counter(labels_used)
+    #
+    #     print("\nLabel order:")
+    #     if custom_order is not None:
+    #         for label in custom_order:
+    #             print(f"{label} ({counts.get(label, 0)})")
+    #     else:
+    #         for label in sorted(counts.keys()):
+    #             print(f"{label} ({counts[label]})")
+    #
+    #     print("\nFinal Averaged Normalized Confusion Matrix:")
+    #     print(mean_confusion_matrix)
+    #     print("##################################")
+    #     labels_used = year_labels if self.class_by_year else strategy.extract_labels(labels)
+    #     custom_order = strategy.get_custom_order(labels_used, year_labels)
+    #     if region == "winery":
+    #         long_labels = [
+    #         "Clos Des Mouches. Drouhin (FR): D",
+    #         "Les Petits Monts. Drouhin (FR): R",
+    #         "Vigne de l’Enfant Jésus. Bouchard (FR): E",
+    #         "Les Cailles. Bouchard (FR): Q",
+    #         "Bressandes. Jadot (FR): P",
+    #         "Les Boudots. Jadot (FR): Z",
+    #         "Domaine Schlumberger (FR): C",
+    #         "Domaine Jean Sipp (FR): W",
+    #         "Domaine Weinbach (FR): Y",
+    #         "Domaine Brunner (CH): M",
+    #         "Vin des Croisés (CH): N",
+    #         "Domaine Villard et Fils (CH): J",
+    #         "Domaine de la République (CH): L",
+    #         "Les Maladaires (CH): H",
+    #         "Marimar Estate (US): U",
+    #         "Domaine Drouhin (US): X",
+    #     ]
+    #     counts = Counter(labels_used)
+    #
+    #     if show_confusion_matrix:
+    #         import matplotlib.pyplot as plt
+    #         from sklearn.metrics import ConfusionMatrixDisplay
+    #
+    #         fig, ax = plt.subplots(figsize=(8, 6))
+    #         ax.set_xlabel('Predicted Label', fontsize=14)
+    #         ax.set_ylabel('True Label', fontsize=14)
+    #         ax.set_title(f'Confusion matrix by region')
+    #         # ax.set_title(f'LOO Confusion Matrix by {region}')
+    #         disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=custom_order)
+    #         disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
+    #         plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
+    #         # Conditional y-axis labels:
+    #         if region == "winery":
+    #             ax.set_yticks(range(len(long_labels)))  # Ensure ticks align
+    #             ax.set_yticklabels(long_labels, fontsize=12)
+    #         else:
+    #             # Default: use the same custom_order for y-axis
+    #             ax.set_yticks(range(len(custom_order)))
+    #             ax.set_yticklabels(custom_order, fontsize=12)
+    #         # plt.setp(ax.get_yticklabels(), fontsize=12)
+    #         plt.tight_layout()
+    #         plt.show()
+    #
+    #     return mean_acc, std_acc, all_scores, all_labels, test_sample_names
 
 
 
@@ -1797,7 +2088,7 @@ class Classifier:
 
         def compute_features(channels):
             print(f"Computing features for channels: {channels}")
-            if feature_type == "concatenated":
+            if feature_type == "concat_channels":
                 return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
             elif feature_type == "tic":
                 return np.sum(cls_data[:, :, channels], axis=2)
@@ -2012,7 +2303,7 @@ class Classifier:
         def compute_features(channels):
             """Compute features based on the chosen feature type."""
             print(f"Computing features for channels: {channels}")
-            if feature_type == "concatenated":
+            if feature_type == "concat_channels":
                 # Flatten each selected channel across time and concatenate them
                 return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
             elif feature_type == "tic":

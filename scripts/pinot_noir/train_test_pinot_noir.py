@@ -326,6 +326,7 @@ if __name__ == "__main__":
             legend_labels = {
                 "D": "D = Clos Des Mouches. Drouhin (FR)",
                 "R": "R = Les Petits Monts. Drouhin (FR)",
+                "X": "X = Domaine Drouhin (US)",
                 "E": "E = Vigne de l’Enfant Jésus. Bouchard (FR)",
                 "Q": "Q = Les Cailles. Bouchard (FR)",
                 "P": "P = Bressandes. Jadot (FR)",
@@ -339,7 +340,6 @@ if __name__ == "__main__":
                 "L": "L = Domaine de la République (CH)",
                 "H": "H = Les Maladaires (CH)",
                 "U": "U = Marimar Estate (US)",
-                "X": "X = Domaine Drouhin (US)"
         }
         elif region == "origin":
             legend_labels = {
@@ -417,6 +417,7 @@ if __name__ == "__main__":
         legend_labels = {
             "D": "D = Clos Des Mouches. Drouhin (FR)",
             "R": "R = Les Petits Monts. Drouhin (FR)",
+            "X": "X = Domaine Drouhin (US)",
             "E": "E = Vigne de l’Enfant Jésus. Bouchard (FR)",
             "Q": "Q = Les Cailles. Bouchard (FR)",
             "P": "P = Bressandes. Jadot (FR)",
@@ -430,7 +431,6 @@ if __name__ == "__main__":
             "L": "L = Domaine de la République (CH)",
             "H": "H = Les Maladaires (CH)",
             "U": "U = Marimar Estate (US)",
-            "X": "X = Domaine Drouhin (US)"
         }
 
         if data_for_umap is not None:
