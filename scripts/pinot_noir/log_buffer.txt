@@ -3695,3 +3695,398 @@ Confusion matrix: False
             RT range: {'max': 30000, 'min': 0}
     Confusion matrix: False
 2025-08-05 11:15:32 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-08-05 11:32:00 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-05 11:32:00 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: best_channel
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-05 11:32:07 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-08-05 11:53:46 — INFO — Mean Balanced Accuracy: 0.859 ± 0.348
+
+
+2025-08-05 12:10:18 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-05 12:10:18 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: SVM
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-05 12:10:20 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-08-05 12:38:12 — INFO — Mean Balanced Accuracy: 0.644 ± 0.479
+2025-08-05 12:40:22 — INFO — Mean Balanced Accuracy: 0.007 ± 0.086
+2025-08-05 12:46:25 — INFO — Mean Balanced Accuracy: 0.659 ± 0.474
+
+
+2025-08-05 12:47:27 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-05 12:47:27 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-05 12:47:30 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-08-05 12:51:21 — INFO — Mean Balanced Accuracy: 0.615 ± 0.487
+
+
+2025-08-05 13:23:09 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-05 13:23:09 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: best_channel
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: origin
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-05 13:23:18 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-08-05 13:24:58 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-05 13:24:58 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: best_channel
+          Classifier: LR
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: origin
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-05 13:25:00 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-08-05 15:08:10 — INFO — Mean Balanced Accuracy: 0.859 ± 0.348
+
+
+2025-08-05 22:02:56 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-05 22:02:56 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: best_channel
+          Classifier: LDA
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-05 22:02:58 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-08-06 08:05:56 — INFO — Mean Balanced Accuracy: 0.726 ± 0.446
+
+
+2025-08-06 08:13:04 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 08:13:04 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: origin
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 08:13:07 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-08-06 08:14:17 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 08:14:17 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: LR
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: origin
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 08:14:19 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-08-06 08:26:35 — INFO — Mean Balanced Accuracy: 0.681 ± 0.466
+
+
+2025-08-06 08:26:51 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 08:26:51 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 50
+                Sync: False
+ Year Classification: False
+              Region: origin
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 08:26:53 — INFO — Applying RT range: 0 to 581 (capped at 581)
+2025-08-06 08:27:41 — INFO — Mean Balanced Accuracy: 0.711 ± 0.453
+
+
+2025-08-06 08:28:00 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 08:28:00 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 20
+                Sync: False
+ Year Classification: False
+              Region: origin
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 08:28:03 — INFO — Applying RT range: 0 to 1452 (capped at 1452)
+
+
+2025-08-06 08:28:07 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 08:28:07 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 5
+                Sync: False
+ Year Classification: False
+              Region: origin
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 08:28:10 — INFO — Applying RT range: 0 to 5808 (capped at 5808)
+2025-08-06 08:30:22 — INFO — Mean Balanced Accuracy: 0.733 ± 0.442
+2025-08-06 08:35:22 — INFO — Mean Balanced Accuracy: 0.756 ± 0.430
+2025-08-06 08:36:08 — INFO — Mean Balanced Accuracy: 0.726 ± 0.446
+
+
+2025-08-06 08:36:48 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 08:36:48 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: origin
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 08:36:50 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-08-06 08:40:13 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 08:40:13 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: RGC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: origin
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 08:40:16 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-08-06 08:40:21 — INFO — Mean Balanced Accuracy: 0.719 ± 0.450
+
+
+2025-08-06 08:42:42 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 08:42:42 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: best_channel
+          Classifier: LDA
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 08:42:45 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+2025-08-06 08:44:49 — INFO — Mean Balanced Accuracy: 0.719 ± 0.450
+2025-08-06 10:13:33 — INFO — Mean Balanced Accuracy: 0.726 ± 0.446
+
+
+2025-08-06 10:42:16 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 10:42:16 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: PAC
+             Repeats: 10
+           Normalize: True
+          Decimation: 50
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 10:42:18 — INFO — Applying RT range: 0 to 581 (capped at 581)
+
+
+2025-08-06 10:43:24 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 10:43:24 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: PAC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 10:43:27 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-08-06 10:50:09 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 10:50:09 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: PAC
+             Repeats: 10
+           Normalize: True
+          Decimation: 100
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 10:50:14 — INFO — Applying RT range: 0 to 291 (capped at 291)
+
+
+2025-08-06 10:54:35 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 10:54:35 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: PAC
+             Repeats: 10
+           Normalize: True
+          Decimation: 100
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 10:54:39 — INFO — Applying RT range: 0 to 291 (capped at 291)
+
+
+2025-08-06 10:56:03 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 10:56:03 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: concat_channels
+          Classifier: PAC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: winery
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 10:56:05 — INFO — Applying RT range: 0 to 2904 (capped at 2904)
+
+
+2025-08-06 10:57:54 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-08-06 10:57:54 — INFO — Configuration Parameters
+                Task: classification
+           Wine kind: pinot_noir
+            Datasets: pinot_noir_changins
+        Feature type: best_channel
+          Classifier: PAC
+             Repeats: 10
+           Normalize: True
+          Decimation: 10
+                Sync: False
+ Year Classification: False
+              Region: origin
+             CV type: LOO
+            RT range: {'max': 30000, 'min': 0}
+    Confusion matrix: False
+2025-08-06 10:57:57 — INFO — Applying RT range: 0 to 2904 (capped at 2904)

@@ -255,7 +255,7 @@ class Classifier:
         elif classifier_type == 'RFC':
             return RandomForestClassifier(n_estimators=100)
         elif classifier_type == 'PAC':
-            return PassiveAggressiveClassifier(random_state=0)
+            return PassiveAggressiveClassifier(random_state=0, n_jobs=-1)
         elif classifier_type == 'PER':
             return Perceptron(random_state=0)
         elif classifier_type == 'RGC':
@@ -1794,6 +1794,7 @@ class Classifier:
         confusion_matrices, accuracies = [], []
 
         for idx in range(num_samples):
+            print(f'{idx} ', end="")
             try:
                 cls = Classifier(
                     data=feature_matrix,
