@@ -1622,6 +1622,92 @@ class Classifier:
             # Return per-origin averaged results
             return averaged_results
 
+    def evaluate_feature_matrix_LOO(feature_matrix, labels, year_labels, strategy,
+                                    classifier_type, normalize, scaler_type,
+                                    projection_source, show_confusion_matrix=False,
+                                    sample_labels=None, dataset_origins=None,
+                                    labels_raw=None, class_by_year=False):
+        """
+        Perform Leave-One-Out evaluation for a given feature matrix.
+
+        Returns:
+            mean_acc, std_acc, all_scores, all_labels, test_sample_names, mean_confusion_matrix
+        """
+        from collections import Counter
+        import numpy as np
+        from gcmswine import utils
+        from sklearn.metrics import ConfusionMatrixDisplay
+
+        num_samples = feature_matrix.shape[0]
+        all_scores, all_labels, test_sample_names = [], [], []
+        confusion_matrices, accuracies = [], []
+
+        for idx in range(num_samples):
+            try:
+                cls = Classifier(
+                    data=feature_matrix,
+                    labels=labels,
+                    classifier_type=classifier_type,
+                    year_labels=year_labels,
+                    dataset_origins=dataset_origins,
+                    strategy=strategy,
+                    class_by_year=class_by_year,
+                    labels_raw=labels_raw,
+                    sample_labels=sample_labels
+                )
+
+                results, scores, y_test, raw_test_labels = cls.train_and_evaluate_leave_one_out(
+                    left_out_index=idx,
+                    normalize=normalize,
+                    scaler_type=scaler_type,
+                    projection_source=projection_source,
+                )
+
+                if 'accuracy' in results:
+                    accuracies.append(results['accuracy'])
+                else:
+                    print(f"⚠️ Accuracy missing for sample {idx}")
+
+                if scores is not None:
+                    all_scores.append(scores[0])
+                    all_labels.append(y_test[0])
+                    test_sample_names.append(raw_test_labels[0])
+
+                if 'confusion_matrix' in results:
+                    confusion_matrices.append(results['confusion_matrix'])
+
+            except Exception as e:
+                print(f"⚠️ Skipping sample {idx} due to error: {e}")
+
+        accuracies = np.array(accuracies)
+        mean_acc = np.mean(accuracies)
+        std_acc = np.std(accuracies)
+
+        if projection_source == "scores" and all_scores:
+            all_scores = np.vstack(all_scores)
+            all_labels = np.array(all_labels)
+            test_sample_names = np.array(test_sample_names)
+        else:
+            all_scores, all_labels, test_sample_names = None, None, np.array(
+                list(sample_labels) if sample_labels is not None else [])
+
+        mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
+
+        # Optional visualization
+        if show_confusion_matrix:
+            labels_used = year_labels if class_by_year else strategy.extract_labels(labels)
+            custom_order = strategy.get_custom_order(labels_used, year_labels)
+            fig, ax = plt.subplots(figsize=(8, 6))
+            disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix,
+                                          display_labels=custom_order)
+            disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
+            plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
+            plt.tight_layout()
+            plt.show()
+
+        return mean_acc, std_acc, all_scores, all_labels, test_sample_names, mean_confusion_matrix
+
+
     def train_and_evaluate_leave_one_out_all_samples(
             self,
             normalize=False,
@@ -1655,12 +1741,98 @@ class Classifier:
                 tic = np.sum(cls_data[:, :, channels], axis=2)
                 tis = np.sum(cls_data[:, :, channels], axis=1)
                 return np.hstack([tic, tis])
-            elif feature_type == "best_channel":
+            elif feature_type in ["best_channel", "greedy_add"]:
                 # Placeholder: handled later
                 return None
             else:
                 raise ValueError(
                     "Invalid feature_type. Use 'concatenated', 'tic', 'tis', 'tic_tis', or 'best_channel'.")
+
+        def evaluate_feature_matrix_LOO(feature_matrix, labels, year_labels, strategy,
+                                        classifier_type, normalize, scaler_type,
+                                        projection_source, show_confusion_matrix=False,
+                                        sample_labels=None, dataset_origins=None,
+                                        labels_raw=None, class_by_year=False):
+            """
+            Perform Leave-One-Out evaluation for a given feature matrix.
+
+            Returns:
+                mean_acc, std_acc, all_scores, all_labels, test_sample_names, mean_confusion_matrix
+            """
+            from collections import Counter
+            import numpy as np
+            from gcmswine import utils
+            from sklearn.metrics import ConfusionMatrixDisplay
+
+            num_samples = feature_matrix.shape[0]
+            all_scores, all_labels, test_sample_names = [], [], []
+            confusion_matrices, accuracies = [], []
+
+            for idx in range(num_samples):
+                try:
+                    cls = Classifier(
+                        data=feature_matrix,
+                        labels=labels,
+                        classifier_type=classifier_type,
+                        year_labels=year_labels,
+                        dataset_origins=dataset_origins,
+                        strategy=strategy,
+                        class_by_year=class_by_year,
+                        labels_raw=labels_raw,
+                        sample_labels=sample_labels
+                    )
+
+                    results, scores, y_test, raw_test_labels = cls.train_and_evaluate_leave_one_out(
+                        left_out_index=idx,
+                        normalize=normalize,
+                        scaler_type=scaler_type,
+                        projection_source=projection_source,
+                    )
+
+                    if 'accuracy' in results:
+                        accuracies.append(results['accuracy'])
+                    else:
+                        print(f"⚠️ Accuracy missing for sample {idx}")
+
+                    if scores is not None:
+                        all_scores.append(scores[0])
+                        all_labels.append(y_test[0])
+                        test_sample_names.append(raw_test_labels[0])
+
+                    if 'confusion_matrix' in results:
+                        confusion_matrices.append(results['confusion_matrix'])
+
+                except Exception as e:
+                    print(f"⚠️ Skipping sample {idx} due to error: {e}")
+
+            accuracies = np.array(accuracies)
+            mean_acc = np.mean(accuracies)
+            std_acc = np.std(accuracies)
+
+            if projection_source == "scores" and all_scores:
+                all_scores = np.vstack(all_scores)
+                all_labels = np.array(all_labels)
+                test_sample_names = np.array(test_sample_names)
+            else:
+                all_scores, all_labels, test_sample_names = None, None, np.array(
+                    list(sample_labels) if sample_labels is not None else [])
+
+            mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
+
+            # Optional visualization
+            if show_confusion_matrix:
+                labels_used = year_labels if class_by_year else strategy.extract_labels(labels)
+                custom_order = strategy.get_custom_order(labels_used, year_labels)
+                fig, ax = plt.subplots(figsize=(8, 6))
+                disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix,
+                                              display_labels=custom_order)
+                disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
+                plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
+                plt.tight_layout()
+                plt.show()
+
+            return mean_acc, std_acc, all_scores, all_labels, test_sample_names, mean_confusion_matrix
+
 
         # === Handle normal multi-channel feature computation ===
         if feature_type != "best_channel":
@@ -1683,101 +1855,112 @@ class Classifier:
                 feature_matrix = cls_data[:, :, ch]  # Single-channel TIC trace
                 feature_matrix = feature_matrix.reshape(num_samples, -1)
 
-                all_scores, all_labels, test_sample_names = [], [], []
-                confusion_matrices, accuracies = [], []
+                mean_acc, std_acc, scores, lbls, names, _ = evaluate_feature_matrix_LOO(
+                    feature_matrix, labels, year_labels, strategy,
+                    classifier_type, normalize, scaler_type,
+                    projection_source, show_confusion_matrix=False,
+                    sample_labels=self.sample_labels,
+                    dataset_origins=getattr(self, 'dataset_origins', None),
+                    labels_raw=self.labels_raw,
+                    class_by_year=self.class_by_year
+                )
+                best_channel_results.append((ch, mean_acc, std_acc, scores, lbls, names))
 
-                # LOO evaluation for this channel
-                for idx in range(num_samples):
-                    try:
-                        cls = Classifier(
-                            data=feature_matrix,
-                            labels=labels,
-                            classifier_type=classifier_type,
-                            year_labels=year_labels,
-                            dataset_origins=self.dataset_origins if hasattr(self, 'dataset_origins') else None,
-                            strategy=strategy,
-                            class_by_year=self.class_by_year,
-                            labels_raw=self.labels_raw,
-                            sample_labels=self.sample_labels
-                        )
-
-                        results, scores, y_test, raw_test_labels = cls.train_and_evaluate_leave_one_out(
-                            left_out_index=idx,
-                            normalize=normalize,
-                            scaler_type=scaler_type,
-                            projection_source=projection_source,
-                        )
-
-                        if 'accuracy' in results:
-                            accuracies.append(results['accuracy'])
-                        else:
-                            print(f"⚠️ Accuracy missing for sample {idx}")
-
-                        if scores is not None:
-                            all_scores.append(scores[0])
-                            all_labels.append(y_test[0])
-                            test_sample_names.append(raw_test_labels[0])
-
-                        if 'confusion_matrix' in results:
-                            confusion_matrices.append(results['confusion_matrix'])
-
-                    except Exception as e:
-                        print(f"⚠️ Skipping sample {idx} due to error: {e}")
-
-                accuracies = np.array(accuracies)
-                mean_acc = np.mean(accuracies)
-                std_acc = np.std(accuracies)
-
-                if projection_source == "scores" and all_scores:
-                    all_scores = np.vstack(all_scores)
-                    all_labels = np.array(all_labels)
-                    test_sample_names = np.array(test_sample_names)
-                else:
-                    all_scores, all_labels, test_sample_names = None, None, np.array(list(self.sample_labels))
-
-                mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
-
-                # === Print summary for this channel ===
-                print("##################################")
-                print(f"Channel {ch}: Leave-One-Out Evaluation Finished")
-                print("##################################")
-                print(f"Mean Accuracy (LOO): {mean_acc:.3f} ± {std_acc:.3f}")
-
-                if self.class_by_year:
-                    labels_used = self.year_labels
-                else:
-                    labels_used = strategy.extract_labels(labels)
-
-                custom_order = strategy.get_custom_order(labels_used, year_labels)
-                counts = Counter(labels_used)
-
-                print("\nLabel order:")
-                if custom_order is not None:
-                    for label in custom_order:
-                        print(f"{label} ({counts.get(label, 0)})")
-                else:
-                    for label in sorted(counts.keys()):
-                        print(f"{label} ({counts[label]})")
-
-                print("\nFinal Averaged Normalized Confusion Matrix:")
-                print(mean_confusion_matrix)
-                print("##################################")
-
-                if show_confusion_matrix:
-                    import matplotlib.pyplot as plt
-                    from sklearn.metrics import ConfusionMatrixDisplay
-
-                    fig, ax = plt.subplots(figsize=(8, 6))
-                    ax.set_xlabel('Predicted Label', fontsize=14)
-                    ax.set_ylabel('True Label', fontsize=14)
-                    ax.set_title(f'Confusion matrix (Channel {ch})')
-                    disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=custom_order)
-                    disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
-                    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
-                    plt.tight_layout()
-                    plt.show()
-
-                best_channel_results.append((ch, mean_acc, std_acc, all_scores, all_labels, test_sample_names))
+                # all_scores, all_labels, test_sample_names = [], [], []
+                # confusion_matrices, accuracies = [], []
+                #
+                # # LOO evaluation for this channel
+                # for idx in range(num_samples):
+                #     try:
+                #         cls = Classifier(
+                #             data=feature_matrix,
+                #             labels=labels,
+                #             classifier_type=classifier_type,
+                #             year_labels=year_labels,
+                #             dataset_origins=self.dataset_origins if hasattr(self, 'dataset_origins') else None,
+                #             strategy=strategy,
+                #             class_by_year=self.class_by_year,
+                #             labels_raw=self.labels_raw,
+                #             sample_labels=self.sample_labels
+                #         )
+                #
+                #         results, scores, y_test, raw_test_labels = cls.train_and_evaluate_leave_one_out(
+                #             left_out_index=idx,
+                #             normalize=normalize,
+                #             scaler_type=scaler_type,
+                #             projection_source=projection_source,
+                #         )
+                #
+                #         if 'accuracy' in results:
+                #             accuracies.append(results['accuracy'])
+                #         else:
+                #             print(f"⚠️ Accuracy missing for sample {idx}")
+                #
+                #         if scores is not None:
+                #             all_scores.append(scores[0])
+                #             all_labels.append(y_test[0])
+                #             test_sample_names.append(raw_test_labels[0])
+                #
+                #         if 'confusion_matrix' in results:
+                #             confusion_matrices.append(results['confusion_matrix'])
+                #
+                #     except Exception as e:
+                #         print(f"⚠️ Skipping sample {idx} due to error: {e}")
+                #
+                # accuracies = np.array(accuracies)
+                # mean_acc = np.mean(accuracies)
+                # std_acc = np.std(accuracies)
+                #
+                # if projection_source == "scores" and all_scores:
+                #     all_scores = np.vstack(all_scores)
+                #     all_labels = np.array(all_labels)
+                #     test_sample_names = np.array(test_sample_names)
+                # else:
+                #     all_scores, all_labels, test_sample_names = None, None, np.array(list(self.sample_labels))
+                #
+                # mean_confusion_matrix = utils.average_confusion_matrices_ignore_empty_rows(confusion_matrices)
+                #
+                # # === Print summary for this channel ===
+                # print("##################################")
+                # print(f"Channel {ch}: Leave-One-Out Evaluation Finished")
+                # print("##################################")
+                # print(f"Mean Accuracy (LOO): {mean_acc:.3f} ± {std_acc:.3f}")
+                #
+                # if self.class_by_year:
+                #     labels_used = self.year_labels
+                # else:
+                #     labels_used = strategy.extract_labels(labels)
+                #
+                # custom_order = strategy.get_custom_order(labels_used, year_labels)
+                # counts = Counter(labels_used)
+                #
+                # print("\nLabel order:")
+                # if custom_order is not None:
+                #     for label in custom_order:
+                #         print(f"{label} ({counts.get(label, 0)})")
+                # else:
+                #     for label in sorted(counts.keys()):
+                #         print(f"{label} ({counts[label]})")
+                #
+                # print("\nFinal Averaged Normalized Confusion Matrix:")
+                # print(mean_confusion_matrix)
+                # print("##################################")
+                #
+                # if show_confusion_matrix:
+                #     import matplotlib.pyplot as plt
+                #     from sklearn.metrics import ConfusionMatrixDisplay
+                #
+                #     fig, ax = plt.subplots(figsize=(8, 6))
+                #     ax.set_xlabel('Predicted Label', fontsize=14)
+                #     ax.set_ylabel('True Label', fontsize=14)
+                #     ax.set_title(f'Confusion matrix (Channel {ch})')
+                #     disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=custom_order)
+                #     disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
+                #     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
+                #     plt.tight_layout()
+                #     plt.show()
+                #
+                # best_channel_results.append((ch, mean_acc, std_acc, all_scores, all_labels, test_sample_names))
 
             # Pick best channel
             best_channel_results.sort(key=lambda x: x[1], reverse=True)
@@ -1788,6 +1971,67 @@ class Classifier:
 
             return best_mean_acc, best_std_acc, best_scores, best_labels, best_names
             # return best_channel_results
+
+        if feature_type == "greedy_add":
+            print("\n=== Ranking channels individually ===")
+            channel_accs = []
+            for ch in range(num_channels):
+                fm = cls_data[:, :, ch].reshape(num_samples, -1)
+                mean_acc, *_ = evaluate_feature_matrix_LOO(
+                    fm, labels, year_labels, strategy,
+                    classifier_type, normalize, scaler_type,
+                    projection_source, show_confusion_matrix=False,
+                    sample_labels=self.sample_labels,
+                    dataset_origins=getattr(self, 'dataset_origins', None),
+                    labels_raw=self.labels_raw,
+                    class_by_year=self.class_by_year
+                )
+                channel_accs.append((ch, mean_acc))
+
+            # Rank by accuracy
+            ranked_channels = [ch for ch, _ in sorted(channel_accs, key=lambda x: x[1], reverse=True)]
+
+            print("\n=== Greedy channel addition ===")
+            cumulative_results = []
+            selected_channels = []
+            for k, ch in enumerate(ranked_channels, 1):
+                selected_channels.append(ch)
+                print(f"\nEvaluating with top {k} channels: {selected_channels}")
+                # fm = np.hstack([cls_data[:, :, c].reshape(num_samples, -1) for c in selected_channels])
+                fm = np.sum(cls_data[:, :, selected_channels], axis=2)  # Summation across selected channels
+
+                mean_acc, std_acc, *_ = evaluate_feature_matrix_LOO(
+                    fm, labels, year_labels, strategy,
+                    classifier_type, normalize, scaler_type,
+                    projection_source, show_confusion_matrix=False,
+                    sample_labels=self.sample_labels,
+                    dataset_origins=getattr(self, 'dataset_origins', None),
+                    labels_raw=self.labels_raw,
+                    class_by_year=self.class_by_year
+                )
+                cumulative_results.append((k, selected_channels.copy(), mean_acc, std_acc))
+                print(f"Top {k} channels: Accuracy {mean_acc:.3f} ± {std_acc:.3f}")
+                # === Plot accuracy vs. number of channels ===
+
+            import matplotlib.pyplot as plt
+            ks = [r[0] for r in cumulative_results]
+            accs = [r[2] for r in cumulative_results]
+            stds = [r[3] for r in cumulative_results]
+
+            plt.figure(figsize=(8, 5))
+            plt.plot(ks, accs, '-o', label='Accuracy')
+            plt.xlabel("Number of Channels Added", fontsize=14)
+            plt.ylabel("Accuracy (LOO)", fontsize=14)
+            plt.title("Greedy Channel Addition: Accuracy vs Channels", fontsize=16)
+            plt.grid(True, linestyle="--", alpha=0.6)
+            plt.tight_layout()
+            plt.show()
+
+            best_idx = np.argmax(accs)
+            best_mean_acc, best_std_acc = accs[best_idx], stds[best_idx]
+            print(f"\nBest accuracy: {best_mean_acc:.3f} ± {best_std_acc:.3f} using top {ks[best_idx]} channels.")
+
+            return best_mean_acc, best_std_acc, None, None, np.array(list(self.sample_labels)), cumulative_results
 
         # === STANDARD MULTI-CHANNEL FLOW (unchanged) ===
         all_scores, all_labels, test_sample_names = [], [], []

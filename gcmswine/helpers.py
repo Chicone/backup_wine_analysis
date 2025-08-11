@@ -138,3 +138,6 @@ def average_by_wine(X_input, y, sample_ids):
         wine_ids.append(wine)
 
     return np.array(X_avg), np.array(y_avg), np.array(wine_ids)
+
+
+

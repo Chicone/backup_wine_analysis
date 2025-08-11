@@ -1,6 +1,6 @@
 chrom_cap: 35000
-class_by_year: false
-classifier: PAC
+class_by_year: true
+classifier: SVM
 color_by_country: false
 color_by_origin: false
 color_by_winery: false
@@ -21,7 +21,7 @@ density_plot: false
 do_classification: false
 downsample_group: true
 exclude_us: false
-feature_type: best_channel
+feature_type: tic_tis
 flip_axes: true
 global_focus_heatmap: true
 group_wines: false
@@ -47,7 +47,7 @@ random_state: 42
 reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
-region: origin
+region: winery
 regressor: null
 remove_avg_scores: false
 retention_time_range:

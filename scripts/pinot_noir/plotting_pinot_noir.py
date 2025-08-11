@@ -416,11 +416,12 @@ def plot_pinot_noir(
     #                            alpha=0.9, s=80, color=color, marker=marker)
 
     elif color_by_winery:
-
         if raw_sample_labels is None:
             raise ValueError("raw_sample_labels must be provided when color_by_winery=True")
         from scipy.stats import multivariate_normal
         from matplotlib.colors import to_rgb
+        from scipy.spatial.distance import pdist
+
         winery_codes = np.array([s[0] for s in raw_sample_labels])
         unique_codes = sorted(set(winery_codes))
         winery_to_color = build_estate_color_map(unique_codes)
@@ -430,8 +431,29 @@ def plot_pinot_noir(
             for i, code in enumerate(non_estate):
                 winery_to_color[code] = to_rgb(cmap(i))
 
+        # === Compute ICD for selected wineries ===
+        # selected_wineries = ['D', 'R', 'X', 'E', 'Q', 'P']  # Example: ['A', 'J'] or leave empty for all samples
+        selected_wineries = None  # Example: ['A', 'J'] or leave empty for all samples
+
+        if not selected_wineries:
+            selected_wineries = unique_codes
+            selected_coords = embedding
+            label_desc = "all samples"
+        else:
+            selected_mask = np.isin(winery_codes, selected_wineries)
+            selected_coords = embedding[selected_mask]
+            label_desc = f"wineries {selected_wineries}"
+
+        if selected_coords.shape[0] >= 2:
+            icd = pdist(selected_coords).mean()
+            print(f"Intra-cluster distance (ICD) for {label_desc}: {icd:.3f}")
+        else:
+            print(f"⚠️ Not enough samples to compute ICD for {label_desc}")
+
         # === PLOT GAUSSIANS + SYMBOLS ===
         for i, code in enumerate(unique_codes):
+            if code not in selected_wineries:
+                continue  # Skip wineries not in the selected list
             mask = labels == code
             coords = embedding[mask]
             if coords.shape[0] < 2:
@@ -439,6 +461,7 @@ def plot_pinot_noir(
             marker = markers[i % len(markers)]
             base_color = winery_to_color[code]
             readable_label = label_dict[code]
+
             if density_plot and not is_3d:
                 # Plot Gaussian cloud
                 plot_gaussian_cloud_2d(ax, coords, base_color, marker, readable_label)
@@ -563,7 +586,7 @@ def plot_pinot_noir(
         subtitle += f"random_state={random_state}"
 
     full_title = title if subtitle == "" else f"{title}\n{subtitle.strip()}"
-#    ax.set_title(full_title, fontsize=16)
+    # ax.set_title(full_title, fontsize=16)
 
     if color_by_winery or color_by_origin:
         handles, labels_found = ax.get_legend_handles_labels()
