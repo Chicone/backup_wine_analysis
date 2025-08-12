@@ -136,6 +136,11 @@ if __name__ == "__main__":
     # headers = ["France", "Switzerland", "US"]
     # string_to_latex_confusion_matrix_modified(data_str, headers)
 
+    # from gcmswine.utils import create_dir_of_samples_from_bordeaux
+    # create_dir_of_samples_from_bordeaux(
+    #     "/home/luiscamara/Documents/datasets/BordeauxData/older data/Datat for paper Sept 2022/2018 7 chateaux Oak Old vintages Masse 5.csv",
+    #     output_root="/home/luiscamara/Documents/datasets/BordeauxData/oak_paper")
+
     # Load dataset paths from config.yaml
     config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
     config_path = os.path.abspath(config_path)

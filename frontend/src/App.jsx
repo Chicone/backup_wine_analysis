@@ -189,7 +189,10 @@ function App() {
     featureToProjectionOptions[featureType],
   );
   const datasetOptions = {
-    bordeaux: ["bordeaux_oak"],
+    bordeaux: [
+        "bordeaux_oak",
+        "bordeaux_oak_paper1",
+        ],
     press: [
       "merlot_2021",
       "merlot_2022",

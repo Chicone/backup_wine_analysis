@@ -8,6 +8,7 @@ constant_ohe: false
 cv_type: LOO
 datasets:
   bordeaux_oak: /home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/
+  bordeaux_oak_paper1: /home/luiscamara/Documents/datasets/BordeauxData/DataNov2022/
   cab_sauv_2021: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/
   cab_sauv_2022: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/
   cab_sauv_2023: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/
@@ -60,11 +61,11 @@ rt_range:
 sample_display_mode: names
 selected_attribute: nuts
 selected_datasets:
-- bordeaux_oak
+- bordeaux_oak_paper1
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
-show_confusion_matrix: true
+show_confusion_matrix: false
 show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false

@@ -1772,6 +1772,7 @@ def join_datasets(selected_datasets, data_directories, n_decimation):
         raise ValueError(f"Dataset {first_dataset} does not have a corresponding directory.")
 
     row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(first_directory)
+    row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(first_directory)
     column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
 
     # Load and process each selected dataset
@@ -1886,6 +1887,233 @@ def average_confusion_matrices_ignore_empty_rows(confusion_matrices):
     row_sums = mean_cm.sum(axis=1, keepdims=True)
     normalized_mean_cm = np.divide(mean_cm, row_sums, where=row_sums != 0)
     return normalized_mean_cm
+
+
+import os
+import re
+import pandas as pd
+
+
+
+import os
+import re
+import pandas as pd
+
+import os
+import re
+import pandas as pd
+
+def create_dir_of_samples_from_bordeaux(input_path, output_root=None):
+    """
+    Parse a wide-format file where columns are labeled like:
+        'Tr Bois_V1990', 'Ab Bois_V1990', 'Tr Bois_A2000', 'Ab Bois_A2000', ...
+    with optional empty spacer columns, and metadata lines above the header.
+
+    - Detects the header row automatically (first row containing 'Tr Bois' or 'Ab Bois').
+    - Extracts sample IDs from the part AFTER 'Tr Bois'/'Ab Bois' (e.g., 'V1990', 'A2000').
+    - Pairs each Tr (retention time) with the matching Ab (signal) for the same sample ID.
+    - Writes each pair into <output_root>/<SampleID>-<rep>.D/<SampleID>-<rep>.csv as:
+        columns: ["Ret. Time", "TIC"]
+
+    Returns:
+        list[str]: paths to the created CSV files.
+    """
+    # --- Read CSV (no header) ---
+    raw = pd.read_csv(input_path, header=None, dtype=str)
+
+    # --- Find header row: first row that contains 'Tr Bois' or 'Ab Bois' in any cell ---
+    header_row = None
+    for r in range(min(len(raw), 100)):
+        row_vals = " | ".join(str(x) for x in raw.iloc[r].fillna(""))
+        if ("Tr Bois" in row_vals) or ("Ab Bois" in row_vals):
+            header_row = r
+            break
+    if header_row is None:
+        raise ValueError("Header row with 'Tr Bois'/'Ab Bois' not found.")
+
+    headers = raw.iloc[header_row].fillna("").astype(str).tolist()
+    # Data begins on next row
+    data = raw.iloc[header_row + 1:].reset_index(drop=True)
+
+    # --- Build column pairs by parsing headers ---
+    # Accepts: 'Tr Bois_X', 'Ab Bois_X' (X = sample id). Flexible on spaces/underscore/dash.
+    tr_pat = re.compile(r"^\s*Tr\s*Bois\s*[_\-\s]*([A-Za-z0-9]+)\s*$", re.IGNORECASE)
+    ab_pat = re.compile(r"^\s*Ab\s*Bois\s*[_\-\s]*([A-Za-z0-9]+)\s*$", re.IGNORECASE)
+
+    # Map sample_id -> indices
+    tr_cols = {}
+    ab_cols = {}
+
+    for j, h in enumerate(headers):
+        h_clean = h.strip()
+        if not h_clean:
+            continue  # skip empty columns
+        m_tr = tr_pat.match(h_clean)
+        if m_tr:
+            sid = m_tr.group(1)
+            tr_cols[sid] = j
+            continue
+        m_ab = ab_pat.match(h_clean)
+        if m_ab:
+            sid = m_ab.group(1)
+            ab_cols[sid] = j
+            continue
+
+    # Intersect keys to get valid pairs
+    sample_ids = sorted(set(tr_cols.keys()) & set(ab_cols.keys()))
+    if not sample_ids:
+        raise ValueError("No (Tr, Ab) pairs found with matching sample IDs.")
+
+    # Output root
+    if output_root is None:
+        output_root = os.path.dirname(input_path)
+    os.makedirs(output_root, exist_ok=True)
+
+    created = []
+    counts = {}
+
+    for sid in sample_ids:
+        rt_idx = tr_cols[sid]
+        ab_idx = ab_cols[sid]
+
+        # Sanitize sample id for filesystem
+        base_name = re.sub(r"[^\w\-.()+]", "_", sid) or "Sample"
+        counts[base_name] = counts.get(base_name, 0) + 1
+        full_name = f"{base_name}-{counts[base_name]}"
+
+        sub = data.iloc[:, [rt_idx, ab_idx]].copy()
+        sub.columns = ["Ret. Time", "TIC"]
+        # Drop fully empty rows
+        sub = sub.dropna(how="all").reset_index(drop=True)
+
+        # Also drop rows where both cells are blank strings
+        sub = sub[~((sub["Ret. Time"].astype(str).str.strip() == "") &
+                    (sub["TIC"].astype(str).str.strip() == ""))].reset_index(drop=True)
+
+        out_dir = os.path.join(output_root, f"{full_name}.D")
+        os.makedirs(out_dir, exist_ok=True)
+        out_csv = os.path.join(out_dir, f"{full_name}.csv")
+        sub.to_csv(out_csv, index=False)
+        created.append(out_csv)
+        print(f"✅ Saved: {out_csv}")
+
+    print("✔️ All samples extracted.")
+    return created
+
+
+
+# def create_dir_of_samples_from_bordeaux(input_csv_path, output_root=None):
+#     """
+#     Extracts individual chromatogram files from a wide-format GC-MS file.
+#
+#     Expected layout:
+#       - Top rows may contain metadata.
+#       - One row with sample names (e.g., A2003, A2010, ...) with blanks interleaved.
+#       - One 'subheader' row with repeating pairs: RET TIME | NORMALIZED (or TIC / NORMALIZED SIGNAL / NORMALISED).
+#       - Data rows follow.
+#
+#     The function:
+#       1) Detects the subheader row automatically (first ~15 rows).
+#       2) Uses the row above it as the sample names row; builds a cleaned list without blanks.
+#       3) Iterates through detected (RET TIME, NORMALIZED/TIC) pairs, assigns names by pair index
+#          from the cleaned name list, and exports each pair to:
+#              <output_root>/<SampleName>-<rep>.D/<SampleName>-<rep>.csv
+#
+#     Returns:
+#       list[str]: paths to the created CSV files.
+#     """
+#     print(f"📄 Reading raw CSV: {input_csv_path}")
+#     raw = pd.read_csv(input_csv_path, header=None, dtype=str)
+#
+#     # --- detect the subheader row (RET TIME / NORMALIZED-like pairs) ---
+#     def is_subheader(row):
+#         vals = [str(x).strip().upper() for x in row.tolist()]
+#         pairs = 0
+#         i = 0
+#         while i + 1 < len(vals):
+#             if vals[i] in ("RET TIME", "RET.TIME", "RETENTION TIME") and vals[i+1] in ("NORMALIZED SIGNAL","NORMALIZED", "NORMALISED", "TIC"):
+#                 pairs += 1
+#                 i += 2
+#             else:
+#                 i += 1
+#         return pairs >= 1
+#
+#     subhdr_idx = None
+#     for r in range(min(15, len(raw))):
+#         if is_subheader(raw.iloc[r]):
+#             subhdr_idx = r
+#             break
+#     if subhdr_idx is None:
+#         raise ValueError("Could not find the RET TIME / NORMALIZED subheader row.")
+#
+#     # --- sample names row is just above the subheaders ---
+#     names_idx = subhdr_idx - 1
+#     sample_names_row = raw.iloc[names_idx].fillna("").astype(str)
+#     # Cleaned list: drop empties so it aligns one-to-one with (RET TIME, TIC) pairs
+#     sample_names_cleaned = [name.strip() for name in sample_names_row if name.strip() != ""]
+#
+#     # --- data starts below the subheaders ---
+#     data = raw.iloc[subhdr_idx + 1:].reset_index(drop=True)
+#
+#     # --- build column index pairs from subheader row ---
+#     sh = raw.iloc[subhdr_idx].astype(str).str.strip().str.upper().tolist()
+#     col_pairs = []
+#     i = 0
+#     while i + 1 < len(sh):
+#         a, b = sh[i], sh[i+1]
+#         if a in ("RET TIME", "RET.TIME", "RETENTION TIME") and b in ("NORMALIZED SIGNAL","NORMALIZED", "NORMALISED", "TIC"):
+#             col_pairs.append((i, i+1))
+#             i += 2
+#         else:
+#             i += 1
+#     if not col_pairs:
+#         raise ValueError("No RET TIME / NORMALIZED column pairs detected.")
+#
+#     # optional: helper fallback if lengths mismatch — walk left to nearest non-empty
+#     def name_for_col_fallback(col_idx: int) -> str:
+#         j = col_idx
+#         while j >= 0 and (sample_names_row.iloc[j] is None or sample_names_row.iloc[j].strip() == ""):
+#             j -= 1
+#         name = (sample_names_row.iloc[j].strip() if j >= 0 else "Sample")
+#         return name or "Sample"
+#
+#     # where to write
+#     if output_root is None:
+#         output_root = os.path.dirname(input_csv_path)
+#     os.makedirs(output_root, exist_ok=True)
+#
+#     created = []
+#     counts = {}
+#
+#     # --- export each pair using the cleaned names list by pair index ---
+#     for pair_idx, (rt_idx, tic_idx) in enumerate(col_pairs):
+#         if pair_idx < len(sample_names_cleaned):
+#             base_name = sample_names_cleaned[pair_idx]
+#         else:
+#             # graceful fallback if names and pairs got out of sync
+#             base_name = name_for_col_fallback(rt_idx)
+#
+#         # sanitize filesystem name
+#         base_name = re.sub(r"[^\w\-.()+]", "_", base_name) or "Sample"
+#
+#         counts[base_name] = counts.get(base_name, 0) + 1
+#         full_name = f"{base_name}-{counts[base_name]}"
+#
+#         dir_path = os.path.join(output_root, f"{full_name}.D")
+#         os.makedirs(dir_path, exist_ok=True)
+#
+#         sub = data.iloc[:, [rt_idx, tic_idx]].copy()
+#         sub.columns = ["Ret. Time", "TIC"]
+#         sub = sub.dropna(axis=0, how="all").reset_index(drop=True)
+#
+#         out_csv = os.path.join(dir_path, f"{full_name}.csv")
+#         sub.to_csv(out_csv, index=False)
+#         created.append(out_csv)
+#         print(f"✅ Saved: {out_csv}")
+#
+#     print("✔️ All samples extracted.")
+#     return created
+
 
 def create_dir_of_samples_from_champagnes(input_csv_path, output_root=".", use_cache=True):
     print(f"📄 Reading raw CSV: {input_csv_path}")
