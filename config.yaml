@@ -1,6 +1,6 @@
 chrom_cap: 35000
-class_by_year: true
-classifier: SVM
+class_by_year: false
+classifier: RGC
 color_by_country: false
 color_by_origin: false
 color_by_winery: false
@@ -47,7 +47,7 @@ random_state: 42
 reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
-region: winery
+region: ''
 regressor: null
 remove_avg_scores: false
 retention_time_range:
@@ -60,11 +60,11 @@ rt_range:
 sample_display_mode: names
 selected_attribute: nuts
 selected_datasets:
-- pinot_noir_changins
+- bordeaux_oak
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
-show_confusion_matrix: false
+show_confusion_matrix: true
 show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false
