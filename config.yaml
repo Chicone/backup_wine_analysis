@@ -8,7 +8,7 @@ constant_ohe: false
 cv_type: LOO
 datasets:
   bordeaux_oak: /home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/
-  bordeaux_oak_paper1: /home/luiscamara/Documents/datasets/BordeauxData/DataNov2022/
+  bordeaux_oak_paper1: /home/luiscamara/Documents/datasets/BordeauxData/oak_paper/
   cab_sauv_2021: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/
   cab_sauv_2022: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/
   cab_sauv_2023: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/
@@ -32,7 +32,7 @@ label_target: prod area
 label_targets:
 - age
 n_decimation: 10
-n_neighbors: 30
+n_neighbors: 40
 normalize: true
 num_repeats: 10
 num_splits: 1
@@ -44,7 +44,7 @@ plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
 projection_source: scores
-random_state: 42
+random_state: 88
 reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
@@ -61,7 +61,7 @@ rt_range:
 sample_display_mode: names
 selected_attribute: nuts
 selected_datasets:
-- bordeaux_oak_paper1
+- bordeaux_oak
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
@@ -70,7 +70,7 @@ show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false
 shuffle_labels: false
-sync_state: false
+sync_state: true
 taster_focus_heatmap: false
 taster_scaling: false
 taster_vs_mean: false
