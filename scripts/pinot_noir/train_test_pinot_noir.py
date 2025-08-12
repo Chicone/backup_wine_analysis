@@ -169,6 +169,7 @@ if __name__ == "__main__":
     show_sample_names = config["show_sample_names"]
     invert_x =  config["invert_x"]
     invert_y =  config["invert_y"]
+    rot_axes =  config["rot_axes"]
     sample_display_mode = config["sample_display_mode"]
     show_year = True if sample_display_mode == "years" else False
     show_sample_names = True if sample_display_mode == "names" else False
@@ -187,13 +188,11 @@ if __name__ == "__main__":
     class_by_year = config['class_by_year']
     region = config["region"]
     # Enforce exclusivity logic
-    if region == "origin" and not color_by_winery:
-        color_by_origin = True
-    elif region == "winery" and not color_by_origin:
-        color_by_winery = True
-    else:
-        color_by_origin = False
-        color_by_winery = False
+    if not color_by_origin and not color_by_winery:
+        if region == "origin":
+            color_by_origin = True
+        elif region == "winery":
+            color_by_winery = True
 
     # wine_kind = config["wine_kind"]
     show_confusion_matrix = config['show_confusion_matrix']
@@ -279,7 +278,7 @@ if __name__ == "__main__":
 
     # === Extract data matrix (samples × channels) and associated labels ===
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
-    raw_sample_labels = labels.copy()
+    raw_sample_labels = labels.copy()  # Save raw labels for annotation
 
     # Extract only Burgundy if region is "burgundy"
     if wine_kind == "pinot_noir" and region == "burgundy":
@@ -454,12 +453,13 @@ if __name__ == "__main__":
         ]
         if region == "winery":
             legend_labels = {
-                "D": "D = Clos Des Mouches Drouhin (FR)",
-                "E": "E = Vigne de l’Enfant Jésus Bouchard (FR)",
-                "Q": "Q = Nuit Saint Georges - Les Cailles Bouchard (FR)",
-                "P": "P = Bressandes Jadot (FR)",
-                "R": "R = Les Petits Monts Jadot (FR)",
-                "Z": "Z = Nuit Saint Georges - Les Boudots Drouhin (FR)",
+                "D": "D = Clos Des Mouches. Drouhin (FR)",
+                "R": "R = Les Petits Monts. Drouhin (FR)",
+                "X": "X = Domaine Drouhin (US)",
+                "E": "E = Vigne de l’Enfant Jésus. Bouchard (FR)",
+                "Q": "Q = Les Cailles. Bouchard (FR)",
+                "P": "P = Bressandes. Jadot (FR)",
+                "Z": "Z = Les Boudots. Jadot (FR)",
                 "C": "C = Domaine Schlumberger (FR)",
                 "W": "W = Domaine Jean Sipp (FR)",
                 "Y": "Y = Domaine Weinbach (FR)",
@@ -469,13 +469,12 @@ if __name__ == "__main__":
                 "L": "L = Domaine de la République (CH)",
                 "H": "H = Les Maladaires (CH)",
                 "U": "U = Marimar Estate (US)",
-                "X": "X = Domaine Drouhin (US)"
         }
         elif region == "origin":
             legend_labels = {
                 "A": "Alsace",
                 "B": "Burgundy",
-                "N": "Neuchatel",
+                "N": "Neuchâtel",
                 "G": "Geneva",
                 "V": "Valais",
                 "C": "California",
@@ -545,12 +544,13 @@ if __name__ == "__main__":
 
 
         legend_labels = {
-            "D": "D = Clos Des Mouches Drouhin (FR)",
-            "E": "E = Vigne de l’Enfant Jésus Bouchard (FR)",
-            "Q": "Q = Nuit Saint Georges - Les Cailles Bouchard (FR)",
-            "P": "P = Bressandes Jadot (FR)",
-            "R": "R = Les Petits Monts Jadot (FR)",
-            "Z": "Z = Nuit Saint Georges - Les Boudots Drouhin (FR)",
+            "D": "D = Clos Des Mouches. Drouhin (FR)",
+            "R": "R = Les Petits Monts. Drouhin (FR)",
+            "X": "X = Domaine Drouhin (US)",
+            "E": "E = Vigne de l’Enfant Jésus. Bouchard (FR)",
+            "Q": "Q = Les Cailles. Bouchard (FR)",
+            "P": "P = Bressandes. Jadot (FR)",
+            "Z": "Z = Les Boudots. Jadot (FR)",
             "C": "C = Domaine Schlumberger (FR)",
             "W": "W = Domaine Jean Sipp (FR)",
             "Y": "Y = Domaine Weinbach (FR)",
@@ -560,7 +560,6 @@ if __name__ == "__main__":
             "L": "L = Domaine de la République (CH)",
             "H": "H = Les Maladaires (CH)",
             "U": "U = Marimar Estate (US)",
-            "X": "X = Domaine Drouhin (US)"
         }
 
         if data_for_umap is not None:
@@ -570,7 +569,7 @@ if __name__ == "__main__":
                     reducer.umap(components=projection_dim, n_neighbors=n_neighbors, random_state=random_state),
                     plot_title, projection_labels, legend_labels, color_by_country, test_sample_names=test_samples_names,
                     unique_samples_only=False, n_neighbors=n_neighbors, random_state=random_state,
-                    invert_x=invert_x, invert_y=invert_y,
+                    invert_x=invert_x, invert_y=invert_y, rot_axes=rot_axes,
                     raw_sample_labels=raw_sample_labels, show_year=show_year,
                     color_by_origin=color_by_origin, color_by_winery=color_by_winery, highlight_burgundy_ns=True,
                     exclude_us=exclude_us, density_plot=density_plot,

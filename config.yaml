@@ -1,13 +1,14 @@
 chrom_cap: 35000
-class_by_year: false
-classifier: RGC
+class_by_year: true
+classifier: LDA
 color_by_country: false
-color_by_origin: true
+color_by_origin: false
 color_by_winery: false
 constant_ohe: false
 cv_type: LOO
 datasets:
   bordeaux_oak: /home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/
+  bordeaux_oak_paper1: /home/luiscamara/Documents/datasets/BordeauxData/oak_paper/
   cab_sauv_2021: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/
   cab_sauv_2022: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/
   cab_sauv_2023: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/
@@ -17,11 +18,12 @@ datasets:
   pinot_noir_changins: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/Changins/220322_Pinot_Noir_Tom_CDF/
   pinot_noir_isvv_dllme: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/DLLME_SCAN/
   pinot_noir_isvv_lle: /home/luiscamara/Documents/datasets/3D_data/PINOT_NOIR/ISVV/LLE_SCAN/
-density_plot: true
+density_plot: false
 do_classification: false
 downsample_group: true
 exclude_us: false
-feature_type: tic_tis
+feature_type: tic
+flip_axes: true
 global_focus_heatmap: true
 group_wines: false
 invert_x: false
@@ -30,35 +32,36 @@ label_target: prod area
 label_targets:
 - age
 n_decimation: 10
-n_neighbors: 6
+n_neighbors: 30
 normalize: true
 num_repeats: 50
 num_splits: 1
 plot_all_tests: false
-plot_projection: scores
+plot_projection: false
 plot_r2: false
 plot_shap: false
 plot_umap: scores
 projection_dim: 2
 projection_method: UMAP
 projection_source: scores
-random_state: 1
+random_state: 42
 reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
-region: winery
+region: ''
 regressor: null
 remove_avg_scores: false
 retention_time_range:
   max: 30000
   min: 0
+rot_axes: false
 rt_range:
   max: 30000
   min: 0
 sample_display_mode: names
 selected_attribute: nuts
 selected_datasets:
-- pinot_noir_changins
+- bordeaux_oak_paper1
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false

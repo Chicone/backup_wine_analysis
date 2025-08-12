@@ -143,6 +143,7 @@ async def run_script(payload: dict):
         ("cv_type", "LOOPC"),
         ("invert_x", "invert_x"),
         ("invert_y", "invert_y"),
+        ("rot_axes", "rot_axes"),
         ("global_focus_heatmap", "global_focus_heatmap"),
         ("taster_focus_heatmap", "taster_focus_heatmap"),
         ("plot_r2", "plot_r2"),

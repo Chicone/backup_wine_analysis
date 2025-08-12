@@ -48,7 +48,8 @@ const drawerWidth = 240;
 
 const projectionLabels = {
   scores: "Scores",
-  concatenated: "Concatenated",
+  concat_channels: "Concat channels",
+  best_channel: "Best channel",
   tic: "TIC",
   tis: "TIS",
   tic_tis: "TIC + TIS",
@@ -86,7 +87,7 @@ function App() {
   const [logs, setLogs] = useState("");
   const defaultFeatureType = "tic_tis"; // or whatever default you expect
   const [featureType, setFeatureType] = useState("tic_tis");
-  const [cvType, setCvType] = useState("LOOPC");
+  const [cvType, setCvType] = useState("LOO");
   const [showConfusionMatrix, setShowConfusionMatrix] = useState(false);
   const [wineFamily, setWineFamily] = useState("bordeaux");
   const [task, setTask] = useState("classification");
@@ -112,6 +113,7 @@ function App() {
   const [randomState, setRandomState] = useState(42);
   const [invertX, setInvertX] = useState(false);
   const [invertY, setInvertY] = useState(false);
+  const [rotAxes, setRotAxes] = useState(false);
   const [umapData, setUmapData] = useState(null);
   const [labelTargets, setLabelTargets] = useState(["taster"]);
   const [showSampleNames, setShowSampleNames] = useState(false);
@@ -169,6 +171,14 @@ function App() {
       { value: "scores", label: "Class. Scores" },
       { value: "tic_tis", label: "TIC + TIS" },
     ],
+    concat_channels: [
+        { value: "scores", label: "Class. Scores" },
+        { value: "concat_channels", label: "Concat Channels" },
+      ],
+    best_channel: [
+        { value: "scores", label: "Class. Scores" },
+        { value: "best_channel", label: "Best Channel" },
+    ],
   };
   const defaultProjectionOptions =
     featureToProjectionOptions[defaultFeatureType] || [];
@@ -179,7 +189,10 @@ function App() {
     featureToProjectionOptions[featureType],
   );
   const datasetOptions = {
-    bordeaux: ["bordeaux_oak"],
+    bordeaux: [
+        "bordeaux_oak",
+        "bordeaux_oak_paper1",
+        ],
     press: [
       "merlot_2021",
       "merlot_2022",
@@ -439,6 +452,7 @@ useEffect(() => {
       cv_type: cvType,
       invert_x: invertX,
       invert_y: invertY,
+      rot_axes: rotAxes,
       plot_r2: plotR2,
       sample_display_mode: sampleDisplayMode,
       color_by_winery: colorByWinery,
@@ -986,6 +1000,8 @@ useEffect(() => {
                           <MenuItem value="tic">TIC</MenuItem>
                           <MenuItem value="tis" disabled={wineFamily === "champagne"}>TIS</MenuItem>
                           <MenuItem value="tic_tis" disabled={wineFamily === "champagne"}>TIC + TIS</MenuItem>
+                          <MenuItem value="concat_channels">Concat channels</MenuItem>
+                          <MenuItem value="best_channel">Best channel</MenuItem>
                           </Select>
                         </FormControl>
                       </Grid>
@@ -1565,13 +1581,19 @@ useEffect(() => {
                                     control={
                                       <Checkbox checked={invertX} onChange={(e) => setInvertX(e.target.checked)} />
                                     }
-                                    label="Invert X axis"
+                                    label="-X"
                                   />
                                   <FormControlLabel
                                     control={
                                       <Checkbox checked={invertY} onChange={(e) => setInvertY(e.target.checked)} />
                                     }
-                                    label="Invert Y axis"
+                                    label="-Y"
+                                  />
+                                  <FormControlLabel
+                                    control={
+                                      <Checkbox checked={rotAxes} onChange={(e) => setRotAxes(e.target.checked)} />
+                                    }
+                                    label="Flip Axes"
                                   />
                                 </FormGroup>
                             </>
@@ -1795,13 +1817,19 @@ useEffect(() => {
                                     control={
                                       <Checkbox checked={invertX} onChange={(e) => setInvertX(e.target.checked)} />
                                     }
-                                    label="Invert X axis"
+                                    label="-X"
                                   />
                                   <FormControlLabel
                                     control={
                                       <Checkbox checked={invertY} onChange={(e) => setInvertY(e.target.checked)} />
                                     }
-                                    label="Invert Y axis"
+                                    label="-Y"
+                                  />
+                                   <FormControlLabel
+                                    control={
+                                      <Checkbox checked={rotAxes} onChange={(e) => setRotAxes(e.target.checked)} />
+                                    }
+                                    label="Rotate"
                                   />
                                 </FormGroup>
 
