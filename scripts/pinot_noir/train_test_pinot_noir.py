@@ -179,6 +179,7 @@ if __name__ == "__main__":
     density_plot = config.get("density_plot", False)
 
     # Run Parameters
+    sotf_ret_time = config.get("sotf_ret_time")
     feature_type = config["feature_type"]
     classifier = config["classifier"]
     num_repeats = config["num_repeats"]
@@ -254,7 +255,29 @@ if __name__ == "__main__":
         tics, data_dict = cl.align_tics(data_dict, gcms, chrom_cap=30000)
         gcms = GCMSDataProcessor(data_dict)
 
-    # Extract data matrix (samples × channels) and associated labels
+
+    def split_into_bins(data, n_bins):
+        """
+        Split TIC into uniform bins (segments).
+        Returns a list of (start_idx, end_idx) for each bin.
+        """
+        total_points = data.shape[1]
+        bin_edges = np.linspace(0, total_points, n_bins + 1, dtype=int)
+        return [(bin_edges[i], bin_edges[i+1]) for i in range(n_bins)]
+
+
+    def remove_bins(data, bins_to_remove, bin_ranges):
+        """
+        Remove (zero out) specified bins in TIC by index.
+        """
+        data_copy = data.copy()
+        for b in bins_to_remove:
+            start, end = bin_ranges[b]
+            data_copy[:, start:end] = 0  # Mask out that bin segment
+        return data_copy
+
+
+    # === Extract data matrix (samples × channels) and associated labels ===
     data, labels = np.array(list(gcms.data.values())), np.array(list(gcms.data.keys()))
     raw_sample_labels = labels.copy()  # Save raw labels for annotation
 
@@ -265,57 +288,163 @@ if __name__ == "__main__":
         data = data[mask]
         labels = labels[mask]
         raw_sample_labels = raw_sample_labels[mask]
-       
+
     labels, year_labels = process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, None)
 
-    # Instantiate classifier with data and labels
-    cls = Classifier(
-        np.array(list(data)),
-        np.array(list(labels)),
-        classifier_type=classifier,
-        wine_kind=wine_kind,
-        class_by_year=class_by_year,
-        year_labels=np.array(year_labels),
-        strategy=strategy,
-        sample_labels=np.array(raw_sample_labels),
-        dataset_origins=dataset_origins,
-    )
+    # === Define binning ===
+    n_bins = 50
+    min_bins = 1
+    bin_ranges = split_into_bins(data, n_bins)
+    active_bins = list(range(n_bins))
 
-    if cv_type == "LOOPC" or cv_type == "stratified":
-        loopc = False if cv_type == "stratified" else True
-        # Train and evaluate on all channels. Parameter "feature_type" decides how to aggregate channels
-        mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_all_channels(
-            num_repeats=num_repeats,
-            random_seed=42,
-            test_size=0.2,
-            normalize=normalize_flag,
-            scaler_type='standard',
-            use_pca=False,
-            vthresh=0.97,
-            region=region,
-            print_results=True,
-            n_jobs=20,
-            feature_type=feature_type,
-            classifier_type=classifier,
-            LOOPC=loopc , # whether to use stratified splitting (False) or Leave One Out Per Class (True),
-            projection_source=projection_source,
-            show_confusion_matrix=show_confusion_matrix
-        )
-    elif cv_type == "LOO":
-        mean_acc, std_acc, scores, all_labels, test_samples_names = cls.train_and_evaluate_leave_one_out_all_samples(
-            normalize=normalize_flag,
-            scaler_type='standard',
-            region=region,
-            feature_type=feature_type,
-            classifier_type=classifier,
-            projection_source=projection_source,
-            show_confusion_matrix=show_confusion_matrix,
-        )
 
+    # === Iteration logic ===
+    if sotf_ret_time:
+        n_iterations = n_bins - min_bins + 1
     else:
-        raise ValueError(f"Invalid cross-validation type: '{cv_type}'. Expected 'LOO' or 'LOOPC'.")
+        n_iterations = 1
 
-    logger.info(f"Mean Balanced Accuracy: {mean_acc:.3f} ± {std_acc:.3f}")
+    # === Progressive plot setup (only for survival mode) ===
+    if sotf_ret_time:
+        cv_label = "LOO" if cv_type == "LOO" else "LOOPC" if cv_type == "LOOPC" else "Stratified"
+        plt.ion()
+        fig, ax = plt.subplots(figsize=(8, 5))
+        line, = ax.plot([], [], marker='o')
+        ax.set_xlabel("Percentage of TIC data remaining (%)")
+        ax.set_ylabel("Accuracy")
+        # ax.set_title(f"Survival of the fittest: Accuracy vs TIC data Remaining ({cv_label} CV)")
+        ax.grid(True)
+        ax.set_xlim(100, 0)  # start at 100% and decrease
+
+    accuracies = []
+    percent_remaining = []
+    baseline_nonzero = np.count_nonzero(data)
+
+    # === Main loop ===
+    for step in range(n_iterations):
+        logger.info(f"=== Iteration {step + 1}/{n_iterations} | Active bins: {len(active_bins)} ===")
+
+        # --- Mask inactive bins ---
+        masked_data = remove_bins(
+            data,
+            bins_to_remove=[b for b in range(n_bins) if b not in active_bins],
+            bin_ranges=bin_ranges
+        )
+
+        # Compute % TIC data remaining
+        pct_data = (np.count_nonzero(masked_data) / baseline_nonzero) * 100
+        percent_remaining.append(pct_data)
+
+        # Instantiate classifier
+        cls = Classifier(
+            masked_data,
+            labels,
+            classifier_type=classifier,
+            wine_kind=wine_kind,
+            class_by_year=class_by_year,
+            year_labels=np.array(year_labels),
+            strategy=strategy,
+            sample_labels=np.array(raw_sample_labels),
+            dataset_origins=dataset_origins,
+        )
+
+        # Train & evaluate
+        if cv_type in ["LOOPC", "stratified"]:
+            loopc = (cv_type == "LOOPC")
+            mean_acc, std_acc, *_ = cls.train_and_evaluate_all_channels(
+                num_repeats=num_repeats,
+                random_seed=42,
+                test_size=0.2,
+                normalize=normalize_flag,
+                scaler_type='standard',
+                use_pca=False,
+                vthresh=0.97,
+                region=region,
+                print_results=False,
+                n_jobs=20,
+                feature_type=feature_type,
+                classifier_type=classifier,
+                LOOPC=loopc,
+                projection_source=projection_source,
+                show_confusion_matrix=show_confusion_matrix,
+            )
+        elif cv_type == "LOO":
+            mean_acc, std_acc, *_ = cls.train_and_evaluate_leave_one_out_all_samples(
+                normalize=normalize_flag,
+                scaler_type='standard',
+                region=region,
+                feature_type=feature_type,
+                classifier_type=classifier,
+                projection_source=projection_source,
+                show_confusion_matrix=show_confusion_matrix,
+            )
+        else:
+            raise ValueError(f"Invalid cross-validation type: '{cv_type}'.")
+
+        accuracies.append(mean_acc)
+        logger.info(f"Accuracy: {mean_acc:.3f} ± {std_acc:.3f}")
+
+        # === Update live plot (only survival mode) ===
+        if sotf_ret_time:
+            line.set_data(percent_remaining, accuracies)
+            ax.set_xlim(100, min(percent_remaining) - 5)
+            ax.set_ylim(0, 1)
+            plt.draw()
+            plt.pause(0.2)
+
+        # === Greedy bin removal ===
+        if sotf_ret_time and len(active_bins) > min_bins:
+            candidate_accuracies = []
+            for b in active_bins:
+                temp_bins = [x for x in active_bins if x != b]
+                temp_masked_data = remove_bins(
+                    data,
+                    bins_to_remove=[x for x in range(n_bins) if x not in temp_bins],
+                    bin_ranges=bin_ranges
+                )
+
+                temp_cls = Classifier(
+                    temp_masked_data,
+                    labels,
+                    classifier_type=classifier,
+                    wine_kind=wine_kind,
+                    class_by_year=class_by_year,
+                    year_labels=np.array(year_labels),
+                    strategy=strategy,
+                    sample_labels=np.array(raw_sample_labels),
+                    dataset_origins=dataset_origins,
+                )
+
+                temp_acc, _, *_ = temp_cls.train_and_evaluate_all_channels(
+                    num_repeats=10,  # fewer repeats for speed
+                    random_seed=42,
+                    test_size=0.2,
+                    normalize=normalize_flag,
+                    scaler_type='standard',
+                    use_pca=False,
+                    vthresh=0.97,
+                    region=region,
+                    print_results=False,
+                    n_jobs=10,
+                    feature_type=feature_type,
+                    classifier_type=classifier,
+                    LOOPC=(cv_type == "LOOPC"),
+                    projection_source=projection_source,
+                    show_confusion_matrix=False,
+                )
+                candidate_accuracies.append((b, temp_acc))
+
+            # Pick bin whose removal gives best accuracy
+            best_bin, best_candidate_acc = max(candidate_accuracies, key=lambda x: x[1])
+            logger.info(f"Removing bin {best_bin}: next accuracy would be {best_candidate_acc:.3f}")
+            active_bins.remove(best_bin)
+
+    # === Finalize plot ===
+    if sotf_ret_time:
+        plt.ioff()
+        plt.show()
+    else:
+        logger.info(f"Final Accuracy (no survival): {accuracies[0]:.3f}")
 
 
     if plot_projection:

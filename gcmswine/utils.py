@@ -1772,7 +1772,6 @@ def join_datasets(selected_datasets, data_directories, n_decimation):
         raise ValueError(f"Dataset {first_dataset} does not have a corresponding directory.")
 
     row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(first_directory)
-    row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(first_directory)
     column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
 
     # Load and process each selected dataset
@@ -1903,7 +1902,7 @@ import os
 import re
 import pandas as pd
 
-def create_dir_of_samples_from_bordeaux(input_path, output_root=None):
+def create_dir_of_samples_from_bordeaux_oak(input_path, output_root=None):
     """
     Parse a wide-format file where columns are labeled like:
         'Tr Bois_V1990', 'Ab Bois_V1990', 'Tr Bois_A2000', 'Ab Bois_A2000', ...
@@ -1989,6 +1988,129 @@ def create_dir_of_samples_from_bordeaux(input_path, output_root=None):
         # Also drop rows where both cells are blank strings
         sub = sub[~((sub["Ret. Time"].astype(str).str.strip() == "") &
                     (sub["TIC"].astype(str).str.strip() == ""))].reset_index(drop=True)
+
+        out_dir = os.path.join(output_root, f"{full_name}.D")
+        os.makedirs(out_dir, exist_ok=True)
+        out_csv = os.path.join(out_dir, f"{full_name}.csv")
+        sub.to_csv(out_csv, index=False)
+        created.append(out_csv)
+        print(f"✅ Saved: {out_csv}")
+
+    print("✔️ All samples extracted.")
+    return created
+
+from collections import defaultdict
+def create_dir_of_samples_from_bordeaux_ester(input_path, output_root=None):
+    """
+    Parse wide-format GC-MS tables where headers look like:
+      'Tr Esters V_1990-A', 'Ab Esters V_1990-A', 'Tr Esters V_1990-B', 'Ab Esters V_1990-B', ...
+
+    Behavior:
+      - Auto-detects the header row (first row containing 'Tr/Ab (Bois|Esters) ...').
+      - Extracts sample IDs from the token AFTER 'Tr/Ab Esters|Bois', e.g. 'V_1990-A'.
+      - Normalizes sample base ID to remove the underscore -> 'V1990'.
+      - Averages replicates (suffix A/B/etc.) *per base ID* for both Tr (retention time) and Ab (signal).
+      - Outputs a single pair of columns per base ID: ["Ret. Time", "TIC"].
+      - Writes to <output_root>/<BaseID>-<rep>.D/<BaseID>-<rep>.csv (rep is a running index if same base appears multiple times).
+
+    Returns:
+      list[str]: paths to created CSV files.
+    """
+
+    # Read raw (no header)
+    raw = pd.read_csv(input_path, header=None, dtype=str)
+
+    # Regex that accepts both 'Bois' and 'Esters' and captures:
+    # kind = Tr|Ab, letter = V/A/F/..., year = digits, opt suffix = A|B...
+    header_pat = re.compile(
+        r"^\s*(Tr|Ab)\s*(?:Bois|Esters)\s*[_\-\s]*([A-Za-z])[_\-\s]*(\d{2,4})(?:[_\-\s]*-?([A-Za-z]))?\s*$",
+        re.IGNORECASE
+    )
+
+    # 1) Find header row
+    header_row = None
+    for r in range(min(len(raw), 200)):
+        cells = raw.iloc[r].fillna("").astype(str)
+        if any(header_pat.match(c.strip()) for c in cells):
+            header_row = r
+            break
+    if header_row is None:
+        raise ValueError("Header row with 'Tr/Ab (Bois|Esters)' not found.")
+
+    headers = raw.iloc[header_row].fillna("").astype(str).tolist()
+    data = raw.iloc[header_row + 1:].reset_index(drop=True)
+
+    # 2) Parse columns -> collect indices by base_id and replicate suffix
+    #    base_id = e.g. 'V1990'  (underscore removed)
+    tr_cols = defaultdict(dict)  # base_id -> {suffix->col_index}
+    ab_cols = defaultdict(dict)
+
+    for j, h in enumerate(headers):
+        h_clean = h.strip()
+        if not h_clean:
+            continue
+        m = header_pat.match(h_clean)
+        if not m:
+            continue
+        kind, letter, year, suffix = m.groups()
+        base_id = f"{letter.upper()}{year}"     # remove underscore: V_1990 -> V1990
+        suffix = (suffix.upper() if suffix else None)
+
+        if kind.lower() == "tr":
+            tr_cols[base_id][suffix] = j
+        else:
+            ab_cols[base_id][suffix] = j
+
+    # Intersect to only bases that have both Tr and Ab
+    base_ids = sorted(set(tr_cols.keys()) & set(ab_cols.keys()))
+    if not base_ids:
+        raise ValueError("No matched (Tr, Ab) base IDs found.")
+
+    if output_root is None:
+        output_root = os.path.dirname(input_path)
+    os.makedirs(output_root, exist_ok=True)
+
+    created = []
+    name_counts = {}
+
+    def _mean_across(df, col_idxs):
+        """Rowwise mean over the given column indices (as floats), ignoring all-empty rows."""
+        if len(col_idxs) == 1:
+            return pd.to_numeric(df.iloc[:, col_idxs[0]], errors="coerce")
+        # mean across columns
+        arr = pd.concat([pd.to_numeric(df.iloc[:, k], errors="coerce") for k in col_idxs], axis=1)
+        return arr.mean(axis=1)
+
+    for base in base_ids:
+        # Collect replicate indices for this base
+        tr_idx_list = sorted([idx for idx in tr_cols[base].values() if idx is not None])
+        ab_idx_list = sorted([idx for idx in ab_cols[base].values() if idx is not None])
+
+        if not tr_idx_list or not ab_idx_list:
+            # skip if missing any side
+            continue
+
+        # 3) Average replicates for Tr and Ab separately
+        tr_series = _mean_across(data, tr_idx_list)
+        ab_series = _mean_across(data, ab_idx_list)
+
+        # Build output DataFrame with a single pair of columns
+        sub = pd.DataFrame({
+            "Ret. Time": tr_series,
+            "TIC": ab_series
+        })
+
+        # Drop rows that are entirely NaN or both cells blank/NaN
+        sub = sub.dropna(how="all").reset_index(drop=True)
+        sub = sub[~(
+            sub["Ret. Time"].astype(str).str.strip().isin(["", "nan"]) &
+            sub["TIC"].astype(str).str.strip().isin(["", "nan"])
+        )].reset_index(drop=True)
+
+        # 4) Save: one file per base (rep index if base repeats)
+        safe_base = re.sub(r"[^\w\-.()+]", "_", base) or "Sample"
+        name_counts[safe_base] = name_counts.get(safe_base, 0) + 1
+        full_name = f"{safe_base}-{name_counts[safe_base]}"
 
         out_dir = os.path.join(output_root, f"{full_name}.D")
         os.makedirs(out_dir, exist_ok=True)
