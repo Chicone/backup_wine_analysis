@@ -1887,6 +1887,356 @@ def average_confusion_matrices_ignore_empty_rows(confusion_matrices):
     normalized_mean_cm = np.divide(mean_cm, row_sums, where=row_sums != 0)
     return normalized_mean_cm
 
+
+import os
+import re
+import pandas as pd
+
+
+
+import os
+import re
+import pandas as pd
+
+import os
+import re
+import pandas as pd
+
+def create_dir_of_samples_from_bordeaux_oak(input_path, output_root=None):
+    """
+    Parse a wide-format file where columns are labeled like:
+        'Tr Bois_V1990', 'Ab Bois_V1990', 'Tr Bois_A2000', 'Ab Bois_A2000', ...
+    with optional empty spacer columns, and metadata lines above the header.
+
+    - Detects the header row automatically (first row containing 'Tr Bois' or 'Ab Bois').
+    - Extracts sample IDs from the part AFTER 'Tr Bois'/'Ab Bois' (e.g., 'V1990', 'A2000').
+    - Pairs each Tr (retention time) with the matching Ab (signal) for the same sample ID.
+    - Writes each pair into <output_root>/<SampleID>-<rep>.D/<SampleID>-<rep>.csv as:
+        columns: ["Ret. Time", "TIC"]
+
+    Returns:
+        list[str]: paths to the created CSV files.
+    """
+    # --- Read CSV (no header) ---
+    raw = pd.read_csv(input_path, header=None, dtype=str)
+
+    # --- Find header row: first row that contains 'Tr Bois' or 'Ab Bois' in any cell ---
+    header_row = None
+    for r in range(min(len(raw), 100)):
+        row_vals = " | ".join(str(x) for x in raw.iloc[r].fillna(""))
+        if ("Tr Bois" in row_vals) or ("Ab Bois" in row_vals):
+            header_row = r
+            break
+    if header_row is None:
+        raise ValueError("Header row with 'Tr Bois'/'Ab Bois' not found.")
+
+    headers = raw.iloc[header_row].fillna("").astype(str).tolist()
+    # Data begins on next row
+    data = raw.iloc[header_row + 1:].reset_index(drop=True)
+
+    # --- Build column pairs by parsing headers ---
+    # Accepts: 'Tr Bois_X', 'Ab Bois_X' (X = sample id). Flexible on spaces/underscore/dash.
+    tr_pat = re.compile(r"^\s*Tr\s*Bois\s*[_\-\s]*([A-Za-z0-9]+)\s*$", re.IGNORECASE)
+    ab_pat = re.compile(r"^\s*Ab\s*Bois\s*[_\-\s]*([A-Za-z0-9]+)\s*$", re.IGNORECASE)
+
+    # Map sample_id -> indices
+    tr_cols = {}
+    ab_cols = {}
+
+    for j, h in enumerate(headers):
+        h_clean = h.strip()
+        if not h_clean:
+            continue  # skip empty columns
+        m_tr = tr_pat.match(h_clean)
+        if m_tr:
+            sid = m_tr.group(1)
+            tr_cols[sid] = j
+            continue
+        m_ab = ab_pat.match(h_clean)
+        if m_ab:
+            sid = m_ab.group(1)
+            ab_cols[sid] = j
+            continue
+
+    # Intersect keys to get valid pairs
+    sample_ids = sorted(set(tr_cols.keys()) & set(ab_cols.keys()))
+    if not sample_ids:
+        raise ValueError("No (Tr, Ab) pairs found with matching sample IDs.")
+
+    # Output root
+    if output_root is None:
+        output_root = os.path.dirname(input_path)
+    os.makedirs(output_root, exist_ok=True)
+
+    created = []
+    counts = {}
+
+    for sid in sample_ids:
+        rt_idx = tr_cols[sid]
+        ab_idx = ab_cols[sid]
+
+        # Sanitize sample id for filesystem
+        base_name = re.sub(r"[^\w\-.()+]", "_", sid) or "Sample"
+        counts[base_name] = counts.get(base_name, 0) + 1
+        full_name = f"{base_name}-{counts[base_name]}"
+
+        sub = data.iloc[:, [rt_idx, ab_idx]].copy()
+        sub.columns = ["Ret. Time", "TIC"]
+        # Drop fully empty rows
+        sub = sub.dropna(how="all").reset_index(drop=True)
+
+        # Also drop rows where both cells are blank strings
+        sub = sub[~((sub["Ret. Time"].astype(str).str.strip() == "") &
+                    (sub["TIC"].astype(str).str.strip() == ""))].reset_index(drop=True)
+
+        out_dir = os.path.join(output_root, f"{full_name}.D")
+        os.makedirs(out_dir, exist_ok=True)
+        out_csv = os.path.join(out_dir, f"{full_name}.csv")
+        sub.to_csv(out_csv, index=False)
+        created.append(out_csv)
+        print(f"✅ Saved: {out_csv}")
+
+    print("✔️ All samples extracted.")
+    return created
+
+from collections import defaultdict
+def create_dir_of_samples_from_bordeaux_ester(input_path, output_root=None):
+    """
+    Parse wide-format GC-MS tables where headers look like:
+      'Tr Esters V_1990-A', 'Ab Esters V_1990-A', 'Tr Esters V_1990-B', 'Ab Esters V_1990-B', ...
+
+    Behavior:
+      - Auto-detects the header row (first row containing 'Tr/Ab (Bois|Esters) ...').
+      - Extracts sample IDs from the token AFTER 'Tr/Ab Esters|Bois', e.g. 'V_1990-A'.
+      - Normalizes sample base ID to remove the underscore -> 'V1990'.
+      - Averages replicates (suffix A/B/etc.) *per base ID* for both Tr (retention time) and Ab (signal).
+      - Outputs a single pair of columns per base ID: ["Ret. Time", "TIC"].
+      - Writes to <output_root>/<BaseID>-<rep>.D/<BaseID>-<rep>.csv (rep is a running index if same base appears multiple times).
+
+    Returns:
+      list[str]: paths to created CSV files.
+    """
+
+    # Read raw (no header)
+    raw = pd.read_csv(input_path, header=None, dtype=str)
+
+    # Regex that accepts both 'Bois' and 'Esters' and captures:
+    # kind = Tr|Ab, letter = V/A/F/..., year = digits, opt suffix = A|B...
+    header_pat = re.compile(
+        r"^\s*(Tr|Ab)\s*(?:Bois|Esters)\s*[_\-\s]*([A-Za-z])[_\-\s]*(\d{2,4})(?:[_\-\s]*-?([A-Za-z]))?\s*$",
+        re.IGNORECASE
+    )
+
+    # 1) Find header row
+    header_row = None
+    for r in range(min(len(raw), 200)):
+        cells = raw.iloc[r].fillna("").astype(str)
+        if any(header_pat.match(c.strip()) for c in cells):
+            header_row = r
+            break
+    if header_row is None:
+        raise ValueError("Header row with 'Tr/Ab (Bois|Esters)' not found.")
+
+    headers = raw.iloc[header_row].fillna("").astype(str).tolist()
+    data = raw.iloc[header_row + 1:].reset_index(drop=True)
+
+    # 2) Parse columns -> collect indices by base_id and replicate suffix
+    #    base_id = e.g. 'V1990'  (underscore removed)
+    tr_cols = defaultdict(dict)  # base_id -> {suffix->col_index}
+    ab_cols = defaultdict(dict)
+
+    for j, h in enumerate(headers):
+        h_clean = h.strip()
+        if not h_clean:
+            continue
+        m = header_pat.match(h_clean)
+        if not m:
+            continue
+        kind, letter, year, suffix = m.groups()
+        base_id = f"{letter.upper()}{year}"     # remove underscore: V_1990 -> V1990
+        suffix = (suffix.upper() if suffix else None)
+
+        if kind.lower() == "tr":
+            tr_cols[base_id][suffix] = j
+        else:
+            ab_cols[base_id][suffix] = j
+
+    # Intersect to only bases that have both Tr and Ab
+    base_ids = sorted(set(tr_cols.keys()) & set(ab_cols.keys()))
+    if not base_ids:
+        raise ValueError("No matched (Tr, Ab) base IDs found.")
+
+    if output_root is None:
+        output_root = os.path.dirname(input_path)
+    os.makedirs(output_root, exist_ok=True)
+
+    created = []
+    name_counts = {}
+
+    def _mean_across(df, col_idxs):
+        """Rowwise mean over the given column indices (as floats), ignoring all-empty rows."""
+        if len(col_idxs) == 1:
+            return pd.to_numeric(df.iloc[:, col_idxs[0]], errors="coerce")
+        # mean across columns
+        arr = pd.concat([pd.to_numeric(df.iloc[:, k], errors="coerce") for k in col_idxs], axis=1)
+        return arr.mean(axis=1)
+
+    for base in base_ids:
+        # Collect replicate indices for this base
+        tr_idx_list = sorted([idx for idx in tr_cols[base].values() if idx is not None])
+        ab_idx_list = sorted([idx for idx in ab_cols[base].values() if idx is not None])
+
+        if not tr_idx_list or not ab_idx_list:
+            # skip if missing any side
+            continue
+
+        # 3) Average replicates for Tr and Ab separately
+        tr_series = _mean_across(data, tr_idx_list)
+        ab_series = _mean_across(data, ab_idx_list)
+
+        # Build output DataFrame with a single pair of columns
+        sub = pd.DataFrame({
+            "Ret. Time": tr_series,
+            "TIC": ab_series
+        })
+
+        # Drop rows that are entirely NaN or both cells blank/NaN
+        sub = sub.dropna(how="all").reset_index(drop=True)
+        sub = sub[~(
+            sub["Ret. Time"].astype(str).str.strip().isin(["", "nan"]) &
+            sub["TIC"].astype(str).str.strip().isin(["", "nan"])
+        )].reset_index(drop=True)
+
+        # 4) Save: one file per base (rep index if base repeats)
+        safe_base = re.sub(r"[^\w\-.()+]", "_", base) or "Sample"
+        name_counts[safe_base] = name_counts.get(safe_base, 0) + 1
+        full_name = f"{safe_base}-{name_counts[safe_base]}"
+
+        out_dir = os.path.join(output_root, f"{full_name}.D")
+        os.makedirs(out_dir, exist_ok=True)
+        out_csv = os.path.join(out_dir, f"{full_name}.csv")
+        sub.to_csv(out_csv, index=False)
+        created.append(out_csv)
+        print(f"✅ Saved: {out_csv}")
+
+    print("✔️ All samples extracted.")
+    return created
+
+
+
+# def create_dir_of_samples_from_bordeaux(input_csv_path, output_root=None):
+#     """
+#     Extracts individual chromatogram files from a wide-format GC-MS file.
+#
+#     Expected layout:
+#       - Top rows may contain metadata.
+#       - One row with sample names (e.g., A2003, A2010, ...) with blanks interleaved.
+#       - One 'subheader' row with repeating pairs: RET TIME | NORMALIZED (or TIC / NORMALIZED SIGNAL / NORMALISED).
+#       - Data rows follow.
+#
+#     The function:
+#       1) Detects the subheader row automatically (first ~15 rows).
+#       2) Uses the row above it as the sample names row; builds a cleaned list without blanks.
+#       3) Iterates through detected (RET TIME, NORMALIZED/TIC) pairs, assigns names by pair index
+#          from the cleaned name list, and exports each pair to:
+#              <output_root>/<SampleName>-<rep>.D/<SampleName>-<rep>.csv
+#
+#     Returns:
+#       list[str]: paths to the created CSV files.
+#     """
+#     print(f"📄 Reading raw CSV: {input_csv_path}")
+#     raw = pd.read_csv(input_csv_path, header=None, dtype=str)
+#
+#     # --- detect the subheader row (RET TIME / NORMALIZED-like pairs) ---
+#     def is_subheader(row):
+#         vals = [str(x).strip().upper() for x in row.tolist()]
+#         pairs = 0
+#         i = 0
+#         while i + 1 < len(vals):
+#             if vals[i] in ("RET TIME", "RET.TIME", "RETENTION TIME") and vals[i+1] in ("NORMALIZED SIGNAL","NORMALIZED", "NORMALISED", "TIC"):
+#                 pairs += 1
+#                 i += 2
+#             else:
+#                 i += 1
+#         return pairs >= 1
+#
+#     subhdr_idx = None
+#     for r in range(min(15, len(raw))):
+#         if is_subheader(raw.iloc[r]):
+#             subhdr_idx = r
+#             break
+#     if subhdr_idx is None:
+#         raise ValueError("Could not find the RET TIME / NORMALIZED subheader row.")
+#
+#     # --- sample names row is just above the subheaders ---
+#     names_idx = subhdr_idx - 1
+#     sample_names_row = raw.iloc[names_idx].fillna("").astype(str)
+#     # Cleaned list: drop empties so it aligns one-to-one with (RET TIME, TIC) pairs
+#     sample_names_cleaned = [name.strip() for name in sample_names_row if name.strip() != ""]
+#
+#     # --- data starts below the subheaders ---
+#     data = raw.iloc[subhdr_idx + 1:].reset_index(drop=True)
+#
+#     # --- build column index pairs from subheader row ---
+#     sh = raw.iloc[subhdr_idx].astype(str).str.strip().str.upper().tolist()
+#     col_pairs = []
+#     i = 0
+#     while i + 1 < len(sh):
+#         a, b = sh[i], sh[i+1]
+#         if a in ("RET TIME", "RET.TIME", "RETENTION TIME") and b in ("NORMALIZED SIGNAL","NORMALIZED", "NORMALISED", "TIC"):
+#             col_pairs.append((i, i+1))
+#             i += 2
+#         else:
+#             i += 1
+#     if not col_pairs:
+#         raise ValueError("No RET TIME / NORMALIZED column pairs detected.")
+#
+#     # optional: helper fallback if lengths mismatch — walk left to nearest non-empty
+#     def name_for_col_fallback(col_idx: int) -> str:
+#         j = col_idx
+#         while j >= 0 and (sample_names_row.iloc[j] is None or sample_names_row.iloc[j].strip() == ""):
+#             j -= 1
+#         name = (sample_names_row.iloc[j].strip() if j >= 0 else "Sample")
+#         return name or "Sample"
+#
+#     # where to write
+#     if output_root is None:
+#         output_root = os.path.dirname(input_csv_path)
+#     os.makedirs(output_root, exist_ok=True)
+#
+#     created = []
+#     counts = {}
+#
+#     # --- export each pair using the cleaned names list by pair index ---
+#     for pair_idx, (rt_idx, tic_idx) in enumerate(col_pairs):
+#         if pair_idx < len(sample_names_cleaned):
+#             base_name = sample_names_cleaned[pair_idx]
+#         else:
+#             # graceful fallback if names and pairs got out of sync
+#             base_name = name_for_col_fallback(rt_idx)
+#
+#         # sanitize filesystem name
+#         base_name = re.sub(r"[^\w\-.()+]", "_", base_name) or "Sample"
+#
+#         counts[base_name] = counts.get(base_name, 0) + 1
+#         full_name = f"{base_name}-{counts[base_name]}"
+#
+#         dir_path = os.path.join(output_root, f"{full_name}.D")
+#         os.makedirs(dir_path, exist_ok=True)
+#
+#         sub = data.iloc[:, [rt_idx, tic_idx]].copy()
+#         sub.columns = ["Ret. Time", "TIC"]
+#         sub = sub.dropna(axis=0, how="all").reset_index(drop=True)
+#
+#         out_csv = os.path.join(dir_path, f"{full_name}.csv")
+#         sub.to_csv(out_csv, index=False)
+#         created.append(out_csv)
+#         print(f"✅ Saved: {out_csv}")
+#
+#     print("✔️ All samples extracted.")
+#     return created
+
+
 def create_dir_of_samples_from_champagnes(input_csv_path, output_root=".", use_cache=True):
     print(f"📄 Reading raw CSV: {input_csv_path}")
     raw_df = pd.read_csv(input_csv_path, header=None)
@@ -1938,10 +2288,28 @@ def get_custom_order_for_pinot_noir_region(region):
         list or None: Custom ordering of labels, or None if no custom order is needed.
     """
     if region == 'winery':
-        return ['D', 'E', 'Q', 'P', 'R', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+        # return [
+        #     "Clos Des Mouches. Drouhin (FR): D",
+        #     "Les Petits Monts. Drouhin (FR): R",
+        #     "Vigne de l’Enfant Jésus. Bouchard (FR): E",
+        #     "Les Cailles. Bouchard (FR): Q",
+        #     "Bressandes. Jadot (FR): P",
+        #     "Les Boudots. Jadot (FR): Z",
+        #     "Domaine Schlumberger (FR): C",
+        #     "Domaine Jean Sipp (FR): W",
+        #     "Domaine Weinbach (FR): Y",
+        #     "Domaine Brunner (CH): M",
+        #     "Vin des Croisés (CH): N",
+        #     "Domaine Villard et Fils (CH): J",
+        #     "Domaine de la République (CH): L",
+        #     "Les Maladaires (CH): H",
+        #     "Marimar Estate (US): U",
+        #     "Domaine Drouhin (US): X",
+        # ]
+        return ['D', 'R', 'E', 'Q', 'P', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
     elif region == 'origin':
         # return ['Burgundy_North', 'Burgundy_South', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
-        return ['Burgundy', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
+        return ['Burgundy', 'Alsace', 'Neuchâtel', 'Geneva', 'Valais', 'California', 'Oregon']
     elif region == 'country':
         return ['France', 'Switzerland', 'US']
     elif region == 'continent':
@@ -2039,7 +2407,7 @@ def compute_features(data, channels=None, feature_type="concatenated"):
     if channels is None:
         channels = list(range(data.shape[2]))
 
-    if feature_type == "concatenated":
+    if feature_type == "concat_channels":
         return np.hstack([data[:, :, ch].reshape(data.shape[0], -1) for ch in channels])
     elif feature_type == "tic":
         return np.sum(data[:, :, channels], axis=2)
@@ -2060,11 +2428,11 @@ import xml.etree.ElementTree as ET
 # print_letter_origine_and_date_from_sample_info(root_path)
 def print_letter_origine_and_date_from_sample_info(root_path):
     letter_to_origine = {
-        "P": "Burgundy", "D": "Burgundy", "M": "Neuchatel", "L": "Genève",
-        "X": "Oregon", "W": "Alsace", "C": "Alsace", "J": "Genève",
+        "P": "Burgundy", "D": "Burgundy", "M": "Neuchâtel", "L": "Geneva",
+        "X": "Oregon", "W": "Alsace", "C": "Alsace", "J": "Geneva",
         "Y": "Alsace", "K": "Alsace", "H": "Valais", "R": "Burgundy",
-        "U": "Californie", "Z": "Burgundy", "Q": "Burgundy", "E": "Burgundy",
-        "N": "Neuchatel",
+        "U": "California", "Z": "Burgundy", "Q": "Burgundy", "E": "Burgundy",
+        "N": "Neuchâtel",
     }
 
     root = Path(root_path)

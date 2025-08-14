@@ -126,6 +126,12 @@ if __name__ == "__main__":
     from gcmswine.dimensionality_reduction import DimensionalityReducer
     from scripts.bordeaux.plotting_bordeaux import plot_bordeaux
 
+    # from gcmswine.utils import create_dir_of_samples_from_bordeaux_oak, create_dir_of_samples_from_bordeaux_ester
+    # create_dir_of_samples_from_bordeaux_ester(
+    # # create_dir_of_samples_from_bordeaux_oak(
+    #     "/home/luiscamara/Documents/datasets/BordeauxData/older data/Datat for paper Sept 2022/2018 7 chateaux Ester Old vintages Masse 5.csv",
+    #     output_root="/home/luiscamara/Documents/datasets/BordeauxData/ester_paper")
+
     # === Utility Functions ===
     def split_into_bins(data, n_bins):
         total_points = data.shape[1]

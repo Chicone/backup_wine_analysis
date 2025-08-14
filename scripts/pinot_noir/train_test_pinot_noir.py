@@ -179,6 +179,7 @@ if __name__ == "__main__":
     density_plot = config.get("density_plot", False)
 
     # Run Parameters
+    sotf_ret_time = config.get("sotf_ret_time")
     feature_type = config["feature_type"]
     classifier = config["classifier"]
     num_repeats = config["num_repeats"]
@@ -296,23 +297,22 @@ if __name__ == "__main__":
     bin_ranges = split_into_bins(data, n_bins)
     active_bins = list(range(n_bins))
 
-    survival_mode = False
 
     # === Iteration logic ===
-    if survival_mode:
+    if sotf_ret_time:
         n_iterations = n_bins - min_bins + 1
     else:
         n_iterations = 1
 
     # === Progressive plot setup (only for survival mode) ===
-    if survival_mode:
+    if sotf_ret_time:
         cv_label = "LOO" if cv_type == "LOO" else "LOOPC" if cv_type == "LOOPC" else "Stratified"
         plt.ion()
         fig, ax = plt.subplots(figsize=(8, 5))
         line, = ax.plot([], [], marker='o')
-        ax.set_xlabel("Percentage of TIC Data Remaining (%)")
-        ax.set_ylabel("Balanced Accuracy")
-        ax.set_title(f"Greedy Survival: Accuracy vs TIC Data Remaining ({cv_label} CV)")
+        ax.set_xlabel("Percentage of TIC data remaining (%)")
+        ax.set_ylabel("Accuracy")
+        # ax.set_title(f"Survival of the fittest: Accuracy vs TIC data Remaining ({cv_label} CV)")
         ax.grid(True)
         ax.set_xlim(100, 0)  # start at 100% and decrease
 
@@ -385,7 +385,7 @@ if __name__ == "__main__":
         logger.info(f"Accuracy: {mean_acc:.3f} ± {std_acc:.3f}")
 
         # === Update live plot (only survival mode) ===
-        if survival_mode:
+        if sotf_ret_time:
             line.set_data(percent_remaining, accuracies)
             ax.set_xlim(100, min(percent_remaining) - 5)
             ax.set_ylim(0, 1)
@@ -393,7 +393,7 @@ if __name__ == "__main__":
             plt.pause(0.2)
 
         # === Greedy bin removal ===
-        if survival_mode and len(active_bins) > min_bins:
+        if sotf_ret_time and len(active_bins) > min_bins:
             candidate_accuracies = []
             for b in active_bins:
                 temp_bins = [x for x in active_bins if x != b]
@@ -416,7 +416,7 @@ if __name__ == "__main__":
                 )
 
                 temp_acc, _, *_ = temp_cls.train_and_evaluate_all_channels(
-                    num_repeats=3,  # fewer repeats for speed
+                    num_repeats=10,  # fewer repeats for speed
                     random_seed=42,
                     test_size=0.2,
                     normalize=normalize_flag,
@@ -440,7 +440,7 @@ if __name__ == "__main__":
             active_bins.remove(best_bin)
 
     # === Finalize plot ===
-    if survival_mode:
+    if sotf_ret_time:
         plt.ioff()
         plt.show()
     else:

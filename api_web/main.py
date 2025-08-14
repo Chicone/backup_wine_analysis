@@ -88,6 +88,12 @@ async def stream_logs():
 @app.post("/run-script")
 async def run_script(payload: dict):
     script_key = payload["script_key"]
+
+    # 🍇 Pinot special mode for survival of the fittest
+    if script_key == "pinot" and payload.get("selected_task") == "SOTF Ret Time":
+        # Branch inside Pinot: same script, different code path
+        payload["sotf_ret_time"] = True
+
     if script_key == "champagne_predict_labels":
         key = script_key
     else:
@@ -160,6 +166,8 @@ async def run_script(payload: dict):
         ("color_by_origin", False),
         ("exclude_us", False),
         ("density_plot", False),
+        ("sotf_ret_time", False),
+
     ]
     for key, default in optional_keys:
         if key in payload:

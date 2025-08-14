@@ -57,7 +57,7 @@ const projectionLabels = {
 
 const taskOptionsByFamily = {
   bordeaux: ["Classification"],
-  pinot: ["Classification"],
+  pinot: ["Classification", "SOTF Ret Time"],
   press: ["Classification"],
   champagne: [
     "Predict Labels",
@@ -192,6 +192,7 @@ function App() {
     bordeaux: [
         "bordeaux_oak",
         "bordeaux_oak_paper1",
+        "bordeaux_ester_paper1",
         ],
     press: [
       "merlot_2021",
@@ -267,7 +268,7 @@ function App() {
   useEffect(() => {
     if (wineFamily) {
       setTaskOptions(taskOptionsByFamily[wineFamily] || []);
-      setSelectedTask(""); // reset selection when wineFamily changes
+      setSelectedTask(taskOptionsByFamily[wineFamily]?.[0] || ""); // reset selection when wineFamily changes
     } else {
       setTaskOptions([]);
       setSelectedTask("");
@@ -396,6 +397,7 @@ useEffect(() => {
     // Build payload first, excluding region by default
     const payload = {
       script_key: wineFamily,
+      selected_task: selectedTask,
     classifier:
       wineFamily !== "champagne" || // All non-Champagnes always classify
       (wineFamily === "champagne" && (
@@ -464,6 +466,9 @@ useEffect(() => {
     // ✅ Conditionally add region only for pinot
     if (wineFamily === "pinot") {
       payload.region = region;
+    }
+    if (wineFamily === "pinot") {
+      payload.sotf_ret_time = (selectedTask === "SOTF Ret Time");
     }
     if (wineFamily === "champagne") {
       payload.script_key = {

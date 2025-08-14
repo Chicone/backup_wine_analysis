@@ -1,12 +1,13 @@
 chrom_cap: 35000
-class_by_year: true
-classifier: LDA
+class_by_year: false
+classifier: RGC
 color_by_country: false
 color_by_origin: false
 color_by_winery: false
 constant_ohe: false
 cv_type: LOO
 datasets:
+  bordeaux_ester_paper1: /home/luiscamara/Documents/datasets/BordeauxData/ester_paper/
   bordeaux_oak: /home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/
   bordeaux_oak_paper1: /home/luiscamara/Documents/datasets/BordeauxData/oak_paper/
   cab_sauv_2021: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/
@@ -22,7 +23,7 @@ density_plot: false
 do_classification: false
 downsample_group: true
 exclude_us: false
-feature_type: tic
+feature_type: tic_tis
 flip_axes: true
 global_focus_heatmap: true
 group_wines: false
@@ -34,7 +35,7 @@ label_targets:
 n_decimation: 10
 n_neighbors: 30
 normalize: true
-num_repeats: 50
+num_repeats: 10
 num_splits: 1
 plot_all_tests: false
 plot_projection: false
@@ -48,7 +49,7 @@ random_state: 42
 reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
-region: ''
+region: winery
 regressor: null
 remove_avg_scores: false
 retention_time_range:
@@ -61,7 +62,7 @@ rt_range:
 sample_display_mode: names
 selected_attribute: nuts
 selected_datasets:
-- bordeaux_oak_paper1
+- pinot_noir_changins
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
@@ -70,6 +71,7 @@ show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false
 shuffle_labels: false
+sotf_ret_time: false
 sync_state: false
 taster_focus_heatmap: false
 taster_scaling: false
