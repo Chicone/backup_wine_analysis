@@ -93,7 +93,9 @@ async def run_script(payload: dict):
     if script_key == "pinot" and payload.get("selected_task") == "SOTF Ret Time":
         # Branch inside Pinot: same script, different code path
         payload["sotf_ret_time"] = True
-
+    if script_key == "bordeaux" and payload.get("selected_task") == "SOTF Ret Time":
+        # Branch inside Pinot: same script, different code path
+        payload["sotf_ret_time"] = True
     if script_key == "champagne_predict_labels":
         key = script_key
     else:

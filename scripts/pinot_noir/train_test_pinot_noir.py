@@ -369,7 +369,7 @@ if __name__ == "__main__":
                 show_confusion_matrix=show_confusion_matrix,
             )
         elif cv_type == "LOO":
-            mean_acc, std_acc, *_ = cls.train_and_evaluate_leave_one_out_all_samples(
+            mean_acc, std_acc, scores, all_labels, test_samples_names  = cls.train_and_evaluate_leave_one_out_all_samples(
                 normalize=normalize_flag,
                 scaler_type='standard',
                 region=region,

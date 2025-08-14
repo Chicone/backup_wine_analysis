@@ -161,6 +161,9 @@ if __name__ == "__main__":
         raise ValueError("Please use this script for Bordeaux datasets.")
 
     wine_kind = utils.infer_wine_kind(selected_datasets, dataset_directories)
+
+    # Run Parameters
+    sotf_ret_time = config.get("sotf_ret_time")
     feature_type = config["feature_type"]
     classifier = config["classifier"]
     num_repeats = config["num_repeats"]
@@ -176,7 +179,6 @@ if __name__ == "__main__":
     # Survival parameters
     n_bins = 50
     min_bins = 1
-    survival_mode = True
 
     # Projection plotting parameters
     plot_projection = config.get("plot_projection", False)
@@ -215,10 +217,10 @@ if __name__ == "__main__":
     # === Define binning ===
     bin_ranges = split_into_bins(data, n_bins)
     active_bins = list(range(n_bins))
-    n_iterations = n_bins - min_bins + 1 if survival_mode else 1
+    n_iterations = n_bins - min_bins + 1 if sotf_ret_time else 1
 
     # Plot setup for survival mode
-    if survival_mode:
+    if sotf_ret_time:
         cv_label = "LOO" if cv_type == "LOO" else "LOOPC" if cv_type == "LOOPC" else "Stratified"
         plt.ion()
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -274,7 +276,7 @@ if __name__ == "__main__":
                 feature_type=feature_type,
                 classifier_type=classifier,
                 LOOPC=loopc,
-                projection_source=False,
+                projection_source=projection_source,
                 show_confusion_matrix=False,
             )
         elif cv_type == "LOO":
@@ -284,7 +286,7 @@ if __name__ == "__main__":
                 region=region,
                 feature_type=feature_type,
                 classifier_type=classifier,
-                projection_source=False,
+                projection_source=projection_source,
                 show_confusion_matrix=False,
             )
         else:
@@ -293,14 +295,14 @@ if __name__ == "__main__":
         accuracies.append(mean_acc)
         logger.info(f"Accuracy: {mean_acc:.3f} ± {std_acc:.3f}")
 
-        if survival_mode:
+        if sotf_ret_time:
             line.set_data(percent_remaining, accuracies)
             ax.set_xlim(100, min(percent_remaining) - 5)
             ax.set_ylim(0, 1)
             plt.draw()
             plt.pause(0.2)
 
-        if survival_mode and len(active_bins) > min_bins:
+        if sotf_ret_time and len(active_bins) > min_bins:
             candidate_accuracies = []
             for b in active_bins:
                 temp_bins = [x for x in active_bins if x != b]
@@ -334,7 +336,7 @@ if __name__ == "__main__":
                     feature_type=feature_type,
                     classifier_type=classifier,
                     LOOPC=(cv_type == "LOOPC"),
-                    projection_source=False,
+                    projection_source=projection_source,
                     show_confusion_matrix=False,
                 )
                 candidate_accuracies.append((b, temp_acc))
@@ -343,7 +345,7 @@ if __name__ == "__main__":
             logger.info(f"Removing bin {best_bin}: next accuracy would be {best_candidate_acc:.3f}")
             active_bins.remove(best_bin)
 
-    if survival_mode:
+    if sotf_ret_time:
         plt.ioff()
         plt.show()
 

@@ -7,9 +7,9 @@ color_by_winery: false
 constant_ohe: false
 cv_type: LOO
 datasets:
+  bordeaux_ester_paper1: /home/luiscamara/Documents/datasets/BordeauxData/ester_paper/
   bordeaux_oak: /home/luiscamara/Documents/datasets/3D_data/BORDEAUX_OAK_PAPER/OAK_WOOD/
   bordeaux_oak_paper1: /home/luiscamara/Documents/datasets/BordeauxData/oak_paper/
-  bordeaux_ester_paper1: /home/luiscamara/Documents/datasets/BordeauxData/ester_paper/
   cab_sauv_2021: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters21/CABERNET/
   cab_sauv_2022: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters22/CABERNET/
   cab_sauv_2023: /home/luiscamara/Documents/datasets/3D_data/PRESS_WINES/Esters23/CABERNET/
@@ -32,12 +32,12 @@ label_target: prod area
 label_targets:
 - age
 n_decimation: 10
-n_neighbors: 7
+n_neighbors: 30
 normalize: true
 num_repeats: 10
 num_splits: 1
 plot_all_tests: false
-plot_projection: false
+plot_projection: scores
 plot_r2: false
 plot_shap: false
 plot_umap: scores
@@ -48,7 +48,7 @@ random_state: 42
 reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
-region: burgundy
+region: winery
 regressor: null
 remove_avg_scores: false
 retention_time_range:

@@ -56,7 +56,7 @@ const projectionLabels = {
 };
 
 const taskOptionsByFamily = {
-  bordeaux: ["Classification"],
+  bordeaux: ["Classification", "SOTF Ret Time"],
   pinot: ["Classification", "SOTF Ret Time"],
   press: ["Classification"],
   champagne: [
@@ -468,6 +468,9 @@ useEffect(() => {
       payload.region = region;
     }
     if (wineFamily === "pinot") {
+      payload.sotf_ret_time = (selectedTask === "SOTF Ret Time");
+    }
+    if (wineFamily === "bordeaux") {
       payload.sotf_ret_time = (selectedTask === "SOTF Ret Time");
     }
     if (wineFamily === "champagne") {
