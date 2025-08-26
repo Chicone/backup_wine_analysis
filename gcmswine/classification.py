@@ -51,20 +51,28 @@ import matplotlib.pyplot as plt
 from collections import Counter, defaultdict
 import csv
 
-def leave_one_sample_per_class_split(X, y, random_state=None, is_composite_labels=True):
+def leave_one_sample_per_class_split(X, y,
+                                     random_state=None,
+                                     is_composite_labels=True,
+                                     class_by_year=False,
+                                     raw_labels=None):
     """
-    Split dataset by selecting one sample per class (plus its duplicates if composite labels) for the test set.
+    Leave-One-Sample-Per-Class split.
 
     Parameters
     ----------
     X : array-like
-        Feature matrix (not used, kept for compatibility).
+        Feature matrix (chromatograms). Kept for compatibility, not used here.
     y : array-like
-        Labels (composite labels or simple class labels).
+        Class labels (composite like 'A1', 'B2', or simple like years).
     random_state : int, optional
         Random seed for reproducibility.
-    is_composite_labels : bool, optional
-        Whether y are composite labels like 'A1', 'B2'. If False, assumes simple class labels.
+    is_composite_labels : bool, default=True
+        Legacy behaviour for toy 'A1', 'B2' labels.
+    class_by_year : bool, default=False
+        If True, treat y as years and raw_labels as replicate-aware IDs.
+    raw_labels : array-like or None
+        Replicate-aware sample IDs (e.g. '00ML-B-11-1'). Required if class_by_year=True.
 
     Returns
     -------
@@ -78,53 +86,151 @@ def leave_one_sample_per_class_split(X, y, random_state=None, is_composite_label
     import re
 
     rng = np.random.default_rng(random_state)
+    y = np.asarray(y)
 
-    if is_composite_labels:
-        # Group indices by full sample labels (for composite cases)
+    # --- Case 1: years ---
+    if class_by_year:
+        if raw_labels is None:
+            raise ValueError("raw_labels must be provided when class_by_year=True")
+
+        raw_labels = np.asarray(raw_labels)
+
+        # Group indices by base sample (strip replicate suffix)
+        base_to_indices = defaultdict(list)
+        base_to_year = {}
+
+        for idx, (sid, year) in enumerate(zip(raw_labels, y)):
+            base = str(sid).rsplit("-", 1)[0] if "-" in str(sid) else str(sid)
+            base_to_indices[base].append(idx)
+            base_to_year[base] = year
+
+        # Group bases by year
+        year_to_bases = defaultdict(list)
+        for base, year in base_to_year.items():
+            year_to_bases[year].append(base)
+        # for idx, sid in enumerate(raw_labels):
+        #     base = str(sid).rsplit("-", 1)[0] if "-" in str(sid) else str(sid)
+        #     base_to_indices[base].append(idx)
+        #
+        # # Group bases by year
+        # year_to_bases = defaultdict(list)
+        # for base, indices in base_to_indices.items():
+        #     year = y[indices[0]]
+        #     year_to_bases[year].append(base)
+
+        # Pick one sample per year, include all replicates
+        test_indices = []
+        for year, bases in year_to_bases.items():
+            chosen_base = rng.choice(bases)
+            test_indices.extend(base_to_indices[chosen_base])
+
+    # --- Case 2: composite toy labels like 'A1' ---
+    elif is_composite_labels:
         sample_to_indices = defaultdict(list)
         for idx, label in enumerate(y):
             sample_to_indices[label].append(idx)
 
-        # Group sample labels by class (A, B, C)
         class_to_samples = defaultdict(list)
 
         def get_class_from_label(label):
-            """Extract the class (first letter) from composite label like 'A1'."""
-            match = re.match(r'([A-Z])', label)
-            return match.group(1) if match else label
+            match = re.match(r'([A-Z])', str(label))
+            return match.group(1) if match else str(label)
 
         for label in sample_to_indices.keys():
-            class_label = get_class_from_label(label)
-            class_to_samples[class_label].append(label)
+            class_to_samples[get_class_from_label(label)].append(label)
 
-        # Choose one sample label per class
-        test_sample_labels = []
-        for class_label, samples in class_to_samples.items():
-            chosen_sample = rng.choice(samples)
-            test_sample_labels.append(chosen_sample)
-
-        # Expand into indices
         test_indices = []
-        for label in test_sample_labels:
-            test_indices.extend(sample_to_indices[label])
+        for samples in class_to_samples.values():
+            chosen = rng.choice(samples)
+            test_indices.extend(sample_to_indices[chosen])
 
+    # --- Case 3: flat class labels ---
     else:
-        # Simple class labels (e.g., 'Burgundy', 'Alsace', 'C', 'D')
         class_to_indices = defaultdict(list)
         for idx, label in enumerate(y):
             class_to_indices[label].append(idx)
 
-        # Pick one random index per class
-        test_indices = []
-        for class_label, indices in class_to_indices.items():
-            chosen_idx = rng.choice(indices)
-            test_indices.append(chosen_idx)
+        test_indices = [rng.choice(indices) for indices in class_to_indices.values()]
 
-    test_indices = np.array(test_indices)
+    test_indices = np.array(test_indices, dtype=int)
     all_indices = np.arange(len(y))
     train_indices = np.setdiff1d(all_indices, test_indices)
-
     return train_indices, test_indices
+
+# def leave_one_sample_per_class_split(X, y, random_state=None, is_composite_labels=True):
+#     """
+#     Split dataset by selecting one sample per class (plus its duplicates if composite labels) for the test set.
+#
+#     Parameters
+#     ----------
+#     X : array-like
+#         Feature matrix (not used, kept for compatibility).
+#     y : array-like
+#         Labels (composite labels or simple class labels).
+#     random_state : int, optional
+#         Random seed for reproducibility.
+#     is_composite_labels : bool, optional
+#         Whether y are composite labels like 'A1', 'B2'. If False, assumes simple class labels.
+#
+#     Returns
+#     -------
+#     train_indices : np.ndarray
+#         Indices for training set.
+#     test_indices : np.ndarray
+#         Indices for test set.
+#     """
+#     import numpy as np
+#     from collections import defaultdict
+#     import re
+#
+#     rng = np.random.default_rng(random_state)
+#
+#     if is_composite_labels:
+#         # Group indices by full sample labels (for composite cases)
+#         sample_to_indices = defaultdict(list)
+#         for idx, label in enumerate(y):
+#             sample_to_indices[label].append(idx)
+#
+#         # Group sample labels by class (A, B, C)
+#         class_to_samples = defaultdict(list)
+#
+#         def get_class_from_label(label):
+#             """Extract the class (first letter) from composite label like 'A1'."""
+#             match = re.match(r'([A-Z])', label)
+#             return match.group(1) if match else label
+#
+#         for label in sample_to_indices.keys():
+#             class_label = get_class_from_label(label)
+#             class_to_samples[class_label].append(label)
+#
+#         # Choose one sample label per class
+#         test_sample_labels = []
+#         for class_label, samples in class_to_samples.items():
+#             chosen_sample = rng.choice(samples)
+#             test_sample_labels.append(chosen_sample)
+#
+#         # Expand into indices
+#         test_indices = []
+#         for label in test_sample_labels:
+#             test_indices.extend(sample_to_indices[label])
+#
+#     else:
+#         # Simple class labels (e.g., 'Burgundy', 'Alsace', 'C', 'D')
+#         class_to_indices = defaultdict(list)
+#         for idx, label in enumerate(y):
+#             class_to_indices[label].append(idx)
+#
+#         # Pick one random index per class
+#         test_indices = []
+#         for class_label, indices in class_to_indices.items():
+#             chosen_idx = rng.choice(indices)
+#             test_indices.append(chosen_idx)
+#
+#     test_indices = np.array(test_indices)
+#     all_indices = np.arange(len(y))
+#     train_indices = np.setdiff1d(all_indices, test_indices)
+#
+#     return train_indices, test_indices
 
 class CustomDataParallel(torch.nn.DataParallel):
     def __getattr__(self, name):
@@ -180,14 +286,18 @@ class Classifier:
         self.year_labels = year_labels
         self.dataset_origins = dataset_origins
 
-    def shuffle_split_without_splitting_duplicates(self, X, y, test_size=0.2, random_state=None,
-                                                   group_duplicates=True,
-                                                   dataset_origins=None):
+    def shuffle_split_without_splitting_duplicates(
+            self, X, y, raw_sample_labels, test_size=0.2, random_state=None,
+            group_duplicates=True, dataset_origins=None
+    ):
         """
         Perform ShuffleSplit on samples while ensuring:
         - Duplicates of the same sample (including dataset origin) are kept together (if enabled).
         - Each class is represented in the test set.
         """
+        from collections import defaultdict
+        import numpy as np
+
         rng = np.random.default_rng(random_state)
 
         if group_duplicates:
@@ -195,11 +305,15 @@ class Classifier:
             class_samples = defaultdict(list)  # {class_label: [(origin, label), ...]}
 
             for idx, label in enumerate(y):
-                origin = dataset_origins[idx]
-                key = (origin, label)
+                raw_label = raw_sample_labels[idx]
+                origin = dataset_origins.get(raw_label, "unknown") if dataset_origins else "unknown"
+
+                # use raw_label as the key for grouping
+                key = (origin, raw_label)
                 unique_samples.setdefault(key, []).append(idx)
-                class_label = label[0]  # e.g. 'A' from 'A1'
-                class_samples[class_label].append(key)
+
+                # still keep class_samples by class label (year)
+                class_samples[label].append(key)
 
             sample_keys = list(unique_samples.keys())
             rng.shuffle(sample_keys)
@@ -209,21 +323,20 @@ class Classifier:
             test_sample_keys = set(sample_keys[:num_test_samples])
 
             # Step 2: Ensure all class labels are represented
-            test_classes = {key[1][0] for key in test_sample_keys}  # e.g. 'A' from ('merlot', 'A1')
+            test_classes = {key[1] for key in test_sample_keys}
+            # test_classes = {key[1][0] if isinstance(key[1], str) else key[1] for key in test_sample_keys}
             missing_classes = [cls for cls in class_samples if cls not in test_classes]
 
-            for class_label in missing_classes:
-                candidate_keys = class_samples[class_label]
-                additional_key = tuple(rng.choice(candidate_keys))
-                test_sample_keys.add(additional_key)
+            # for class_label in missing_classes:
+            #     candidate_keys = class_samples[class_label]
+            #     additional_key = tuple(rng.choice(candidate_keys))
+            #     test_sample_keys.add(additional_key)
 
             # Step 3: Translate keys into train/test indices
             test_indices = [idx for key in test_sample_keys for idx in unique_samples[key]]
-            train_indices = [idx for key in sample_keys if key not in test_sample_keys for idx in
-                             unique_samples[key]]
+            train_indices = [idx for key in sample_keys if key not in test_sample_keys for idx in unique_samples[key]]
 
         else:
-            # Fallback: treat each instance independently
             indices = np.arange(len(y))
             rng.shuffle(indices)
             num_test_samples = int(len(indices) * test_size)
@@ -231,6 +344,58 @@ class Classifier:
             train_indices = indices[num_test_samples:]
 
         return np.array(train_indices), np.array(test_indices)
+
+    # def shuffle_split_without_splitting_duplicates(self, X, y, test_size=0.2, random_state=None,
+    #                                                group_duplicates=True,
+    #                                                dataset_origins=None):
+    #     """
+    #     Perform ShuffleSplit on samples while ensuring:
+    #     - Duplicates of the same sample (including dataset origin) are kept together (if enabled).
+    #     - Each class is represented in the test set.
+    #     """
+    #     rng = np.random.default_rng(random_state)
+    #
+    #     if group_duplicates:
+    #         unique_samples = {}  # {(origin, label): [indices]}
+    #         class_samples = defaultdict(list)  # {class_label: [(origin, label), ...]}
+    #
+    #         for idx, label in enumerate(y):
+    #             origin = dataset_origins[idx]
+    #             key = (origin, label)
+    #             unique_samples.setdefault(key, []).append(idx)
+    #             class_label = label[0]  # e.g. 'A' from 'A1'
+    #             class_samples[class_label].append(key)
+    #
+    #         sample_keys = list(unique_samples.keys())
+    #         rng.shuffle(sample_keys)
+    #
+    #         # Step 1: Randomly select test samples
+    #         num_test_samples = int(len(sample_keys) * test_size)
+    #         test_sample_keys = set(sample_keys[:num_test_samples])
+    #
+    #         # Step 2: Ensure all class labels are represented
+    #         test_classes = {key[1][0] for key in test_sample_keys}  # e.g. 'A' from ('merlot', 'A1')
+    #         missing_classes = [cls for cls in class_samples if cls not in test_classes]
+    #
+    #         for class_label in missing_classes:
+    #             candidate_keys = class_samples[class_label]
+    #             additional_key = tuple(rng.choice(candidate_keys))
+    #             test_sample_keys.add(additional_key)
+    #
+    #         # Step 3: Translate keys into train/test indices
+    #         test_indices = [idx for key in test_sample_keys for idx in unique_samples[key]]
+    #         train_indices = [idx for key in sample_keys if key not in test_sample_keys for idx in
+    #                          unique_samples[key]]
+    #
+    #     else:
+    #         # Fallback: treat each instance independently
+    #         indices = np.arange(len(y))
+    #         rng.shuffle(indices)
+    #         num_test_samples = int(len(indices) * test_size)
+    #         test_indices = indices[:num_test_samples]
+    #         train_indices = indices[num_test_samples:]
+    #
+    #     return np.array(train_indices), np.array(test_indices)
 
     def _get_classifier(self, classifier_type):
         """
@@ -442,7 +607,6 @@ class Classifier:
         else:
             return result, None, None, None
 
-
     def train_and_evaluate_balanced(
             self,
             normalize=False,
@@ -450,68 +614,75 @@ class Classifier:
             region=None,
             random_seed=42,
             test_size=0.2, LOOPC=True,
-            projection_source=False
+            projection_source=False,
+            X_test=None, y_test=None
     ):
+
         # Step 1: label preprocessing
         labels_used = self.strategy.extract_labels(self.labels)
         use_composites = self.strategy.use_composite_labels(self.labels)
         custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
 
         # Step 2: split
-        if LOOPC:
-            # Use composite-aware grouping for duplicate-safe splitting
-            # composite_labels = assign_bordeaux_label(self.labels_raw, vintage=False)
-            composite_labels = self.strategy.get_split_labels(self.labels_raw, self.class_by_year)
-            train_idx, test_idx = leave_one_sample_per_class_split(
-                X=self.data,
-                y=composite_labels,
-                random_state=random_seed,
-                is_composite_labels=use_composites
-            )
+        if X_test is not None and y_test is not None:
+            # --- external split provided (e.g. from outer CV in run_sotf_ret_time) ---
+            X_train = self.data
+            y_train = (self.year_labels if self.class_by_year
+                       else np.array(self.strategy.extract_labels(self.labels)))
+            y_test =  np.array(self.strategy.extract_labels(y_test))
+            # keep provided test set
         else:
-            train_idx, test_idx = self.shuffle_split_without_splitting_duplicates(
-                X=self.data,
-                y=self.labels,
-                test_size=test_size,
-                random_state=random_seed,
-                group_duplicates=use_composites,
-                dataset_origins=self.dataset_origins)
+            if LOOPC:
+                composite_labels = self.strategy.get_split_labels(self.labels_raw, self.class_by_year)
+                train_idx, test_idx = leave_one_sample_per_class_split(
+                    X=self.data,
+                    y=composite_labels,
+                    random_state=random_seed,
+                    is_composite_labels=use_composites,
+                    class_by_year=self.class_by_year,
+                    raw_labels=self.labels_raw
+                )
+            else:
+                train_idx, test_idx = self.shuffle_split_without_splitting_duplicates(
+                    X=self.data,
+                    y=self.labels,
+                    raw_sample_labels=self.sample_labels,
+                    test_size=test_size,
+                    random_state=random_seed,
+                    group_duplicates=use_composites,
+                    dataset_origins=self.dataset_origins
+                )
+
+            X_train, X_test = self.data[train_idx], self.data[test_idx]
+
+            if self.class_by_year:
+                y_train = self.year_labels[train_idx]
+                y_test = self.year_labels[test_idx]
+            else:
+                processed_labels = np.array(self.strategy.extract_labels(self.labels))
+                y_train = processed_labels[train_idx]
+                y_test = processed_labels[test_idx]
 
         # Step 3: data preparation
-        X_train, X_test = self.data[train_idx], self.data[test_idx]
         X_train_proc, X_test_proc, _, _ = self.preprocess_data(
             X_train, X_test, normalize, scaler_type, use_pca=None, vthresh=None
         )
-
-        if self.class_by_year:
-            y_train = self.year_labels[train_idx]
-            y_test = self.year_labels[test_idx]
-        else:
-            processed_labels = np.array(self.strategy.extract_labels(self.labels))
-            y_train = processed_labels[train_idx]
-            y_test = processed_labels[test_idx]
 
         # Step 4: model training
         self.classifier.fit(X_train_proc, y_train)
         y_pred = self.classifier.predict(X_test_proc)
 
-        # === Handle decision_function or fallback ===
+        # Handle decision_function/proba/scores
         if hasattr(self.classifier, "decision_function"):
             scores = self.classifier.decision_function(X_test_proc)
         elif hasattr(self.classifier, "predict_proba"):
-            proba = self.classifier.predict_proba(X_test_proc)
-            # Convert probabilities to "score-like" format by using log-odds or raw probabilities
-            scores = proba  # shape (n_samples, n_classes)
+            scores = self.classifier.predict_proba(X_test_proc)
         else:
-            # Fallback: create a dummy 2-class score (useful for single sample LOO eval)
             scores = np.zeros((len(y_pred), len(np.unique(y_train))))
             for i, pred in enumerate(y_pred):
                 scores[i, np.where(np.unique(y_train) == pred)[0][0]] = 1.0
-        # scores = self.classifier.decision_function(X_test_proc)
-
-        # create compatible format for binary classification
         if scores.ndim == 1:
-            scores = np.stack([-scores, scores], axis=1)  # Shape (n_samples, 2)
+            scores = np.stack([-scores, scores], axis=1)
 
         # Step 5: evaluation
         result = {
@@ -524,11 +695,100 @@ class Classifier:
         }
 
         if projection_source == "scores":
-            raw_test_labels = self.sample_labels[test_idx]
-            return result, scores, y_test, raw_test_labels
+            return result, scores, y_test, (self.sample_labels[test_idx] if X_test is None else None)
         else:
             return result, None, None, None
-        # return result
+
+    # def train_and_evaluate_balanced(
+    #         self,
+    #         normalize=False,
+    #         scaler_type='standard',
+    #         region=None,
+    #         random_seed=42,
+    #         test_size=0.2, LOOPC=True,
+    #         projection_source=False,
+    #         X_test=None, y_test=None
+    # ):
+    #     # Step 1: label preprocessing
+    #     labels_used = self.strategy.extract_labels(self.labels)
+    #     use_composites = self.strategy.use_composite_labels(self.labels)
+    #     custom_order = self.strategy.get_custom_order(labels_used, self.year_labels)
+    #
+    #     # Step 2: split
+    #     if LOOPC:
+    #         # Use composite-aware grouping for duplicate-safe splitting
+    #         # composite_labels = assign_bordeaux_label(self.labels_raw, vintage=False)
+    #         composite_labels = self.strategy.get_split_labels(self.labels_raw, self.class_by_year)
+    #         train_idx, test_idx = leave_one_sample_per_class_split(
+    #             X=self.data,
+    #             y=composite_labels,
+    #             random_state=random_seed,
+    #             is_composite_labels=use_composites,
+    #             class_by_year=self.class_by_year,
+    #             raw_labels=self.labels_raw
+    #         )
+    #     else:
+    #         train_idx, test_idx = self.shuffle_split_without_splitting_duplicates(
+    #             X=self.data,
+    #             y=self.labels,
+    #             raw_sample_labels=self.sample_labels,
+    #             test_size=test_size,
+    #             random_state=random_seed,
+    #             group_duplicates=use_composites,
+    #             dataset_origins=self.dataset_origins)
+    #
+    #     # Step 3: data preparation
+    #     X_train, X_test = self.data[train_idx], self.data[test_idx]
+    #     X_train_proc, X_test_proc, _, _ = self.preprocess_data(
+    #         X_train, X_test, normalize, scaler_type, use_pca=None, vthresh=None
+    #     )
+    #
+    #     if self.class_by_year:
+    #         y_train = self.year_labels[train_idx]
+    #         y_test = self.year_labels[test_idx]
+    #     else:
+    #         processed_labels = np.array(self.strategy.extract_labels(self.labels))
+    #         y_train = processed_labels[train_idx]
+    #         y_test = processed_labels[test_idx]
+    #
+    #     # Step 4: model training
+    #     self.classifier.fit(X_train_proc, y_train)
+    #     y_pred = self.classifier.predict(X_test_proc)
+    #
+    #     # === Handle decision_function or fallback ===
+    #     if hasattr(self.classifier, "decision_function"):
+    #         scores = self.classifier.decision_function(X_test_proc)
+    #     elif hasattr(self.classifier, "predict_proba"):
+    #         proba = self.classifier.predict_proba(X_test_proc)
+    #         # Convert probabilities to "score-like" format by using log-odds or raw probabilities
+    #         scores = proba  # shape (n_samples, n_classes)
+    #     else:
+    #         # Fallback: create a dummy 2-class score (useful for single sample LOO eval)
+    #         scores = np.zeros((len(y_pred), len(np.unique(y_train))))
+    #         for i, pred in enumerate(y_pred):
+    #             scores[i, np.where(np.unique(y_train) == pred)[0][0]] = 1.0
+    #     # scores = self.classifier.decision_function(X_test_proc)
+    #
+    #     # create compatible format for binary classification
+    #     if scores.ndim == 1:
+    #         scores = np.stack([-scores, scores], axis=1)  # Shape (n_samples, 2)
+    #
+    #     # Step 5: evaluation
+    #     result = {
+    #         "accuracy": accuracy_score(y_test, y_pred),
+    #         "balanced_accuracy": balanced_accuracy_score(y_test, y_pred),
+    #         "precision": precision_score(y_test, y_pred, average='weighted', zero_division=0),
+    #         "recall": recall_score(y_test, y_pred, average='weighted', zero_division=0),
+    #         "f1": f1_score(y_test, y_pred, average='weighted', zero_division=0),
+    #         "confusion_matrix": confusion_matrix(y_test, y_pred, labels=custom_order)
+    #     }
+    #
+    #     if projection_source == "scores":
+    #         raw_test_labels = self.sample_labels[test_idx]
+    #         return result, scores, y_test, raw_test_labels
+    #     else:
+    #         return result, None, None, None
+    #     # return result
 
 
     def train_and_evaluate_balanced_old(self, n_inner_repeats=50, random_seed=42,
@@ -2100,6 +2360,7 @@ class Classifier:
             labels_used = strategy.extract_labels(labels)
 
         custom_order = strategy.get_custom_order(labels_used, year_labels)
+
         counts = Counter(labels_used)
 
         print("\nLabel order:")

@@ -43,7 +43,7 @@ class BordeauxWineStrategy(WineKindStrategy):
         self.class_by_year = class_by_year
 
     def get_split_labels(self, labels_raw, class_by_year=False):
-        return assign_bordeaux_label(labels_raw, vintage=False)
+        return assign_bordeaux_label(labels_raw, vintage=class_by_year)
 
     def extract_labels(self, labels):
         if self.class_by_year:

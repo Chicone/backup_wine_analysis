@@ -57,7 +57,7 @@ const projectionLabels = {
 
 const taskOptionsByFamily = {
   bordeaux: ["Classification", "SOTF Ret Time"],
-  pinot: ["Classification", "SOTF Ret Time"],
+  pinot: ["Classification", "SOTF Ret Time", "SOTF m/z", "SOTF 2D", "Region Accuracy Map"],
   press: ["Classification"],
   champagne: [
     "Predict Labels",
@@ -469,9 +469,14 @@ useEffect(() => {
     }
     if (wineFamily === "pinot") {
       payload.sotf_ret_time = (selectedTask === "SOTF Ret Time");
+      payload.sotf_mz = (selectedTask === "SOTF m/z");
+      payload.sotf_2d = (selectedTask === "SOTF 2D");
+      payload.reg_acc_map = (selectedTask === "Region Accuracy Map");
+
     }
     if (wineFamily === "bordeaux") {
       payload.sotf_ret_time = (selectedTask === "SOTF Ret Time");
+      payload.sotf_mz = (selectedTask === "SOTF m/z");
     }
     if (wineFamily === "champagne") {
       payload.script_key = {

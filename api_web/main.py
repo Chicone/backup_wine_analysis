@@ -169,6 +169,10 @@ async def run_script(payload: dict):
         ("exclude_us", False),
         ("density_plot", False),
         ("sotf_ret_time", False),
+        ("sotf_mz", False),
+        ("sotf_2d", False),
+        ("reg_acc_map", False),
+
 
     ]
     for key, default in optional_keys:

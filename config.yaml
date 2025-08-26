@@ -23,7 +23,7 @@ density_plot: false
 do_classification: false
 downsample_group: true
 exclude_us: false
-feature_type: tic_tis
+feature_type: tic
 global_focus_heatmap: true
 group_wines: false
 invert_x: false
@@ -34,10 +34,10 @@ label_targets:
 n_decimation: 10
 n_neighbors: 30
 normalize: true
-num_repeats: 10
+num_repeats: 3
 num_splits: 1
 plot_all_tests: false
-plot_projection: scores
+plot_projection: false
 plot_r2: false
 plot_shap: false
 plot_umap: scores
@@ -48,6 +48,7 @@ random_state: 42
 reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
+reg_acc_map: true
 region: winery
 regressor: null
 remove_avg_scores: false
@@ -70,6 +71,8 @@ show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false
 shuffle_labels: false
+sotf_2d: false
+sotf_mz: false
 sotf_ret_time: false
 sync_state: false
 taster_focus_heatmap: false
