@@ -170,8 +170,11 @@ async def run_script(payload: dict):
         ("density_plot", False),
         ("sotf_ret_time", False),
         ("sotf_mz", False),
-        ("sotf_2d", False),
+        ("sotf_remove_2d", False),
+        ("sotf_add_2d", False),
         ("reg_acc_map", False),
+        ("n_rt_bins", 5),
+        ("n_mz_bins", 5),
 
 
     ]

@@ -56,8 +56,8 @@ const projectionLabels = {
 };
 
 const taskOptionsByFamily = {
-  bordeaux: ["Classification", "SOTF Ret Time"],
-  pinot: ["Classification", "SOTF Ret Time", "SOTF m/z", "SOTF 2D", "Region Accuracy Map"],
+  bordeaux: ["Classification", "SOTF Ret Time", "SOTF m/z", "SOTF Remove 2D", "SOTF Add 2D",],
+  pinot: ["Classification", "SOTF Ret Time", "SOTF m/z", "SOTF Remove 2D", "SOTF Add 2D", "Region Accuracy Map"],
   press: ["Classification"],
   champagne: [
     "Predict Labels",
@@ -89,7 +89,7 @@ function App() {
   const [featureType, setFeatureType] = useState("tic_tis");
   const [cvType, setCvType] = useState("LOO");
   const [showConfusionMatrix, setShowConfusionMatrix] = useState(false);
-  const [wineFamily, setWineFamily] = useState("bordeaux");
+  const [wineFamily, setWineFamily] = useState("pinot");
   const [task, setTask] = useState("classification");
   const [taskOptions, setTaskOptions] = useState([]);
   const [selectedTask, setSelectedTask] = useState("");
@@ -103,7 +103,7 @@ function App() {
   const [syncState, setSyncState] = useState(false);
   const [classByYear, setClassByYear] = useState(false);
   const [region, setRegion] = useState("");
-  const [selectedDatasets, setSelectedDatasets] = useState(["bordeaux_oak"]);
+  const [selectedDatasets, setSelectedDatasets] = useState(["pinot_noir_changins"]);
   const [plotProjection, setPlotProjection] = useState(false);
   const [projectionMethod, setProjectionMethod] = useState("UMAP");
   const [colorByCountry, setColorByCountry] = useState(false);
@@ -134,6 +134,8 @@ function App() {
   const [densityPlot, setDensityPlot] = useState(false);
   const [showChampPredictedProfiles, setShowChampPredictedProfiles] =
     useState(false);
+  const [nRtBins, setNRtBins] = useState(5);
+  const [nMzBins, setNMzBins] = useState(5);
   //   const [useChampTasterScaling, setUseChampTasterScaling] = useState(false);
   //   const [shuffleLabels, setShuffleLabels] = useState(false);
   //   const [testAverageScores, setTestAverageScores] = useState(false);
@@ -460,7 +462,7 @@ useEffect(() => {
       color_by_winery: colorByWinery,
       color_by_origin: colorByOrigin,
       exclude_us: excludeUS,
-      density_plot: densityPlot
+      density_plot: densityPlot,
     };
 
     // ✅ Conditionally add region only for pinot
@@ -470,13 +472,19 @@ useEffect(() => {
     if (wineFamily === "pinot") {
       payload.sotf_ret_time = (selectedTask === "SOTF Ret Time");
       payload.sotf_mz = (selectedTask === "SOTF m/z");
-      payload.sotf_2d = (selectedTask === "SOTF 2D");
+      payload.sotf_remove_2d = (selectedTask === "SOTF Remove 2D");
+      payload.sotf_add_2d = (selectedTask === "SOTF Add 2D");
       payload.reg_acc_map = (selectedTask === "Region Accuracy Map");
-
+    }
+    if (selectedTask === "Region Accuracy Map" || selectedTask === "SOTF Remove 2D" || selectedTask === "SOTF Add 2D") {
+      payload.n_rt_bins = nRtBins;
+      payload.n_mz_bins = nMzBins;
     }
     if (wineFamily === "bordeaux") {
       payload.sotf_ret_time = (selectedTask === "SOTF Ret Time");
       payload.sotf_mz = (selectedTask === "SOTF m/z");
+      payload.sotf_remove_2d = (selectedTask === "SOTF Remove 2D");
+      payload.sotf_add_2d = (selectedTask === "SOTF Add 2D");
     }
     if (wineFamily === "champagne") {
       payload.script_key = {
@@ -1461,7 +1469,54 @@ useEffect(() => {
                       )}
                     </Grid>
                   </Grid>
-                  {!(
+                  {selectedTask === "Region Accuracy Map" ? (
+                  <Grid container spacing={2} sx={{ mt: 2 }}>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        fullWidth
+                        label="RT bins"
+                        type="number"
+                        value={nRtBins}
+                        onChange={(e) => setNRtBins(Number(e.target.value))}
+                        sx={{ width: 120 }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        fullWidth
+                        label="m/z bins"
+                        type="number"
+                        value={nMzBins}
+                        onChange={(e) => setNMzBins(Number(e.target.value))}
+                        sx={{ width: 120 }}
+                      />
+                    </Grid>
+                  </Grid>
+                  ) : selectedTask === "SOTF Remove 2D" || selectedTask === "SOTF Add 2D" ? (
+                  <Grid container spacing={2} sx={{ mt: 2 }}>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        label="RT bins"
+                        type="number"
+                        value={nRtBins}
+                        onChange={(e) => setNRtBins(Number(e.target.value))}
+                        sx={{ width: 120 }}
+                        inputProps={{ min: 1, max: 50 }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                      <TextField
+                        label="m/z bins"
+                        type="number"
+                        value={nMzBins}
+                        onChange={(e) => setNMzBins(Number(e.target.value))}
+                        sx={{ width: 120 }}
+                        inputProps={{ min: 1, max: 50 }}
+                      />
+                    </Grid>
+                  </Grid>
+                ) : (
+                  !(
                     (wineFamily === "champagne" &&  selectedTask === "Predict Age") ||
                     (selectedTask === "Model Global" && tasterTests !== "average") ||
                     selectedTask === "Model per Taster"
@@ -2130,6 +2185,7 @@ useEffect(() => {
                         </>
                       )}
                     </Grid>
+                    )
                   )}
                   <Box sx={{ mt: 3 }}>
                     <Button

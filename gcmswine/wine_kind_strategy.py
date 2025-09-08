@@ -5,12 +5,22 @@ import re
 import numpy as np
 
 class WineKindStrategy:
-    def get_split_labels(self, labels_raw, class_by_year=False):
+    def get_split_labels(self, labels_raw, class_by_year=False, year_labels=None):
         """
         Returns labels to use for duplicate-safe grouping during splitting.
-        Override in subclasses as needed.
+        Uses year_labels if class_by_year=True.
         """
+        if class_by_year:
+            if year_labels is None:
+                raise ValueError("year_labels required when class_by_year=True")
+            return year_labels
         return labels_raw
+    # def get_split_labels(self, labels_raw, class_by_year=False):
+    #     """
+    #     Returns labels to use for duplicate-safe grouping during splitting.
+    #     Override in subclasses as needed.
+    #     """
+    #     return labels_raw
 
     def extract_labels(self, labels):
         return labels  # Default: no transformation

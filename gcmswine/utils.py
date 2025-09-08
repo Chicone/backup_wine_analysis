@@ -1749,7 +1749,6 @@ def rename_directories(directory_path):
                 except Exception as e:
                     print(f"Error renaming {dir_name}: {e}")
 
-
 def join_datasets(selected_datasets, data_directories, n_decimation):
     """
     Joins multiple datasets based on the given indices.
@@ -1812,7 +1811,6 @@ def join_datasets(selected_datasets, data_directories, n_decimation):
 
     return merged_data, merged_origins
 
-
 def compute_pairwise_pearson(chrom_dict):
     """
     Compute pairwise Pearson correlation coefficients between chromatograms.
@@ -1850,7 +1848,6 @@ def compute_pairwise_pearson(chrom_dict):
 
     return pairwise_results, mean_corr, std_corr
 
-
 def average_confusion_matrices_ignore_empty_rows(confusion_matrices):
     """
     Averages a list of confusion matrices row-wise, ignoring zero-sum rows in each matrix.
@@ -1886,17 +1883,6 @@ def average_confusion_matrices_ignore_empty_rows(confusion_matrices):
     row_sums = mean_cm.sum(axis=1, keepdims=True)
     normalized_mean_cm = np.divide(mean_cm, row_sums, where=row_sums != 0)
     return normalized_mean_cm
-
-
-import os
-import re
-import pandas as pd
-
-
-
-import os
-import re
-import pandas as pd
 
 import os
 import re
@@ -2122,8 +2108,6 @@ def create_dir_of_samples_from_bordeaux_ester(input_path, output_root=None):
     print("✔️ All samples extracted.")
     return created
 
-
-
 # def create_dir_of_samples_from_bordeaux(input_csv_path, output_root=None):
 #     """
 #     Extracts individual chromatogram files from a wide-format GC-MS file.
@@ -2236,7 +2220,6 @@ def create_dir_of_samples_from_bordeaux_ester(input_path, output_root=None):
 #     print("✔️ All samples extracted.")
 #     return created
 
-
 def create_dir_of_samples_from_champagnes(input_csv_path, output_root=".", use_cache=True):
     print(f"📄 Reading raw CSV: {input_csv_path}")
     raw_df = pd.read_csv(input_csv_path, header=None)
@@ -2275,7 +2258,6 @@ def create_dir_of_samples_from_champagnes(input_csv_path, output_root=".", use_c
         print(f"✅ Saved: {output_csv_path}")
 
     print("✔️ All samples extracted.")
-
 
 def get_custom_order_for_pinot_noir_region(region):
     """
@@ -2319,7 +2301,6 @@ def get_custom_order_for_pinot_noir_region(region):
     else:
         return None
 
-
 def infer_wine_kind(selected_datasets, dataset_directories):
     """
     Infers the wine kind ('bordeaux', 'pinot_noir', 'press', or 'champagne') from the dataset paths.
@@ -2349,7 +2330,6 @@ def infer_wine_kind(selected_datasets, dataset_directories):
             )
 
     return wine_kind
-
 
 def assign_bordeaux_label(labels, vintage=False):
     """
@@ -2407,7 +2387,7 @@ def compute_features(data, channels=None, feature_type="concatenated"):
     if channels is None:
         channels = list(range(data.shape[2]))
 
-    if feature_type == "concat_channels":
+    if feature_type == "concatenated":
         return np.hstack([data[:, :, ch].reshape(data.shape[0], -1) for ch in channels])
     elif feature_type == "tic":
         return np.sum(data[:, :, channels], axis=2)

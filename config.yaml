@@ -1,5 +1,5 @@
 chrom_cap: 35000
-class_by_year: false
+class_by_year: true
 classifier: RGC
 color_by_country: false
 color_by_origin: false
@@ -32,9 +32,11 @@ label_target: prod area
 label_targets:
 - age
 n_decimation: 10
+n_mz_bins: 2
 n_neighbors: 30
+n_rt_bins: 100
 normalize: true
-num_repeats: 3
+num_repeats: 10
 num_splits: 1
 plot_all_tests: false
 plot_projection: false
@@ -48,7 +50,7 @@ random_state: 42
 reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
-reg_acc_map: true
+reg_acc_map: false
 region: winery
 regressor: null
 remove_avg_scores: false
@@ -59,20 +61,21 @@ rot_axes: false
 rt_range:
   max: 30000
   min: 0
-sample_display_mode: names
+sample_display_mode: none
 selected_attribute: nuts
 selected_datasets:
 - pinot_noir_changins
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
-show_confusion_matrix: false
+show_confusion_matrix: true
 show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false
 shuffle_labels: false
-sotf_2d: false
+sotf_add_2d: false
 sotf_mz: false
+sotf_remove_2d: false
 sotf_ret_time: false
 sync_state: false
 taster_focus_heatmap: false

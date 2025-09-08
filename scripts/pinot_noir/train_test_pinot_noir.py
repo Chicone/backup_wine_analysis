@@ -6,6 +6,8 @@ Refactored version of train_test_pinot_noir.py
 
 """
 import os
+import time
+
 import yaml
 import numpy as np
 import matplotlib.pyplot as plt
@@ -25,6 +27,7 @@ from gcmswine.utils import (
 from gcmswine.logger_setup import logger, logger_raw
 from sklearn.preprocessing import normalize
 from gcmswine.dimensionality_reduction import DimensionalityReducer
+from scripts.bordeaux.train_test_bordeaux import run_sotf_ret_time
 from scripts.pinot_noir.plotting_pinot_noir import plot_pinot_noir
 
 # -----------------------------
@@ -106,15 +109,67 @@ def run_cv(
             show_confusion_matrix=show_confusion_matrix,
         )
     elif cv_type == "LOO":
-        return cls.train_and_evaluate_leave_one_out_all_samples(
-            normalize=normalize_flag,
-            scaler_type="standard",
-            region=region,
-            feature_type=feature_type,
-            classifier_type=classifier,
-            projection_source=projection_source,
-            show_confusion_matrix=show_confusion_matrix,
-        )
+        mean_acc, std_acc, all_scores, all_labels, test_sample_names, all_preds = \
+            cls.train_and_evaluate_leave_one_out_all_samples(
+                normalize=normalize_flag,
+                scaler_type="standard",
+                region=region,
+                feature_type=feature_type,
+                classifier_type=classifier,
+                projection_source=projection_source,
+                show_confusion_matrix=show_confusion_matrix,
+            )
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from gcmswine.classification import assign_origin_to_pinot_noir
+
+        # Convert lists to arrays
+        y_true = np.array(all_labels, dtype=int)
+        y_pred = np.array(all_preds, dtype=int)
+
+        # Color by region if available
+        if region is not None:
+            # Map test sample names (e.g. 'C14', 'M08') to their regions
+            regions = assign_origin_to_pinot_noir(test_sample_names, split_burgundy_ns=False)
+            regions = np.array(regions)
+
+            unique_regions = np.unique(regions)
+            colors = {r: plt.cm.tab10(i % 10) for i, r in enumerate(unique_regions)}
+            markers = ["o", "s", "D", "^", "v", "P", "X", "*", "<", ">"]
+            markers_map = {r: markers[i % len(markers)] for i, r in enumerate(unique_regions)}
+
+            plt.figure(figsize=(7, 7))
+            for r in unique_regions:
+                mask = regions == r
+                plt.scatter(
+                    y_true[mask], y_pred[mask],
+                    c=[colors[r]], marker=markers_map[r],
+                    alpha=0.7, label=r
+                )
+        else:
+            plt.figure(figsize=(7, 7))
+            plt.scatter(y_true, y_pred, c="blue", marker="o", alpha=0.7,  label="All")
+
+        # perfect diagonal
+        lims = [min(y_true.min(), y_pred.min()), max(y_true.max(), y_pred.max())]
+        plt.plot(lims, lims, "r--", label="Perfect prediction")
+
+        plt.xlabel("True Year")
+        plt.ylabel("Predicted Year")
+        plt.title("True vs Predicted (LOO)")
+        plt.legend(title="Regions", loc="best")
+        plt.grid(True)
+        plt.show()
+        # return cls.train_and_evaluate_leave_one_out_all_samples(
+        #     normalize=normalize_flag,
+        #     scaler_type="standard",
+        #     region=region,
+        #     feature_type=feature_type,
+        #     classifier_type=classifier,
+        #     projection_source=projection_source,
+        #     show_confusion_matrix=show_confusion_matrix,
+        # )
     else:
         raise ValueError(f"Invalid cross-validation type: '{cv_type}'.")
 
@@ -533,10 +588,13 @@ def filter_singletons(X, labels, raw_labels=None, class_by_year=False):
                     keep_idx.extend(base_to_indices[base])
 
     else:
-        # plain class labels
-        classes, counts = np.unique(y, return_counts=True)
-        keep_classes = {cls for cls, c in zip(classes, counts) if c >= 2}
-        keep_idx = [i for i, cls in enumerate(y) if cls in keep_classes]
+        # Group by the prefix (e.g. "A" from "A1990")
+        prefixes = np.array([str(lbl)[0] for lbl in y])  # take first letter
+        unique_prefixes, counts = np.unique(prefixes, return_counts=True)
+
+        # keep only prefixes with ≥2 samples
+        keep_prefixes = {p for p, c in zip(unique_prefixes, counts) if c >= 2}
+        keep_idx = [i for i, p in enumerate(prefixes) if p in keep_prefixes]
 
     keep_idx = np.array(sorted(keep_idx), dtype=int)
     return X[keep_idx], y[keep_idx], (raw_labels[keep_idx] if raw_labels is not None else None)
@@ -1210,16 +1268,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-def mask_cubes(data, remove_cubes, rt_edges, mz_edges):
-    """Zero out the specified cubes in data3d."""
-    masked = data.copy()
-    for (i, j) in remove_cubes:
-        rt_start, rt_end = rt_edges[i], rt_edges[i + 1]
-        mz_start, mz_end = mz_edges[j], mz_edges[j + 1]
-        masked[:, rt_start:rt_end, mz_start:mz_end] = 0
+def mask_cubes(data, cubes, rt_edges, mz_edges, mode="remove"):
+    masked = np.zeros_like(data) if mode=="add" else data.copy()
+    for (i, j) in cubes:
+        rt_start, rt_end = rt_edges[i], rt_edges[i+1]
+        mz_start, mz_end = mz_edges[j], mz_edges[j+1]
+        if mode == "remove":
+            masked[:, rt_start:rt_end, mz_start:mz_end] = 0
+        else:  # add mode
+            masked[:, rt_start:rt_end, mz_start:mz_end] = data[:, rt_start:rt_end, mz_start:mz_end]
     return masked
 
-def run_sotf_2d(
+
+def run_sotf_remove_2d(
     data3d,
     labels,
     raw_sample_labels,
@@ -1234,19 +1295,27 @@ def run_sotf_2d(
     normalize_flag,
     region,
     feature_type,
-    projection_source,
-    show_confusion_matrix,
     n_rt_bins=10,
     n_mz_bins=10,
     min_cubes=1,
     n_jobs=-1,
     random_state=42,
+    sample_frac=1.0,
+    rt_min=None, rt_max=None, mz_min=None, mz_max=None,
+    cube_repr="tic"
 ):
     """
-    2D Survival-of-the-fittest over RT × m/z cubes.
+    2D Survival-of-the-fittest (Greedy Remove) over RT × m/z cubes.
     Iteratively removes cubes, masking them to zero, and evaluates via nested CV.
     Produces both survival curve and heatmap (removal order).
     """
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+    from joblib import Parallel, delayed
+
     # === Singleton filtering ===
     if cv_type in ("LOO", "LOOPC"):
         data3d, labels, raw_sample_labels = filter_singletons(
@@ -1260,36 +1329,72 @@ def run_sotf_2d(
 
     n_samples, n_time, n_channels = data3d.shape
 
-    # === Define cube grid ===
-    rt_edges = np.linspace(0, n_time, n_rt_bins + 1, dtype=int)
-    mz_edges = np.linspace(0, n_channels, n_mz_bins + 1, dtype=int)
+    # === Crop data ===
+    rt_min = 0 if rt_min is None else max(0, rt_min)
+    rt_max = n_time if rt_max is None else min(n_time, rt_max)
+    mz_min = 0 if mz_min is None else max(0, mz_min)
+    mz_max = n_channels if mz_max is None else min(n_channels, mz_max)
+    data3d = data3d[:, rt_min:rt_max, mz_min:mz_max]
+
+    n_samples, n_time, n_channels = data3d.shape
+
+    # === Define cube grid (force last edge to cover full range) ===
+    rt_edges = np.linspace(rt_min, rt_max, n_rt_bins + 1, dtype=int)
+    mz_edges = np.linspace(mz_min, mz_max, n_mz_bins + 1, dtype=int)
+    rt_edges[-1] = rt_max
+    mz_edges[-1] = mz_max
 
     all_cubes = [(i, j) for i in range(n_rt_bins) for j in range(n_mz_bins)]
-    active_cubes = all_cubes.copy()
-    cubes_to_remove = []
+    active_cubes, cubes_to_remove = all_cubes.copy(), []
 
     n_iterations = len(all_cubes) - min_cubes + 1
     n_classes = len(np.unique(year_labels if class_by_year else labels))
 
+    # === Precompute features if concatenated ===
+    precomputed_features, subcubes = None, None
+    if feature_type == "concat_channels":
+        precomputed_features = {}
+        for (i, j) in all_cubes:
+            rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i+1] - rt_min
+            mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j+1] - mz_min
+            cube = data3d[:, rt_start:rt_end, mz_start:mz_end]
+
+            if cube_repr == "flat":
+                features = cube.reshape(n_samples, -1)
+            elif cube_repr == "tic":
+                features = np.sum(cube, axis=2)  # sum across m/z
+            elif cube_repr == "tis":
+                features = np.sum(cube, axis=1)  # sum across RT
+            elif cube_repr == "tic_tis":
+                tic = np.sum(cube, axis=2)
+                tis = np.sum(cube, axis=1)
+                features = np.hstack([tic, tis])
+            else:
+                raise ValueError(f"Unsupported cube_repr: {cube_repr}")
+
+            precomputed_features[(i, j)] = features
+    else:
+        subcubes = {}
+        for (i, j) in all_cubes:
+            rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i+1] - rt_min
+            mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j+1] - mz_min
+            subcubes[(i, j)] = (rt_start, rt_end, mz_start, mz_end)
+
     # === Outer CV splitter ===
-    full_X = compute_features(data3d, feature_type=feature_type)
+    full_X = np.zeros((n_samples, 1))
     if cv_type == "LOO":
-        outer_splits = list(LeaveOneOut().split(full_X, labels))
-        cv_label = "LOO"
+        outer_splits, cv_label = list(LeaveOneOut().split(full_X, labels)), "LOO"
     elif cv_type == "LOOPC":
-        outer_splits = loopc_splits(
+        outer_splits, cv_label = loopc_splits(
             year_labels if class_by_year else labels,
-            num_repeats=num_repeats,
-            random_state=random_state,
+            num_repeats=num_repeats, random_state=random_state,
             class_by_year=class_by_year,
             raw_labels=raw_sample_labels if class_by_year else None,
-        )
-        cv_label = "LOOPC"
+        ), "LOOPC"
     elif cv_type == "stratified":
         y_for_split = year_labels if class_by_year else labels
         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
-        outer_splits = list(cv.split(full_X, y_for_split))
-        cv_label = "Stratified"
+        outer_splits, cv_label = list(cv.split(full_X, y_for_split)), "Stratified"
     else:
         raise ValueError(f"Unsupported cv_type: {cv_type}")
 
@@ -1297,36 +1402,1183 @@ def run_sotf_2d(
     plt.ion()
     fig, (ax_curve, ax_heat) = plt.subplots(1, 2, figsize=(14, 6))
 
-    # Survival curve
     line, = ax_curve.plot([], [], marker="o")
     ax_curve.set_xlabel("Percentage of cubes remaining (%)")
     ax_curve.set_ylabel("Accuracy")
-    ax_curve.set_title(f"2D SOTF Curve ({cv_label} CV)")
+    ax_curve.set_title(f"2D SOTF Greedy Remove ({cv_label} CV)")
     ax_curve.grid(True)
     ax_curve.set_xlim(100, 0)
     ax_curve.set_ylim(0, 1)
 
-    # Heatmap (removal order)
     removal_order = np.full((n_mz_bins, n_rt_bins), np.nan)
+    annotations = np.full((n_mz_bins, n_rt_bins), "", dtype=object)
     sns.heatmap(
         removal_order, vmin=0, vmax=n_iterations, cmap="viridis_r",
-        ax=ax_heat, cbar=True, cbar_kws={"label": "Removal step"},
+        ax=ax_heat, cbar=False,
         xticklabels=[f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
         yticklabels=[f"{mz_edges[j]}–{mz_edges[j+1]}" for j in range(n_mz_bins)],
-        annot=True, fmt=".0f", annot_kws={"size": 8, "color": "black"}
+        annot=annotations, fmt="",
+        annot_kws={"size": 8, "color": "black"}
     )
-    ax_heat.set_xlabel("RT bins")
-    ax_heat.set_ylabel("m/z bins")
-    ax_heat.set_title("Cube removal order")
+    ax_heat.set_title("Cube removal order (hot = early)")
     ax_heat.invert_yaxis()
-    ax_heat.set_xticklabels(ax_heat.get_xticklabels(), rotation=45, ha="right")
-    ax_heat.set_yticklabels(ax_heat.get_yticklabels(), rotation=0)
     plt.pause(0.1)
 
     accuracies, percent_remaining = [], []
 
-    # === Safe train/eval helper ===
+    # === Safe train/eval ===
     def safe_train_eval(Xtr, ytr, Xte, yte, train_idx):
+        if Xtr.shape[1] == 0 or Xte.shape[1] == 0:
+            return {"balanced_accuracy": 1.0 / n_classes}
+        try:
+            cls_wrap = Classifier(
+                Xtr, ytr, classifier_type=classifier,
+                wine_kind=wine_kind, class_by_year=class_by_year,
+                year_labels=(np.array(year_labels)[train_idx]
+                             if (year_labels is not None and class_by_year) else None),
+                strategy=strategy, sample_labels=np.array(raw_sample_labels)[train_idx],
+                dataset_origins=dataset_origins,
+            )
+            res, _, _, _ = cls_wrap.train_and_evaluate_balanced(
+                normalize=normalize_flag, scaler_type="standard",
+                region=region, random_seed=random_state,
+                test_size=0.2, LOOPC=False, projection_source=False,
+                X_test=Xte, y_test=yte,
+            )
+            return res
+        except np.linalg.LinAlgError:
+            return {"balanced_accuracy": 1.0 / len(np.unique(ytr))}
+
+    # === Baseline accuracy (all cubes) ===
+    baseline_accs = []
+    for train_idx, test_idx in outer_splits:
+        if feature_type == "concat_channels":
+            X_train = np.hstack([precomputed_features[c][train_idx] for c in all_cubes])
+            X_test  = np.hstack([precomputed_features[c][test_idx] for c in all_cubes])
+        else:
+            X_train = utils.compute_features(data3d[train_idx], feature_type=feature_type)
+            X_test  = utils.compute_features(data3d[test_idx], feature_type=feature_type)
+        y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
+        y_test  = year_labels[test_idx] if class_by_year else labels[test_idx]
+        res = safe_train_eval(X_train, y_train, X_test, y_test, train_idx)
+        baseline_accs.append(res["balanced_accuracy"])
+    baseline_acc = np.mean(baseline_accs)
+
+    accuracies.append(baseline_acc)
+    percent_remaining.append(100.0)
+    line.set_data(percent_remaining, accuracies)
+    plt.pause(0.2)
+
+    rng = np.random.default_rng(random_state)
+    best_global_score, best_global_cube = baseline_acc, None
+
+    # === Greedy loop (remove) ===
+    for step in range(n_iterations):
+        if len(active_cubes) <= min_cubes: break
+
+        if sample_frac < 1.0:
+            n_sample = max(1, int(len(active_cubes) * sample_frac))
+            candidates = rng.choice(active_cubes, size=n_sample, replace=False)
+            candidates = [tuple(c) for c in candidates]
+        else:
+            candidates = active_cubes
+
+        def eval_candidate(cube):
+            candidate_remove = cubes_to_remove + [cube]
+            fold_accs = []
+            for train_idx, test_idx in outer_splits:
+                if feature_type == "concat_channels":
+                    remaining = [c for c in all_cubes if c not in candidate_remove]
+                    X_train = np.hstack([precomputed_features[c][train_idx] for c in remaining])
+                    X_test  = np.hstack([precomputed_features[c][test_idx] for c in remaining])
+                else:
+                    masked_train = mask_cubes(data3d[train_idx], candidate_remove, rt_edges, mz_edges)
+                    masked_test  = mask_cubes(data3d[test_idx], candidate_remove, rt_edges, mz_edges)
+                    X_train = utils.compute_features(masked_train, feature_type=feature_type)
+                    X_test  = utils.compute_features(masked_test,  feature_type=feature_type)
+                y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
+                y_test  = year_labels[test_idx] if class_by_year else labels[test_idx]
+                res = safe_train_eval(X_train, y_train, X_test, y_test, train_idx)
+                fold_accs.append(res["balanced_accuracy"])
+            return cube, np.mean(fold_accs)
+
+        candidate_scores = Parallel(n_jobs=n_jobs)(
+            delayed(eval_candidate)(cube) for cube in candidates
+        )
+        best_cube, best_score = max(candidate_scores, key=lambda x: x[1])
+        cubes_to_remove.append(best_cube); active_cubes.remove(best_cube)
+
+        pct_data = (len(active_cubes) / len(all_cubes)) * 100
+        accuracies.append(best_score); percent_remaining.append(pct_data)
+
+        if best_score > best_global_score:
+            best_global_score, best_global_cube = best_score, best_cube
+
+        # Update plots
+        line.set_data(percent_remaining, accuracies)
+        ax_curve.set_xlim(100, min(percent_remaining) - 5); plt.pause(0.2)
+
+        (i, j) = best_cube
+        removal_order[j, i] = step + 1
+        for x in range(n_rt_bins):
+            for y in range(n_mz_bins):
+                if not np.isnan(removal_order[y, x]):
+                    annotations[y, x] = f"{int(removal_order[y, x])}"
+        if best_global_cube is not None:
+            bi, bj = best_global_cube
+            annotations[bj, bi] = f"{int(removal_order[bj, bi])}\n{best_global_score:.2f}"
+
+        ax_heat.clear()
+        sns.heatmap(
+            removal_order, vmin=0, vmax=len(all_cubes),
+            cmap="viridis_r", ax=ax_heat, cbar=False,
+            xticklabels=[f"{rt_edges[x]}–{rt_edges[x+1]}" for x in range(n_rt_bins)],
+            yticklabels=[f"{mz_edges[y]}–{mz_edges[y+1]}" for y in range(n_mz_bins)],
+            annot=annotations, fmt="",
+            annot_kws={"size": 8, "color": "black"}
+        )
+        for text in ax_heat.texts:
+            x, y = text.get_position()
+            i, j = int(round(x - 0.5)), int(round(y - 0.5))
+            val = removal_order[j, i]
+            if not np.isnan(val):
+                norm_val = (val - 0) / (len(all_cubes) - 0)
+                rgba = plt.cm.viridis_r(norm_val)
+                luminance = 0.299*rgba[0] + 0.587*rgba[1] + 0.114*rgba[2]
+                text.set_color("white" if luminance < 0.5 else "black")
+
+        ax_heat.set_title("Cube removal order (hot = early)")
+        ax_heat.invert_yaxis(); plt.pause(0.1)
+
+    plt.ioff(); plt.show()
+    return accuracies, percent_remaining, removal_order
+
+
+# def run_sotf_2d(
+#     data3d,
+#     labels,
+#     raw_sample_labels,
+#     year_labels,
+#     classifier,
+#     wine_kind,
+#     class_by_year,
+#     strategy,
+#     dataset_origins,
+#     cv_type,
+#     num_repeats,
+#     normalize_flag,
+#     region,
+#     feature_type,
+#     projection_source,
+#     show_confusion_matrix,
+#     n_rt_bins=10,
+#     n_mz_bins=10,
+#     min_cubes=1,
+#     n_jobs=20,
+#     random_state=42,
+#     sample_frac=1.0,   # fraction of cubes to evaluate at each step (0–1)
+# ):
+#     """
+#     2D Survival-of-the-fittest over RT × m/z cubes.
+#     Iteratively removes cubes, masking them to zero, and evaluates via nested CV.
+#     Produces both survival curve and heatmap (removal order).
+#     """
+#
+#     import numpy as np
+#     import matplotlib.pyplot as plt
+#     import seaborn as sns
+#     from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+#     from joblib import Parallel, delayed
+#
+#     # === Singleton filtering ===
+#     if cv_type in ("LOO", "LOOPC"):
+#         data3d, labels, raw_sample_labels = filter_singletons(
+#             data3d,
+#             year_labels if class_by_year else labels,
+#             raw_labels=raw_sample_labels,
+#             class_by_year=class_by_year,
+#         )
+#         if class_by_year:
+#             year_labels = labels
+#
+#     # data3d = data3d[:, :, 0:91]
+#
+#     n_samples, n_time, n_channels = data3d.shape
+#
+#     # === Define cube grid (force last edge to cover full range) ===
+#     rt_edges = np.linspace(0, n_time, n_rt_bins + 1, dtype=int)
+#     mz_edges = np.linspace(0, n_channels, n_mz_bins + 1, dtype=int)
+#
+#     # make sure last edges reach the end
+#     rt_edges[-1] = n_time
+#     mz_edges[-1] = n_channels
+#
+#     all_cubes = [(i, j) for i in range(n_rt_bins) for j in range(n_mz_bins)]
+#     active_cubes = all_cubes.copy()
+#     cubes_to_remove = []
+#
+#     n_iterations = len(all_cubes) - min_cubes + 1
+#     n_classes = len(np.unique(year_labels if class_by_year else labels))
+#
+#     # === Outer CV splitter ===
+#     full_X = compute_features(data3d, feature_type=feature_type)
+#     if cv_type == "LOO":
+#         outer_splits = list(LeaveOneOut().split(full_X, labels))
+#         cv_label = "LOO"
+#     elif cv_type == "LOOPC":
+#         outer_splits = loopc_splits(
+#             year_labels if class_by_year else labels,
+#             num_repeats=num_repeats,
+#             random_state=random_state,
+#             class_by_year=class_by_year,
+#             raw_labels=raw_sample_labels if class_by_year else None,
+#         )
+#         cv_label = "LOOPC"
+#     elif cv_type == "stratified":
+#         y_for_split = year_labels if class_by_year else labels
+#         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
+#         outer_splits = list(cv.split(full_X, y_for_split))
+#         cv_label = "Stratified"
+#     else:
+#         raise ValueError(f"Unsupported cv_type: {cv_type}")
+#
+#     # === Plot setup ===
+#     plt.ion()
+#     fig, (ax_curve, ax_heat) = plt.subplots(1, 2, figsize=(14, 6))
+#
+#     # Survival curve
+#     line, = ax_curve.plot([], [], marker="o")
+#     ax_curve.set_xlabel("Percentage of cubes remaining (%)")
+#     ax_curve.set_ylabel("Accuracy")
+#     ax_curve.set_title(f"2D SOTF Curve ({cv_label} CV)")
+#     ax_curve.grid(True)
+#     ax_curve.set_xlim(100, 0)
+#     ax_curve.set_ylim(0, 1)
+#
+#     # Heatmap (removal order)
+#     removal_order = np.full((n_mz_bins, n_rt_bins), np.nan)
+#     annotations = np.full((n_mz_bins, n_rt_bins), "", dtype=object)
+#     sns.heatmap(
+#         removal_order, vmin=0, vmax=n_iterations, cmap="viridis_r",
+#         ax=ax_heat, cbar=False,
+#         xticklabels=[f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
+#         yticklabels=[f"{mz_edges[j]}–{mz_edges[j+1]}" for j in range(n_mz_bins)],
+#         annot=annotations, fmt="",
+#         annot_kws={"size": 8, "color": "black"}
+#     )
+#     ax_heat.set_xlabel("RT bins")
+#     ax_heat.set_ylabel("m/z bins")
+#     ax_heat.set_title("Cube removal order (hot = early)")
+#     ax_heat.invert_yaxis()
+#     ax_heat.set_xticklabels(ax_heat.get_xticklabels(), rotation=45, ha="right")
+#     ax_heat.set_yticklabels(ax_heat.get_yticklabels(), rotation=0)
+#     plt.pause(0.1)
+#
+#     accuracies, percent_remaining = [], []
+#
+#     # === Safe train/eval helper ===
+#     def safe_train_eval(Xtr, ytr, Xte, yte, train_idx):
+#         if Xtr.shape[1] == 0 or Xte.shape[1] == 0:
+#             return {"balanced_accuracy": 1.0 / n_classes}
+#         try:
+#             cls_wrap = Classifier(
+#                 Xtr, ytr,
+#                 classifier_type=classifier,
+#                 wine_kind=wine_kind,
+#                 class_by_year=class_by_year,
+#                 year_labels=(np.array(year_labels)[train_idx]
+#                              if (year_labels is not None and class_by_year) else None),
+#                 strategy=strategy,
+#                 sample_labels=np.array(raw_sample_labels)[train_idx],
+#                 dataset_origins=dataset_origins,
+#             )
+#             res, _, _, _ = cls_wrap.train_and_evaluate_balanced(
+#                 normalize=normalize_flag,
+#                 scaler_type="standard",
+#                 region=region,
+#                 random_seed=random_state,
+#                 test_size=0.2,
+#                 LOOPC=False,
+#                 projection_source=False,
+#                 X_test=Xte,
+#                 y_test=yte,
+#             )
+#             return res
+#         except np.linalg.LinAlgError:
+#             return {"balanced_accuracy": 1.0 / len(np.unique(ytr))}
+#
+#     # === Baseline accuracy ===
+#     baseline_accs = []
+#     for train_idx, test_idx in outer_splits:
+#         X_train = compute_features(data3d[train_idx], feature_type=feature_type)
+#         X_test  = compute_features(data3d[test_idx],  feature_type=feature_type)
+#         y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
+#         y_test  = year_labels[test_idx]  if class_by_year else labels[test_idx]
+#         res = safe_train_eval(X_train, y_train, X_test, y_test, train_idx)
+#         baseline_accs.append(res["balanced_accuracy"])
+#     baseline_acc = np.mean(baseline_accs)
+#
+#     accuracies.append(baseline_acc)
+#     percent_remaining.append(100.0)
+#     line.set_data(percent_remaining, accuracies)
+#     plt.pause(0.2)
+#     logger.info(f"Baseline (all cubes): mean acc = {baseline_acc:.3f}")
+#
+#     # === Greedy loop ===
+#     rng = np.random.default_rng(random_state)
+#     best_global_score = baseline_acc
+#     best_global_cube = None
+#
+#     for step in range(n_iterations):
+#         if len(active_cubes) <= min_cubes:
+#             break
+#
+#         # Choose candidate cubes (possibly subsampled)
+#         if sample_frac < 1.0:
+#             n_sample = max(1, int(len(active_cubes) * sample_frac))
+#             candidates = rng.choice(active_cubes, size=n_sample, replace=False)
+#             candidates = [tuple(c) for c in candidates]
+#         else:
+#             candidates = active_cubes
+#
+#         # Evaluate candidates
+#         def eval_candidate(cube):
+#             candidate_remove = cubes_to_remove + [cube]
+#             fold_accs = []
+#             for train_idx, test_idx in outer_splits:
+#                 masked_train = mask_cubes(data3d[train_idx], candidate_remove, rt_edges, mz_edges)
+#                 masked_test  = mask_cubes(data3d[test_idx],  candidate_remove, rt_edges, mz_edges)
+#                 X_train = compute_features(masked_train, feature_type=feature_type)
+#                 X_test  = compute_features(masked_test,  feature_type=feature_type)
+#                 y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
+#                 y_test  = year_labels[test_idx]  if class_by_year else labels[test_idx]
+#                 res = safe_train_eval(X_train, y_train, X_test, y_test, train_idx)
+#                 fold_accs.append(res["balanced_accuracy"])
+#             return cube, np.mean(fold_accs)
+#
+#         candidate_scores = Parallel(n_jobs=n_jobs)(
+#             delayed(eval_candidate)(cube) for cube in candidates
+#         )
+#
+#         # Pick best
+#         best_cube, best_score = max(candidate_scores, key=lambda x: x[1])
+#         best_cube = tuple(best_cube)
+#         cubes_to_remove.append(best_cube)
+#         active_cubes.remove(best_cube)
+#
+#         # Record progress
+#         pct_data = (len(active_cubes) / len(all_cubes)) * 100
+#         accuracies.append(best_score)
+#         percent_remaining.append(pct_data)
+#
+#         # Track best global
+#         if best_score > best_global_score:
+#             best_global_score = best_score
+#             best_global_cube = best_cube
+#
+#         # Update curve
+#         line.set_data(percent_remaining, accuracies)
+#         ax_curve.set_xlim(100, min(percent_remaining) - 5)
+#         plt.pause(0.2)
+#
+#         # Update heatmap with annotation
+#         (i, j) = best_cube
+#         removal_order[j, i] = step + 1
+#         annotations[j, i] = f"{step+1}"
+#
+#         for x in range(n_rt_bins):
+#             for y in range(n_mz_bins):
+#                 if not np.isnan(removal_order[y, x]):
+#                     annotations[y, x] = f"{int(removal_order[y, x])}"
+#
+#         if best_global_cube is not None:
+#             bi, bj = best_global_cube
+#             annotations[bj, bi] = f"{int(removal_order[bj, bi])}\n{best_global_score:.2f}"
+#
+#         ax_heat.clear()
+#         sns.heatmap(
+#             removal_order,
+#             vmin=0, vmax=len(all_cubes),
+#             cmap="viridis_r", ax=ax_heat, cbar=False,
+#             xticklabels=[f"{rt_edges[x]}–{rt_edges[x+1]}" for x in range(n_rt_bins)],
+#             yticklabels=[f"{mz_edges[y]}–{mz_edges[y+1]}" for y in range(n_mz_bins)],
+#             annot=annotations, fmt="",
+#             annot_kws={"size": 8, "color": "black"}
+#         )
+#         for text in ax_heat.texts:
+#             x, y = text.get_position()
+#             i, j = int(round(x - 0.5)), int(round(y - 0.5))
+#             val = removal_order[j, i]
+#             if not np.isnan(val):
+#                 norm_val = (val - 0) / (len(all_cubes) - 0)
+#                 rgba = plt.cm.viridis_r(norm_val)
+#                 luminance = 0.299 * rgba[0] + 0.587 * rgba[1] + 0.114 * rgba[2]
+#                 text.set_color("white" if luminance < 0.5 else "black")
+#
+#         ax_heat.set_xlabel("RT bins")
+#         ax_heat.set_ylabel("m/z bins")
+#         ax_heat.set_title("Cube removal order (hot = early)")
+#         ax_heat.set_xticklabels(ax_heat.get_xticklabels(), rotation=45, ha="right")
+#         ax_heat.set_yticklabels(ax_heat.get_yticklabels(), rotation=0)
+#         ax_heat.invert_yaxis()
+#         plt.pause(0.1)
+#
+#         logger.info(f"Iteration {step+1}: removed cube {best_cube}, acc={best_score:.3f}, % cubes={pct_data:.1f}")
+#
+#     plt.ioff()
+#     plt.show()
+#
+#     return accuracies, percent_remaining, removal_order
+
+# #### SEMI_LEAKY ###
+# def run_sotf_add_2d(
+#     data3d,
+#     labels,
+#     raw_sample_labels,
+#     year_labels,
+#     classifier,
+#     wine_kind,
+#     class_by_year,
+#     strategy,
+#     dataset_origins,
+#     cv_type,
+#     num_repeats,
+#     normalize_flag,
+#     region,
+#     feature_type,
+#     n_rt_bins=10,
+#     n_mz_bins=10,
+#     max_cubes=None,
+#     n_jobs=-1,
+#     random_state=42,
+#     sample_frac=1.0,
+#     rt_min=None, rt_max=None, mz_min=None, mz_max=None,
+#     cube_repr="concatenate"
+# ):
+#     """
+#     2D Greedy Add (SOTF) with GLOBAL decision across folds:
+#       - Outer CV folds provide unbiased accuracy
+#       - At each iteration, candidate cubes are evaluated by average outer accuracy
+#       - One canonical cube order is produced (same for all folds)
+#       - Faster than fully nested version
+#     """
+#     import numpy as np
+#     import matplotlib.pyplot as plt
+#     import seaborn as sns
+#     from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+#     from joblib import Parallel, delayed
+#
+#     rng = np.random.default_rng(random_state)
+#
+#     # === Singleton filtering ===
+#     if cv_type in ("LOO", "LOOPC"):
+#         data3d, labels, raw_sample_labels = filter_singletons(
+#             data3d,
+#             year_labels if class_by_year else labels,
+#             raw_labels=raw_sample_labels,
+#             class_by_year=class_by_year,
+#         )
+#         if class_by_year:
+#             year_labels = labels
+#
+#     n_samples, n_time, n_channels = data3d.shape
+#
+#     # === Crop ===
+#     rt_min = 0 if rt_min is None else max(0, rt_min)
+#     rt_max = n_time if rt_max is None else min(n_time, rt_max)
+#     mz_min = 0 if mz_min is None else max(0, mz_min)
+#     mz_max = n_channels if mz_max is None else min(n_channels, mz_max)
+#     data3d = data3d[:, rt_min:rt_max, mz_min:mz_max]
+#     n_samples, n_time, n_channels = data3d.shape
+#
+#     # === Define grid ===
+#     rt_edges = np.linspace(rt_min, rt_max, n_rt_bins + 1, dtype=int)
+#     mz_edges = np.linspace(mz_min, mz_max, n_mz_bins + 1, dtype=int)
+#     rt_edges[-1] = rt_max
+#     mz_edges[-1] = mz_max
+#     all_cubes = [(i, j) for i in range(n_rt_bins) for j in range(n_mz_bins)]
+#     if max_cubes is None:
+#         max_cubes = len(all_cubes)
+#     n_iterations = max_cubes
+#     n_classes = len(np.unique(year_labels if class_by_year else labels))
+#
+#     # === Precompute features ===
+#     precomputed_features, subcubes = None, None
+#     if feature_type == "concat_channels":
+#         precomputed_features = {}
+#         for (i, j) in all_cubes:
+#             rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i + 1] - rt_min
+#             mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j + 1] - mz_min
+#             cube = data3d[:, rt_start:rt_end, mz_start:mz_end]
+#
+#             if cube_repr == "flat":
+#                 features = cube.reshape(n_samples, -1)
+#             elif cube_repr == "tic":
+#                 features = np.sum(cube, axis=2)
+#             elif cube_repr == "tis":
+#                 features = np.sum(cube, axis=1)
+#             elif cube_repr == "tic_tis":
+#                 tic = np.sum(cube, axis=2)
+#                 tis = np.sum(cube, axis=1)
+#                 features = np.hstack([tic, tis])
+#             else:
+#                 raise ValueError(f"Unsupported cube_repr: {cube_repr}")
+#
+#             precomputed_features[(i, j)] = features
+#     else:
+#         subcubes = {}
+#         for (i, j) in all_cubes:
+#             rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i + 1] - rt_min
+#             mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j + 1] - mz_min
+#             subcubes[(i, j)] = (rt_start, rt_end, mz_start, mz_end)
+#
+#     # === Outer CV splits ===
+#     dummy_X = np.zeros((n_samples, 1))
+#     if cv_type == "LOO":
+#         outer_splits, cv_label = list(LeaveOneOut().split(dummy_X, labels)), "LOO"
+#     elif cv_type == "LOOPC":
+#         outer_splits, cv_label = loopc_splits(
+#             year_labels if class_by_year else labels,
+#             num_repeats=num_repeats, random_state=random_state,
+#             class_by_year=class_by_year,
+#             raw_labels=raw_sample_labels if class_by_year else None,
+#         ), "LOOPC"
+#     elif cv_type == "stratified":
+#         y_for_split = year_labels if class_by_year else labels
+#         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
+#         outer_splits, cv_label = list(cv.split(dummy_X, y_for_split)), "Stratified"
+#     else:
+#         raise ValueError(f"Unsupported cv_type: {cv_type}")
+#
+#     # === Plot setup ===
+#     plt.ion()
+#     fig, (ax_curve, ax_heat) = plt.subplots(1, 2, figsize=(14, 6))
+#     line, = ax_curve.plot([], [], marker="o")
+#     ax_curve.set_xlabel("% of cubes added")
+#     ax_curve.set_ylabel("Outer Accuracy")
+#     ax_curve.set_title(f"2D SOTF Greedy Add ({cv_label} CV)\nClassifier={classifier}, Feature={feature_type}")
+#     ax_curve.grid(True)
+#
+#     addition_order = np.full((n_mz_bins, n_rt_bins), np.nan)
+#
+#     accuracies = []
+#     percent_added = []
+#
+#     # === Safe eval ===
+#     def safe_train_eval(Xtr, ytr, Xte, yte, train_idx):
+#         if Xtr.shape[1] == 0 or Xte.shape[1] == 0:
+#             return {"balanced_accuracy": 1.0 / n_classes}
+#         try:
+#             cls_wrap = Classifier(
+#                 Xtr, ytr, classifier_type=classifier,
+#                 wine_kind=wine_kind, class_by_year=class_by_year,
+#                 year_labels=(np.array(year_labels)[train_idx]
+#                              if (year_labels is not None and class_by_year) else None),
+#                 strategy=strategy, sample_labels=np.array(raw_sample_labels)[train_idx],
+#                 dataset_origins=dataset_origins,
+#             )
+#             res, _, _, _ = cls_wrap.train_and_evaluate_balanced(
+#                 normalize=normalize_flag, scaler_type="standard",
+#                 region=region, random_seed=random_state,
+#                 test_size=0.2, LOOPC=False, projection_source=False,
+#                 X_test=Xte, y_test=yte,
+#             )
+#             return res
+#         except np.linalg.LinAlgError:
+#             return {"balanced_accuracy": 1.0 / len(np.unique(ytr))}
+#
+#     # === Baseline (no cubes) ===
+#     baseline_accs = []
+#     for train_idx, test_idx in outer_splits:
+#         y_train = (year_labels if class_by_year else labels)[train_idx]
+#         y_test  = (year_labels if class_by_year else labels)[test_idx]
+#         baseline_accs.append(1.0 / n_classes)
+#     baseline_acc = np.mean(baseline_accs)
+#     accuracies.append(baseline_acc)
+#     percent_added.append(0)
+#
+#     # === Greedy loop ===
+#     added_cubes, not_added = [], all_cubes.copy()
+#     for step in range(n_iterations):
+#         if len(added_cubes) >= max_cubes:
+#             break
+#
+#         # Candidate subset
+#         if sample_frac < 1.0:
+#             n_sample = max(1, int(len(not_added) * sample_frac))
+#             candidates = rng.choice(not_added, size=n_sample, replace=False)
+#             candidates = [tuple(c) for c in candidates]
+#         else:
+#             candidates = not_added
+#
+#         candidate_scores = []
+#         for cube in candidates:
+#             fold_accs = []
+#             for train_idx, test_idx in outer_splits:
+#                 if feature_type == "concat_channels":
+#                     X_train = np.hstack([precomputed_features[c][train_idx] for c in added_cubes + [cube]])
+#                     X_test  = np.hstack([precomputed_features[c][test_idx]  for c in added_cubes + [cube]])
+#                 else:
+#                     masked = np.zeros_like(data3d)
+#                     for (i, j) in added_cubes + [cube]:
+#                         rt_start, rt_end, mz_start, mz_end = subcubes[(i, j)]
+#                         masked[:, rt_start:rt_end, mz_start:mz_end] = data3d[:, rt_start:rt_end, mz_start:mz_end]
+#                     X_train = compute_features(masked[train_idx], feature_type=feature_type)
+#                     X_test  = compute_features(masked[test_idx], feature_type=feature_type)
+#
+#                 y_train = (year_labels if class_by_year else labels)[train_idx]
+#                 y_test  = (year_labels if class_by_year else labels)[test_idx]
+#                 res = safe_train_eval(X_train, y_train, X_test, y_test, train_idx)
+#                 fold_accs.append(res["balanced_accuracy"])
+#             candidate_scores.append((cube, np.mean(fold_accs)))
+#
+#         # Select best cube globally
+#         best_cube, best_score = max(candidate_scores, key=lambda x: x[1])
+#         added_cubes.append(best_cube)
+#         not_added.remove(best_cube)
+#
+#         # Record
+#         accuracies.append(best_score)
+#         pct = (len(added_cubes) / len(all_cubes)) * 100
+#         percent_added.append(pct)
+#         addition_order[best_cube[1], best_cube[0]] = step + 1
+#
+#         # Update plots
+#         line.set_data(percent_added, accuracies)
+#         ax_curve.relim(); ax_curve.autoscale_view()
+#
+#         ax_heat.clear()
+#         sns.heatmap(
+#             addition_order,
+#             vmin=1, vmax=n_iterations,
+#             cmap="viridis", ax=ax_heat, cbar=False,
+#             xticklabels=[f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
+#             yticklabels=[f"{mz_edges[j]}–{mz_edges[j+1]}" for j in range(n_mz_bins)],
+#             annot=True, fmt=".0f", annot_kws={"size": 7}
+#         )
+#         ax_heat.set_title("Cube addition order (global)")
+#         ax_heat.invert_yaxis()
+#         plt.pause(0.3)
+#
+#     plt.ioff()
+#     plt.show()
+#
+#     return accuracies, percent_added, addition_order
+
+
+# ##### LEAK_FREE SWAPPED CV######
+def run_sotf_add_2d_fast(
+    data3d,
+    labels,
+    raw_sample_labels,
+    year_labels,
+    classifier,
+    wine_kind,
+    class_by_year,
+    strategy,
+    dataset_origins,
+    cv_type,
+    num_repeats,
+    normalize_flag,
+    region,
+    feature_type,
+    n_rt_bins=10,
+    n_mz_bins=10,
+    max_cubes=None,
+    n_jobs=-1,
+    random_state=42,
+    sample_frac=1.0,
+    rt_min=None, rt_max=None, mz_min=None, mz_max=None,
+    cube_repr="tic",
+):
+    """
+    2D Greedy Add (SOTF), leak-free, with:
+      - Parallel outer CV folds (joblib)
+      - Sequential inner candidate scoring (no oversubscription)
+      - Append-only concat for feature_type='concat_channels' (all cube_repr modes)
+      - Live plot updated once per finished outer fold:
+          * Accuracy curve with first point at 0% = chance (1/C)
+          * Heatmap of most-common cube order with % occurrence
+          * Figure window title shows Fold x/total
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from collections import Counter, defaultdict
+    from sklearn.model_selection import LeaveOneOut, StratifiedKFold, RepeatedStratifiedKFold
+    from joblib import Parallel, delayed
+
+    rng = np.random.default_rng(random_state)
+
+    n_samples, n_time, n_channels = data3d.shape
+
+    # === Crop data (same semantics) ===
+    rt_min = 0 if rt_min is None else max(0, rt_min)
+    rt_max = n_time if rt_max is None else min(n_time, rt_max)
+    mz_min = 0 if mz_min is None else max(0, mz_min)
+    mz_max = n_channels if mz_max is None else min(n_channels, mz_max)
+    data3d = data3d[:, rt_min:rt_max, mz_min:mz_max]
+    n_samples, n_time, n_channels = data3d.shape
+
+    # === Cube grid ===
+    rt_edges = np.linspace(0, n_time, n_rt_bins + 1, dtype=int)
+    mz_edges = np.linspace(0, n_channels, n_mz_bins + 1, dtype=int)
+    rt_edges[-1] = n_time
+    mz_edges[-1] = n_channels
+    all_cubes = [(i, j) for i in range(n_rt_bins) for j in range(n_mz_bins)]
+
+    if max_cubes is None:
+        max_cubes = len(all_cubes)
+    n_iterations = max_cubes
+
+    y_all = (year_labels if class_by_year else labels)
+    classes = np.unique(y_all)
+    n_classes = len(classes)
+
+    # === Precompute per-cube features ONLY for concat_channels; honor cube_repr exactly ===
+    precomputed_features = None
+    if feature_type == "concat_channels":
+        precomputed_features = {}
+        for (i, j) in all_cubes:
+            rt_start, rt_end = rt_edges[i], rt_edges[i + 1]
+            mz_start, mz_end = mz_edges[j], mz_edges[j + 1]
+            cube = data3d[:, rt_start:rt_end, mz_start:mz_end]  # (N, rt, mz)
+
+            cr = "flat" if cube_repr == "concatenate" else cube_repr
+            if cr == "flat":
+                feats = cube.reshape(n_samples, -1)
+            elif cr == "tic":
+                feats = np.sum(cube, axis=2)  # sum over m/z -> (N, rt)
+            elif cr == "tis":
+                feats = np.sum(cube, axis=1)  # sum over rt  -> (N, mz)
+            elif cr == "tic_tis":
+                tic = np.sum(cube, axis=2)    # (N, rt)
+                tis = np.sum(cube, axis=1)    # (N, mz)
+                feats = np.hstack([tic, tis])
+            else:
+                raise ValueError(f"Unsupported cube_repr: {cube_repr}")
+
+            precomputed_features[(i, j)] = feats.astype(np.float32, copy=False)
+    else:
+        # Keep original masked-path behavior for other feature types
+        subcubes = {}
+        for (i, j) in all_cubes:
+            rt_start, rt_end = rt_edges[i], rt_edges[i + 1]
+            mz_start, mz_end = mz_edges[j], mz_edges[j + 1]
+            subcubes[(i, j)] = (rt_start, rt_end, mz_start, mz_end)
+
+    # === Outer CV (same as your repeated stratified) ===
+    dummy_X = np.zeros((n_samples, 1))
+    outer_cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=num_repeats, random_state=random_state)
+    outer_splits = list(outer_cv.split(dummy_X, y_all))
+    cv_label = f"RepeatedStratified (5x{num_repeats})"
+
+    # === Safe train/eval wrapper (with your exception fallback) ===
+    def safe_train_eval(Xtr, ytr, Xte, yte, train_idx):
+        if Xtr.shape[1] == 0 or Xte.shape[1] == 0:
+            return {"balanced_accuracy": 1.0 / n_classes}
+        try:
+            cls_wrap = Classifier(
+                Xtr, ytr,
+                classifier_type=classifier,
+                wine_kind=wine_kind,
+                class_by_year=class_by_year,
+                year_labels=(np.array(year_labels)[train_idx]
+                             if (year_labels is not None and class_by_year) else None),
+                strategy=strategy,
+                sample_labels=np.array(raw_sample_labels)[train_idx] if raw_sample_labels is not None else None,
+                dataset_origins=dataset_origins,
+            )
+            res, _, _, _ = cls_wrap.train_and_evaluate_balanced(
+                normalize=normalize_flag,
+                scaler_type="standard",
+                region=region,
+                random_seed=random_state,
+                test_size=0.2,
+                LOOPC=False,
+                projection_source=False,
+                X_test=Xte,
+                y_test=yte,
+            )
+            return res
+        except ValueError as e:
+            if "At least one label specified must be in y_true" in str(e):
+                from sklearn.metrics import (
+                    accuracy_score, balanced_accuracy_score,
+                    precision_score, recall_score, f1_score, confusion_matrix
+                )
+                # NOTE: cls_wrap is defined above; model was trained; use it to predict
+                y_pred = cls_wrap.classifier.predict(Xte)
+                observed_labels = np.unique(np.concatenate([yte, y_pred]))
+                cm = confusion_matrix(yte, y_pred, labels=observed_labels)
+                return {
+                    "accuracy": accuracy_score(yte, y_pred),
+                    "balanced_accuracy": balanced_accuracy_score(yte, y_pred),
+                    "precision": precision_score(yte, y_pred, average="weighted", zero_division=0),
+                    "recall": recall_score(yte, y_pred, average="weighted", zero_division=0),
+                    "f1": f1_score(yte, y_pred, average="weighted", zero_division=0),
+                    "confusion_matrix": cm,
+                }
+            else:
+                raise
+
+    # === Inner CV factory (same as your options) ===
+    def make_inner_cv(y_outer_train, raw_outer):
+        if cv_type == "LOO":
+            return LeaveOneOut().split(np.zeros((len(y_outer_train), 1)), y_outer_train)
+        elif cv_type == "stratified":
+            return StratifiedKFold(n_splits=3, shuffle=True, random_state=random_state)\
+                   .split(np.zeros((len(y_outer_train), 1)), y_outer_train)
+        elif cv_type == "LOOPC":
+            return loopc_splits(
+                y_outer_train,
+                num_repeats=50, random_state=random_state,
+                class_by_year=class_by_year,
+                raw_labels=raw_outer if class_by_year else None,
+            )
+        else:
+            raise ValueError(f"Unsupported inner cv_type: {cv_type}")
+
+    # === One outer fold worker ===
+    def run_one_outer_fold(fold_id, outer_train_idx, outer_test_idx, fold_seed):
+        rng_local = np.random.default_rng(fold_seed)
+
+        y_train_outer = y_all[outer_train_idx]
+        y_test_outer  = y_all[outer_test_idx]
+        raw_outer = np.array(raw_sample_labels)[outer_train_idx] if raw_sample_labels is not None else None
+
+        if cv_type in ("LOO", "LOOPC"):
+            _, y_train_outer, raw_outer = filter_singletons(
+                data3d[outer_train_idx],
+                y_train_outer,
+                raw_labels=raw_outer,
+                class_by_year=class_by_year,
+            )
+
+        # (Optional) inner singleton filtering like your original (done inside scoring)
+        inner_cv = list(make_inner_cv(y_train_outer, raw_outer))
+
+        added_cubes, not_added = [], all_cubes.copy()
+        cube_sequence, outer_curve = [], []
+
+        # Running design matrices ALIGNED TO OUTER TRAIN/TEST ORDER
+        X_train_running = None  # shape: (len(outer_train_idx), d)
+        X_test_running  = None  # shape: (len(outer_test_idx),  d)
+
+        from tqdm import trange
+        for step in trange(
+                n_iterations,
+                desc=f"Fold {fold_id}",  # label with fold ID/seed
+                leave=False,  # so only the outer bar stays
+        ):
+            if len(added_cubes) >= max_cubes:
+                break
+
+            # Candidate subset (sequential eval)
+            if sample_frac < 1.0:
+                n_sample = max(1, int(len(not_added) * sample_frac))
+                cand = rng_local.choice(not_added, size=n_sample, replace=False)
+                candidates = [tuple(c) for c in cand]
+            else:
+                candidates = not_added
+
+            best_cube, best_score = None, -np.inf
+
+            for cube in candidates:
+                candidate_add = added_cubes + [cube]
+                accs = []
+
+                # Pre-slice per-candidate feats for speed (concat_channels path)
+                if feature_type == "concat_channels":
+                    feats_c = precomputed_features[cube]
+                    feats_train_c = feats_c[outer_train_idx]  # (n_train, d_c)
+                # else: masked path handled per fold below
+
+                for tr_rel, val_rel in inner_cv:
+                    tr_idx = outer_train_idx[tr_rel]
+                    val_idx = outer_train_idx[val_rel]
+
+                    if feature_type == "concat_channels":
+                        if X_train_running is None:
+                            X_tr = feats_train_c[tr_rel]
+                            X_val = feats_train_c[val_rel]
+                        else:
+                            X_tr = np.concatenate((X_train_running[tr_rel], feats_train_c[tr_rel]), axis=1)
+                            X_val = np.concatenate((X_train_running[val_rel], feats_train_c[val_rel]), axis=1)
+                    else:
+                        # Build masked data for candidate_add, then compute_features (original semantics)
+                        masked = np.zeros_like(data3d)
+                        for (ii, jj) in candidate_add:
+                            rts, rte, mzs, mze = subcubes[(ii, jj)]
+                            masked[:, rts:rte, mzs:mze] = data3d[:, rts:rte, mzs:mze]
+                        X_tr = compute_features(masked[tr_idx], feature_type=feature_type)
+                        X_val = compute_features(masked[val_idx], feature_type=feature_type)
+
+                    y_tr = y_all[tr_idx]
+                    y_val = y_all[val_idx]
+                    res = safe_train_eval(X_tr, y_tr, X_val, y_val, tr_idx)
+                    accs.append(res["balanced_accuracy"])
+
+                mean_acc = float(np.mean(accs))
+                if mean_acc > best_score:
+                    best_score, best_cube = mean_acc, cube
+
+            # Commit best cube
+            added_cubes.append(best_cube)
+            not_added.remove(best_cube)
+            cube_sequence.append(best_cube)
+
+            # Update running outer TRAIN/TEST matrices once for chosen cube
+            if feature_type == "concat_channels":
+                feats_best = precomputed_features[best_cube]
+                feats_train_best = feats_best[outer_train_idx]
+                feats_test_best  = feats_best[outer_test_idx]
+                if X_train_running is None:
+                    X_train_running = feats_train_best
+                    X_test_running  = feats_test_best
+                else:
+                    X_train_running = np.concatenate((X_train_running, feats_train_best), axis=1)
+                    X_test_running  = np.concatenate((X_test_running,  feats_test_best),  axis=1)
+                X_train, X_test = X_train_running, X_test_running
+            else:
+                masked = np.zeros_like(data3d)
+                for (ii, jj) in added_cubes:
+                    rts, rte, mzs, mze = subcubes[(ii, jj)]
+                    masked[:, rts:rte, mzs:mze] = data3d[:, rts:rte, mzs:mze]
+                X_train = compute_features(masked[outer_train_idx], feature_type=feature_type)
+                X_test  = compute_features(masked[outer_test_idx],  feature_type=feature_type)
+
+            res_outer = safe_train_eval(X_train, y_train_outer, X_test, y_test_outer, outer_train_idx)
+            outer_curve.append(res_outer["balanced_accuracy"])
+
+        return outer_curve, cube_sequence
+
+    # === Live plotting (curve + heatmap), updated once per finished fold ===
+    plt.ion()
+    fig, (ax_curve, ax_heat) = plt.subplots(1, 2, figsize=(14, 6))
+
+    line, = ax_curve.plot([], [], marker="o")
+    ax_curve.set_xlabel("Cubes added (%)")
+    ax_curve.set_ylabel("Balanced accuracy (outer test)")
+    ax_curve.grid(True)
+    ax_curve.set_title(f"2D SOTF Greedy Add ({cv_label})\nClassifier: {classifier}, Feature: {feature_type}")
+
+    baseline_acc = 1.0 / n_classes
+    line.set_data([0], [baseline_acc])  # 0% point = chance; no horizontal chance line
+
+    order_positions = defaultdict(Counter)
+    mode_matrix = np.full((n_mz_bins, n_rt_bins), np.nan)
+    sns.heatmap(mode_matrix, vmin=1, vmax=n_iterations,
+                cmap="viridis", ax=ax_heat, cbar=True,
+                xticklabels=[f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
+                yticklabels=[f"{mz_edges[j]}–{mz_edges[j+1]}" for j in range(n_mz_bins)])
+    ax_heat.set_title("Most common cube order")
+    ax_heat.invert_yaxis()
+
+    all_outer_curves, all_selected_cubes = [], []
+    seeds = [random_state + k for k in range(len(outer_splits))]
+
+    for fold_id, (fold_curve, fold_cubes) in enumerate(
+        Parallel(n_jobs=n_jobs, prefer="processes")(
+            delayed(run_one_outer_fold)(fid, tr, te, seed)
+            for fid, ((tr, te), seed) in enumerate(zip(outer_splits, seeds), start=1)
+        ), start=1
+    ):
+        all_outer_curves.append(fold_curve)
+        all_selected_cubes.append(fold_cubes)
+
+        # Update accuracy curve (prepend 0% chance point)
+        max_len = max(len(c) for c in all_outer_curves)
+        avg_curve = np.array([
+            np.mean([c[k] for c in all_outer_curves if len(c) > k])
+            for k in range(max_len)
+        ])
+        x = np.linspace(0, 100, len(avg_curve) + 1)
+        y = np.concatenate(([baseline_acc], avg_curve))
+        line.set_data(x, y)
+        ax_curve.relim(); ax_curve.autoscale_view()
+
+        # Update heatmap counts and redraw with annotations
+        for step, (i, j) in enumerate(fold_cubes):
+            order_positions[(i, j)][step + 1] += 1
+
+        mode_matrix = np.full((n_mz_bins, n_rt_bins), np.nan)
+        annotations = np.full(mode_matrix.shape, "", dtype=object)
+        for (i, j), counter in order_positions.items():
+            most_common_step, freq = counter.most_common(1)[0]
+            mode_matrix[j, i] = most_common_step
+            percentage = (freq / len(all_outer_curves)) * 100
+            annotations[j, i] = f"{most_common_step}|{percentage:.0f}%"
+
+        ax_heat.clear()
+        sns.heatmap(
+            mode_matrix, vmin=1, vmax=n_iterations,
+            cmap="viridis", ax=ax_heat, cbar=False,
+            xticklabels=[f"{rt_edges[x]}–{rt_edges[x+1]}" for x in range(n_rt_bins)],
+            yticklabels=[f"{mz_edges[y]}–{mz_edges[y+1]}" for y in range(n_mz_bins)],
+            annot=annotations, fmt="", annot_kws={"size": 6}
+        )
+        ax_heat.set_title(f"Most common cube order (after {len(all_outer_curves)} folds)")
+        ax_heat.invert_yaxis()
+
+        # Update figure window title with fold progress (kept off the axis title)
+        try:
+            fig.canvas.manager.set_window_title(f"Greedy Add Progress: Fold {fold_id}/{len(outer_splits)}")
+        except Exception:
+            pass  # some backends may not support set_window_title
+
+        plt.pause(0.3)
+
+    plt.ioff()
+    plt.show()
+
+    return all_outer_curves, all_selected_cubes
+
+
+
+
+
+def run_sotf_add_2d(
+    data3d,
+    labels,
+    raw_sample_labels,
+    year_labels,
+    classifier,
+    wine_kind,
+    class_by_year,
+    strategy,
+    dataset_origins,
+    cv_type,
+    num_repeats,
+    normalize_flag,
+    region,
+    feature_type,
+    n_rt_bins=10,
+    n_mz_bins=10,
+    max_cubes=None,
+    n_jobs=-1,
+    random_state=42,
+    sample_frac=1.0,
+    rt_min=None, rt_max=None, mz_min=None, mz_max=None,
+    cube_repr="concatenate"
+):
+    """
+    2D Greedy Add (SOTF) with nested CV:
+      - Outer CV: unbiased test accuracy
+      - Inner CV: cube selection
+      - Outer loop uses RepeatedStratifiedKFold for smoother estimates
+      - Tracks per-fold curves + cubes
+      - Updates running average accuracy + cube order live
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from sklearn.model_selection import LeaveOneOut, StratifiedKFold, RepeatedStratifiedKFold
+    from joblib import Parallel, delayed
+    from collections import Counter, defaultdict
+
+    rng = np.random.default_rng(random_state)
+
+    # === Singleton filtering (only if inner CV type requires it) ===
+    if cv_type in ("LOO", "LOOPC"):
+        data3d, labels, raw_sample_labels = filter_singletons(
+            data3d,
+            year_labels if class_by_year else labels,
+            raw_labels=raw_sample_labels,
+            class_by_year=class_by_year,
+        )
+        if class_by_year:
+            year_labels = labels
+
+    n_samples, n_time, n_channels = data3d.shape
+
+    # === Crop data ===
+    rt_min = 0 if rt_min is None else max(0, rt_min)
+    rt_max = n_time if rt_max is None else min(n_time, rt_max)
+    mz_min = 0 if mz_min is None else max(0, mz_min)
+    mz_max = n_channels if mz_max is None else min(n_channels, mz_max)
+    data3d = data3d[:, rt_min:rt_max, mz_min:mz_max]
+    n_samples, n_time, n_channels = data3d.shape
+
+    # === Define cube grid ===
+    rt_edges = np.linspace(rt_min, rt_max, n_rt_bins + 1, dtype=int)
+    mz_edges = np.linspace(mz_min, mz_max, n_mz_bins + 1, dtype=int)
+    rt_edges[-1] = rt_max
+    mz_edges[-1] = mz_max
+    all_cubes = [(i, j) for i in range(n_rt_bins) for j in range(n_mz_bins)]
+    if max_cubes is None:
+        max_cubes = len(all_cubes)
+    n_iterations = max_cubes
+    n_classes = len(np.unique(year_labels if class_by_year else labels))
+
+    # === Precompute features ===
+    precomputed_features, subcubes = None, None
+    if feature_type == "concat_channels":
+        precomputed_features = {}
+        for (i, j) in all_cubes:
+            rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i + 1] - rt_min
+            mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j + 1] - mz_min
+            cube = data3d[:, rt_start:rt_end, mz_start:mz_end]
+            if cube_repr == "flat":
+                features = cube.reshape(n_samples, -1)
+            elif cube_repr == "tic":
+                features = np.sum(cube, axis=2)
+            elif cube_repr == "tis":
+                features = np.sum(cube, axis=1)
+            elif cube_repr == "tic_tis":
+                tic = np.sum(cube, axis=2)
+                tis = np.sum(cube, axis=1)
+                features = np.hstack([tic, tis])
+            else:
+                raise ValueError(f"Unsupported cube_repr: {cube_repr}")
+            precomputed_features[(i, j)] = features
+    else:
+        subcubes = {}
+        for (i, j) in all_cubes:
+            rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i + 1] - rt_min
+            mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j + 1] - mz_min
+            subcubes[(i, j)] = (rt_start, rt_end, mz_start, mz_end)
+
+    # === Outer CV splitter ===
+    dummy_X = np.zeros((n_samples, 1))
+    y_for_split = year_labels if class_by_year else labels
+
+    # Instead of plain StratifiedKFold, use repeated stratified
+    outer_cv = RepeatedStratifiedKFold(
+        n_splits=5, n_repeats=num_repeats, random_state=random_state
+    )
+    outer_splits = list(outer_cv.split(dummy_X, y_for_split))
+    cv_label = f"RepeatedStratified (5x{num_repeats})"
+
+    # === Storage ===
+    all_outer_curves = []
+    all_selected_cubes = []
+    order_positions = defaultdict(Counter)
+
+    # === Plot setup ===
+    plt.ion()
+    fig, (ax_curve, ax_heat) = plt.subplots(1, 2, figsize=(14, 6))
+
+    line, = ax_curve.plot([], [], marker="o")
+    ax_curve.set_xlabel("Percentage of cubes added (%)")
+    ax_curve.set_ylabel("Outer Accuracy")
+    ax_curve.set_title(
+        f"2D SOTF Greedy Add ({cv_label})\nClassifier: {classifier}, Feature: {feature_type}"
+    )
+    ax_curve.grid(True)
+
+    baseline_acc = 1.0 / n_classes
+    line.set_data([0], [baseline_acc])
+
+    heatmap = sns.heatmap(np.zeros((n_mz_bins, n_rt_bins)), vmin=1, vmax=n_iterations,
+                          cmap="viridis", ax=ax_heat, cbar=True,
+                          xticklabels=[f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
+                          yticklabels=[f"{mz_edges[j]}–{mz_edges[j+1]}" for j in range(n_mz_bins)])
+    ax_heat.set_title("Most common cube order")
+    ax_heat.invert_yaxis()
+    plt.pause(0.1)
+
+    def safe_train_eval(Xtr, ytr, Xte, yte, train_idx, n_classes):
         if Xtr.shape[1] == 0 or Xte.shape[1] == 0:
             return {"balanced_accuracy": 1.0 / n_classes}
         try:
@@ -1353,97 +2605,1076 @@ def run_sotf_2d(
                 y_test=yte,
             )
             return res
-        except np.linalg.LinAlgError:
-            return {"balanced_accuracy": 1.0 / len(np.unique(ytr))}
 
-    # === Baseline accuracy ===
-    baseline_accs = []
-    for train_idx, test_idx in outer_splits:
-        X_train = compute_features(data3d[train_idx], feature_type=feature_type)
-        X_test  = compute_features(data3d[test_idx],  feature_type=feature_type)
-        y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
-        y_test  = year_labels[test_idx]  if class_by_year else labels[test_idx]
-        res = safe_train_eval(X_train, y_train, X_test, y_test, train_idx)
-        baseline_accs.append(res["balanced_accuracy"])
-    baseline_acc = np.mean(baseline_accs)
+        except ValueError as e:
+            if "At least one label specified must be in y_true" in str(e):
+                from sklearn.metrics import (
+                    accuracy_score, balanced_accuracy_score,
+                    precision_score, recall_score, f1_score, confusion_matrix
+                )
+                y_pred = cls_wrap.classifier.predict(Xte)
+                observed_labels = np.unique(np.concatenate([yte, y_pred]))
+                cm = confusion_matrix(yte, y_pred, labels=observed_labels)
+                return {
+                    "accuracy": accuracy_score(yte, y_pred),
+                    "balanced_accuracy": balanced_accuracy_score(yte, y_pred),
+                    "precision": precision_score(yte, y_pred, average="weighted", zero_division=0),
+                    "recall": recall_score(yte, y_pred, average="weighted", zero_division=0),
+                    "f1": f1_score(yte, y_pred, average="weighted", zero_division=0),
+                    "confusion_matrix": cm,
+                }
+            else:
+                raise
 
-    accuracies.append(baseline_acc)
-    percent_remaining.append(100.0)
-    line.set_data(percent_remaining, accuracies)
-    plt.pause(0.2)
-    logger.info(f"Baseline (all cubes): mean acc = {baseline_acc:.3f}")
+    progress_text = ax_curve.text(
+        0.95, 0.05, "Fold 0/0",
+        transform=ax_curve.transAxes,
+        ha="right", va="bottom",
+        fontsize=10, color="black",
+        bbox=dict(facecolor="white", alpha=0.7, edgecolor="none")
+    )
 
-    # === Greedy loop ===
-    for step in range(n_iterations):
-        if len(active_cubes) <= min_cubes:
-            break
+    # === Outer CV loop ===
+    for fold_id, (outer_train_idx, outer_test_idx) in enumerate(outer_splits):
+        added_cubes, not_added = [], all_cubes.copy()
+        outer_curve = []
+        cube_sequence = []
 
-        # Evaluate candidates
-        def eval_candidate(cube):
-            candidate_remove = cubes_to_remove + [cube]
-            fold_accs = []
-            for train_idx, test_idx in outer_splits:
-                masked_train = mask_cubes(data3d[train_idx], candidate_remove, rt_edges, mz_edges)
-                masked_test  = mask_cubes(data3d[test_idx],  candidate_remove, rt_edges, mz_edges)
-                X_train = compute_features(masked_train, feature_type=feature_type)
-                X_test  = compute_features(masked_test,  feature_type=feature_type)
-                y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
-                y_test  = year_labels[test_idx]  if class_by_year else labels[test_idx]
-                res = safe_train_eval(X_train, y_train, X_test, y_test, train_idx)
-                fold_accs.append(res["balanced_accuracy"])
-            return cube, np.mean(fold_accs)
+        # === Greedy loop ===
+        for step in range(n_iterations):
+            if len(added_cubes) >= max_cubes:
+                break
 
-        candidate_scores = Parallel(n_jobs=n_jobs)(
-            delayed(eval_candidate)(cube) for cube in active_cubes
-        )
+            # Candidate subset
+            if sample_frac < 1.0:
+                n_sample = max(1, int(len(not_added) * sample_frac))
+                candidates = rng.choice(not_added, size=n_sample, replace=False)
+                candidates = [tuple(c) for c in candidates]
+            else:
+                candidates = not_added
 
-        # Pick best
-        best_cube, best_score = max(candidate_scores, key=lambda x: x[1])
-        cubes_to_remove.append(best_cube)
-        active_cubes.remove(best_cube)
+            # === Inner CV eval (uses cv_type: LOO, LOOPC, stratified etc.) ===
+            def eval_candidate(cube):
+                candidate_add = added_cubes + [cube]
+                fold_accs = []
 
-        # Record progress
-        pct_data = (len(active_cubes) / len(all_cubes)) * 100
-        accuracies.append(best_score)
-        percent_remaining.append(pct_data)
+                # Extract outer training subset
+                y_outer_train = (year_labels if class_by_year else labels)[outer_train_idx]
+                raw_outer = np.array(raw_sample_labels)[outer_train_idx] if raw_sample_labels is not None else None
 
-        # Update curve
-        line.set_data(percent_remaining, accuracies)
-        ax_curve.set_xlim(100, min(percent_remaining) - 5)
-        plt.pause(0.2)
+                # Apply singleton filtering if needed
+                if cv_type in ("LOO", "LOOPC"):
+                    _, y_outer_train, raw_outer = filter_singletons(
+                        data3d[outer_train_idx],  # not used later, so just discard X
+                        y_outer_train,
+                        raw_labels=raw_outer,
+                        class_by_year=class_by_year,
+                    )
 
-        # Update heatmap with annotation
-        (i, j) = best_cube
-        removal_order[j, i] = step + 1
+                # Build inner CV on filtered labels
+                if cv_type == "LOO":
+                    inner_cv = LeaveOneOut().split(np.zeros((len(y_outer_train), 1)), y_outer_train)
+                elif cv_type == "stratified":
+                    inner_cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=random_state).split(
+                        np.zeros((len(y_outer_train), 1)), y_outer_train
+                    )
+                elif cv_type == "LOOPC":
+                    inner_cv = loopc_splits(
+                        y_outer_train,
+                        num_repeats=num_repeats, random_state=random_state,
+                        class_by_year=class_by_year,
+                        raw_labels=raw_outer if class_by_year else None,
+                    )
+                else:
+                    raise ValueError(f"Unsupported inner cv_type: {cv_type}")
+
+                # Evaluate each inner fold
+                for tr_rel, val_rel in inner_cv:
+                    tr_idx = outer_train_idx[tr_rel]
+                    val_idx = outer_train_idx[val_rel]
+
+                    if feature_type == "concat_channels":
+                        X_tr = np.hstack([precomputed_features[c][tr_idx] for c in candidate_add])
+                        X_val = np.hstack([precomputed_features[c][val_idx] for c in candidate_add])
+                    else:
+                        masked = np.zeros_like(data3d)
+                        for (i, j) in candidate_add:
+                            rt_start, rt_end, mz_start, mz_end = subcubes[(i, j)]
+                            masked[:, rt_start:rt_end, mz_start:mz_end] = data3d[:, rt_start:rt_end, mz_start:mz_end]
+                        X_tr = compute_features(masked[tr_idx], feature_type=feature_type)
+                        X_val = compute_features(masked[val_idx], feature_type=feature_type)
+
+                    y_tr = (year_labels if class_by_year else labels)[tr_idx]
+                    y_val = (year_labels if class_by_year else labels)[val_idx]
+
+                    res = safe_train_eval(X_tr, y_tr, X_val, y_val, tr_idx, n_classes)
+                    fold_accs.append(res["balanced_accuracy"])
+
+                return cube, np.mean(fold_accs)
+
+            candidate_scores = Parallel(n_jobs=n_jobs)(
+                delayed(eval_candidate)(cube) for cube in candidates
+            )
+            best_cube, _ = max(candidate_scores, key=lambda x: x[1])
+            added_cubes.append(best_cube); not_added.remove(best_cube)
+            cube_sequence.append(best_cube)
+
+            # === Outer accuracy at this step ===
+            if feature_type == "concat_channels":
+                X_train = np.hstack([precomputed_features[c][outer_train_idx] for c in added_cubes])
+                X_test  = np.hstack([precomputed_features[c][outer_test_idx] for c in added_cubes])
+            else:
+                masked = np.zeros_like(data3d)
+                for (i, j) in added_cubes:
+                    rt_start, rt_end, mz_start, mz_end = subcubes[(i, j)]
+                    masked[:, rt_start:rt_end, mz_start:mz_end] = data3d[:, rt_start:rt_end, mz_start:mz_end]
+                X_train = compute_features(masked[outer_train_idx], feature_type=feature_type)
+                X_test  = compute_features(masked[outer_test_idx], feature_type=feature_type)
+
+            y_train = (year_labels if class_by_year else labels)[outer_train_idx]
+            y_test  = (year_labels if class_by_year else labels)[outer_test_idx]
+
+            res = safe_train_eval(X_train, y_train, X_test, y_test, outer_train_idx, n_classes)
+            outer_curve.append(res["balanced_accuracy"])
+
+        # === Store results for this fold ===
+        all_outer_curves.append(outer_curve)
+        all_selected_cubes.append(cube_sequence)
+
+        # === Update running average accuracy ===
+        max_len = max(len(c) for c in all_outer_curves)
+        avg_curve = np.array([
+            np.mean([c[k] for c in all_outer_curves if len(c) > k])
+            for k in range(max_len)
+        ])
+        baseline_acc = 1.0 / n_classes
+        x_vals = np.linspace(0, 100, len(avg_curve) + 1)
+        y_vals = np.concatenate(([baseline_acc], avg_curve))
+        line.set_data(x_vals, y_vals)
+        ax_curve.relim(); ax_curve.autoscale_view()
+
+        # === Progress text annotation ===
+        progress_text.set_text(f"Fold {fold_id + 1}/{len(outer_splits)}")
+
+        # === Update order positions ===
+        for step, (i, j) in enumerate(cube_sequence):
+            order_positions[(i, j)][step + 1] += 1
+
+        # Build mode+percentage annotations
+        mode_matrix = np.full((n_mz_bins, n_rt_bins), np.nan)
+        annotations = np.full(mode_matrix.shape, "", dtype=object)
+        for (i, j), counter in order_positions.items():
+            most_common_step, freq = counter.most_common(1)[0]
+            mode_matrix[j, i] = most_common_step
+            percentage = (freq / len(all_outer_curves)) * 100
+            annotations[j, i] = f"{most_common_step}|{percentage:.0f}%"
+
+        # === Update heatmap dynamically ===
         ax_heat.clear()
         sns.heatmap(
-            removal_order,
-            vmin=0, vmax=len(all_cubes),
+            mode_matrix,
+            vmin=1, vmax=n_iterations,
             cmap="viridis", ax=ax_heat, cbar=False,
-            xticklabels=[f"{rt_edges[x]}–{rt_edges[x+1]}" for x in range(n_rt_bins)],
-            yticklabels=[f"{mz_edges[y]}–{mz_edges[y+1]}" for y in range(n_mz_bins)],
-            annot=True, fmt=".0f", annot_kws={"size": 8, "color": "black"}
+            xticklabels=[f"{rt_edges[x]}–{rt_edges[x + 1]}" for x in range(n_rt_bins)],
+            yticklabels=[f"{mz_edges[y]}–{mz_edges[y + 1]}" for y in range(n_mz_bins)],
+            annot=annotations, fmt="",
+            annot_kws={"size": 6}
         )
-        ax_heat.set_xlabel("RT bins")
-        ax_heat.set_ylabel("m/z bins")
-        ax_heat.set_title("Cube removal order (hot = early)")
+        ax_heat.set_title(f"Most common cube order (after {len(all_outer_curves)} folds)")
         ax_heat.invert_yaxis()
-        plt.pause(0.1)
-
-        logger.info(f"Iteration {step+1}: removed cube {best_cube}, acc={best_score:.3f}, % cubes={pct_data:.1f}")
+        plt.pause(0.3)
 
     plt.ioff()
     plt.show()
 
-    return accuracies, percent_remaining, removal_order
+    return all_outer_curves, all_selected_cubes
+
+
+
+
+# ##### LEAK_FREE ######
+# def run_sotf_add_2d(
+#     data3d,
+#     labels,
+#     raw_sample_labels,
+#     year_labels,
+#     classifier,
+#     wine_kind,
+#     class_by_year,
+#     strategy,
+#     dataset_origins,
+#     cv_type,
+#     num_repeats,
+#     normalize_flag,
+#     region,
+#     feature_type,
+#     n_rt_bins=10,
+#     n_mz_bins=10,
+#     max_cubes=None,
+#     n_jobs=-1,
+#     random_state=42,
+#     sample_frac=1.0,
+#     rt_min=None, rt_max=None, mz_min=None, mz_max=None,
+#     cube_repr="concatenate"
+# ):
+#     """
+#     2D Greedy Add (SOTF) with nested CV:
+#       - Outer CV for unbiased test accuracy
+#       - Inner CV for cube selection
+#       - Tracks per-fold curves + cubes
+#       - Updates running average accuracy + cube order live
+#     """
+#     import numpy as np
+#     import matplotlib.pyplot as plt
+#     import seaborn as sns
+#     from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+#     from joblib import Parallel, delayed
+#     from collections import Counter, defaultdict
+#
+#     rng = np.random.default_rng(random_state)
+#
+#     # === Singleton filtering ===
+#     if cv_type in ("LOO", "LOOPC"):
+#         data3d, labels, raw_sample_labels = filter_singletons(
+#             data3d,
+#             year_labels if class_by_year else labels,
+#             raw_labels=raw_sample_labels,
+#             class_by_year=class_by_year,
+#         )
+#         if class_by_year:
+#             year_labels = labels
+#
+#     n_samples, n_time, n_channels = data3d.shape
+#
+#     # === Crop data ===
+#     rt_min = 0 if rt_min is None else max(0, rt_min)
+#     rt_max = n_time if rt_max is None else min(n_time, rt_max)
+#     mz_min = 0 if mz_min is None else max(0, mz_min)
+#     mz_max = n_channels if mz_max is None else min(n_channels, mz_max)
+#     data3d = data3d[:, rt_min:rt_max, mz_min:mz_max]
+#     n_samples, n_time, n_channels = data3d.shape
+#
+#     # === Define cube grid ===
+#     rt_edges = np.linspace(rt_min, rt_max, n_rt_bins + 1, dtype=int)
+#     mz_edges = np.linspace(mz_min, mz_max, n_mz_bins + 1, dtype=int)
+#     rt_edges[-1] = rt_max
+#     mz_edges[-1] = mz_max
+#     all_cubes = [(i, j) for i in range(n_rt_bins) for j in range(n_mz_bins)]
+#     if max_cubes is None:
+#         max_cubes = len(all_cubes)
+#     n_iterations = max_cubes
+#     n_classes = len(np.unique(year_labels if class_by_year else labels))
+#
+#     # === Precompute features ===
+#     precomputed_features, subcubes = None, None
+#     if feature_type == "concat_channels":
+#         precomputed_features = {}
+#         for (i, j) in all_cubes:
+#             rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i + 1] - rt_min
+#             mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j + 1] - mz_min
+#             cube = data3d[:, rt_start:rt_end, mz_start:mz_end]
+#             if cube_repr == "flat":
+#                 features = cube.reshape(n_samples, -1)
+#             elif cube_repr == "tic":
+#                 features = np.sum(cube, axis=2)
+#             elif cube_repr == "tis":
+#                 features = np.sum(cube, axis=1)
+#             elif cube_repr == "tic_tis":
+#                 tic = np.sum(cube, axis=2)
+#                 tis = np.sum(cube, axis=1)
+#                 features = np.hstack([tic, tis])
+#             else:
+#                 raise ValueError(f"Unsupported cube_repr: {cube_repr}")
+#             precomputed_features[(i, j)] = features
+#     else:
+#         subcubes = {}
+#         for (i, j) in all_cubes:
+#             rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i + 1] - rt_min
+#             mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j + 1] - mz_min
+#             subcubes[(i, j)] = (rt_start, rt_end, mz_start, mz_end)
+#
+#     # === Outer CV splitter ===
+#     dummy_X = np.zeros((n_samples, 1))
+#     if cv_type == "LOO":
+#         outer_splits, cv_label = list(LeaveOneOut().split(dummy_X, labels)), "LOO"
+#     elif cv_type == "LOOPC":
+#         outer_splits, cv_label = loopc_splits(
+#             year_labels if class_by_year else labels,
+#             num_repeats=num_repeats, random_state=random_state,
+#             class_by_year=class_by_year,
+#             raw_labels=raw_sample_labels if class_by_year else None,
+#         ), "LOOPC"
+#     elif cv_type == "stratified":
+#         y_for_split = year_labels if class_by_year else labels
+#         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
+#         outer_splits, cv_label = list(cv.split(dummy_X, y_for_split)), "Stratified"
+#     else:
+#         raise ValueError(f"Unsupported cv_type: {cv_type}")
+#
+#     # === Storage ===
+#     all_outer_curves = []     # outer test curves per fold
+#     all_selected_cubes = []   # cube sequence per fold
+#     order_positions = defaultdict(Counter)  # (i,j) -> Counter of step positions
+#
+#     # === Plot setup ===
+#     plt.ion()
+#     fig, (ax_curve, ax_heat) = plt.subplots(1, 2, figsize=(14, 6))
+#
+#     line, = ax_curve.plot([], [], marker="o")
+#     ax_curve.set_xlabel("Percentage of cubes added (%)")
+#     ax_curve.set_ylabel("Outer Accuracy")
+#     ax_curve.set_title(
+#         f"2D SOTF Greedy Add ({cv_label} CV)\nClassifier: {classifier}, Feature: {feature_type}"
+#     )
+#     ax_curve.grid(True)
+#     # Baseline (chance level) as first point
+#     baseline_acc = 1.0 / n_classes
+#     line.set_data([0], [baseline_acc])
+#
+#     # Baseline (chance level)
+#     line.set_data([0], [1.0 / n_classes])
+#
+#     heatmap = sns.heatmap(np.zeros((n_mz_bins, n_rt_bins)), vmin=1, vmax=n_iterations,
+#                           cmap="viridis", ax=ax_heat, cbar=True,
+#                           xticklabels=[f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
+#                           yticklabels=[f"{mz_edges[j]}–{mz_edges[j+1]}" for j in range(n_mz_bins)])
+#     ax_heat.set_title("Most common cube order")
+#     ax_heat.invert_yaxis()
+#     plt.pause(0.1)
+#
+#     def safe_train_eval(Xtr, ytr, Xte, yte, train_idx, n_classes):
+#         if Xtr.shape[1] == 0 or Xte.shape[1] == 0:
+#             return {"balanced_accuracy": 1.0 / n_classes}
+#         try:
+#             cls_wrap = Classifier(
+#                 Xtr, ytr, classifier_type=classifier,
+#                 wine_kind=wine_kind, class_by_year=class_by_year,
+#                 year_labels=(np.array(year_labels)[train_idx]
+#                              if (year_labels is not None and class_by_year) else None),
+#                 strategy=strategy, sample_labels=np.array(raw_sample_labels)[train_idx],
+#                 dataset_origins=dataset_origins,
+#             )
+#             res, _, _, _ = cls_wrap.train_and_evaluate_balanced(
+#                 normalize=normalize_flag, scaler_type="standard",
+#                 region=region, random_seed=random_state,
+#                 test_size=0.2, LOOPC=False, projection_source=False,
+#                 X_test=Xte, y_test=yte,
+#             )
+#             return res
+#         except np.linalg.LinAlgError:
+#             return {"balanced_accuracy": 1.0 / len(np.unique(ytr))}
+#
+#     progress_text = ax_curve.text(
+#         0.95, 0.05, "Fold 0/0",
+#         transform=ax_curve.transAxes,
+#         ha="right", va="bottom",
+#         fontsize=10, color="black",
+#         bbox=dict(facecolor="white", alpha=0.7, edgecolor="none")
+#     )
+#
+#     # === Outer CV loop ===
+#     for fold_id, (outer_train_idx, outer_test_idx) in enumerate(outer_splits):
+#         added_cubes, not_added = [], all_cubes.copy()
+#         outer_curve = []
+#         cube_sequence = []
+#
+#         # === Greedy loop ===
+#         for step in range(n_iterations):
+#             if len(added_cubes) >= max_cubes:
+#                 break
+#
+#             # Candidate subset
+#             if sample_frac < 1.0:
+#                 n_sample = max(1, int(len(not_added) * sample_frac))
+#                 candidates = rng.choice(not_added, size=n_sample, replace=False)
+#                 candidates = [tuple(c) for c in candidates]
+#             else:
+#                 candidates = not_added
+#
+#             # === Inner CV eval ===
+#             def eval_candidate(cube):
+#                 candidate_add = added_cubes + [cube]
+#                 fold_accs = []
+#                 inner_cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=random_state)
+#                 y_outer_train = (year_labels if class_by_year else labels)[outer_train_idx]
+#                 for tr_rel, val_rel in inner_cv.split(np.zeros((len(outer_train_idx), 1)), y_outer_train):
+#                     tr_idx = outer_train_idx[tr_rel]
+#                     val_idx = outer_train_idx[val_rel]
+#                     if feature_type == "concat_channels":
+#                         X_tr = np.hstack([precomputed_features[c][tr_idx] for c in candidate_add])
+#                         X_val = np.hstack([precomputed_features[c][val_idx] for c in candidate_add])
+#                     else:
+#                         masked = np.zeros_like(data3d)
+#                         for (i, j) in candidate_add:
+#                             rt_start, rt_end, mz_start, mz_end = subcubes[(i, j)]
+#                             masked[:, rt_start:rt_end, mz_start:mz_end] = data3d[:, rt_start:rt_end, mz_start:mz_end]
+#                         X_tr = compute_features(masked[tr_idx], feature_type=feature_type)
+#                         X_val = compute_features(masked[val_idx], feature_type=feature_type)
+#                     y_tr = (year_labels if class_by_year else labels)[tr_idx]
+#                     y_val = (year_labels if class_by_year else labels)[val_idx]
+#                     res = safe_train_eval(X_tr, y_tr, X_val, y_val, tr_idx, n_classes)
+#                     fold_accs.append(res["balanced_accuracy"])
+#                 return cube, np.mean(fold_accs)
+#
+#             candidate_scores = Parallel(n_jobs=n_jobs)(
+#                 delayed(eval_candidate)(cube) for cube in candidates
+#             )
+#             best_cube, _ = max(candidate_scores, key=lambda x: x[1])
+#             added_cubes.append(best_cube); not_added.remove(best_cube)
+#             cube_sequence.append(best_cube)
+#
+#             # === Outer accuracy at this step ===
+#             if feature_type == "concat_channels":
+#                 X_train = np.hstack([precomputed_features[c][outer_train_idx] for c in added_cubes])
+#                 X_test  = np.hstack([precomputed_features[c][outer_test_idx] for c in added_cubes])
+#             else:
+#                 masked = np.zeros_like(data3d)
+#                 for (i, j) in added_cubes:
+#                     rt_start, rt_end, mz_start, mz_end = subcubes[(i, j)]
+#                     masked[:, rt_start:rt_end, mz_start:mz_end] = data3d[:, rt_start:rt_end, mz_start:mz_end]
+#                 X_train = compute_features(masked[outer_train_idx], feature_type=feature_type)
+#                 X_test  = compute_features(masked[outer_test_idx], feature_type=feature_type)
+#
+#             y_train = (year_labels if class_by_year else labels)[outer_train_idx]
+#             y_test  = (year_labels if class_by_year else labels)[outer_test_idx]
+#
+#             res = safe_train_eval(X_train, y_train, X_test, y_test, outer_train_idx, n_classes)
+#             outer_curve.append(res["balanced_accuracy"])
+#
+#         # === Store results for this fold ===
+#         all_outer_curves.append(outer_curve)
+#         all_selected_cubes.append(cube_sequence)
+#
+#         # === Update running average accuracy ===
+#         max_len = max(len(c) for c in all_outer_curves)
+#         avg_curve = np.array([
+#             np.mean([c[k] for c in all_outer_curves if len(c) > k])
+#             for k in range(max_len)
+#         ])
+#         baseline_acc = 1.0 / n_classes
+#         x_vals = np.linspace(0, 100, len(avg_curve) + 1)
+#         y_vals = np.concatenate(([baseline_acc], avg_curve))
+#         line.set_data(x_vals, y_vals)
+#         ax_curve.relim(); ax_curve.autoscale_view()
+#
+#         # === Progress text annotation ===
+#         progress_text.set_text(f"Fold {fold_id + 1}/{len(outer_splits)}")
+#
+#         # === Update order positions ===
+#         for step, (i, j) in enumerate(cube_sequence):
+#             order_positions[(i, j)][step + 1] += 1
+#
+#         # Build mode matrix (most frequent selection step)
+#         mode_matrix = np.full((n_mz_bins, n_rt_bins), np.nan)
+#         for (i, j), counter in order_positions.items():
+#             most_common_step, _ = counter.most_common(1)[0]
+#             mode_matrix[j, i] = most_common_step
+#
+#         # === Update heatmap dynamically ===
+#         ax_heat.clear()
+#         annotations = np.full(mode_matrix.shape, "", dtype=object)
+#
+#         for (i, j), counter in order_positions.items():
+#             most_common_step, freq = counter.most_common(1)[0]
+#             percentage = (freq / len(all_outer_curves)) * 100
+#             annotations[j, i] = f"{most_common_step} \n {percentage:.0f}"
+#
+#         sns.heatmap(
+#             mode_matrix,
+#             vmin=1, vmax=n_iterations,
+#             cmap="viridis", ax=ax_heat, cbar=False,
+#             xticklabels=[f"{rt_edges[x]}–{rt_edges[x + 1]}" for x in range(n_rt_bins)],
+#             yticklabels=[f"{mz_edges[y]}–{mz_edges[y + 1]}" for y in range(n_mz_bins)],
+#             annot=annotations, fmt="",
+#             annot_kws={"size": 5, "va": "center"}  # smaller font, inline
+#         )
+#         ax_heat.set_title(f"Most common cube order (after {len(all_outer_curves)} folds)")
+#         ax_heat.invert_yaxis()
+#         plt.pause(0.3)
+#
+#     plt.ioff()
+#     plt.show()
+#
+#     return all_outer_curves, all_selected_cubes
+
+
+##### LEAKY ######
+# def run_sotf_add_2d(
+#     data3d,
+#     labels,
+#     raw_sample_labels,
+#     year_labels,
+#     classifier,
+#     wine_kind,
+#     class_by_year,
+#     strategy,
+#     dataset_origins,
+#     cv_type,
+#     num_repeats,
+#     normalize_flag,
+#     region,
+#     feature_type,
+#     n_rt_bins=10,
+#     n_mz_bins=10,
+#     max_cubes=None,
+#     n_jobs=-1,
+#     random_state=42,
+#     sample_frac=1.0,
+#     rt_min=None, rt_max=None, mz_min=None, mz_max=None,
+#     cube_repr="concatenate"
+# ):
+#     """
+#     2D Greedy Add (SOTF):
+#       - Iteratively adds cubes, evaluates accuracy.
+#       - Shows survival curve and cube addition order heatmap.
+#       - Optimised for 'concatenated' via PCA compression per cube.
+#       - TIC/TIS/TIC+TIS recomputed with masking to preserve semantics.
+#     """
+#
+#     import numpy as np
+#     import matplotlib.pyplot as plt
+#     import seaborn as sns
+#     from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+#     from sklearn.decomposition import PCA
+#     from joblib import Parallel, delayed
+#
+#
+#
+#     # === Singleton filtering ===
+#     if cv_type in ("LOO", "LOOPC"):
+#         data3d, labels, raw_sample_labels = filter_singletons(
+#             data3d,
+#             year_labels if class_by_year else labels,
+#             raw_labels=raw_sample_labels,
+#             class_by_year=class_by_year,
+#         )
+#         if class_by_year:
+#             year_labels = labels
+#
+#     n_samples, n_time, n_channels = data3d.shape
+#
+#     # === Crop data ===
+#     rt_min = 0 if rt_min is None else max(0, rt_min)
+#     rt_max = n_time if rt_max is None else min(n_time, rt_max)
+#     mz_min = 0 if mz_min is None else max(0, mz_min)
+#     mz_max = n_channels if mz_max is None else min(n_channels, mz_max)
+#
+#     data3d = data3d[:, rt_min:rt_max, mz_min:mz_max]
+#     n_samples, n_time, n_channels = data3d.shape
+#
+#     # === Define cube grid ===
+#     rt_edges = np.linspace(rt_min, rt_max, n_rt_bins + 1, dtype=int)
+#     mz_edges = np.linspace(mz_min, mz_max, n_mz_bins + 1, dtype=int)
+#     rt_edges[-1] = rt_max
+#     mz_edges[-1] = mz_max
+#
+#     all_cubes = [(i, j) for i in range(n_rt_bins) for j in range(n_mz_bins)]
+#     added_cubes, not_added = [], all_cubes.copy()
+#
+#     if max_cubes is None:
+#         max_cubes = len(all_cubes)
+#
+#     n_iterations = max_cubes
+#     n_classes = len(np.unique(year_labels if class_by_year else labels))
+#
+#     # === Precompute features ===
+#     precomputed_features, subcubes = None, None
+#     if feature_type == "concat_channels":
+#         precomputed_features = {}
+#         for (i, j) in all_cubes:
+#             rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i + 1] - rt_min
+#             mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j + 1] - mz_min
+#             cube = data3d[:, rt_start:rt_end, mz_start:mz_end]
+#
+#             if cube_repr == "flat":
+#                 features = cube.reshape(n_samples, -1)
+#
+#             elif cube_repr == "tic":
+#                 # sum across m/z (axis=2), keep RT structure
+#                 features = np.sum(cube, axis=2)
+#
+#             elif cube_repr == "tis":
+#                 # sum across RT (axis=1), keep spectrum
+#                 features = np.sum(cube, axis=1)
+#
+#             elif cube_repr == "tic_tis":
+#                 tic = np.sum(cube, axis=2)
+#                 tis = np.sum(cube, axis=1)
+#                 features = np.hstack([tic, tis])
+#
+#             else:
+#                 raise ValueError(f"Unsupported cube_repr: {cube_repr}")
+#
+#             precomputed_features[(i, j)] = features
+#     else:
+#         subcubes = {}
+#         for (i, j) in all_cubes:
+#             rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i + 1] - rt_min
+#             mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j + 1] - mz_min
+#             subcubes[(i, j)] = (rt_start, rt_end, mz_start, mz_end)
+#
+#     # === Outer CV splitter ===
+#     dummy_X = np.zeros((n_samples, 1))
+#     if cv_type == "LOO":
+#         outer_splits, cv_label = list(LeaveOneOut().split(dummy_X, labels)), "LOO"
+#     elif cv_type == "LOOPC":
+#         outer_splits, cv_label = loopc_splits(
+#             year_labels if class_by_year else labels,
+#             num_repeats=num_repeats, random_state=random_state,
+#             class_by_year=class_by_year,
+#             raw_labels=raw_sample_labels if class_by_year else None,
+#         ), "LOOPC"
+#     elif cv_type == "stratified":
+#         y_for_split = year_labels if class_by_year else labels
+#         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
+#         outer_splits, cv_label = list(cv.split(dummy_X, y_for_split)), "Stratified"
+#     else:
+#         raise ValueError(f"Unsupported cv_type: {cv_type}")
+#
+#     # === Plot setup ===
+#     plt.ion()
+#     fig, (ax_curve, ax_heat) = plt.subplots(1, 2, figsize=(14, 6))
+#
+#     line, = ax_curve.plot([], [], marker="o")
+#     ax_curve.set_xlabel("Percentage of cubes added (%)")
+#     ax_curve.set_ylabel("Accuracy")
+#     ax_curve.set_title(f"2D SOTF Greedy Add ({cv_label} CV)")
+#     ax_curve.grid(True)
+#     ax_curve.set_xlim(0, 100)
+#     ax_curve.set_ylim(0, 1)
+#
+#     addition_order = np.full((n_mz_bins, n_rt_bins), np.nan)
+#     annotations = np.full((n_mz_bins, n_rt_bins), "", dtype=object)
+#     sns.heatmap(
+#         addition_order, vmin=0, vmax=n_iterations, cmap="viridis",
+#         ax=ax_heat, cbar=False,
+#         xticklabels=[f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
+#         yticklabels=[f"{mz_edges[j]}–{mz_edges[j+1]}" for j in range(n_mz_bins)],
+#         annot=annotations, fmt="",
+#         annot_kws={"size": 8}
+#     )
+#     ax_heat.set_title("Cube addition order (cold = early)")
+#     ax_heat.invert_yaxis()
+#     plt.pause(0.1)
+#
+#     accuracies, percent_added = [], []
+#
+#     # === Safe train/eval ===
+#     def safe_train_eval(Xtr, ytr, Xte, yte, train_idx):
+#         if Xtr.shape[1] == 0 or Xte.shape[1] == 0:
+#             return {"balanced_accuracy": 1.0 / n_classes}
+#         try:
+#             cls_wrap = Classifier(
+#                 Xtr, ytr, classifier_type=classifier,
+#                 wine_kind=wine_kind, class_by_year=class_by_year,
+#                 year_labels=(np.array(year_labels)[train_idx]
+#                              if (year_labels is not None and class_by_year) else None),
+#                 strategy=strategy, sample_labels=np.array(raw_sample_labels)[train_idx],
+#                 dataset_origins=dataset_origins,
+#             )
+#             res, _, _, _ = cls_wrap.train_and_evaluate_balanced(
+#                 normalize=normalize_flag, scaler_type="standard",
+#                 region=region, random_seed=random_state,
+#                 test_size=0.2, LOOPC=False, projection_source=False,
+#                 X_test=Xte, y_test=yte,
+#             )
+#             return res
+#         except np.linalg.LinAlgError:
+#             return {"balanced_accuracy": 1.0 / len(np.unique(ytr))}
+#
+#     # === Baseline (no cubes) ===
+#     baseline_acc = 1.0 / n_classes
+#     accuracies.append(baseline_acc)
+#     percent_added.append(0.0)
+#     line.set_data(percent_added, accuracies)
+#     plt.pause(0.2)
+#
+#     rng = np.random.default_rng(random_state)
+#     best_global_score, best_global_cube = baseline_acc, None
+#
+#     # === Greedy loop ===
+#     for step in range(n_iterations):
+#         if len(added_cubes) >= max_cubes: break
+#
+#         # Candidate subset
+#         if sample_frac < 1.0:
+#             n_sample = max(1, int(len(not_added) * sample_frac))
+#             candidates = rng.choice(not_added, size=n_sample, replace=False)
+#             candidates = [tuple(c) for c in candidates]
+#         else:
+#             candidates = not_added
+#
+#         # Evaluate candidates
+#         def eval_candidate(cube):
+#             candidate_add = added_cubes + [cube]
+#             fold_accs = []
+#             for train_idx, test_idx in outer_splits:
+#                 if feature_type == "concat_channels":
+#                     X_train = np.hstack([precomputed_features[c][train_idx] for c in candidate_add])
+#                     X_test  = np.hstack([precomputed_features[c][test_idx] for c in candidate_add])
+#                 else:
+#                     masked = np.zeros_like(data3d)
+#                     for (i, j) in candidate_add:
+#                         rt_start, rt_end, mz_start, mz_end = subcubes[(i, j)]
+#                         masked[:, rt_start:rt_end, mz_start:mz_end] = data3d[:, rt_start:rt_end, mz_start:mz_end]
+#                     X_train = compute_features(masked[train_idx], feature_type=feature_type)
+#                     X_test  = compute_features(masked[test_idx], feature_type=feature_type)
+#                 y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
+#                 y_test  = year_labels[test_idx] if class_by_year else labels[test_idx]
+#                 res = safe_train_eval(X_train, y_train, X_test, y_test, train_idx)
+#                 fold_accs.append(res["balanced_accuracy"])
+#             return cube, np.mean(fold_accs)
+#
+#         candidate_scores = Parallel(n_jobs=n_jobs)(
+#             delayed(eval_candidate)(cube) for cube in candidates
+#         )
+#
+#         best_cube, best_score = max(candidate_scores, key=lambda x: x[1])
+#         added_cubes.append(best_cube); not_added.remove(best_cube)
+#
+#         pct_data = (len(added_cubes) / len(all_cubes)) * 100
+#         accuracies.append(best_score); percent_added.append(pct_data)
+#
+#         if best_score > best_global_score:
+#             best_global_score, best_global_cube = best_score, best_cube
+#
+#         # Update curve
+#         line.set_data(percent_added, accuracies)
+#         ax_curve.set_xlim(0, max(percent_added) + 5); plt.pause(0.2)
+#
+#         # Update heatmap annotations
+#         (i, j) = best_cube
+#         addition_order[j, i] = step + 1
+#         for x in range(n_rt_bins):
+#             for y in range(n_mz_bins):
+#                 if not np.isnan(addition_order[y, x]):
+#                     annotations[y, x] = f"{int(addition_order[y, x])}"
+#         if best_global_cube is not None:
+#             bi, bj = best_global_cube
+#             annotations[bj, bi] = f"{int(addition_order[bj, bi])}\n{best_global_score:.2f}"
+#
+#         ax_heat.clear()
+#         sns.heatmap(
+#             addition_order, vmin=0, vmax=len(all_cubes),
+#             cmap="viridis", ax=ax_heat, cbar=False,
+#             xticklabels=[f"{rt_edges[x]}–{rt_edges[x+1]}" for x in range(n_rt_bins)],
+#             yticklabels=[f"{mz_edges[y]}–{mz_edges[y+1]}" for y in range(n_mz_bins)],
+#             annot=annotations, fmt="",
+#             annot_kws={"size": 8}
+#         )
+#         for text in ax_heat.texts:
+#             x, y = text.get_position()
+#             i, j = int(round(x - 0.5)), int(round(y - 0.5))
+#             val = addition_order[j, i]
+#             if not np.isnan(val):
+#                 norm_val = (val - 0) / (len(all_cubes) - 0)
+#                 rgba = plt.cm.viridis(norm_val)
+#                 luminance = 0.299 * rgba[0] + 0.587 * rgba[1] + 0.114 * rgba[2]
+#                 text.set_color("white" if luminance < 0.5 else "black")
+#
+#         ax_heat.set_title("Cube addition order (cold = early)")
+#         ax_heat.invert_yaxis(); plt.pause(0.1)
+#
+#     plt.ioff(); plt.show()
+#     return accuracies, percent_added, addition_order
+
+
+
+def run_sotf_add_lookahead_2d(
+    data3d,
+    labels,
+    raw_sample_labels,
+    year_labels,
+    classifier,
+    wine_kind,
+    class_by_year,
+    strategy,
+    dataset_origins,
+    cv_type,
+    num_repeats,
+    normalize_flag,
+    region,
+    feature_type,
+    n_rt_bins=10,
+    n_mz_bins=10,
+    max_cubes=None,
+    n_jobs=-1,
+    random_state=42,
+    sample_frac=1.0,
+    rt_min=None, rt_max=None, mz_min=None, mz_max=None,
+    cube_repr="concatenate",
+    lambda_lookahead=0.5   # weight for lookahead (0=plain greedy add, 1=full 2-step lookahead)
+):
+    """
+    2D Hybrid Greedy Add + Lookahead (SOTF):
+      - Iteratively adds cubes, but scores each candidate as:
+            immediate_gain + lambda * best_next_gain
+      - Shows survival curve and cube addition order heatmap.
+    """
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+    from joblib import Parallel, delayed
+
+    # === Singleton filtering ===
+    if cv_type in ("LOO", "LOOPC"):
+        data3d, labels, raw_sample_labels = filter_singletons(
+            data3d,
+            year_labels if class_by_year else labels,
+            raw_labels=raw_sample_labels,
+            class_by_year=class_by_year,
+        )
+        if class_by_year:
+            year_labels = labels
+
+    n_samples, n_time, n_channels = data3d.shape
+
+    # === Crop data ===
+    rt_min = 0 if rt_min is None else max(0, rt_min)
+    rt_max = n_time if rt_max is None else min(n_time, rt_max)
+    mz_min = 0 if mz_min is None else max(0, mz_min)
+    mz_max = n_channels if mz_max is None else min(n_channels, mz_max)
+
+    data3d = data3d[:, rt_min:rt_max, mz_min:mz_max]
+    n_samples, n_time, n_channels = data3d.shape
+
+    # === Define cube grid ===
+    rt_edges = np.linspace(rt_min, rt_max, n_rt_bins + 1, dtype=int)
+    mz_edges = np.linspace(mz_min, mz_max, n_mz_bins + 1, dtype=int)
+    rt_edges[-1] = rt_max
+    mz_edges[-1] = mz_max
+
+    all_cubes = [(i, j) for i in range(n_rt_bins) for j in range(n_mz_bins)]
+    added_cubes, not_added = [], all_cubes.copy()
+
+    if max_cubes is None:
+        max_cubes = len(all_cubes)
+
+    n_iterations = max_cubes
+    n_classes = len(np.unique(year_labels if class_by_year else labels))
+
+    # === Precompute features if concatenated ===
+    precomputed_features, subcubes = None, None
+    if feature_type == "concat_channels":
+        precomputed_features = {}
+        for (i, j) in all_cubes:
+            rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i + 1] - rt_min
+            mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j + 1] - mz_min
+            cube = data3d[:, rt_start:rt_end, mz_start:mz_end]
+
+            if cube_repr == "flat":
+                features = cube.reshape(n_samples, -1)
+            elif cube_repr == "tic":
+                features = np.sum(cube, axis=2)
+            elif cube_repr == "tis":
+                features = np.sum(cube, axis=1)
+            elif cube_repr == "tic_tis":
+                tic = np.sum(cube, axis=2)
+                tis = np.sum(cube, axis=1)
+                features = np.hstack([tic, tis])
+            else:
+                raise ValueError(f"Unsupported cube_repr: {cube_repr}")
+
+            precomputed_features[(i, j)] = features
+    else:
+        subcubes = {}
+        for (i, j) in all_cubes:
+            rt_start, rt_end = rt_edges[i] - rt_min, rt_edges[i + 1] - rt_min
+            mz_start, mz_end = mz_edges[j] - mz_min, mz_edges[j + 1] - mz_min
+            subcubes[(i, j)] = (rt_start, rt_end, mz_start, mz_end)
+
+    # === Outer CV splitter ===
+    dummy_X = np.zeros((n_samples, 1))
+    if cv_type == "LOO":
+        outer_splits, cv_label = list(LeaveOneOut().split(dummy_X, labels)), "LOO"
+    elif cv_type == "LOOPC":
+        outer_splits, cv_label = loopc_splits(
+            year_labels if class_by_year else labels,
+            num_repeats=num_repeats, random_state=random_state,
+            class_by_year=class_by_year,
+            raw_labels=raw_sample_labels if class_by_year else None,
+        ), "LOOPC"
+    elif cv_type == "stratified":
+        y_for_split = year_labels if class_by_year else labels
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
+        outer_splits, cv_label = list(cv.split(dummy_X, y_for_split)), "Stratified"
+    else:
+        raise ValueError(f"Unsupported cv_type: {cv_type}")
+
+    # === Plot setup ===
+    plt.ion()
+    fig, (ax_curve, ax_heat) = plt.subplots(1, 2, figsize=(14, 6))
+
+    line, = ax_curve.plot([], [], marker="o")
+    ax_curve.set_xlabel("Percentage of cubes added (%)")
+    ax_curve.set_ylabel("Accuracy")
+    ax_curve.set_title(f"2D Hybrid Greedy Add + Lookahead ({cv_label} CV)")
+    ax_curve.grid(True)
+    ax_curve.set_xlim(0, 100)
+    ax_curve.set_ylim(0, 1)
+
+    addition_order = np.full((n_mz_bins, n_rt_bins), np.nan)
+    annotations = np.full((n_mz_bins, n_rt_bins), "", dtype=object)
+    sns.heatmap(
+        addition_order, vmin=0, vmax=n_iterations, cmap="viridis",
+        ax=ax_heat, cbar=False,
+        xticklabels=[f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
+        yticklabels=[f"{mz_edges[j]}–{mz_edges[j+1]}" for j in range(n_mz_bins)],
+        annot=annotations, fmt="",
+        annot_kws={"size": 8}
+    )
+    ax_heat.set_title("Cube addition order (cold = early)")
+    ax_heat.invert_yaxis()
+    plt.pause(0.1)
+
+    accuracies, percent_added = [], []
+
+    # === Safe train/eval ===
+    def safe_train_eval(Xtr, ytr, Xte, yte, train_idx):
+        if Xtr.shape[1] == 0 or Xte.shape[1] == 0:
+            return {"balanced_accuracy": 1.0 / n_classes}
+        try:
+            cls_wrap = Classifier(
+                Xtr, ytr, classifier_type=classifier,
+                wine_kind=wine_kind, class_by_year=class_by_year,
+                year_labels=(np.array(year_labels)[train_idx]
+                             if (year_labels is not None and class_by_year) else None),
+                strategy=strategy, sample_labels=np.array(raw_sample_labels)[train_idx],
+                dataset_origins=dataset_origins,
+            )
+            res, _, _, _ = cls_wrap.train_and_evaluate_balanced(
+                normalize=normalize_flag, scaler_type="standard",
+                region=region, random_seed=random_state,
+                test_size=0.2, LOOPC=False, projection_source=False,
+                X_test=Xte, y_test=yte,
+            )
+            return res
+        except np.linalg.LinAlgError:
+            return {"balanced_accuracy": 1.0 / len(np.unique(ytr))}
+
+    # === Helper to build features from selected cubes ===
+    def build_features(cubes, train_idx, test_idx):
+        if feature_type == "concat_channels":
+            X_train = np.hstack([precomputed_features[c][train_idx] for c in cubes])
+            X_test  = np.hstack([precomputed_features[c][test_idx]  for c in cubes])
+        else:
+            masked = np.zeros_like(data3d)
+            for (i, j) in cubes:
+                rt_start, rt_end, mz_start, mz_end = subcubes[(i, j)]
+                masked[:, rt_start:rt_end, mz_start:mz_end] = data3d[:, rt_start:rt_end, mz_start:mz_end]
+            X_train = compute_features(masked[train_idx], feature_type=feature_type)
+            X_test  = compute_features(masked[test_idx],  feature_type=feature_type)
+        return X_train, X_test
+
+    # === Baseline (no cubes) ===
+    baseline_acc = 1.0 / n_classes
+    accuracies.append(baseline_acc)
+    percent_added.append(0.0)
+    line.set_data(percent_added, accuracies)
+    plt.pause(0.2)
+
+    rng = np.random.default_rng(random_state)
+    best_global_score, best_global_cube = baseline_acc, None
+
+    # === Hybrid Greedy loop ===
+    for step in range(n_iterations):
+        if len(added_cubes) >= max_cubes:
+            break
+
+        # Candidate subset
+        if sample_frac < 1.0:
+            n_sample = max(1, int(len(not_added) * sample_frac))
+            candidates = rng.choice(not_added, size=n_sample, replace=False)
+            candidates = [tuple(c) for c in candidates]
+        else:
+            candidates = not_added
+
+        def eval_candidate(cube):
+            # --- immediate accuracy ---
+            candidate_add = added_cubes + [cube]
+            fold_accs = []
+            for train_idx, test_idx in outer_splits:
+                X_train, X_test = build_features(candidate_add, train_idx, test_idx)
+                y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
+                y_test  = year_labels[test_idx] if class_by_year else labels[test_idx]
+                res = safe_train_eval(X_train, y_train, X_test, y_test, train_idx)
+                fold_accs.append(res["balanced_accuracy"])
+            acc1 = np.mean(fold_accs)
+
+            # --- lookahead (best possible second cube) ---
+            best_acc2 = acc1
+            for cube2 in not_added:
+                if cube2 == cube:
+                    continue
+                candidate_add2 = candidate_add + [cube2]
+                fold_accs2 = []
+                for train_idx, test_idx in outer_splits:
+                    X_train, X_test = build_features(candidate_add2, train_idx, test_idx)
+                    y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
+                    y_test  = year_labels[test_idx] if class_by_year else labels[test_idx]
+                    res = safe_train_eval(X_train, y_train, X_test, y_test, train_idx)
+                    fold_accs2.append(res["balanced_accuracy"])
+                acc2 = np.mean(fold_accs2)
+                if acc2 > best_acc2:
+                    best_acc2 = acc2
+
+            score = acc1 + lambda_lookahead * (best_acc2 - acc1)
+            return cube, acc1, score
+
+        candidate_scores = Parallel(n_jobs=n_jobs)(
+            delayed(eval_candidate)(cube) for cube in candidates
+        )
+
+        # Pick best by hybrid score
+        best_cube, best_acc, best_score = max(candidate_scores, key=lambda x: x[2])
+        added_cubes.append(best_cube)
+        not_added.remove(best_cube)
+
+        # Record
+        pct_data = (len(added_cubes) / len(all_cubes)) * 100
+        accuracies.append(best_acc)
+        percent_added.append(pct_data)
+
+        if best_acc > best_global_score:
+            best_global_score, best_global_cube = best_acc, best_cube
+
+        # Update plots
+        line.set_data(percent_added, accuracies)
+        ax_curve.set_xlim(0, max(percent_added) + 5)
+        plt.pause(0.2)
+
+        (i, j) = best_cube
+        addition_order[j, i] = step + 1
+        annotations[j, i] = f"{step+1}"
+        if best_global_cube is not None:
+            bi, bj = best_global_cube
+            annotations[bj, bi] = f"{int(addition_order[bj, bi])}\n{best_global_score:.2f}"
+
+        ax_heat.clear()
+        sns.heatmap(
+            addition_order, vmin=0, vmax=len(all_cubes),
+            cmap="viridis", ax=ax_heat, cbar=False,
+            xticklabels=[f"{rt_edges[x]}–{rt_edges[x+1]}" for x in range(n_rt_bins)],
+            yticklabels=[f"{mz_edges[y]}–{mz_edges[y+1]}" for y in range(n_mz_bins)],
+            annot=annotations, fmt="",
+            annot_kws={"size": 8}
+        )
+        ax_heat.set_title("Cube addition order (cold = early)")
+        ax_heat.invert_yaxis()
+        plt.pause(0.1)
+
+    plt.ioff()
+    plt.show()
+    return accuracies, percent_added, addition_order
+
+
 
 
 
 
 ################ Code for creating SOTF 2D ####################
-
-
-
 
 def run_region_accuracy_heatmap(
     data3d,
@@ -1465,24 +3696,21 @@ def run_region_accuracy_heatmap(
     n_rt_bins=5,
     n_mz_bins=5,
     random_state=42,
+    n_jobs=-1,
 ):
     """
-    RT × m/z discriminative map:
-    For each cell (rt_bin_i, mz_bin_j), trains a model using ONLY that subcube,
-    evaluates it with outer CV, and stores balanced accuracy in heatmap.
-    Heatmap is updated dynamically during the loop.
-
-    Returns
-    -------
-    heatmap : ndarray of shape (n_rt_bins, n_mz_bins)
-        Balanced accuracy for each (RT bin, m/z bin) cell.
+    RT × m/z discriminative map (parallelised, true dynamic updating).
     """
+
     import numpy as np
     import matplotlib.pyplot as plt
     import seaborn as sns
     from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+    from joblib import Parallel, delayed
 
-    # === Step 0: Singleton filtering (to avoid CV crashes) ===
+    acc_annot = False if n_rt_bins * n_mz_bins >= 400 else True
+
+    # === Singleton filtering ===
     if cv_type in ("LOO", "LOOPC"):
         data3d, labels, raw_sample_labels = filter_singletons(
             data3d,
@@ -1491,41 +3719,17 @@ def run_region_accuracy_heatmap(
             class_by_year=class_by_year,
         )
         if class_by_year:
-            year_labels = labels  # already filtered
+            year_labels = labels
 
     n_samples, n_time, n_channels = data3d.shape
 
-    # === Step 1: Define RT and m/z bin edges ===
+    # Bin edges
     rt_edges = np.linspace(0, n_time, n_rt_bins + 1, dtype=int)
     mz_edges = np.linspace(0, n_channels, n_mz_bins + 1, dtype=int)
 
-    # Initialize empty heatmap
     heatmap = np.full((n_mz_bins, n_rt_bins), np.nan)
 
-
-    # === Step 2: Setup live heatmap plot ===
-    plt.ion()
-    fig, ax = plt.subplots(figsize=(10, 8))
-
-    # Create a dedicated colorbar axis once
-    cbar_ax = fig.add_axes([0.92, 0.3, 0.02, 0.4])
-
-    sns.heatmap(
-        heatmap, vmin=0, vmax=1, cmap="viridis", ax=ax, cbar=True, cbar_ax=cbar_ax,
-        mask=np.isnan(heatmap),
-        xticklabels=[f"{rt_edges[i]}–{rt_edges[i + 1]}" for i in range(n_rt_bins)],
-        yticklabels=[f"{mz_edges[j]}–{mz_edges[j + 1]}" for j in range(n_mz_bins)],
-        annot=False,
-    )
-    ax.set_xlabel("RT bins")
-    ax.set_ylabel("m/z channels (bins)")
-    ax.set_title("Balanced accuracy per RT×m/z subcube")
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
-    plt.pause(0.1)
-
-    # === Step 3: Outer CV splitter (same for all cells) ===
-    # Just build once using full X for consistency in stratification
+    # CV splitter
     full_X = compute_features(data3d, feature_type=feature_type)
     if cv_type == "LOO":
         outer_splits = list(LeaveOneOut().split(full_X, labels))
@@ -1546,7 +3750,6 @@ def run_region_accuracy_heatmap(
 
     n_classes = len(np.unique(year_labels if class_by_year else labels))
 
-    # === Step 4: Helper for training safely ===
     def safe_train_eval(Xtr, ytr, Xte, yte, train_idx):
         if Xtr.shape[1] == 0 or Xte.shape[1] == 0:
             return {"balanced_accuracy": 1.0 / n_classes}
@@ -1577,50 +3780,231 @@ def run_region_accuracy_heatmap(
         except np.linalg.LinAlgError:
             return {"balanced_accuracy": 1.0 / len(np.unique(ytr))}
 
-    # === Step 5: Iterate over all cells (RT × m/z) ===
+    def evaluate_cell(i, j):
+        rt_start, rt_end = rt_edges[i], rt_edges[i+1]
+        mz_start, mz_end = mz_edges[j], mz_edges[j+1]
+
+        subcube = data3d[:, rt_start:rt_end, mz_start:mz_end]
+        X = compute_features(subcube, feature_type=feature_type)
+
+        fold_accs = []
+        for train_idx, test_idx in outer_splits:
+            y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
+            y_test  = year_labels[test_idx]  if class_by_year else labels[test_idx]
+            res = safe_train_eval(X[train_idx], y_train, X[test_idx], y_test, train_idx)
+            fold_accs.append(res["balanced_accuracy"])
+
+        return np.mean(fold_accs)
+
+    # === Live plotting setup ===
+    plt.ion()
+    fig, ax = plt.subplots(figsize=(10, 8))
+    mesh = sns.heatmap(
+        heatmap, vmin=0, vmax=1, cmap="viridis", ax=ax, cbar=True,
+        xticklabels=[f"{rt_edges[col]}–{rt_edges[col+1]}" for col in range(n_rt_bins)],
+        yticklabels=[f"{mz_edges[row]}–{mz_edges[row+1]}" for row in range(n_mz_bins)],
+        annot=False, mask=np.isnan(heatmap)
+    )
+    ax.set_xlabel("RT bins")
+    ax.set_ylabel("m/z bins")
+    ax.set_title("Balanced accuracy per RT×m/z subcube")
+    ax.invert_yaxis()
+
+    # === Parallelised loop (row by row) ===
     for i in range(n_rt_bins):
-        for j in range(n_mz_bins):
-            rt_start, rt_end = rt_edges[i], rt_edges[i+1]
-            mz_start, mz_end = mz_edges[j], mz_edges[j+1]
+        row_results = Parallel(n_jobs=n_jobs)(
+            delayed(evaluate_cell)(i, j) for j in range(n_mz_bins)
+        )
+        for j, acc in enumerate(row_results):
+            heatmap[j, i] = acc
 
-            subcube = data3d[:, rt_start:rt_end, mz_start:mz_end]
-            X = compute_features(subcube, feature_type=feature_type)
-
-            # Evaluate this cube using outer CV
-            fold_accs = []
-            for train_idx, test_idx in outer_splits:
-                y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
-                y_test = year_labels[test_idx] if class_by_year else labels[test_idx]
-
-                res = safe_train_eval(X[train_idx], y_train, X[test_idx], y_test, train_idx)
-                fold_accs.append(res["balanced_accuracy"])
-
-            mean_acc = float(np.mean(fold_accs))
-            heatmap[j, i] = mean_acc
-
-            # Live update of the heatmap
-            ax.clear()
-            sns.heatmap(
-                heatmap, vmin=0, vmax=1, cmap="viridis", ax=ax, cbar=False,
-                mask=np.isnan(heatmap),  # keep uncomputed cells blank
-                xticklabels=[f"{rt_edges[col]}–{rt_edges[col + 1]}" for col in range(n_rt_bins)],
-                yticklabels=[f"{mz_edges[row]}–{mz_edges[row + 1]}" for row in range(n_mz_bins)],
-                annot=False, fmt=".2f",  # <-- write accuracy inside each cell
-                annot_kws={"size": 8, "color": "white", "ha": "center", "va": "center"},
-            )
-            ax.invert_yaxis()  # <--- flip vertical axis
-            ax.set_xlabel("RT bins")
-            ax.set_ylabel("m/z channel bins")
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
-            ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
-            plt.pause(0.05)
-
-            logger.info(f"RT {i}/{n_rt_bins}, m/z {j}/{n_mz_bins} → {mean_acc:.3f}")
+        # update only the data array of the heatmap
+        mesh.collections[0].set_array(heatmap.ravel())
+        plt.pause(0.1)
 
     plt.ioff()
     plt.show()
-
     return heatmap
+
+
+# def run_region_accuracy_heatmap(
+#     data3d,
+#     labels,
+#     raw_sample_labels,
+#     year_labels,
+#     classifier,
+#     wine_kind,
+#     class_by_year,
+#     strategy,
+#     dataset_origins,
+#     cv_type,
+#     num_repeats,
+#     normalize_flag,
+#     region,
+#     feature_type,
+#     projection_source,
+#     show_confusion_matrix,
+#     n_rt_bins=5,
+#     n_mz_bins=5,
+#     random_state=42,
+# ):
+#     """
+#     RT × m/z discriminative map:
+#     For each cell (rt_bin_i, mz_bin_j), trains a model using ONLY that subcube,
+#     evaluates it with outer CV, and stores balanced accuracy in heatmap.
+#     Heatmap is updated dynamically during the loop.
+#
+#     Returns
+#     -------
+#     heatmap : ndarray of shape (n_rt_bins, n_mz_bins)
+#         Balanced accuracy for each (RT bin, m/z bin) cell.
+#     """
+#     import numpy as np
+#     import matplotlib.pyplot as plt
+#     import seaborn as sns
+#     from sklearn.model_selection import LeaveOneOut, StratifiedKFold
+#
+#     acc_annot = False if n_rt_bins *  n_mz_bins >= 400 else True
+#
+#     # === Step 0: Singleton filtering (to avoid CV crashes) ===
+#     if cv_type in ("LOO", "LOOPC"):
+#         data3d, labels, raw_sample_labels = filter_singletons(
+#             data3d,
+#             year_labels if class_by_year else labels,
+#             raw_labels=raw_sample_labels,
+#             class_by_year=class_by_year,
+#         )
+#         if class_by_year:
+#             year_labels = labels  # already filtered
+#
+#     n_samples, n_time, n_channels = data3d.shape
+#
+#     # === Step 1: Define RT and m/z bin edges ===
+#     rt_edges = np.linspace(0, n_time, n_rt_bins + 1, dtype=int)
+#     mz_edges = np.linspace(0, n_channels, n_mz_bins + 1, dtype=int)
+#
+#     # Initialize empty heatmap
+#     heatmap = np.full((n_mz_bins, n_rt_bins), np.nan)
+#
+#
+#     # === Step 2: Setup live heatmap plot ===
+#     plt.ion()
+#     fig, ax = plt.subplots(figsize=(10, 8))
+#
+#     # Create a dedicated colorbar axis once
+#     cbar_ax = fig.add_axes([0.92, 0.3, 0.02, 0.4])
+#
+#     sns.heatmap(
+#         heatmap, vmin=0, vmax=1, cmap="viridis", ax=ax, cbar=True, cbar_ax=cbar_ax,
+#         mask=np.isnan(heatmap),
+#         xticklabels=[f"{rt_edges[i]}–{rt_edges[i + 1]}" for i in range(n_rt_bins)],
+#         yticklabels=[f"{mz_edges[j]}–{mz_edges[j + 1]}" for j in range(n_mz_bins)],
+#         annot=False,
+#     )
+#     ax.set_xlabel("RT bins")
+#     ax.set_ylabel("m/z channels (bins)")
+#     ax.set_title("Balanced accuracy per RT×m/z subcube")
+#     ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+#     ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+#     plt.pause(0.1)
+#
+#     # === Step 3: Outer CV splitter (same for all cells) ===
+#     # Just build once using full X for consistency in stratification
+#     full_X = compute_features(data3d, feature_type=feature_type)
+#     if cv_type == "LOO":
+#         outer_splits = list(LeaveOneOut().split(full_X, labels))
+#     elif cv_type == "LOOPC":
+#         outer_splits = loopc_splits(
+#             year_labels if class_by_year else labels,
+#             num_repeats=num_repeats,
+#             random_state=random_state,
+#             class_by_year=class_by_year,
+#             raw_labels=raw_sample_labels if class_by_year else None,
+#         )
+#     elif cv_type == "stratified":
+#         y_for_split = year_labels if class_by_year else labels
+#         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
+#         outer_splits = list(cv.split(full_X, y_for_split))
+#     else:
+#         raise ValueError(f"Unsupported cv_type: {cv_type}")
+#
+#     n_classes = len(np.unique(year_labels if class_by_year else labels))
+#
+#     # === Step 4: Helper for training safely ===
+#     def safe_train_eval(Xtr, ytr, Xte, yte, train_idx):
+#         if Xtr.shape[1] == 0 or Xte.shape[1] == 0:
+#             return {"balanced_accuracy": 1.0 / n_classes}
+#         try:
+#             cls_wrap = Classifier(
+#                 Xtr, ytr,
+#                 classifier_type=classifier,
+#                 wine_kind=wine_kind,
+#                 class_by_year=class_by_year,
+#                 year_labels=(np.array(year_labels)[train_idx]
+#                              if (year_labels is not None and class_by_year) else None),
+#                 strategy=strategy,
+#                 sample_labels=np.array(raw_sample_labels)[train_idx],
+#                 dataset_origins=dataset_origins,
+#             )
+#             res, _, _, _ = cls_wrap.train_and_evaluate_balanced(
+#                 normalize=normalize_flag,
+#                 scaler_type='standard',
+#                 region=region,
+#                 random_seed=random_state,
+#                 test_size=0.2,
+#                 LOOPC=False,
+#                 projection_source=False,
+#                 X_test=Xte,
+#                 y_test=yte
+#             )
+#             return res
+#         except np.linalg.LinAlgError:
+#             return {"balanced_accuracy": 1.0 / len(np.unique(ytr))}
+#
+#     # === Step 5: Iterate over all cells (RT × m/z) ===
+#     for i in range(n_rt_bins):
+#         for j in range(n_mz_bins):
+#             rt_start, rt_end = rt_edges[i], rt_edges[i+1]
+#             mz_start, mz_end = mz_edges[j], mz_edges[j+1]
+#
+#             subcube = data3d[:, rt_start:rt_end, mz_start:mz_end]
+#             X = compute_features(subcube, feature_type=feature_type)
+#
+#             # Evaluate this cube using outer CV
+#             fold_accs = []
+#             for train_idx, test_idx in outer_splits:
+#                 y_train = year_labels[train_idx] if class_by_year else labels[train_idx]
+#                 y_test = year_labels[test_idx] if class_by_year else labels[test_idx]
+#
+#                 res = safe_train_eval(X[train_idx], y_train, X[test_idx], y_test, train_idx)
+#                 fold_accs.append(res["balanced_accuracy"])
+#
+#             mean_acc = float(np.mean(fold_accs))
+#             heatmap[j, i] = mean_acc
+#
+#             # Live update of the heatmap
+#             ax.clear()
+#             sns.heatmap(
+#                 heatmap, vmin=0, vmax=1, cmap="viridis", ax=ax, cbar=False,
+#                 mask=np.isnan(heatmap),  # keep uncomputed cells blank
+#                 xticklabels=[f"{rt_edges[col]}–{rt_edges[col + 1]}" for col in range(n_rt_bins)],
+#                 yticklabels=[f"{mz_edges[row]}–{mz_edges[row + 1]}" for row in range(n_mz_bins)],
+#                 annot=acc_annot, fmt=".2f",  # <-- write accuracy inside each cell
+#                 annot_kws={"size": 8, "color": "white", "ha": "center", "va": "center"},
+#             )
+#             ax.invert_yaxis()  # <--- flip vertical axis
+#             ax.set_xlabel("RT bins")
+#             ax.set_ylabel("m/z channel bins")
+#             ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+#             ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+#             plt.pause(0.05)
+#
+#             logger.info(f"RT {i}/{n_rt_bins}, m/z {j}/{n_mz_bins} → {mean_acc:.3f}")
+#
+#     plt.ioff()
+#     plt.show()
+#
+#     return heatmap
 
 
 
@@ -1812,7 +4196,8 @@ if __name__ == "__main__":
     sotf_mz_flag = config.get("sotf_mz")
     if sotf_ret_time_flag and sotf_mz_flag:
         raise ValueError("Only one of 'sotf_ret_time' or 'sotf_mz' can be True.")
-    sotf_2d_flag = config.get("sotf_2d")
+    sotf_remove_2d_flag = config.get("sotf_remove_2d")
+    sotf_add_2d_flag = config.get("sotf_add_2d")
     reg_acc_map_flag = config.get("reg_acc_map")
 
 
@@ -1824,6 +4209,8 @@ if __name__ == "__main__":
     sync_state = config["sync_state"]
     class_by_year = config["class_by_year"]
     region = config["region"]
+    rt_bins = config["n_rt_bins"]
+    mz_bins = config["n_mz_bins"]
 
     # Default color-by behavior based on region (preserve logic)
     if not color_by_origin and not color_by_winery:
@@ -1941,8 +4328,8 @@ if __name__ == "__main__":
             min_channels=25,
             group_size = 25,
         )
-    elif sotf_2d_flag:
-        results = run_sotf_2d(
+    elif sotf_remove_2d_flag:
+        results = run_sotf_remove_2d(
             data3d=data3d,  # shape (samples, RT, m/z)
             labels=labels,  # class labels
             raw_sample_labels=raw_sample_labels,
@@ -1957,12 +4344,34 @@ if __name__ == "__main__":
             normalize_flag=normalize_flag,
             region=region,
             feature_type=feature_type,
-            projection_source=projection_source,
-            show_confusion_matrix=show_confusion_matrix,
-            n_rt_bins=2,  # number of retention time bins
-            n_mz_bins=2,  # number of m/z bins
+            n_rt_bins=rt_bins,  # number of retention time bins
+            n_mz_bins=mz_bins,  # number of m/z bins
             min_cubes=1,  # minimum cubes to leave
             random_state=42,
+        )
+    elif sotf_add_2d_flag:
+        # results = run_sotf_add_2d(
+        results = run_sotf_add_2d_fast(
+            data3d=data3d,  # shape (samples, RT, m/z)
+            labels=labels,  # class labels
+            raw_sample_labels=raw_sample_labels,
+            year_labels=year_labels,
+            classifier=classifier,
+            wine_kind=wine_kind,
+            class_by_year=class_by_year,
+            strategy=strategy,
+            dataset_origins=dataset_origins,
+            cv_type=cv_type,  # "LOO", "LOOPC", or "stratified"
+            num_repeats=num_repeats,
+            normalize_flag=normalize_flag,
+            region=region,
+            feature_type=feature_type,
+            n_rt_bins=rt_bins,  # number of retention time bins
+            n_mz_bins=mz_bins,  # number of m/z bins
+            random_state=42,
+            n_jobs=-1,
+            mz_min=0, mz_max=181,
+            cube_repr = "tic"
         )
     elif reg_acc_map_flag:
         heatmap = run_region_accuracy_heatmap(
@@ -1982,8 +4391,8 @@ if __name__ == "__main__":
             feature_type=feature_type,
             projection_source=projection_source,
             show_confusion_matrix=show_confusion_matrix,
-            n_rt_bins=5,  # number of RT slices
-            n_mz_bins=5,  # number of m/z slices
+            n_rt_bins=rt_bins,  # number of RT slices
+            n_mz_bins=mz_bins,  # number of m/z slices
         )
     else:
         results = run_normal_classification(
