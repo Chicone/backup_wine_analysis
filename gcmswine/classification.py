@@ -2056,8 +2056,8 @@ class Classifier:
 
                     # always store true label + sample name
                     all_labels.append(y_test[0])
-                    test_sample_names.append(raw_test_labels[0])
-                    all_preds.append(y_pred[0])
+                    test_sample_names.append(raw_test_label[0])
+                    all_preds.append(y_preds[0])
 
 
                     # only store scores if available
@@ -2226,6 +2226,8 @@ class Classifier:
 
         for idx in range(num_samples):
             print(f'{idx} ', end="")
+            if idx % 10 == 0:            # every 10 numbers
+                print()
             try:
                 cls = Classifier(
                     data=feature_matrix,

@@ -1,5 +1,5 @@
 chrom_cap: 35000
-class_by_year: true
+class_by_year: false
 classifier: RGC
 color_by_country: false
 color_by_origin: false
@@ -23,7 +23,7 @@ density_plot: false
 do_classification: false
 downsample_group: true
 exclude_us: false
-feature_type: tic
+feature_type: tic_tis
 global_focus_heatmap: true
 group_wines: false
 invert_x: false
@@ -32,12 +32,14 @@ label_target: prod area
 label_targets:
 - age
 n_decimation: 10
-n_mz_bins: 2
+n_mz_bins: 1
 n_neighbors: 30
-n_rt_bins: 100
+n_rt_bins: 50
 normalize: true
 num_repeats: 10
 num_splits: 1
+oak_analysis: false
+oak_mode: mask
 plot_all_tests: false
 plot_projection: false
 plot_r2: false
@@ -51,7 +53,7 @@ reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
 reg_acc_map: false
-region: winery
+region: origin
 regressor: null
 remove_avg_scores: false
 retention_time_range:
@@ -61,7 +63,7 @@ rot_axes: false
 rt_range:
   max: 30000
   min: 0
-sample_display_mode: none
+sample_display_mode: names
 selected_attribute: nuts
 selected_datasets:
 - pinot_noir_changins

@@ -29,6 +29,7 @@ import { FormLabel, FormGroup } from "@mui/material";
 import { Slider } from "@mui/material";
 import Tooltip from "@mui/material/Tooltip";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { Radio, RadioGroup } from "@mui/material";
 
 const wineTheme = createTheme({
   palette: {
@@ -57,7 +58,7 @@ const projectionLabels = {
 
 const taskOptionsByFamily = {
   bordeaux: ["Classification", "SOTF Ret Time", "SOTF m/z", "SOTF Remove 2D", "SOTF Add 2D",],
-  pinot: ["Classification", "SOTF Ret Time", "SOTF m/z", "SOTF Remove 2D", "SOTF Add 2D", "Region Accuracy Map"],
+  pinot: ["Classification", "SOTF Ret Time", "SOTF m/z", "SOTF Remove 2D", "SOTF Add 2D", "Region Accuracy Map", "Oak Analysis"],
   press: ["Classification"],
   champagne: [
     "Predict Labels",
@@ -132,6 +133,7 @@ function App() {
   const [colorByOrigin, setColorByOrigin] = useState(false);
   const [excludeUS, setExcludeUS] = useState(false);
   const [densityPlot, setDensityPlot] = useState(false);
+  const [oakMode, setOakMode] = useState("integrated");
   const [showChampPredictedProfiles, setShowChampPredictedProfiles] =
     useState(false);
   const [nRtBins, setNRtBins] = useState(5);
@@ -475,6 +477,10 @@ useEffect(() => {
       payload.sotf_remove_2d = (selectedTask === "SOTF Remove 2D");
       payload.sotf_add_2d = (selectedTask === "SOTF Add 2D");
       payload.reg_acc_map = (selectedTask === "Region Accuracy Map");
+      payload.oak_analysis = (selectedTask === "Oak Analysis");
+      if (selectedTask === "Oak Analysis") {
+        payload.oak_mode = oakMode;  // <-- "integrated" or "mask"
+  }
     }
     if (selectedTask === "Region Accuracy Map" || selectedTask === "SOTF Remove 2D" || selectedTask === "SOTF Add 2D") {
       payload.n_rt_bins = nRtBins;
@@ -801,28 +807,47 @@ useEffect(() => {
                         </Select>
                       </FormControl>
 
-                      {wineFamily === "pinot" && (
-                        <Grid item xs={12} md={3}>
-                          <Grid container spacing={2} sx={{ mt: 1 }}>
-                            <FormControl fullWidth variant="outlined">
-                              <InputLabel shrink>Region</InputLabel>
-                              <Select
-                                value={region}
-                                onChange={(e) => setRegion(e.target.value)}
-                                label="Region"
-                              >
-                                <MenuItem value="winery">Winery</MenuItem>
-                                <MenuItem value="origin">Origin</MenuItem>
-                                <MenuItem value="country">Country</MenuItem>
-                                <MenuItem value="continent">Continent</MenuItem>
-                                <MenuItem value="burgundy">
-                                  N/S Burgundy
-                                </MenuItem>
-                              </Select>
-                            </FormControl>
-                          </Grid>
+                    {wineFamily === "pinot" && (
+                      <Grid item xs={12} md={3}>
+                          <FormControl fullWidth variant="outlined" sx={{ mt: 2 }}>
+                            <InputLabel shrink>Region</InputLabel>
+                            <Select
+                              value={region}
+                              onChange={(e) => setRegion(e.target.value)}
+                              label="Region"
+                            >
+                              <MenuItem value="winery">Winery</MenuItem>
+                              <MenuItem value="origin">Origin</MenuItem>
+                              <MenuItem value="country">Country</MenuItem>
+                              <MenuItem value="continent">Continent</MenuItem>
+                              <MenuItem value="burgundy">N/S Burgundy</MenuItem>
+                            </Select>
+                          </FormControl>
+
+                          {selectedTask === "Oak Analysis" && (
+                            <Box sx={{ mt: 1 }}>
+                              <FormControl component="outlined" fullWidth>
+                                <FormLabel component="legend">Oak Analysis Mode</FormLabel>
+                                <RadioGroup
+                                  value={oakMode}
+                                  onChange={(e) => setOakMode(e.target.value)}
+                                >
+                                  <FormControlLabel
+                                    value="integrated"
+                                    control={<Radio />}
+                                    label="Integrated peaks only"
+                                  />
+                                  <FormControlLabel
+                                    value="mask"
+                                    control={<Radio />}
+                                    label="Mask oak peaks"
+                                  />
+                                </RadioGroup>
+                              </FormControl>
+                            </Box>
+                          )}
                         </Grid>
-                      )}
+                    )}
                     </Grid>
                     <Grid item xs={12}>
                       <FormControl fullWidth variant="outlined">

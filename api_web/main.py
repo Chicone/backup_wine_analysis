@@ -175,8 +175,8 @@ async def run_script(payload: dict):
         ("reg_acc_map", False),
         ("n_rt_bins", 5),
         ("n_mz_bins", 5),
-
-
+        ("oak_analysis", False),
+        ("oak_mode", "integrated"),
     ]
     for key, default in optional_keys:
         if key in payload:
