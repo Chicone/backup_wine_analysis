@@ -57,8 +57,8 @@ const projectionLabels = {
 };
 
 const taskOptionsByFamily = {
-  bordeaux: ["Classification", "SOTF Ret Time", "SOTF m/z", "SOTF Remove 2D", "SOTF Add 2D",],
-  pinot: ["Classification", "SOTF Ret Time", "SOTF m/z", "SOTF Remove 2D", "SOTF Add 2D", "Region Accuracy Map", "Oak Analysis"],
+  bordeaux: ["Classification", "SOTF Remove 2D", "SOTF Add 2D",],
+  pinot: ["Classification", "SOTF Remove 2D", "SOTF Add 2D", "Region Accuracy Map", "Oak Analysis"],
   press: ["Classification"],
   champagne: [
     "Predict Labels",
@@ -385,6 +385,11 @@ useEffect(() => {
   }
 }, [wineFamily, selectedTask, tasterTests]);
 
+useEffect(() => {
+  if (selectedTask === "SOTF Remove 2D" || selectedTask === "SOTF Add 2D") {
+    setFeatureType("concat_channels");
+  }
+}, [selectedTask]);
 
   const useChampTasterScaling = tasterTests.includes("scaling");
   const shuffleLabels = tasterTests.includes("shuffle");
@@ -472,8 +477,6 @@ useEffect(() => {
       payload.region = region;
     }
     if (wineFamily === "pinot") {
-      payload.sotf_ret_time = (selectedTask === "SOTF Ret Time");
-      payload.sotf_mz = (selectedTask === "SOTF m/z");
       payload.sotf_remove_2d = (selectedTask === "SOTF Remove 2D");
       payload.sotf_add_2d = (selectedTask === "SOTF Add 2D");
       payload.reg_acc_map = (selectedTask === "Region Accuracy Map");
@@ -487,8 +490,6 @@ useEffect(() => {
       payload.n_mz_bins = nMzBins;
     }
     if (wineFamily === "bordeaux") {
-      payload.sotf_ret_time = (selectedTask === "SOTF Ret Time");
-      payload.sotf_mz = (selectedTask === "SOTF m/z");
       payload.sotf_remove_2d = (selectedTask === "SOTF Remove 2D");
       payload.sotf_add_2d = (selectedTask === "SOTF Add 2D");
     }

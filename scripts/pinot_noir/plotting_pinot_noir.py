@@ -111,7 +111,46 @@ def plot_pinot_noir(
     labels = np.array(labels)
     is_3d = embedding.shape[1] == 3
 
-    # Apply exclusion filter early
+    # Handle year labels (when class_by_year=True) ===
+    if all(str(l).isdigit() for l in labels):
+        unique_years = sorted(set(labels), key=lambda x: int(x))
+        from matplotlib.cm import get_cmap
+        cmap = get_cmap("tab20", len(unique_years))
+
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d' if is_3d else None)
+
+        for i, year in enumerate(unique_years):
+            mask = labels == year
+            coords = embedding[mask]
+            if coords.size == 0:
+                continue
+            if is_3d:
+                ax.scatter(
+                    coords[:, 0], coords[:, 1], coords[:, 2],
+                    color=cmap(i),
+                    marker='o',
+                    s=80,
+                    alpha=0.9,
+                    label=str(year)
+                )
+            else:
+                ax.scatter(
+                    coords[:, 0], coords[:, 1],
+                    color=cmap(i),
+                    marker='o',
+                    s=80,
+                    alpha=0.9,
+                    label=str(year)
+                )
+
+        ax.set_title(title)
+        ax.legend(title="Year", bbox_to_anchor=(1.05, 1), loc="upper left")
+        plt.tight_layout()
+        plt.show(block=False)
+        return
+
+        # Apply exclusion filter early
     if exclude_us:
         if raw_sample_labels is None:
             raise ValueError("raw_sample_labels must be provided when exclude_us=True")
