@@ -81,7 +81,9 @@ def run_cv(
     classifier: str,
     projection_source,
     show_confusion_matrix: bool,
+    show_pred_plot=False
 ):
+
     """Wrapper to apply selected CV method."""
     if cv_type in ["LOOPC", "stratified"]:
         loopc = (cv_type == "LOOPC")
@@ -113,6 +115,136 @@ def run_cv(
                 projection_source=projection_source,
                 show_confusion_matrix=show_confusion_matrix,
             )
+
+        # Predicted vs. True scatter plot, colored by origin ---
+        if show_pred_plot:
+            do_classification=False
+            try:
+                import matplotlib.pyplot as plt
+                from matplotlib.lines import Line2D
+                import seaborn as sns
+                from sklearn.linear_model import Ridge
+                from sklearn.model_selection import LeaveOneOut
+                from sklearn.preprocessing import StandardScaler
+                import numpy as np
+
+                # === Origin mapping ===
+                letter_to_origin = {
+                    'M': 'Neuchâtel', 'N': 'Neuchâtel',
+                    'J': 'Geneva', 'L': 'Geneva',
+                    'H': 'Valais',
+                    'U': 'California', 'X': 'Oregon',
+                    'D': 'Burgundy', 'E': 'Burgundy', 'Q': 'Burgundy',
+                    'P': 'Burgundy', 'R': 'Burgundy', 'Z': 'Burgundy',
+                    'C': 'Alsace', 'K': 'Alsace', 'W': 'Alsace', 'Y': 'Alsace'
+                }
+
+                if hasattr(cls, "sample_labels"):
+                    raw_sample_labels = cls.sample_labels
+                    origins = [letter_to_origin.get(lbl[0], "Unknown") for lbl in raw_sample_labels]
+                else:
+                    origins = ["Unknown"] * len(all_labels)
+
+                # Assign colors + markers per origin
+                unique_origins = sorted(set(origins))
+                palette = plt.cm.tab10.colors
+                markers = ['o', 's', '^', 'D', 'P', 'X', '*', 'v']
+                origin_to_style = {
+                    org: (palette[i % len(palette)], markers[i % len(markers)])
+                    for i, org in enumerate(unique_origins)
+                }
+
+                plt.figure(figsize=(9, 7))
+
+                # === CASE 1: Classification (already available) ===
+                if do_classification:
+                    y_true = np.array(all_labels)
+                    y_pred = np.array(all_preds)
+
+                    # Convert to integers if possible (e.g., "1988" -> 1988)
+                    try:
+                        y_true_int = y_true.astype(int)
+                        y_pred_int = y_pred.astype(int)
+                        numeric = True
+                    except ValueError:
+                        # Fallback if not numeric
+                        y_true_int, y_pred_int = y_true, y_pred
+                        numeric = False
+
+
+
+                    for yt, yp, org in zip(y_true_int, y_pred_int, origins):
+                        color, marker = origin_to_style[org]
+                        plt.scatter(yt, yp, c=[color], marker=marker,
+                                    s=70, edgecolor="k", alpha=0.85, label=org)
+
+
+                    plt.xlabel("True Year Class")
+                    plt.ylabel("Predicted Year Class")
+                    plt.title("Predicted vs. True Year (Classification, LOO)")
+
+                    if numeric:
+                        # Force chronological order on both axes
+                        unique_years = sorted(set(y_true_int) | set(y_pred_int))
+                        plt.xticks(unique_years, rotation=45)
+                        plt.yticks(unique_years)
+
+                # === CASE 2: Regression (new Ridge regression LOO) ===
+                else:
+                    from gcmswine import utils
+                    # Build TIC features for regression
+                    X_reg = utils.compute_features(data, feature_type="tic")
+                    y_reg = np.array(year_labels).astype(float)
+
+                    loo = LeaveOneOut()
+                    y_true, y_pred = [], []
+
+                    for train_idx, test_idx in loo.split(X_reg):
+                        X_train, X_test = X_reg[train_idx], X_reg[test_idx]
+                        y_train, y_test = y_reg[train_idx], y_reg[test_idx]
+
+                        scaler = StandardScaler()
+                        X_train = scaler.fit_transform(X_train)
+                        X_test = scaler.transform(X_test)
+
+                        model = Ridge(alpha=1.0)
+                        model.fit(X_train, y_train)
+                        y_pred.append(model.predict(X_test)[0])
+                        y_true.append(y_test[0])
+
+                    y_true = np.array(y_true)
+                    y_pred = np.array(y_pred)
+
+                    for yt, yp, org in zip(y_true, y_pred, origins):
+                        color, marker = origin_to_style[org]
+                        plt.scatter(yt, yp, c=[color], marker=marker,
+                                    s=70, edgecolor="k", alpha=0.85, label=org)
+
+                    # Perfect agreement diagonal
+                    min_val, max_val = y_true.min(), y_true.max()
+                    plt.plot([min_val, max_val], [min_val, max_val],
+                             linestyle="--", color="black", linewidth=1, label="Perfect agreement")
+
+                    plt.xlabel("True Year")
+                    plt.ylabel("Predicted Year")
+                    plt.title("Predicted vs. True Year (Regression, LOO)")
+
+                # === Legend ===
+                legend_elements = [
+                    Line2D([0], [0], marker=origin_to_style[org][1], color='w',
+                           markerfacecolor=origin_to_style[org][0], markeredgecolor="k",
+                           markersize=8, label=org)
+                    for org in unique_origins
+                ]
+                plt.legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc="upper left", title="Origin")
+
+                plt.grid(True, linestyle="--", alpha=0.6)
+                plt.tight_layout()
+                plt.show()
+
+            except Exception as e:
+                print(f"⚠️ Skipping predicted vs true year plot due to error: {e}")
+
         return mean_acc, std_acc, all_scores, all_labels, test_sample_names, all_preds
 
     else:
@@ -184,6 +316,7 @@ def run_normal_classification(
     feature_type,
     projection_source,
     show_confusion_matrix,
+    show_pred_plot
 ):
     """Single evaluation without SOTF masking."""
     cls = Classifier(
@@ -209,6 +342,7 @@ def run_normal_classification(
         classifier=classifier,
         projection_source=projection_source,
         show_confusion_matrix=show_confusion_matrix,
+        show_pred_plot=show_pred_plot
     )
 
     if cv_type == "LOO":
@@ -3965,6 +4099,7 @@ if __name__ == "__main__":
     color_by_origin = config.get("color_by_origin", False)
     exclude_us = config.get("exclude_us", False)
     density_plot = config.get("density_plot", False)
+    show_pred_plot = config.get("show_pred_plot", False)
 
     # Run parameters
     sotf_ret_time_flag = config.get("sotf_ret_time")
@@ -4250,6 +4385,7 @@ if __name__ == "__main__":
             feature_type=feature_type,
             projection_source=projection_source,
             show_confusion_matrix=show_confusion_matrix,
+            show_pred_plot=show_pred_plot
         )
 
     # -----------------------------

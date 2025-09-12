@@ -1445,6 +1445,19 @@ useEffect(() => {
                                 </Grid>
                               )
                             )}
+                        {wineFamily === "pinot" && selectedTask === "Classification" && classByYear && (
+                          <Grid item xs={12} md={3}>
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  checked={showPredPlot}
+                                  onChange={(e) => setShowPredPlot(e.target.checked)}
+                                />
+                              }
+                              label="Plot True vs Predicted"
+                            />
+                          </Grid>
+                        )}
                         </>
                       )}
                       {isChampagneAgePrediction && (
