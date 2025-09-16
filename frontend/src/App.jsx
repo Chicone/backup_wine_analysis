@@ -152,6 +152,7 @@ function App() {
   { value: "pscores", label: "Predicted Scores" },
   ];
   const [showPredPlot, setShowPredPlot] = useState(false);
+  const [predPlotRegion, setPredPlotRegion] = useState("all");
   const [showAgeHist, setShowAgeHist] = useState(false);
   const isChampagneAgePrediction =
     wineFamily === "champagne" && selectedTask === "Predict Age";
@@ -260,6 +261,14 @@ function App() {
       label: "Compare All Tests",
       tooltip: "Plots R² of each test for comparison",
     },
+  ];
+
+  const predPlotOptions = [
+    { value: "all", label: "All regions" },
+    { value: "eu", label: "European" },
+    { value: "burgundy", label: "Burgundy" },
+    { value: "burgundy_eu", label: "Burgundy on EU" },
+    { value: "burgundy_us", label: "Burgundy on US" },
   ];
 
   useEffect(() => {
@@ -456,6 +465,7 @@ useEffect(() => {
       region: region,
       show_sample_names: showSampleNames,
       show_pred_plot: showPredPlot,
+      pred_plot_region: predPlotRegion,
       show_age_histogram: showAgeHist,
       show_chromatograms: showChroms,
       do_classification: doClassification,
@@ -1445,19 +1455,40 @@ useEffect(() => {
                                 </Grid>
                               )
                             )}
-                        {wineFamily === "pinot" && selectedTask === "Classification" && classByYear && (
-                          <Grid item xs={12} md={3}>
-                            <FormControlLabel
-                              control={
-                                <Checkbox
-                                  checked={showPredPlot}
-                                  onChange={(e) => setShowPredPlot(e.target.checked)}
-                                />
-                              }
-                              label="Plot True vs Predicted"
-                            />
-                          </Grid>
-                        )}
+                            {wineFamily === "pinot" && selectedTask === "Classification" && classByYear && cvType === "LOO" && (
+                              <>
+                                <Grid item xs={12} md={3}>
+                                  <FormControlLabel
+                                    control={
+                                      <Checkbox
+                                        checked={showPredPlot}
+                                        onChange={(e) => setShowPredPlot(e.target.checked)}
+                                      />
+                                    }
+                                    label="Plot True vs Predicted"
+                                  />
+                                </Grid>
+
+                                {showPredPlot && (
+                                  <Grid item xs={12} md={3}>
+                                    <FormControl fullWidth variant="outlined">
+                                      <InputLabel shrink>Region Filter</InputLabel>
+                                      <Select
+                                        value={predPlotRegion}
+                                        onChange={(e) => setPredPlotRegion(e.target.value)}
+                                        label="Region Filter"
+                                      >
+                                        {predPlotOptions.map((opt) => (
+                                          <MenuItem key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                          </MenuItem>
+                                        ))}
+                                      </Select>
+                                    </FormControl>
+                                  </Grid>
+                                )}
+                              </>
+                            )}
                         </>
                       )}
                       {isChampagneAgePrediction && (
