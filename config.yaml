@@ -45,7 +45,8 @@ plot_projection: false
 plot_r2: false
 plot_shap: false
 plot_umap: scores
-pred_plot_region: burgundy_vs_us
+pred_plot_mode: classification
+pred_plot_region: burgundy
 projection_dim: 2
 projection_method: UMAP
 projection_source: scores

@@ -139,6 +139,7 @@ async def run_script(payload: dict):
         ("show_sample_names", "showSampleNames"),
         ("show_pred_plot", "show_pred_plot"),
         ("pred_plot_region", "pred_plot_region"),
+        ("pred_plot_mode", "regression"),
         ("show_age_histogram", "show_age_histogram"),
         ("show_chromatograms", "show_chromatograms"),
         ("rt_range", "rt_range"),

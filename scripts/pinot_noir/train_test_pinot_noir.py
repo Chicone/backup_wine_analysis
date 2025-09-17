@@ -70,7 +70,7 @@ def dict_to_array3d(d):
         arrs.append(v)
     return np.stack(arrs, axis=0)
 
-def plot_true_vs_pred(y_true, y_pred, origins, do_classification,
+def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
                       year_labels, data, feature_type, pred_plot_region):
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
@@ -94,25 +94,33 @@ def plot_true_vs_pred(y_true, y_pred, origins, do_classification,
 
     # === Special split cases ===
     if pred_plot_region in ["burgundy_vs_eu", "burgundy_vs_us"]:
+        train_mask = np.isin(origins, ["Burgundy"])
         if pred_plot_region == "burgundy_vs_eu":
             test_mask = np.isin(origins, ["Neuchâtel", "Geneva", "Valais", "Alsace"])
         else:  # burgundy_vs_us
             test_mask = np.isin(origins, ["California", "Oregon"])
 
-        train_mask = np.isin(origins, ["Burgundy"])
+        # Safety check
+        if np.sum(train_mask) == 0 or np.sum(test_mask) == 0:
+            print(f"⚠️ Skipping {pred_plot_region}: no samples in train/test split.")
+            return
 
-        if do_classification:
-            # train classifier only on Burgundy, predict external
-            from sklearn.linear_model import RidgeClassifier
+        X_train = utils.compute_features(data[train_mask], feature_type="tic")
+        X_test = utils.compute_features(data[test_mask], feature_type="tic")
+
+        if pred_plot_mode == "classification":
+            y_train = np.array(year_labels)[train_mask].astype(int)
+            y_test = np.array(year_labels)[test_mask].astype(int)
+
+            scaler = StandardScaler()
+            X_train = scaler.fit_transform(X_train)
+            X_test = scaler.transform(X_test)
+
             model = RidgeClassifier()
-            model.fit(data[train_mask], y_true[train_mask])
-            y_pred = model.predict(data[test_mask])
-            y_true = y_true[test_mask]
-            origins = np.array(origins)[test_mask]
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
         else:
             # regression Ridge
-            X_train = utils.compute_features(data[train_mask], feature_type="tic")
-            X_test = utils.compute_features(data[test_mask], feature_type="tic")
             y_train = np.array(year_labels)[train_mask].astype(float)
             y_test = np.array(year_labels)[test_mask].astype(float)
 
@@ -123,26 +131,10 @@ def plot_true_vs_pred(y_true, y_pred, origins, do_classification,
             model = Ridge(alpha=1.0)
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
-            y_true = y_test
-            origins = np.array(origins)[test_mask]
 
-    # else:
-        #
-        # if len(y_true) >= len(mask):  # avoid mismatch
-        #     y_true = np.array(y_true)[:len(mask)][mask]
-        # else:
-        #     y_true = np.array(y_true)[mask[:len(y_true)]]
-        #
-        # if len(y_pred) >= len(mask):
-        #     y_pred = np.array(y_pred)[:len(mask)][mask]
-        # else:
-        #     y_pred = np.array(y_pred)[mask[:len(y_pred)]]
-        #
-        # if year_labels is not None:
-        #     year_labels = np.array(year_labels)[:len(mask)][mask]
-        #
-        # if data is not None:
-        #     data = np.array(data)[:len(mask)][mask]
+        y_true = y_test
+        origins = np.array(origins)[test_mask]
+        year_labels = np.array(year_labels)[test_mask]
 
     # === Styling ===
     unique_origins = sorted(set(origins))
@@ -156,8 +148,9 @@ def plot_true_vs_pred(y_true, y_pred, origins, do_classification,
     plt.figure(figsize=(9, 7))
 
     # === Classification ===
-    if do_classification:
+    if pred_plot_mode == "classification":
         try:
+            y_pred =  np.array(y_pred)
             y_true_int = y_true.astype(int)
             y_pred_int = y_pred.astype(int)
             r = np.corrcoef(y_true_int, y_pred_int)[0, 1]
@@ -171,6 +164,10 @@ def plot_true_vs_pred(y_true, y_pred, origins, do_classification,
             color, marker = origin_to_style[org]
             plt.scatter(yt, yp, c=[color], marker=marker,
                         s=70, edgecolor="k", alpha=0.85)
+
+        min_val, max_val = min(y_true_int.min(), y_pred_int.min()), max(y_true_int.max(), y_pred_int.max())
+        plt.plot([min_val, max_val], [min_val, max_val],
+                 linestyle="--", color="black", linewidth=1)
 
         plt.xlabel("True Year Class")
         plt.ylabel("Predicted Year Class")
@@ -219,16 +216,16 @@ def plot_true_vs_pred(y_true, y_pred, origins, do_classification,
         plt.xlabel("True Year")
         plt.ylabel("Predicted Year")
 
-        if do_classification:
-            plt.title(f"Predicted vs. True Year (Classification, {pred_plot_region})\n"
-                      f"Correlation R = {r:.3f}")
+    if pred_plot_mode == "classification":
+        plt.title(f"Predicted vs. True Year (Classification, {pred_plot_region})\n"
+                  f"Correlation R = {r:.3f}")
+    else:
+        if pred_plot_region in ["burgundy_vs_eu", "burgundy_vs_us"]:
+            plt.title(f"Predicted vs. True Year (Regression, Hold-out, {pred_plot_region})\n"
+                      f"Pearson R = {r:.3f}, R² = {r2:.3f}")
         else:
-            if pred_plot_region in ["burgundy_vs_eu", "burgundy_vs_us"]:
-                plt.title(f"Predicted vs. True Year (Regression, Hold-out, {pred_plot_region})\n"
-                          f"Pearson R = {r:.3f}, R² = {r2:.3f}")
-            else:
-                plt.title(f"Predicted vs. True Year (Regression, LOO CV, {pred_plot_region})\n"
-                          f"Pearson R = {r:.3f}, R² = {r2:.3f}")
+            plt.title(f"Predicted vs. True Year (Regression, LOO CV, {pred_plot_region})\n"
+                      f"Pearson R = {r:.3f}, R² = {r2:.3f}")
     # === Legend ===
     legend_elements = [
         Line2D([0], [0], marker=origin_to_style[org][1], color='w',
@@ -412,10 +409,9 @@ def run_cv(
 
         # Predicted vs. True scatter plot, colored by origin ---
         if show_pred_plot:
-            do_classification=False
 
             try:
-                plot_true_vs_pred(all_labels, all_preds, origins, do_classification,
+                plot_true_vs_pred(all_labels, all_preds, origins, pred_plot_mode,
                                   cls.year_labels, cls.data, feature_type, pred_plot_region)
             except Exception as e:
                 print(f"⚠️ Skipping predicted vs true year plot due to error: {e}")
@@ -491,7 +487,8 @@ def run_normal_classification(
     feature_type,
     projection_source,
     show_confusion_matrix,
-    show_pred_plot
+    show_pred_plot,
+    pred_plot_mode="regression"
 ):
     # === Origin mapping (same as before) ===
     letter_to_origin = {
@@ -510,53 +507,57 @@ def run_normal_classification(
     if pred_plot_region in ["burgundy_vs_eu", "burgundy_vs_us"]:
         if pred_plot_region == "burgundy_vs_eu":
             test_origins = ["Neuchâtel", "Geneva", "Valais", "Alsace"]
-        else:
+        else:  # burgundy_vs_us
             test_origins = ["California", "Oregon"]
 
         train_mask = np.isin(origins, ["Burgundy"])
         test_mask = np.isin(origins, test_origins)
 
-        X_train, y_train = data[train_mask], np.array(labels)[train_mask]
-        X_test, y_test = data[test_mask], np.array(labels)[test_mask]
+        # Year labels only (class_by_year=True)
+        y_train = np.array(year_labels)[train_mask].astype(int)
+        y_test = np.array(year_labels)[test_mask].astype(int)
+
         origins_test = np.array(origins)[test_mask]
         raw_labels_test = np.array(raw_sample_labels)[test_mask]
-        year_labels_test = np.array(year_labels)[test_mask] if year_labels is not None else None
+        year_labels_test = np.array(year_labels)[test_mask]
 
-        # Train once on Burgundy, test once on EU/US
+        # Extract TIC features
+        X_train = utils.compute_features(data[train_mask], feature_type="tic")
+        X_test = utils.compute_features(data[test_mask], feature_type="tic")
+
+        # Scale
         from sklearn.preprocessing import StandardScaler
-        from sklearn.linear_model import RidgeClassifier
-
-        # Flatten if needed (3D -> 2D)
-        if X_train.ndim == 3:
-            X_train = X_train.reshape(X_train.shape[0], -1)
-            X_test = X_test.reshape(X_test.shape[0], -1)
-
         scaler = StandardScaler()
         X_train = scaler.fit_transform(X_train)
         X_test = scaler.transform(X_test)
 
-        model = RidgeClassifier()  # could swap for other classifier
+        # Train classifier (on Burgundy) and test on EU/US
+        from sklearn.linear_model import RidgeClassifier
+        model = RidgeClassifier()
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
 
-        # Compute accuracy
+        # Accuracy
         acc = np.mean(y_pred == y_test)
         logger.info(f"Hold-out Accuracy ({pred_plot_region}): {acc:.3f}")
 
-        # Plot
+        # Plot classification results
         try:
             plot_true_vs_pred(
                 y_true=y_test,
                 y_pred=y_pred,
-                origins=test_origins,
-                do_classification=True,
-                year_labels=None,
-                data=None,
+                origins=origins,  # per-sample test origins
+                pred_plot_mode=pred_plot_mode,
+                year_labels=year_labels,  # vintages of test wines
+                data=data,
                 feature_type=feature_type,
                 pred_plot_region=pred_plot_region
             )
         except Exception as e:
             print(f"⚠️ Skipping predicted vs true plot for {pred_plot_region} due to error: {e}")
+
+        return acc, y_test, y_pred, origins_test, raw_labels_test, year_labels_test
+
 
     # === Normal regional filters (all, european, burgundy) ===
     if pred_plot_region == "european":
@@ -598,7 +599,7 @@ def run_normal_classification(
         show_confusion_matrix=show_confusion_matrix,
         show_pred_plot=show_pred_plot,
         pred_plot_region=pred_plot_region,
-        origins=origins
+        origins=origins,
     )
 
     if cv_type == "LOO":
@@ -4357,6 +4358,7 @@ if __name__ == "__main__":
     density_plot = config.get("density_plot", False)
     show_pred_plot = config.get("show_pred_plot", False)
     pred_plot_region = config.get("pred_plot_region", "all")
+    pred_plot_mode = config.get("pred_plot_mode", "regression")
 
     # Run parameters
     sotf_ret_time_flag = config.get("sotf_ret_time")
@@ -4556,6 +4558,7 @@ if __name__ == "__main__":
             feature_type=feature_type,
             projection_source=projection_source,
             show_confusion_matrix=show_confusion_matrix,
+            pred_plot_mode=pred_plot_mode
         )
     elif sotf_remove_2d_flag:
         results = run_sotf_remove_2D_noleak(
@@ -4642,7 +4645,8 @@ if __name__ == "__main__":
             feature_type=feature_type,
             projection_source=projection_source,
             show_confusion_matrix=show_confusion_matrix,
-            show_pred_plot=show_pred_plot
+            show_pred_plot=show_pred_plot,
+            pred_plot_mode=pred_plot_mode
         )
 
     # -----------------------------

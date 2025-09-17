@@ -271,6 +271,9 @@ function App() {
     { value: "burgundy_us", label: "Burgundy on US" },
   ];
 
+  const [predPlotMode, setPredPlotMode] = useState("regression");
+
+
   useEffect(() => {
     const firstOption = featureToProjectionOptions[featureType][0];
     if (firstOption) {
@@ -466,6 +469,7 @@ useEffect(() => {
       show_sample_names: showSampleNames,
       show_pred_plot: showPredPlot,
       pred_plot_region: predPlotRegion,
+      pred_plot_mode: predPlotMode,
       show_age_histogram: showAgeHist,
       show_chromatograms: showChroms,
       do_classification: doClassification,
@@ -1455,40 +1459,67 @@ useEffect(() => {
                                 </Grid>
                               )
                             )}
-                            {wineFamily === "pinot" && selectedTask === "Classification" && classByYear && cvType === "LOO" && (
-                              <>
-                                <Grid item xs={12} md={3}>
-                                  <FormControlLabel
-                                    control={
-                                      <Checkbox
-                                        checked={showPredPlot}
-                                        onChange={(e) => setShowPredPlot(e.target.checked)}
-                                      />
-                                    }
-                                    label="Plot True vs Predicted"
-                                  />
-                                </Grid>
-
-                                {showPredPlot && (
+                            {wineFamily === "pinot" &&
+                              selectedTask === "Classification" &&
+                              classByYear &&
+                              cvType === "LOO" && (
+                                <>
                                   <Grid item xs={12} md={3}>
-                                    <FormControl fullWidth variant="outlined">
-                                      <InputLabel shrink>Region Filter</InputLabel>
-                                      <Select
-                                        value={predPlotRegion}
-                                        onChange={(e) => setPredPlotRegion(e.target.value)}
-                                        label="Region Filter"
-                                      >
-                                        {predPlotOptions.map((opt) => (
-                                          <MenuItem key={opt.value} value={opt.value}>
-                                            {opt.label}
-                                          </MenuItem>
-                                        ))}
-                                      </Select>
-                                    </FormControl>
+                                    <FormControlLabel
+                                      control={
+                                        <Checkbox
+                                          checked={showPredPlot}
+                                          onChange={(e) => setShowPredPlot(e.target.checked)}
+                                        />
+                                      }
+                                      label="Plot True vs Predicted"
+                                    />
                                   </Grid>
-                                )}
-                              </>
-                            )}
+
+                                  {showPredPlot && (
+                                    <>
+                                      <Grid item xs={12} md={3}>
+                                        <FormControl fullWidth variant="outlined">
+                                          <InputLabel shrink>Region Filter</InputLabel>
+                                          <Select
+                                            value={predPlotRegion}
+                                            onChange={(e) => setPredPlotRegion(e.target.value)}
+                                            label="Region Filter"
+                                          >
+                                            {predPlotOptions.map((opt) => (
+                                              <MenuItem key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                              </MenuItem>
+                                            ))}
+                                          </Select>
+                                        </FormControl>
+                                      </Grid>
+
+                                      <Grid item xs={12} md={3}>
+                                        <FormControl component="fieldset">
+                                          <FormLabel component="legend">Mode</FormLabel>
+                                          <RadioGroup
+                                            row
+                                            value={predPlotMode}
+                                            onChange={(e) => setPredPlotMode(e.target.value)}
+                                          >
+                                            <FormControlLabel
+                                              value="classification"
+                                              control={<Radio />}
+                                              label="Classification"
+                                            />
+                                            <FormControlLabel
+                                              value="regression"
+                                              control={<Radio />}
+                                              label="Regression"
+                                            />
+                                          </RadioGroup>
+                                        </FormControl>
+                                      </Grid>
+                                    </>
+                                  )}
+                                </>
+                              )}
                         </>
                       )}
                       {isChampagneAgePrediction && (
