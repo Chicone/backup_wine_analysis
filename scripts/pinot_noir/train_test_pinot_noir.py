@@ -487,7 +487,7 @@ def run_normal_classification(
     feature_type,
     projection_source,
     show_confusion_matrix,
-    show_pred_plot,
+    show_pred_plot=False,
     pred_plot_mode="regression"
 ):
     # === Origin mapping (same as before) ===
@@ -1755,7 +1755,7 @@ def run_sotf_remove_2D_noleak(
         max_cubes = len(all_cubes)
     n_iterations = max_cubes
 
-    y_all = (year_labels if class_by_year else labels)
+    y_all = np.array((year_labels if class_by_year else labels))
     classes = np.unique(y_all)
     n_classes = len(classes)
 
@@ -1969,6 +1969,13 @@ def run_sotf_remove_2D_noleak(
 
         chance_acc = 1.0 / n_classes
         outer_curve.append(chance_acc)
+
+        # === Ensure the final cube is logged so the heatmap shows something ===
+        if len(remaining) == 1 and min_cubes >= 1:
+            last_cube = next(iter(remaining))
+            if not removed_order or removed_order[-1] != last_cube:
+                removed_order.append(last_cube)
+
         return outer_curve, removed_order
 
     # === Live plotting ===
@@ -2029,8 +2036,9 @@ def run_sotf_remove_2D_noleak(
             cmap="viridis", ax=ax_heat, cbar=False,
             xticklabels=[f"{rt_edges[x]}–{rt_edges[x + 1]}" for x in range(n_rt_bins)],
             yticklabels=[f"{mz_edges[y]}–{mz_edges[y + 1]}" for y in range(n_mz_bins)],
-            annot=None, fmt="", annot_kws={"size": 6}
+            annot=annotations, fmt="s", annot_kws={"size": 6}
         )
+
         ax_heat.set_title(f"Most common removal order (after {len(all_outer_curves)} folds)")
         ax_heat.set_xticklabels(ax_heat.get_xticklabels(), rotation=45, ha="right")
         ax_heat.set_yticklabels(ax_heat.get_yticklabels(), rotation=0)

@@ -2462,7 +2462,7 @@ if __name__ == "__main__":
     n_decimation = config["n_decimation"]
     sync_state = config["sync_state"]
     class_by_year = config["class_by_year"]
-    region = config["region"]
+    region = "winery"
     show_confusion_matrix = config["show_confusion_matrix"]
     retention_time_range = config["rt_range"]
     cv_type = config["cv_type"]

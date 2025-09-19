@@ -23,7 +23,7 @@ density_plot: false
 do_classification: false
 downsample_group: true
 exclude_us: false
-feature_type: tic_tis
+feature_type: concat_channels
 global_focus_heatmap: true
 group_wines: false
 invert_x: false
@@ -34,19 +34,19 @@ label_targets:
 n_decimation: 10
 n_mz_bins: 1
 n_neighbors: 30
-n_rt_bins: 50
+n_rt_bins: 10
 normalize: true
 num_repeats: 10
 num_splits: 1
 oak_analysis: false
-oak_mode: integrated
+oak_mode: mask
 plot_all_tests: false
 plot_projection: false
 plot_r2: false
 plot_shap: false
 plot_umap: scores
-pred_plot_mode: classification
-pred_plot_region: burgundy
+pred_plot_mode: regression
+pred_plot_region: all
 projection_dim: 2
 projection_method: UMAP
 projection_source: scores
@@ -55,7 +55,7 @@ reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
 reg_acc_map: false
-region: winery
+region: ''
 regressor: null
 remove_avg_scores: false
 retention_time_range:
@@ -68,16 +68,16 @@ rt_range:
 sample_display_mode: names
 selected_attribute: nuts
 selected_datasets:
-- pinot_noir_changins
+- bordeaux_oak_paper1
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
 show_confusion_matrix: false
-show_pred_plot: true
+show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false
 shuffle_labels: false
-sotf_add_2d: false
+sotf_add_2d: true
 sotf_mz: false
 sotf_remove_2d: false
 sotf_ret_time: false

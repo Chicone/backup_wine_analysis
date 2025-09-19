@@ -3656,3 +3656,7 @@
 2025-08-28 16:15:52 — INFO — Iteration 99: removed cube (76, 0), acc=0.125, % cubes=1.0
 2025-08-28 19:20:18 — INFO — Final Accuracy (no survival): 0.327
 2025-09-01 23:16:38 — INFO — Final Accuracy (no survival): 0.943
+2025-09-18 17:11:19 — INFO — Final Accuracy (no survival): 0.000
+2025-09-18 17:11:24 — INFO — Final Accuracy (no survival): 0.000
+2025-09-18 18:12:46 — INFO — Baseline (all bins): mean outer acc = 0.640
+2025-09-18 18:12:46 — INFO — === Iteration 1/50 | Active bins: 50 ===

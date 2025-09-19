@@ -2331,6 +2331,24 @@ def infer_wine_kind(selected_datasets, dataset_directories):
 
     return wine_kind
 
+def assign_bordeaux_split_labels(labels, class_by_year=False):
+    split_labels = []
+    for lbl in labels:
+        match = re.search(r'(\d{4})', lbl)
+        if not match:
+            split_labels.append(lbl)  # fallback: keep raw
+            continue
+
+        if class_by_year:
+            # Winery + year
+            letter = lbl[0]
+            year = match.group(1)
+            split_labels.append(f"{letter}{year}")
+        else:
+            # Keep full raw label (A1990, A1990B, etc.)
+            split_labels.append(lbl)
+    return np.array(split_labels)
+
 def assign_bordeaux_label(labels, vintage=False):
     """
     Assigns labels for Bordeaux wines, optionally grouping by vintage or by composite label.

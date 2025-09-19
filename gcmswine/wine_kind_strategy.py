@@ -47,13 +47,16 @@ class PressWineStrategy(WineKindStrategy):
         return len(labels[0]) > 1 if len(labels) > 0 and labels[0] is not None else False
 
 
-from gcmswine.utils import assign_bordeaux_label
+from gcmswine.utils import assign_bordeaux_label, assign_bordeaux_split_labels
+
+
 class BordeauxWineStrategy(WineKindStrategy):
     def __init__(self, class_by_year=False):
         self.class_by_year = class_by_year
 
     def get_split_labels(self, labels_raw, class_by_year=False, year_labels=None):
-        return assign_bordeaux_label(labels_raw, vintage=class_by_year)
+        return assign_bordeaux_split_labels(labels_raw, class_by_year)
+        # return assign_bordeaux_label(labels_raw, vintage=class_by_year)
 
     def extract_labels(self, labels):
         if self.class_by_year:

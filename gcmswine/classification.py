@@ -601,16 +601,28 @@ class Classifier:
             scores = np.stack([-scores, scores], axis=1)  # Shape (1, 2)
 
         # === Align scores to global number of classes ===
-        n_classes_total = len(np.unique(self.year_labels if self.class_by_year else self.labels))
-        global_classes = np.unique(self.year_labels if self.class_by_year else self.labels)
+        # Use processed_labels consistently
+        global_classes = np.unique(processed_labels)  # not raw self.labels
+        n_classes_total = len(global_classes)
 
         if scores.shape[1] != n_classes_total:
             fixed_scores = np.zeros((scores.shape[0], n_classes_total))
             train_classes = np.unique(y_train)
             for i, cls in enumerate(train_classes):
-                j = np.where(global_classes == cls)[0][0]
-                fixed_scores[:, j] = scores[:, i]
+                if cls in global_classes:
+                    j = np.where(global_classes == cls)[0][0]
+                    fixed_scores[:, j] = scores[:, i]
             scores = fixed_scores
+        # n_classes_total = len(np.unique(self.year_labels if self.class_by_year else self.labels))
+        # global_classes = np.unique(self.year_labels if self.class_by_year else self.labels)
+        #
+        # if scores.shape[1] != n_classes_total:
+        #     fixed_scores = np.zeros((scores.shape[0], n_classes_total))
+        #     train_classes = np.unique(y_train)
+        #     for i, cls in enumerate(train_classes):
+        #         j = np.where(global_classes == cls)[0][0]
+        #         fixed_scores[:, j] = scores[:, i]
+        #     scores = fixed_scores
 
         # Step 5: evaluation (not meaningful with 1 test point, but for completeness)
         result = {
@@ -1247,7 +1259,7 @@ class Classifier:
     #         # Return per-origin averaged results
     #         return averaged_results
 
-    def evaluate_feature_matrix_LOO(feature_matrix, labels, year_labels, strategy,
+    def evaluate_feature_matrix_LOO(self,  feature_matrix, labels, year_labels, strategy,
                                     classifier_type, normalize, scaler_type,
                                     projection_source, show_confusion_matrix=False,
                                     sample_labels=None, dataset_origins=None,
