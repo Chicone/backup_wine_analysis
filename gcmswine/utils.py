@@ -2380,7 +2380,7 @@ def assign_bordeaux_label(labels, vintage=False):
 
     return np.array(processed_labels)
 
-def compute_features(data, channels=None, feature_type="concatenated"):
+def compute_features(data, channels=None, feature_type="concat_channels"):
     """
     Compute feature representations from GC-MS data.
 
@@ -2416,7 +2416,7 @@ def compute_features(data, channels=None, feature_type="concatenated"):
         tis = np.sum(data[:, :, channels], axis=1)
         return np.hstack([tic, tis])
     else:
-        raise ValueError("Invalid feature_type. Use 'concatenated', 'tic', 'tis', or 'tic_tis'.")
+        raise ValueError("Invalid feature_type. Use 'concat_channels', 'tic', 'tis', or 'tic_tis'.")
 
 from pathlib import Path
 from datetime import datetime

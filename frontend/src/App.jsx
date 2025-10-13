@@ -49,7 +49,7 @@ const drawerWidth = 240;
 
 const projectionLabels = {
   scores: "Scores",
-  concat_channels: "Concat channels",
+  concatenated: "Concatenated",
   best_channel: "Best channel",
   tic: "TIC",
   tis: "TIS",
@@ -176,9 +176,9 @@ function App() {
       { value: "scores", label: "Class. Scores" },
       { value: "tic_tis", label: "TIC + TIS" },
     ],
-    concat_channels: [
+    concatenated: [
         { value: "scores", label: "Class. Scores" },
-        { value: "concat_channels", label: "Concat Channels" },
+        { value: "concatenated", label: "Concatenated" },
       ],
     best_channel: [
         { value: "scores", label: "Class. Scores" },
@@ -265,10 +265,11 @@ function App() {
 
   const predPlotOptions = [
     { value: "all", label: "All regions" },
-    { value: "eu", label: "European" },
+    { value: "european", label: "European" },
     { value: "burgundy", label: "Burgundy" },
     { value: "burgundy_eu", label: "Burgundy on EU" },
     { value: "burgundy_us", label: "Burgundy on US" },
+    { value: "burgundy_random", label: "Random (Burg. size)" },
   ];
 
   const [predPlotMode, setPredPlotMode] = useState("regression");
@@ -399,9 +400,10 @@ useEffect(() => {
 
 useEffect(() => {
   if (selectedTask === "SOTF Remove 2D" || selectedTask === "SOTF Add 2D") {
-    setFeatureType("concat_channels");
+    setFeatureType("concatenated");
   }
 }, [selectedTask]);
+
 
   const useChampTasterScaling = tasterTests.includes("scaling");
   const shuffleLabels = tasterTests.includes("shuffle");
@@ -468,7 +470,8 @@ useEffect(() => {
       region: region,
       show_sample_names: showSampleNames,
       show_pred_plot: showPredPlot,
-      pred_plot_region: predPlotRegion,
+      pred_plot_region: showPredPlot ? predPlotRegion : "all",
+//       pred_plot_region: predPlotRegion,
       pred_plot_mode: predPlotMode,
       show_age_histogram: showAgeHist,
       show_chromatograms: showChroms,
@@ -1061,7 +1064,7 @@ useEffect(() => {
                           <MenuItem value="tic">TIC</MenuItem>
                           <MenuItem value="tis" disabled={wineFamily === "champagne"}>TIS</MenuItem>
                           <MenuItem value="tic_tis" disabled={wineFamily === "champagne"}>TIC + TIS</MenuItem>
-                          <MenuItem value="concat_channels">Concat channels</MenuItem>
+                          <MenuItem value="concatenated">Concat channels</MenuItem>
                           <MenuItem value="best_channel">Best channel</MenuItem>
                           </Select>
                         </FormControl>

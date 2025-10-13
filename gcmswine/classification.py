@@ -1367,7 +1367,8 @@ class Classifier:
         num_samples, num_timepoints, num_channels = cls_data.shape
 
         def compute_features(channels):
-            if feature_type == "concat_channels":
+            if feature_type == "concatenated":
+            # if feature_type == "concat_channels":
                 return np.hstack([cls_data[:, :, ch].reshape(num_samples, -1) for ch in channels])
             elif feature_type == "tic":
                 return np.sum(cls_data[:, :, channels], axis=2)
@@ -1536,9 +1537,21 @@ class Classifier:
             # return best_channel_results
 
         if feature_type == "greedy_add":
+            import matplotlib.pyplot as plt
+            plt.ion()  # Turn on interactive mode
+            fig, ax = plt.subplots(figsize=(8, 5))
+            line, = ax.plot([], [], '-o', label='Accuracy')
+            ax.set_xlabel("Number of Channels Added", fontsize=14)
+            ax.set_ylabel("Accuracy (LOO)", fontsize=14)
+            ax.set_title("Greedy Channel Addition: Accuracy vs Channels", fontsize=16)
+            ax.grid(True, linestyle="--", alpha=0.6)
+            plt.tight_layout()
+            plt.show()
             print("\n=== Ranking channels individually ===")
             channel_accs = []
+            # for ch in range(16):
             for ch in range(num_channels):
+                print (f"Checking channel {ch}")
                 fm = cls_data[:, :, ch].reshape(num_samples, -1)
                 mean_acc, *_ = evaluate_feature_matrix_LOO(
                     fm, labels, year_labels, strategy,
@@ -1554,14 +1567,23 @@ class Classifier:
             # Rank by accuracy
             ranked_channels = [ch for ch, _ in sorted(channel_accs, key=lambda x: x[1], reverse=True)]
 
-            print("\n=== Greedy channel addition ===")
+            print("\n=== Ranked channel addition ===")
             cumulative_results = []
             selected_channels = []
+
+            # --- New option: choose combination mode ---
+            combination_mode = getattr(self, "combination_mode", "concat")  # "sum" or "concat"
+
             for k, ch in enumerate(ranked_channels, 1):
                 selected_channels.append(ch)
                 print(f"\nEvaluating with top {k} channels: {selected_channels}")
-                # fm = np.hstack([cls_data[:, :, c].reshape(num_samples, -1) for c in selected_channels])
-                fm = np.sum(cls_data[:, :, selected_channels], axis=2)  # Summation across selected channels
+
+                if combination_mode == "concat":
+                    # Concatenate selected channels along feature axis
+                    fm = np.hstack([cls_data[:, :, c].reshape(num_samples, -1) for c in selected_channels])
+                else:
+                    # Sum selected channels across channel axis (default)
+                    fm = np.sum(cls_data[:, :, selected_channels], axis=2)
 
                 mean_acc, std_acc, *_ = evaluate_feature_matrix_LOO(
                     fm, labels, year_labels, strategy,
@@ -1574,25 +1596,55 @@ class Classifier:
                 )
                 cumulative_results.append((k, selected_channels.copy(), mean_acc, std_acc))
                 print(f"Top {k} channels: Accuracy {mean_acc:.3f} ± {std_acc:.3f}")
-                # === Plot accuracy vs. number of channels ===
 
-            import matplotlib.pyplot as plt
+                # Update live plot
+                ks = [r[0] for r in cumulative_results]
+                accs = [r[2] for r in cumulative_results]
+                line.set_data(ks, accs)
+                ax.relim()
+                ax.autoscale_view()
+                plt.draw()
+                plt.pause(0.2)  # small delay to visualize updates
+
+            plt.ioff()
+            plt.show()
+
+            # # === Plot accuracy vs. number of channels ===
+            # import matplotlib.pyplot as plt
+            # ks = [r[0] for r in cumulative_results]
+            # accs = [r[2] for r in cumulative_results]
+            # stds = [r[3] for r in cumulative_results]
+            #
+            # plt.figure(figsize=(8, 5))
+            # plt.plot(ks, accs, '-o', label='Accuracy')
+            # plt.xlabel("Number of Channels Added", fontsize=14)
+            # plt.ylabel("Accuracy (LOO)", fontsize=14)
+            # plt.title(f"Greedy Channel Addition ({combination_mode})", fontsize=16)
+            # plt.grid(True, linestyle="--", alpha=0.6)
+            # plt.tight_layout()
+            # plt.show()
+
             ks = [r[0] for r in cumulative_results]
             accs = [r[2] for r in cumulative_results]
             stds = [r[3] for r in cumulative_results]
-
-            plt.figure(figsize=(8, 5))
-            plt.plot(ks, accs, '-o', label='Accuracy')
-            plt.xlabel("Number of Channels Added", fontsize=14)
-            plt.ylabel("Accuracy (LOO)", fontsize=14)
-            plt.title("Greedy Channel Addition: Accuracy vs Channels", fontsize=16)
-            plt.grid(True, linestyle="--", alpha=0.6)
-            plt.tight_layout()
-            plt.show()
-
             best_idx = np.argmax(accs)
             best_mean_acc, best_std_acc = accs[best_idx], stds[best_idx]
             print(f"\nBest accuracy: {best_mean_acc:.3f} ± {best_std_acc:.3f} using top {ks[best_idx]} channels.")
+
+            # === Save results for later plotting ===
+            import pandas as pd
+            results_df = pd.DataFrame({
+                "num_channels": ks,
+                "accuracy": accs,
+                "std": stds,
+                "selected_channels": [",".join(map(str, r[1])) for r in cumulative_results],
+            })
+
+            # Create an output filename that reflects combination mode
+            mode = combination_mode
+            outfile = f"ranked_add_concat_results_{mode}.csv"
+            results_df.to_csv(outfile, index=False)
+            print(f"Saved results to {outfile}")
 
             return best_mean_acc, best_std_acc, None, None, np.array(list(self.sample_labels)), cumulative_results
 
@@ -1701,11 +1753,11 @@ class Classifier:
 
         print("\nLabel order:")
         if custom_order is not None:
-            for label in custom_order:
-                print(f"{label} ({counts.get(label, 0)})")
+            labels_str = " | ".join(f"{label} ({counts.get(label, 0)})" for label in custom_order)
         else:
-            for label in sorted(counts.keys()):
-                print(f"{label} ({counts[label]})")
+            labels_str = " | ".join(f"{label} ({counts[label]})" for label in sorted(counts.keys()))
+
+        print(labels_str)
 
         print("\nFinal Averaged Normalized Confusion Matrix:")
         print(mean_confusion_matrix)
@@ -1715,15 +1767,58 @@ class Classifier:
             import matplotlib.pyplot as plt
             from sklearn.metrics import ConfusionMatrixDisplay
 
+            custom_order = [
+                "Clos Des Mouches. Drouhin (FR): D",
+                "Les Petits Monts. Drouhin (FR): R",
+                "Vigne de l’Enfant Jésus. Bouchard (FR): E",
+                "Les Cailles. Bouchard (FR): Q",
+                "Bressandes. Jadot (FR): P",
+                "Les Boudots. Jadot (FR): Z",
+                "Domaine Schlumberger (FR): C",
+                "Domaine Jean Sipp (FR): W",
+                "Domaine Weinbach (FR): Y",
+                "Domaine Brunner (CH): M",
+                "Vin des Croisés (CH): N",
+                "Domaine Villard et Fils (CH): J",
+                "Domaine de la République (CH): L",
+                "Les Maladaires (CH): H",
+                "Marimar Estate (US): U",
+                "Domaine Drouhin (US): X",
+            ]
+            # Extract short letters for y-axis (last char after colon + space)
+            short_labels = [lbl.split(":")[-1].strip() for lbl in custom_order]
+
             fig, ax = plt.subplots(figsize=(8, 6))
             ax.set_xlabel('Predicted Label', fontsize=14)
             ax.set_ylabel('True Label', fontsize=14)
-            ax.set_title(f'Confusion matrix by region')
-            disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=custom_order)
+            ax.set_title('Confusion matrix by Cru')
+
+            # Plot with short labels
+            disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix,
+                                          display_labels=short_labels)
             disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
-            plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
+
+            # Replace y-axis tick labels with full custom_order (angled)
+            ax.set_yticks(range(len(custom_order)))
+            ax.set_yticklabels(custom_order, rotation=0, ha="right", fontsize=12)
+
+            # X-axis stays as short labels, straight and aligned
+            ax.set_xticks(range(len(custom_order)))
+            ax.set_xticklabels(short_labels, rotation=0, fontsize=12)
+
             plt.tight_layout()
             plt.show()
+
+
+            # fig, ax = plt.subplots(figsize=(8, 6))
+            # ax.set_xlabel('Predicted Label', fontsize=14)
+            # ax.set_ylabel('True Label', fontsize=14)
+            # ax.set_title(f'Confusion matrix by region')
+            # disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix, display_labels=custom_order)
+            # disp.plot(cmap="Blues", values_format=".0%", ax=ax, colorbar=False)
+            # plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=12)
+            # plt.tight_layout()
+            # plt.show()
 
         # <<< ADDED: return predictions as the 6th item >>>
         return mean_acc, std_acc, all_scores, all_labels, test_sample_names, all_preds

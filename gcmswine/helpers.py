@@ -18,11 +18,19 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import cross_val_predict, GroupKFold
 
+import yaml
+from pathlib import Path
+def load_config(path: str | None = None) -> dict:
+    """Load YAML configuration into a Python dict."""
+    if path is None:
+        path = Path(__file__).resolve().parent.parent / "config.yaml"
+    else:
+        path = Path(path)
 
-def load_config(config_path=None):
-    if config_path is None:
-        raise ValueError("You must provide the config path when calling load_config().")
-    with open(os.path.abspath(config_path), "r") as f:
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {path}")
+
+    with open(path, "r") as f:
         return yaml.safe_load(f)
 
 def get_model(name, random_seed=42):
