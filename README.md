@@ -15,7 +15,7 @@ To use the dashboard locally, first clone the repository and switch to the corre
 Open a terminal and run:
 
 ```bash
-git clone https://github.com/Chicone/wine_analysis.git
+git clone https://github.com/pougetlab/wine_analysis.git
 ```
 
 This will create a local folder named `wine_analysis` containing all project files.
