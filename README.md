@@ -1,4 +1,4 @@
-# Wine Analysis Interface
+# 🍷 Wine Analysis Interface
 
 This branch contains an interactive dashboard designed to run experiments on multiple GC-MS wine datasets.  
 The dashboard provides all the functionality needed to execute the complete wine analysis workflow — including 
@@ -6,45 +6,98 @@ model training, evaluation, and visualization.
 It allows users to train different machine-learning models, compute classification accuracies, generate confusion 
 matrices, and visualize results across all wine families considered in the project.
 
+---
+
 ## 🧭 Getting Started
 
-To use the dashboard locally, first clone the repository and switch to the correct branch.
+### 1. Clone the Repository
 
-### 1. Clone the repository
-
-Open a terminal and run:
+Open a terminal (or PowerShell on Windows) and run:
 
 ```bash
 git clone https://github.com/pougetlab/wine_analysis.git
-```
-
-This will create a local folder named `wine_analysis` containing all project files.
-
-### 2. Navigate into the project directory
-
-```bash
 cd wine_analysis
-```
-
-### 3. (Optional) Verify branch
-
-If you’re not already on the web interface branch, switch to it with:
-
-```bash
 git checkout main
 ```
 
-You now have a complete local copy of the project and can proceed to start the backend and frontend as described below.
+This will create a local folder named `wine_analysis` containing the web interface branch.
 
 ---
 
+### 2. Install Prerequisites
 
-## 📄 Documentation
+Make sure the following tools are installed on your system:
 
-The dashboard contains its own Docs page
-Alternatively, the general documentation of the Wine Analysis Package can be found here: 
-👉 [View the documentation](https://chicone.github.io/backup_wine_analysis/)
+- **Python 3.9+**
+- **pip** (Python package manager)
+- **Node.js** and **npm** (for the frontend)
 
+#### Check if they’re installed:
+```bash
+python --version        # or python3 --version
+pip --version
+node --version
+npm --version
+```
+
+If any of these commands fail, install the missing tools as follows:
+
+#### 🐍 Python and pip
+- Download and install from [https://www.python.org/downloads/](https://www.python.org/downloads/)
+- When installing on Windows, make sure to check **“Add Python to PATH.”**
+
+#### ⚙️ Node.js and npm
+- Download from [https://nodejs.org/](https://nodejs.org/).  
+  npm (Node Package Manager) comes **bundled** with Node.js automatically.  
+  Choose the **LTS (Long-Term Support)** version for stability.
+
+Alternatively, on Linux you can install it from the terminal:
+
+```bash
+# Ubuntu / Debian
+sudo apt update
+sudo apt install nodejs npm
+
+# Fedora
+sudo dnf install nodejs npm
+
+# macOS (with Homebrew)
+brew install node
+```
+
+---
+
+### 3. Set Up the Python Environment
+
+It is strongly recommended to use a virtual environment for the backend to isolate dependencies.
+
+#### On Linux or macOS:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+#### On Windows (PowerShell):
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+Once the environment is active (you should see `(.venv)` in your terminal prompt),  
+install the required Python dependencies — including **Uvicorn** to run the FastAPI server:
+
+```bash
+pip install -r requirements.txt
+```
+
+If you encounter missing dependencies (e.g., during model training or data visualization),  
+you can install these additional commonly used packages:
+
+```bash
+pip install torch torchvision pynndescent netCDF4 seaborn umap-learn tqdm scikit-optimize pycairo fastapi uvicorn[standard] 
+```
+
+---
 
 ## 🚀 Running the Wine Analysis Dashboard
 
@@ -62,7 +115,7 @@ Both must be running simultaneously for the dashboard to function.
 Open a terminal and run:
 
 ```bash
-cd ~/PycharmProjects/wine_analysis/api_web
+cd api_web
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -71,17 +124,17 @@ The backend will start on [http://localhost:8000](http://localhost:8000).
 API documentation:
 - Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-
 > ⚠️ Note: These documentation endpoints are provided by FastAPI and are only available on **port 8000**, not on the frontend (port 3000).
 
 ---
 
 ### 💻 2. Start the Frontend (React)
 
-In another terminal window, run:
+In another terminal window (or Command Prompt on Windows), run:
 
 ```bash
-cd ~/PycharmProjects/wine_analysis/frontend
+cd frontend
+npm install
 npm start
 ```
 
@@ -99,4 +152,10 @@ The frontend will start on [http://localhost:3000](http://localhost:3000) and wi
 
 Press **Ctrl + C** in each terminal to stop the servers.
 
+---
 
+## 📄 Documentation
+
+The dashboard includes its own documentation panel.  
+For detailed explanations of the GC-MS pipelines, models, and visualization logic, refer to:  
+👉 [https://pougetlab.github.io/wine_analysis/](https://pougetlab.github.io/wine_analysis/)
