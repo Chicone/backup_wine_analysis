@@ -6,6 +6,39 @@ model training, evaluation, and visualization.
 It allows users to train different machine-learning models, compute classification accuracies, generate confusion 
 matrices, and visualize results across all wine families considered in the project.
 
+## 🧭 Getting Started
+
+To use the dashboard locally, first clone the repository and switch to the correct branch.
+
+### 1. Clone the repository
+
+Open a terminal and run:
+
+```bash
+git clone https://github.com/Chicone/wine_analysis.git
+```
+
+This will create a local folder named `wine_analysis` containing all project files.
+
+### 2. Navigate into the project directory
+
+```bash
+cd wine_analysis
+```
+
+### 3. (Optional) Verify branch
+
+If you’re not already on the web interface branch, switch to it with:
+
+```bash
+git checkout main
+```
+
+You now have a complete local copy of the project and can proceed to start the backend and frontend as described below.
+
+---
+
+
 ## 📄 Documentation
 
 The dashboard contains its own Docs page
