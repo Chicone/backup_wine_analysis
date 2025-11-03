@@ -42,6 +42,9 @@ class RunConfig:
     show_confusion_matrix: bool = False
     plot_all_tests: bool = False
     plot_r2: bool = False
+    plot_regress_corr: bool = False
+    plot_rt_bin_analysis: bool = False
+    rt_analysis_filename: Optional[str] = None
     plot_shap: bool = False
     plot_umap: str | bool = False
     show_chromatograms: bool = False

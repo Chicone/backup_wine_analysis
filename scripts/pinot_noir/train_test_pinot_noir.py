@@ -5366,7 +5366,10 @@ def run_normal_classification(
     projection_source,
     show_confusion_matrix,
     show_pred_plot=False,
-    pred_plot_mode="regression"
+    pred_plot_mode="regression",
+    plot_regress_corr=False,
+    plot_rt_bin_analysis=False,
+    rt_analysis_filename=None
 ):
     # === Origin mapping (same as before) ===
     letter_to_origin = {
@@ -5625,25 +5628,26 @@ def run_normal_classification(
 
         # Get directory of the current script, no matter where it's called from
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(script_dir, "results",
-                                 "rt_distribution_best_acc_winery_concatenated_10rt_1mz_10rep.npz")
-
-        dist = np.load(file_path, allow_pickle=True)
+        # file_path = os.path.join(script_dir, "results",
+        #                          "rt_distribution_best_acc_winery_concatenated_10rt_1mz_10rep.npz")
+        #
+        # dist = np.load(file_path, allow_pickle=True)
 
         # --- Plot comparison ---
         ref_chrom = np.sum(data, axis=2)
 
-        # Plot comparison
-        plot_rtbin_evolution_full(
-            "results/rt_distribution_allsteps_winery_concatenated_116rt_1mz_20rep.npz",
-            all_coefs=all_coefs,
-            ref_chrom=ref_chrom,
-            normalize="fraction",
-            cumulative=True,
-            cmap="plasma",
-            step_pct=53,
-            # step_pct=10 / 116. * 100 - 1,
-        )
+        if plot_rt_bin_analysis:
+            # Plot comparison
+            plot_rtbin_evolution_full(
+                npz_path=rt_analysis_filename,
+                all_coefs=all_coefs,
+                ref_chrom=ref_chrom,
+                normalize="fraction",
+                cumulative=True,
+                cmap="plasma",
+                step_pct=53,
+                # step_pct=10 / 116. * 100 - 1,
+            )
 
 
         # plot_avg_weights_vs_rtbin_frequency(
@@ -5662,15 +5666,15 @@ def run_normal_classification(
         #     region_label=cfg.pred_plot_region,
         # )
 
+        if plot_regress_corr:
+            r, p = compare_regression_weights(
+                "results/weights/all/weights_mean_all.npy",
+                "results/weights/burgundy/weights_mean_burgundy.npy",
+                savefig_path="results/weights/weights_comparison_all_vs_burgundy.png",
+                title_prefix="Ridge regression"
+            )
 
-        r, p = compare_regression_weights(
-            "results/weights/all/weights_mean_all.npy",
-            "results/weights/burgundy/weights_mean_burgundy.npy",
-            savefig_path="results/weights/weights_comparison_all_vs_burgundy.png",
-            title_prefix="Ridge regression"
-        )
-
-        print(f"Pearson correlation: r = {r:.3f}, p = {p:.1e}")
+            print(f"Pearson correlation: r = {r:.3f}, p = {p:.1e}")
 
     logger.info(f"Final Accuracy (no survival): {mean_acc:.3f}")
     return result
@@ -5941,7 +5945,10 @@ if __name__ == "__main__":
             projection_source=cfg.projection_source,
             show_confusion_matrix=cfg.show_confusion_matrix,
             show_pred_plot=cfg.show_pred_plot,
-            pred_plot_mode=cfg.pred_plot_mode
+            pred_plot_mode=cfg.pred_plot_mode,
+            plot_regress_corr=cfg.plot_regress_corr,
+            plot_rt_bin_analysis=cfg.plot_rt_bin_analysis,
+            rt_analysis_filename=cfg.rt_analysis_filename
         )
 
     # -----------------------------

@@ -43,10 +43,12 @@ oak_mode: mask
 plot_all_tests: true
 plot_projection: false
 plot_r2: false
+plot_regress_corr: false
+plot_rt_bin_analysis: true
 plot_shap: false
 plot_umap: scores
 pred_plot_mode: regression
-pred_plot_region: burgundy
+pred_plot_region: all
 projection_dim: 2
 projection_method: UMAP
 projection_source: scores
@@ -62,6 +64,7 @@ retention_time_range:
   max: 30000
   min: 0
 rot_axes: false
+rt_analysis_filename: rt_distribution_allsteps_winery_concatenated_29rt_1mz_4rep.npz
 rt_range:
   max: 30000
   min: 0

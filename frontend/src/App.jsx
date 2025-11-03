@@ -273,6 +273,20 @@ function App() {
   ];
 
   const [predPlotMode, setPredPlotMode] = useState("regression");
+  const [plotRegressionCorr, setPlotRegressionCorr] = useState(false);
+  const [plotRtBinAnalysis, setPlotRtBinAnalysis] = useState(false);
+  const [rtAnalysisFile, setRtAnalysisFile] = useState(null);
+  const [availableRtFiles, setAvailableRtFiles] = useState([]);
+  const [selectedRtFile, setSelectedRtFile] = useState("");
+
+  useEffect(() => {
+  if (plotRtBinAnalysis) {
+    fetch("/list-rt-files")
+      .then((res) => res.json())
+      .then((data) => setAvailableRtFiles(data.files || []))
+      .catch((err) => console.error("Failed to fetch RT files:", err));
+  }
+ }, [plotRtBinAnalysis]);
 
 
   useEffect(() => {
@@ -473,6 +487,8 @@ useEffect(() => {
       pred_plot_region: showPredPlot ? predPlotRegion : "all",
 //       pred_plot_region: predPlotRegion,
       pred_plot_mode: predPlotMode,
+      plot_regress_corr: plotRegressionCorr,
+      plot_rt_bin_analysis: plotRtBinAnalysis,
       show_age_histogram: showAgeHist,
       show_chromatograms: showChroms,
       do_classification: doClassification,
@@ -550,12 +566,19 @@ useEffect(() => {
       console.log(msg);
     };
 
+
+
     // logMessage("Selected labelTargets:", labelTargets);
 
     // logMessage("Payload:", payload);
 
     // Send request
 //     const res = await fetch("http://localhost:8000/run-script", {
+
+     if (plotRtBinAnalysis && selectedRtFile) {
+        payload.rt_analysis_filename = selectedRtFile;
+    }
+
      const res = await fetch("/run-script", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1517,6 +1540,61 @@ useEffect(() => {
                                               label="Regression"
                                             />
                                           </RadioGroup>
+                                          {predPlotMode === "regression" && (
+  <>
+    <Grid item xs={12} md={3}>
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={plotRegressionCorr}
+            onChange={(e) => setPlotRegressionCorr(e.target.checked)}
+          />
+        }
+        label="Plot Regression corr"
+      />
+    </Grid>
+
+<Grid item xs={12} md={4}>
+  <Tooltip
+    title="To make files available to load, you may have to run task 'SOTF Add 2D' and select the resolution of your RT
+    bins (with m/z bins set to 1). A file will be saved automatically to /scripts/pinot_noir/results"
+    arrow
+  >
+    <Box display="inline-flex">
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={plotRtBinAnalysis}
+            onChange={(e) => setPlotRtBinAnalysis(e.target.checked)}
+          />
+        }
+        label="Plot RT bin analysis"
+      />
+    </Box>
+  </Tooltip>
+</Grid>
+{plotRtBinAnalysis && (
+  <Grid item xs={12} md={5}>
+    <FormControl fullWidth variant="outlined">
+      <InputLabel>RT file</InputLabel>
+      <Select
+        value={selectedRtFile}
+        onChange={(e) => setSelectedRtFile(e.target.value)}
+        label="RT file"
+      >
+        {availableRtFiles.map((file) => (
+          <MenuItem key={file} value={file}>
+            {file}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  </Grid>
+)}
+
+
+  </>
+)}
                                         </FormControl>
                                       </Grid>
                                     </>

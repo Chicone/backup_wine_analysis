@@ -85,9 +85,30 @@ async def stream_logs():
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+from pathlib import Path
+@app.get("/list-rt-files")
+def list_rt_files():
+    # Base folder: backend/scripts/pinot_noir/results relative to this file
+    base_dir = Path(__file__).resolve().parent.parent / "scripts" / "pinot_noir" / "results"
+
+    try:
+        files = sorted(
+            [f.name for f in base_dir.glob("*.npz")],
+            key=lambda name: (base_dir / name).stat().st_mtime,
+            reverse=True,
+        )
+    except FileNotFoundError:
+        files = []
+
+    return {"path": str(base_dir), "files": files}
+
 @app.post("/run-script")
 async def run_script(payload: dict):
     script_key = payload["script_key"]
+
+    rt_file = payload.get("rt_analysis_filename")
+    if rt_file:
+        print("🧾 Selected RT file:", rt_file)
 
     # 🍇 Pinot special mode for survival of the fittest
     if script_key == "pinot" and payload.get("selected_task") == "SOTF Ret Time":
@@ -140,6 +161,9 @@ async def run_script(payload: dict):
         ("show_pred_plot", "show_pred_plot"),
         ("pred_plot_region", "pred_plot_region"),
         ("pred_plot_mode", "regression"),
+        ("plot_regress_corr", "plot_regress_corr"),
+        ("plot_rt_bin_analysis", "plot_rt_bin_analysis"),
+        ("rt_analysis_filename", "rt_analysis_filename"),
         ("show_age_histogram", "show_age_histogram"),
         ("show_chromatograms", "show_chromatograms"),
         ("rt_range", "rt_range"),
