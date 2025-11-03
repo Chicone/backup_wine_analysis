@@ -18,7 +18,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, confusion_matrix, ConfusionMatrixDisplay, accuracy_score
 import matplotlib.pyplot as plt
-from gcmswine import utils  # Your utility module for GC-MS data loading
+from gcmswine import utils  # Utility functions for GC-MS data loading
 import os
 import yaml
 import matplotlib.patches as patches
@@ -29,6 +29,7 @@ from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
 from gcmswine.logger_setup import logger, logger_raw
+from scipy.stats import pearsonr
 
 try:
     from xgboost import XGBRegressor
@@ -37,20 +38,21 @@ except ImportError:
     xgb_available = False
 
 if __name__ == "__main__":
+    # --- Load configuration file ---
     config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
     config_path = os.path.abspath(config_path)
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
-    # ------------------ Parameters ------------------
+    # --- General parameters and defaults ---
     directory = "/home/luiscamara/Documents/datasets/Champagnes/HETEROCYC"
     csv_path = "/home/luiscamara/Documents/datasets/Champagnes/sensory_scores.csv"
     n_splits = 5
     random_seed = 42
-    N_DECIMATION = 10
+    N_DECIMATION = 10  # Downsampling factor for chromatograms
     CHROM_CAP = config.get("chrom_cap", False)
     row_start, row_end = 0, None
-    year_tolerances = [1, 2, 3, 4, 5]
+    year_tolerances = [1, 2, 3, 4, 5]  # Tolerance window for "within ±x years"
     normalize = config.get("normalize", True)
     show_confusion = config.get("show_confusion_matrix", False)
     show_pred_plot = config.get("show_pred_plot", False)
@@ -58,6 +60,8 @@ if __name__ == "__main__":
     show_chromatograms = config.get("show_chromatograms", False)
     retention_time_range = config.get("rt_range", False)
     do_classification = config.get("do_classification", False)
+
+    # --- Decide whether we do regression or classification ---
     if do_classification:
         classifier_name = (config.get("classifier") or "ridgeclassifier").lower()
         regressor_name = None
@@ -67,27 +71,16 @@ if __name__ == "__main__":
 
     num_repeats = config.get("num_repeats", 10)
 
-    # Load user-defined options
+    # --- Basic metadata logging ---
     wine_kind = "Champagne"
-    task= "Age prediction"  # hard-coded for now
+    task = "Age prediction"
     dataset = os.path.split(directory)[1]
     feature_type = config["feature_type"]
     cv_type = config['cv_type']
     retention_time_range = config.get("rt_range", None)
     normalize = config.get("normalize", True)
-    show_taster_predictions = config.get("show_predicted_profiles", False)
-    group_wines = config.get("group_wines", False)
-    taster_scaling = config.get("taster_scaling", False)
-    shuffle_labels = config.get("shuffle_labels", False)
-    test_average_scores = config.get("test_average_scores", False)
-    taster_vs_mean = config.get("taster_vs_mean", False)
-    plot_r2 = config.get("plot_r2", False)
-    reduce_targets_flag = config.get("reduce_dims", False)
-    reduce_method = config.get("reduction_method", "pca")  # 'pca', 'umap', or 'tsne'
-    reduce_dim = config.get("reduction_dims", 2)
-    remove_avg_scores= config.get("remove_avg_scores", False)
-    constant_ohe= config.get("constant_ohe", False)
 
+    # Collect run summary for logging
     summary = {
         "Wine kind": wine_kind,
         "Task": task,
@@ -101,7 +94,8 @@ if __name__ == "__main__":
         "Do Classification": do_classification
     }
 
-    logger_raw("\n")  # Blank line without timestamp
+    # --- Log configuration summary ---
+    logger_raw("\n")
     logger.info('------------------------ RUN SCRIPT -------------------------')
     logger.info("Configuration Parameters (Champagne - Predict Age)")
     for k, v in summary.items():
@@ -110,9 +104,11 @@ if __name__ == "__main__":
     if normalize:
         print("🔄 Normalized features using z-score (per CV fold)")
 
-    # ------------------ Select model ------------------
+    # ------------------ Model selection ------------------
     if do_classification:
         name = classifier_name
+
+        # Function to dynamically create the chosen classifier
         def get_classifier(name):
             name = name.upper()
             if name == "DTC":
@@ -153,7 +149,9 @@ if __name__ == "__main__":
 
         model = get_classifier(classifier_name)
         print(f"Classifier is {classifier_name}")
+
     else:
+        # Choose regression model
         model_name = regressor_name
         if model_name == "ridge":
             model = Ridge()
@@ -178,13 +176,15 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unsupported or unavailable model: {model_name}")
 
-        print(f'Regressor is {model_name}')
+        print(f"Regressor is {model_name}")
 
     # ------------------ Load chromatograms ------------------
+    # Identify first and last chromatogram columns in CSVs and load all signals
     row_end_1, fc_idx_1, lc_idx_1 = utils.find_data_margins_in_csv(directory)
     column_indices = list(range(fc_idx_1, lc_idx_1 + 1))
     data_dict = utils.load_ms_csv_data_from_directories(directory, column_indices, row_start, row_end)
 
+    # Optional chromatogram visualization for sanity check
     if show_chromatograms:
         def plot_chromatograms(data_dict, keys=None, max_traces=None, title="Chromatograms", decimation_factor=1):
             if keys is None:
@@ -218,6 +218,7 @@ if __name__ == "__main__":
     chrom_length = len(list(data_dict.values())[0])
     print(f'Chromatogram length: {chrom_length}')
 
+    # Optionally apply retention time trimming
     if retention_time_range:
         min_rt = retention_time_range['min']
         raw_max_rt = retention_time_range['max']
@@ -231,10 +232,11 @@ if __name__ == "__main__":
     df['age'] = pd.to_numeric(df['age'], errors='coerce')
     df = df.dropna(subset=['age'])
 
-    # ------------------ Prepare data matrix ------------------
+    # ------------------ Build feature matrix (X) and target vector (y) ------------------
     X, y, groups = [], [], []
-    df_unique = df.drop_duplicates(subset='code vin')
+    df_unique = df.drop_duplicates(subset='code vin')  # Year and chromatograms are the same for the same wine
 
+    # Average replicates chromatograms per wine to form one chromatogram per sample
     for _, row in df_unique.iterrows():
         code_vin = row['code vin']
         if pd.isna(code_vin):
@@ -253,29 +255,29 @@ if __name__ == "__main__":
     y = np.array(y)
     groups = np.array(groups)
 
-    # ------------------ Bin ages for stratified CV ------------------
+    # ------------------ Stratified binning for CV splits ------------------
     wine_df = pd.DataFrame({'code_vin': groups, 'age': y})
     wine_df_unique = wine_df.drop_duplicates(subset='code_vin').copy()
 
-    # Use 1-year bins for classification, else use 5-year bins for regression stratification
     if do_classification:
-        bin_edges = np.arange(np.floor(y.min()), np.ceil(y.max()) + 2, 1)  # 1-year bins inclusive
+        bin_edges = np.arange(np.floor(y.min()), np.ceil(y.max()) + 2, 1)  # one year intervals
     else:
         bin_edges = [0, 5, 10, 15, 20, 25, 30]
-
     wine_df_unique['age_bin'] = np.digitize(wine_df_unique['age'], bins=bin_edges, right=False)
 
+    # ------------------ Cross-validation loops ------------------
     all_mae, all_rmse, all_r2, all_acc, all_acc_tol, all_y_true, all_y_pred = [], [], [], [], [], [], []
+    all_resid_std, all_pearson = [], []
 
     for repeat in range(num_repeats):
         print(f"\n🔁 Repeat {repeat + 1}/{num_repeats}")
-
-        mae_list, rmse_list, r2_list = [], [], []
+        mae_list, rmse_list, r2_list, resid_std_list, pearson_list = [], [], [], [], []
         acc_list, acc_tol_dict = [], {tol: [] for tol in year_tolerances}
         y_true_all, y_pred_all = [], []
 
         skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_seed + repeat)
 
+        # --- CV fold loop ---
         for train_idx, test_idx in skf.split(wine_df_unique['code_vin'], wine_df_unique['age_bin']):
             train_codes = wine_df_unique.iloc[train_idx]['code_vin'].values
             test_codes = wine_df_unique.iloc[test_idx]['code_vin'].values
@@ -291,8 +293,8 @@ if __name__ == "__main__":
                 X_train = scaler.fit_transform(X_train)
                 X_test = scaler.transform(X_test)
 
+            # --- Classification branch ---
             if do_classification:
-                # Classification: bin labels into discrete classes
                 binning = KBinsDiscretizer(n_bins=len(bin_edges)-1, encode='ordinal', strategy='uniform')
                 y_train_binned = binning.fit_transform(y_train.reshape(-1, 1)).ravel()
                 y_test_binned = binning.transform(y_test.reshape(-1, 1)).ravel()
@@ -303,6 +305,16 @@ if __name__ == "__main__":
                 acc = accuracy_score(y_test_binned, y_pred_binned)
                 acc_list.append(acc)
 
+                # Treat classes as ordinal values and compute regression-style residuals
+                r, _ = pearsonr(y_test_binned, y_pred_binned)
+                pearson_list.append(r)
+                residuals = y_test_binned - y_pred_binned
+                mae_list.append(np.mean(np.abs(residuals)))
+                rmse_list.append(np.sqrt(np.mean(residuals ** 2)))
+                r2_list.append(r2_score(y_test_binned, y_pred_binned))
+                resid_std_list.append(np.std(residuals, ddof=1))
+
+                # Evaluate accuracy within tolerance bins
                 for tol in year_tolerances:
                     acc_tol = np.mean(np.abs(y_pred_binned - y_test_binned) <= tol)
                     acc_tol_dict[tol].append(acc_tol)
@@ -313,14 +325,21 @@ if __name__ == "__main__":
                 print(f"Classification accuracy: {acc:.3f}")
 
             else:
-                # Regression
+                # --- Regression branch ---
                 model.fit(X_train, y_train)
                 y_pred = model.predict(X_test)
 
+                r, _ = pearsonr(y_test, y_pred)
+                pearson_list.append(r)
+                residuals = y_test - y_pred
+                residual_std = np.std(residuals, ddof=1)
+                resid_std_list.append(residual_std)
                 mae_list.append(mean_absolute_error(y_test, y_pred))
                 rmse_list.append(np.sqrt(mean_squared_error(y_test, y_pred)))
                 r2_list.append(r2_score(y_test, y_pred))
                 acc_list.append(np.mean(np.round(y_pred) == np.round(y_test)))
+
+                # Evaluate tolerance-based accuracies
                 for tol in year_tolerances:
                     acc_tol_dict[tol].append(np.mean(np.abs(np.round(y_pred) - np.round(y_test)) <= tol))
 
@@ -329,43 +348,46 @@ if __name__ == "__main__":
 
                 print(f"Regression R²: {r2_list[-1]:.3f}, MAE: {mae_list[-1]:.3f}")
 
+        # Store average metrics per repeat
+        all_pearson.append(np.mean(pearson_list))
+        all_resid_std.append(np.mean(resid_std_list))
         all_mae.append(np.mean(mae_list) if mae_list else None)
         all_rmse.append(np.mean(rmse_list) if rmse_list else None)
         all_r2.append(np.mean(r2_list) if r2_list else None)
         all_acc.append(np.mean(acc_list) if acc_list else None)
         all_acc_tol.append({tol: np.mean(acc_tol_dict[tol]) for tol in year_tolerances})
 
-    # Report aggregated metrics
+    # ------------------ Summary metrics ------------------
     if do_classification:
         logger.info("\nCross-validated Classification Performance:")
-        logger_raw(f"Classifier: {classifier_name}")
-        logger_raw(f"Accuracy: {np.mean(all_acc):.3f} ± {np.std(all_acc):.3f}")
         print("\nCross-validated Classification Performance:")
         print(f"Classifier: {classifier_name}")
         print(f"Accuracy: {np.mean(all_acc):.3f} ± {np.std(all_acc):.3f}")
         for tol in year_tolerances:
             tol_scores = [rep[tol] for rep in all_acc_tol]
-            logger_raw(f"Accuracy within ±{tol} bins: {np.mean(tol_scores):.3f} ± {np.std(tol_scores):.3f}")
             print(f"Accuracy within ±{tol} bins: {np.mean(tol_scores):.3f} ± {np.std(tol_scores):.3f}")
+        print(f"Pearson R: {np.mean(all_pearson):.3f} ± {np.std(all_pearson):.3f}")
+        print(f"MAE:  {np.mean(all_mae):.2f} ± {np.std(all_mae):.2f}")
+        print(f"RMSE: {np.mean(all_rmse):.2f} ± {np.std(all_rmse):.2f}")
+        print(f"R²:   {np.mean(all_r2):.3f} ± {np.std(all_r2):.3f}")
+        print(f"Residual Std Dev: {np.mean(all_resid_std):.2f} ± {np.std(all_resid_std):.2f}")
+
+
     else:
         logger.info("\nCross-validated Regression Performance:")
         print("\nCross-validated Regression Performance:")
-        logger_raw(f"Regressor: {model_name}")
         print(f"Regressor: {model_name}")
-        logger_raw(f"MAE:  {np.mean(all_mae):.2f} ± {np.std(all_mae):.2f}")
-        print(f"MAE:  {np.mean(all_mae):.2f} ± {np.std(all_mae):.2f}")
-        logger_raw(f"RMSE: {np.mean(all_rmse):.2f} ± {np.std(all_rmse):.2f}")
-        print(f"RMSE: {np.mean(all_rmse):.2f} ± {np.std(all_rmse):.2f}")
-        logger_raw(f"R²:   {np.mean(all_r2):.3f} ± {np.std(all_r2):.3f}")
-        print(f"R²:   {np.mean(all_r2):.3f} ± {np.std(all_r2):.3f}")
-        logger_raw(f"Rounded Accuracy (Exact): {np.mean(all_acc):.3f} ± {np.std(all_acc):.3f}")
         print(f"Rounded Accuracy (Exact): {np.mean(all_acc):.3f} ± {np.std(all_acc):.3f}")
         for tol in year_tolerances:
             tol_scores = [rep[tol] for rep in all_acc_tol]
-            logger_raw(f"Rounded Accuracy (±{tol} yrs): {np.mean(tol_scores):.3f} ± {np.std(tol_scores):.3f}")
             print(f"Rounded Accuracy (±{tol} yrs): {np.mean(tol_scores):.3f} ± {np.std(tol_scores):.3f}")
+        print(f"Pearson R: {np.mean(all_pearson):.3f} ± {np.std(all_pearson):.3f}")
+        print(f"MAE:  {np.mean(all_mae):.2f} ± {np.std(all_mae):.2f}")
+        print(f"RMSE: {np.mean(all_rmse):.2f} ± {np.std(all_rmse):.2f}")
+        print(f"R²:   {np.mean(all_r2):.3f} ± {np.std(all_r2):.3f}")
+        print(f"Residual Std Dev: {np.mean(all_resid_std):.2f} ± {np.std(all_resid_std):.2f}")
 
-    # ------------------ Plots ------------------
+    # ------------------ Visualization section ------------------
     plots_to_show = {
         "confusion": show_confusion,
         "histogram": show_age_histograma,
@@ -373,7 +395,6 @@ if __name__ == "__main__":
     }
 
     n_plots = sum(plots_to_show.values())
-
     sys.stdout.flush()
 
     if n_plots > 0:
@@ -383,6 +404,7 @@ if __name__ == "__main__":
 
         plot_idx = 0
 
+        # --- Confusion matrix ---
         if plots_to_show["confusion"]:
             if do_classification:
                 y_true_arr = np.array(y_true_all).astype(int)
@@ -404,6 +426,7 @@ if __name__ == "__main__":
                 ax.add_patch(rect)
             plot_idx += 1
 
+        # --- Scatter: true vs predicted ---
         if plots_to_show["scatter"]:
             y_pred_all = np.array(y_pred_all)
             y_true_all = np.array(y_true_all)
@@ -438,6 +461,7 @@ if __name__ == "__main__":
             axes[plot_idx].grid(True)
             plot_idx += 1
 
+        # --- Histogram of true ages ---
         if plots_to_show["histogram"]:
             axes[plot_idx].hist(
                 y, bins=np.arange(np.floor(y.min()), np.ceil(y.max()) + 1),
@@ -450,6 +474,7 @@ if __name__ == "__main__":
 
         plt.tight_layout()
         plt.show()
+
 
 
 

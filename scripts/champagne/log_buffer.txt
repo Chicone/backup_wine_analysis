@@ -2050,3 +2050,566 @@ Rounded Accuracy (±2 yrs): 0.690 ± 0.041
 Rounded Accuracy (±3 yrs): 0.810 ± 0.017
 Rounded Accuracy (±4 yrs): 0.870 ± 0.010
 Rounded Accuracy (±5 yrs): 0.900 ± 0.024
+
+
+2025-10-14 08:38:00 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-14 08:38:01 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+
+
+2025-10-14 08:41:20 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-14 08:41:20 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+
+
+2025-10-14 08:57:03 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-14 08:57:03 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+
+
+2025-10-14 09:09:15 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-14 09:09:15 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+2025-10-14 09:09:24 — INFO — 
+Cross-validated Regression Performance:
+
+
+2025-10-14 09:14:08 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-14 09:14:08 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+2025-10-14 09:14:21 — INFO — 
+Cross-validated Regression Performance:
+
+
+2025-10-14 09:15:41 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-14 09:15:41 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: rgc
+             Regressor: None
+          Feature type: tic_tis
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: True
+
+
+2025-10-14 09:19:46 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-14 09:19:46 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: rgc
+             Regressor: None
+          Feature type: tic_tis
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: True
+
+
+2025-10-14 09:21:56 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-14 09:21:56 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: rgc
+             Regressor: None
+          Feature type: tic_tis
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: True
+
+
+2025-10-15 12:19:10 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-15 12:19:10 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+2025-10-15 12:19:18 — INFO — 
+Cross-validated Regression Performance:
+
+
+2025-10-16 10:07:09 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 10:07:09 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+
+
+2025-10-16 10:11:39 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 10:11:39 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+
+
+2025-10-16 10:16:50 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 10:16:50 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+
+
+2025-10-16 10:36:58 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 10:36:58 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic_tis
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+
+
+2025-10-16 11:24:28 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 11:24:28 — INFO — Configuration Parameters (Champagne - Predict Age)
+             Wine kind: Champagne
+                  Task: Age prediction
+               Dataset: HETEROCYC
+            Classifier: None
+             Regressor: ridge
+          Feature type: tic
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+     Do Classification: False
+
+
+2025-10-16 11:26:31 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 11:26:35 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: True
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+
+
+2025-10-16 11:28:20 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 11:28:20 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: True
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+
+
+2025-10-16 11:48:28 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 11:48:28 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: True
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+
+
+2025-10-16 12:52:11 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 12:52:11 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: True
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: False
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-10-16 13:01:00 — INFO — Average Scores selected
+
+
+2025-10-16 13:01:59 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 13:01:59 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-10-16 13:02:23 — INFO — Average Scores selected
+2025-10-16 13:04:34 — INFO — 
+Per-attribute R² after averaging predictions across repeats/folds:
+fruity               R² = 0.252
+citrus               R² = 0.121
+maturated fruits     R² = -0.021
+candied citrus       R² = 0.609
+toasted              R² = 0.703
+nuts                 R² = 0.674
+spicy                R² = 0.732
+petroleum            R² = 0.402
+undergroth           R² = 0.538
+babery               R² = -0.129
+honey                R² = 0.588
+diary                R² = 0.016
+herbal               R² = 0.263
+tobaco               R² = 0.508
+texture              R² = 0.323
+acid                 R² = -0.431
+ageing               R² = -0.082
+Overall average R² across attributes: 0.298
+
+
+2025-10-16 13:04:57 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 13:04:57 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-10-16 13:05:13 — INFO — Average Scores selected
+
+
+2025-10-16 13:09:52 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 13:09:52 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 10
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-10-16 13:10:23 — INFO — Average Scores selected
+
+
+2025-10-16 14:35:26 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 14:35:26 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-10-16 14:35:33 — INFO — Average Scores selected
+
+
+2025-10-16 15:07:18 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 15:07:18 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-10-16 15:08:46 — INFO — Average Scores selected
+ageing               R² = 0.153
+2025-10-16 15:15:49 — INFO — 
+Per-attribute R² after averaging predictions across repeats/folds:
+fruity               R² = 0.442
+citrus               R² = 0.260
+maturated fruits     R² = 0.199
+
+
+2025-10-16 15:16:20 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 15:16:20 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-10-16 15:16:34 — INFO — Average Scores selected
+2025-10-16 15:17:19 — INFO — 
+Per-attribute R² after averaging predictions across repeats/folds:
+fruity               R² = 0.442
+citrus               R² = 0.260
+maturated fruits     R² = 0.199
+candied citrus       R² = 0.568
+toasted              R² = 0.636
+nuts                 R² = 0.602
+spicy                R² = 0.742
+petroleum            R² = 0.316
+undergroth           R² = 0.591
+babery               R² = -0.144
+honey                R² = 0.623
+diary                R² = 0.224
+herbal               R² = 0.361
+tobaco               R² = 0.546
+texture              R² = 0.273
+acid                 R² = -0.254
+ageing               R² = 0.153
+Overall average R² across attributes: 0.361
+
+
+2025-10-16 15:17:56 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 15:17:56 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-10-16 15:18:05 — INFO — Average Scores selected
+2025-10-16 15:18:14 — INFO — 
+Per-attribute R² after averaging predictions across repeats/folds:
+fruity               R² = 0.442
+citrus               R² = 0.260
+maturated fruits     R² = 0.199
+candied citrus       R² = 0.568
+toasted              R² = 0.636
+nuts                 R² = 0.602
+nuts                 R² = 0.602
+spicy                R² = 0.742
+petroleum            R² = 0.316
+undergroth           R² = 0.591
+babery               R² = -0.144
+honey                R² = 0.623
+diary                R² = 0.224
+herbal               R² = 0.361
+nuts                 R² = 0.361
+Overall average R² across attributes: 0.361
+Overall average R² across attributes: 0.361
+herbal               R² = 0.361
+Overall average R² across attributes: 0.361
+Overall average R² across attributes: 0.361
+
+
+2025-10-16 15:21:11 — INFO — ------------------------ RUN SCRIPT -------------------------
+2025-10-16 15:21:11 — INFO — Configuration Parameters (Champagne - Model Global)
+             Wine kind: Champagne
+                  Task: Model Global
+               Dataset: HETEROCYC
+             Regressor: ridge
+          Feature type: tic
+               CV type: LOO
+               Repeats: 100
+              RT range: {'max': 30000, 'min': 0}
+             Normalize: True
+           Group wines: False
+        Taster scaling: False
+        Shuffle labels: False
+           Avg. scores: True
+        Taster vs mean: False
+ Remove average scores: False
+      Use constant OHE: False
+  Show taster profiles: False
+        Plot all tests: False
+2025-10-16 15:21:11 — INFO — Average Scores selected
+2025-10-16 15:21:13 — INFO — 
+Per-attribute R² after averaging predictions across repeats/folds:
+fruity               R² = 0.442
+citrus               R² = 0.260
+maturated fruits     R² = 0.199
+candied citrus       R² = 0.568
+toasted              R² = 0.636
+nuts                 R² = 0.602
+spicy                R² = 0.742
+petroleum            R² = 0.316
+undergroth           R² = 0.591
+babery               R² = -0.144
+honey                R² = 0.623
+diary                R² = 0.224
+herbal               R² = 0.361
+tobaco               R² = 0.546
+texture              R² = 0.273
+acid                 R² = -0.254
+ageing               R² = 0.153
+Overall average R² across attributes: 0.361

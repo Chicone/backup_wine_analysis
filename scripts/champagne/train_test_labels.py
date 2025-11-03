@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import RidgeClassifier
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, GroupKFold
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 from tqdm import tqdm
@@ -23,18 +23,19 @@ The features correspond to numerical scores given by tasters on different attrib
 and the labels are drawn from associated metadata.
 
 Data is preprocessed by collapsing replicates per (wine, taster) pair and cleaning non-numeric values.
-Stratified K-Fold cross-validation is repeated multiple times to obtain a robust estimate of classification accuracy,
-and a normalized confusion matrix is plotted at the end for each classification target to visualize model performance
-across classes.
-
+Stratified K-Fold or Group K-Fold cross-validation is repeated multiple times to obtain a robust estimate of
+classification accuracy, and a normalized confusion matrix is plotted at the end for each classification target
+to visualize model performance across classes.
 """
 
 if __name__ == "__main__":
+    # --- Load config file (config.yaml) from project root ---
     config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.yaml")
     config_path = os.path.abspath(config_path)
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
-    # Default fallback
+
+    # --- Parse configurable parameters with default fallbacks ---
     label_columns = config.get("label_targets", ["taster"])
     if isinstance(label_columns, str):
         label_columns = [label_columns]
@@ -51,7 +52,7 @@ if __name__ == "__main__":
     random_state = config.get("random_state", 42)
     n_repeats = config.get("num_repeats", 10)
 
-    # instatiate the class Classifier to use _get_classifier()
+    # --- Instantiate Classifier class (wrapper around scikit-learn models) ---
     dummy_data = np.zeros((1, 10))         # 1 sample, 10 features
     dummy_labels = np.array(["A"])
     clf = Classifier(data=dummy_data, labels=dummy_labels, classifier_type=classifier)
@@ -67,25 +68,25 @@ if __name__ == "__main__":
     random_seed = 42
 
     # --- Load and clean dataset ---
-    df = pd.read_csv(csv_path, skiprows=1) # Load ignoring first row; use second row as header (default behaviour)
+    df = pd.read_csv(csv_path, skiprows=1)
     df = df.iloc[1:]  # Skip redundant second header row
     df.columns = [col.strip().lower() for col in df.columns]  # Normalize column names
 
     # --- Prepare feature table ---
-    df_selected = df.loc[:, 'code vin':'ageing']  # Select columns from 'code vin' to 'ageing' inclusive
-    df_selected['taster'] = df['taster'] # Re-add taster column (was outside the selected range)
+    df_selected = df.loc[:, 'code vin':'ageing']
+    df_selected['taster'] = df['taster']
 
-    # Convert internal score columns to numeric (e.g. acid, balance), coerce errors to NaN
+    # Convert numeric sensory scores; coerce invalids to NaN
     df_selected.iloc[:, 1:-1] = df_selected.iloc[:, 1:-1].apply(pd.to_numeric, errors='coerce')
     df_selected = df_selected.dropna(axis=1, how='all')
 
     # Group by wine and taster, averaging repeated tastings
     df_grouped = df_selected.groupby(['code vin', 'taster']).mean().dropna().reset_index()
 
-    # --- Storage for results ---
-    conf_matrices = []          # Store confusion matrices for each label
-    label_encoders = []         # Store label encoders per label (to map back classes)
-    class_counts_per_label = [] # Store count of samples per class for each label column
+    # --- Prepare containers for results ---
+    conf_matrices = []
+    label_encoders = []
+    class_counts_per_label = []
     summary_stats = []
 
     # --- Loop through classification targets ---
@@ -95,13 +96,16 @@ if __name__ == "__main__":
         labels_df.columns = ['code vin', 'label', 'taster']
 
         merged_df = df_grouped.merge(labels_df, on=['code vin', 'taster'])
+
         def balance_classes(df, label_col, max_samples_per_class=10, random_state=42):
+            """Optional helper to limit max samples per class (currently unused)."""
             return (
                 df.groupby(label_col, group_keys=False)
                 .apply(lambda x: x.sample(n=min(len(x), max_samples_per_class), random_state=random_state))
                 .reset_index(drop=True)
             )
         # merged_df = balance_classes(merged_df, label_col='label', max_samples_per_class=10)
+
         wine_labels = merged_df['label'].values
         feature_matrix = merged_df.drop(columns=['code vin', 'taster', 'label']).to_numpy()
 
@@ -120,12 +124,25 @@ if __name__ == "__main__":
         raw_accuracies = []
         all_projection_scores = []
         all_projection_labels = []
+
         for repeat in tqdm(range(n_repeats)):
             all_true = []
             all_pred = []
 
-            skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_seed + repeat)
-            for train_idx, test_idx in skf.split(feature_matrix, y):
+            # --- Choose appropriate cross-validator depending on target type ---
+            if label_column.lower() == "taster":
+                # Stratify by label to preserve class balance
+                splitter = StratifiedKFold(n_splits=n_splits, shuffle=True,
+                                           random_state=random_seed + repeat)
+                split_args = (feature_matrix, y)
+            else:
+                # Group by wine to prevent leakage across tasters of the same wine
+                groups = merged_df["code vin"]
+                splitter = GroupKFold(n_splits=n_splits)
+                split_args = (feature_matrix, y, groups)
+
+            # --- Run CV ---
+            for train_idx, test_idx in splitter.split(*split_args):
                 X_train, X_test = feature_matrix[train_idx], feature_matrix[test_idx]
                 y_train, y_test = y[train_idx], y[test_idx]
 
@@ -134,6 +151,8 @@ if __name__ == "__main__":
                     X_train = scaler.fit_transform(X_train)
                     X_test = scaler.transform(X_test)
 
+                # Re-instantiate classifier for each fold to avoid state carry-over
+                clf = Classifier(data=None, labels=None, classifier_type=classifier)
                 # clf = RidgeClassifier(class_weight='balanced')
                 clf.classifier.fit(X_train, y_train)
                 y_pred = clf.classifier.predict(X_test)
@@ -141,6 +160,12 @@ if __name__ == "__main__":
                 if projection_enabled and projection_source == "scores":
                     if hasattr(clf.classifier, "decision_function"):
                         scores = clf.classifier.decision_function(X_test)
+                        # Ensure same number of columns across folds
+                        if scores.shape[1] < len(le.classes_):
+                            pad = len(le.classes_) - scores.shape[1]
+                            scores = np.pad(scores, ((0, 0), (0, pad)), mode='constant')
+                        elif scores.shape[1] > len(le.classes_):
+                            scores = scores[:, :len(le.classes_)]
                         all_projection_scores.append(scores)
                         all_projection_labels.append(y_test)
                     else:
@@ -148,15 +173,8 @@ if __name__ == "__main__":
 
                 all_true.extend(y_test)
                 all_pred.extend(y_pred)
-            # pred_counts = np.bincount(all_pred, minlength=len(le.classes_))
-            # true_counts = np.bincount(all_true, minlength=len(le.classes_))
-            # print("Predicted counts:")
-            # for cls, count in zip(le.classes_, pred_counts):
-            #     print(f"  {cls}: {count}")
-            # print("True counts:")
-            # for cls, count in zip(le.classes_, true_counts):
-            #     print(f"  {cls}: {count}")
 
+            # Compute metrics for this repeat
             bal_acc = balanced_accuracy_score(all_true, all_pred)
             raw_acc = accuracy_score(all_true, all_pred)
             balanced_accuracies.append(bal_acc)
@@ -185,7 +203,7 @@ if __name__ == "__main__":
     if show_confusion:
         fig, axes = plt.subplots(rows, cols, figsize=(7 * cols, 6 * rows))
         if n_labels == 1:
-            axes = [axes]  # make it iterable
+            axes = [axes]
         else:
             axes = axes.flatten()
 
@@ -204,6 +222,7 @@ if __name__ == "__main__":
     for label, mean_bal, std_bal, mean_raw, std_raw in summary_stats:
         print(f"  {label:<12} | Balanced: {mean_bal:.3f} ± {std_bal:.3f} | Raw: {mean_raw:.3f} ± {std_raw:.3f}")
 
+    # --- Optional projection of samples in 2D/3D space ---
     if projection_enabled:
         if projection_source == "scores":
             if all_projection_scores:
@@ -227,15 +246,12 @@ if __name__ == "__main__":
                 perplexity=config.get("perplexity", 5)
             )
 
-        plot_projection_with_labels(
-            X_proj,
-            y_to_plot,
-            method="UMAP",
-            n_components=projection_dim,
-            label_encoder=le,
-            n_neighbors=30,
-            random_state=42
-        )
-
-
-
+            plot_projection_with_labels(
+                X_proj,
+                y_to_plot,
+                method="UMAP",
+                n_components=projection_dim,
+                label_encoder=le,
+                n_neighbors=30,
+                random_state=42
+            )

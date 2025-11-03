@@ -349,12 +349,20 @@ def run_cv(
         if show_pred_plot:
 
             try:
-                plot_true_vs_pred(all_labels, all_preds, origins, cfg.pred_plot_mode,
+                 plot_result = plot_true_vs_pred(all_labels, all_preds, origins, cfg.pred_plot_mode,
                                   cls.year_labels, cls.data, feature_type, pred_plot_region)
+
+                 # If coefficients (or other metrics) are returned, store them
+                 if isinstance(plot_result, tuple) and len(plot_result) >= 6:
+                     *_, all_coefs = plot_result
+
             except Exception as e:
                 print(f"⚠️ Skipping predicted vs true year plot due to error: {e}")
+        else:
+            all_coefs = None
 
-        return mean_acc, std_acc, all_scores, all_labels, test_sample_names, all_preds
+        return mean_acc, std_acc, all_scores, all_labels, test_sample_names, all_preds, all_coefs
+        # return mean_acc, std_acc, all_scores, all_labels, test_sample_names, all_preds
 
     else:
         raise ValueError(f"Invalid cross-validation type: '{cv_type}'.")
@@ -2172,7 +2180,7 @@ def run_sotf_add_2d_noleak(
     sample_frac=1.0,
     rt_min=None, rt_max=None, mz_min=None, mz_max=None,
     cube_repr="tic",
-    cv_design="A",  # NEW: "A" = outer=RSKFold, inner=cv_type; "B" = outer=LOO, inner=Stratified
+    cv_design="A",  # "A" = outer=RSKFold, inner=cv_type; "B" = outer=LOO, inner=Stratified
 ):
     """
     2D Survival-of-the-Fittest (Greedy Add) over RT × m/z cubes (LEAK-FREE).
@@ -2234,6 +2242,7 @@ def run_sotf_add_2d_noleak(
             mz_start, mz_end = mz_edges[j], mz_edges[j + 1]
             cube = data3d[:, rt_start:rt_end, mz_start:mz_end]
 
+            # this is for the representation of each cube
             cr = "flat" if cube_repr == "concatenate" else cube_repr
             if cr == "flat":
                 feats = cube.reshape(n_samples, -1)
@@ -2302,12 +2311,22 @@ def run_sotf_add_2d_noleak(
 
     # === Inner CV factory ===
     def make_inner_cv(y_outer_train, raw_outer):
+        # create a slightly different seed each time the function is called
+        local_seed = np.random.default_rng(random_state).integers(1e6)
+
         if cv_design == "A":
             if cv_type == "LOO":
                 return LeaveOneOut().split(np.zeros((len(y_outer_train), 1)), y_outer_train)
             elif cv_type == "stratified":
-                return StratifiedKFold(n_splits=3, shuffle=True, random_state=random_state)\
-                       .split(np.zeros((len(y_outer_train), 1)), y_outer_train)
+                rskf = RepeatedStratifiedKFold(
+                    n_splits=5,
+                    n_repeats=5,
+                    random_state=local_seed
+                )
+                return rskf.split(np.zeros((len(y_outer_train), 1)), y_outer_train)
+
+                # return StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)\
+                #        .split(np.zeros((len(y_outer_train), 1)), y_outer_train)
             elif cv_type == "LOOPC":
                 return loopc_splits(
                     y_outer_train,
@@ -2436,6 +2455,9 @@ def run_sotf_add_2d_noleak(
                 yticklabels=[f"{mz_edges[j]}–{mz_edges[j+1]}" for j in range(n_mz_bins)])
     ax_heat.set_title("Most common cube order")
     ax_heat.invert_yaxis()
+    ax_heat.tick_params(axis="x", labelrotation=45)
+    for t in ax_heat.get_xticklabels():
+        t.set_horizontalalignment("right")
 
     all_outer_curves, all_selected_cubes = [], []
     seeds = [random_state + k for k in range(len(outer_splits))]
@@ -2487,7 +2509,62 @@ def run_sotf_add_2d_noleak(
 
     plt.ioff()
     plt.show()
+
+    # === NEW: Save RT-bin frequency distribution for every addition step ===
+    from collections import Counter
+    import os
+    os.makedirs("results", exist_ok=True)
+
+    max_len = max(len(c) for c in all_selected_cubes)
+    n_steps_total = max_len
+    n_folds = len(all_selected_cubes)
+
+    # Per-step RT-bin counts, but each fold contributes at most once per RT bin overall
+    rt_freq_by_step = np.zeros((n_steps_total, n_rt_bins), dtype=int)
+
+    for fold_cubes in all_selected_cubes:
+        seen_rt = set()  # RT bins already credited by this fold
+        for step, (i, j) in enumerate(fold_cubes, start=1):
+            if i in seen_rt:
+                continue  # don't double-count this RT bin for this fold
+            rt_freq_by_step[step - 1, i] += 1
+            seen_rt.add(i)
+
+    # Cumulative (now bounded by n_folds)
+    rt_freq_cumulative = np.cumsum(rt_freq_by_step, axis=0)
+
+    save_path_full = (
+        f"results/rt_distribution_allsteps_{region}_{feature_type}_"
+        f"{n_rt_bins}rt_{n_mz_bins}mz_{num_repeats}rep.npz"
+    )
+    np.savez(
+        save_path_full,
+        rt_edges=np.array(rt_edges),
+        rt_freq_by_step=rt_freq_by_step,
+        rt_freq_cumulative=rt_freq_cumulative,
+        n_steps=n_steps_total,
+        n_folds=np.int32(n_folds),  # <-- save folds for proper normalization
+    )
+    print(f"[INFO] Saved full RT-bin distribution across all {n_steps_total} additions to {save_path_full}")
+
+    # --- Build per-step selection frequency (first N steps only) ---
+    cube_distribution_by_step = [Counter() for _ in range(n_steps_total)]
+    for fold_cubes in all_selected_cubes:
+        for step, cube in enumerate(fold_cubes[:n_steps_total], start=1):
+            cube_distribution_by_step[step - 1][cube] += 1
+
+    # --- Aggregate cube selections across the first N steps ---
+    combined_first_bins = Counter()
+    for s in range(n_steps_total):
+        combined_first_bins += cube_distribution_by_step[s]
+
+    # --- Sum counts across m/z bins to get per-RT-bin frequency ---
+    rt_freq_first = np.zeros(n_rt_bins, dtype=float)
+    for (i, j), count in combined_first_bins.items():
+        rt_freq_first[i] += count
+
     return all_outer_curves, all_selected_cubes
+
 
 def run_sotf_add_lookahead_2d(
     data3d,
@@ -2782,6 +2859,948 @@ def run_sotf_add_lookahead_2d(
 # -----------------------------
 # Plotting
 # -----------------------------
+import seaborn as sns
+def plot_rtbin_evolution_full(
+    npz_path,
+    all_coefs,
+    ref_chrom,
+    rt_edges=None,
+    normalize="counts",   # "counts", "global", "column", or "row"
+    cumulative=True,
+    cmap="inferno",
+    max_xticks=20,
+    figsize=(12, 10),
+    title=None,
+    step_pct=None,        # percentage of data added for snapshot
+    region_label="all",
+    color_raw="#4C72B0",
+    color_chrom="#55A868",
+    color_weights="#E08214",
+    color_bins="gray",
+):
+    """
+    Combined visualization:
+      1. Chromatogram (raw + z-normalized) and average regression weights
+      2. RT-bin frequency vs mean |weights| per RT-bin (snapshot)
+      3. Evolution heatmap of RT-bin selection (SOTF)
+    """
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from scipy.interpolate import interp1d
+
+    def resolve_path(npz_path):
+        if os.path.isabs(npz_path):
+            return npz_path
+
+        # Start from this file’s directory
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Prefer a local 'results' folder if it exists
+        local_results = os.path.join(base_dir, "results")
+        if os.path.isdir(local_results):
+            return os.path.join(local_results, os.path.basename(npz_path))
+
+        # Otherwise, fall back to the main project-level results
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(base_dir)))
+        return os.path.join(project_root, "results", os.path.basename(npz_path))
+
+    npz_path = resolve_path(npz_path)
+
+    # --- Load RT-bin evolution data ---
+    data = np.load(npz_path)
+    if rt_edges is None:
+        rt_edges = data["rt_edges"]
+    rt_freq_plot = data["rt_freq_cumulative"] if cumulative else data["rt_freq_by_step"]
+    n_steps, n_rt_bins = rt_freq_plot.shape
+
+    # --- Normalization ---
+    if normalize == "fraction":
+        vmin, vmax = 0.0, 1.0
+        rt_freq_plot = rt_freq_plot / np.nanmax(rt_freq_plot)
+    elif normalize == "counts":
+        vmin, vmax = 0, np.nanmax(rt_freq_plot)
+    elif normalize == "global":
+        vmin, vmax = 0.0, 1.0
+        rt_freq_plot = rt_freq_plot / np.nanmax(rt_freq_plot)
+    elif normalize == "column":
+        rt_freq_plot = rt_freq_plot / (rt_freq_plot.sum(axis=1, keepdims=True) + 1e-12)
+        vmin, vmax = 0.0, 1.0
+    elif normalize == "row":
+        rt_freq_plot = rt_freq_plot / (rt_freq_plot.max(axis=0, keepdims=True) + 1e-12)
+        vmin, vmax = 0.0, 1.0
+    else:
+        raise ValueError("normalize must be one of: 'counts', 'fraction', 'global', 'column', or 'row'")
+
+    # --- Determine snapshot step ---
+    step = None
+    if step_pct is not None:
+        step = int(round((step_pct / 100) * (n_steps - 1)))
+        rt_freq_step = rt_freq_plot[step, :]
+
+    # --- Compute averaged regression weights ---
+    all_coefs = np.asarray(all_coefs)
+    mean_weights = np.mean(all_coefs, axis=tuple(range(all_coefs.ndim - 1)))
+    n_features = mean_weights.shape[0]
+
+    # --- Medoid chromatogram (closest to mean) ---
+    ref_chrom = np.asarray(ref_chrom)
+    mean_chrom = np.mean(ref_chrom, axis=0)
+    distances = np.linalg.norm(ref_chrom - mean_chrom, axis=1)
+    medoid_chrom = ref_chrom[np.argmin(distances)]
+
+    # --- Z-normalize chromatogram ---
+    mu, sigma = np.mean(ref_chrom, axis=0), np.std(ref_chrom, axis=0)
+    sigma[sigma == 0] = 1
+    medoid_chrom_z = (medoid_chrom - mu) / sigma
+
+    # --- Interpolate if needed ---
+    if medoid_chrom_z.shape[0] != n_features:
+        x_old = np.linspace(0, 1, medoid_chrom_z.shape[0])
+        x_new = np.linspace(0, 1, n_features)
+        medoid_chrom_z = interp1d(x_old, medoid_chrom_z)(x_new)
+        medoid_chrom = interp1d(x_old, medoid_chrom)(x_new)
+
+    # --- Normalize weights ---
+    mean_weights_norm = mean_weights / np.max(np.abs(mean_weights))
+
+    # --- Compute weights averaged per RT-bin ---
+    n_rt_bins = len(rt_edges) - 1
+    weights_per_bin = np.zeros(n_rt_bins)
+    for i in range(n_rt_bins):
+        start, end = int(rt_edges[i]), int(rt_edges[i + 1])
+        weights_per_bin[i] = np.mean(np.abs(mean_weights_norm[start:end]))
+    weights_per_bin /= np.max(weights_per_bin)
+
+    # --- Figure layout: heatmap last ---
+    fig, axes = plt.subplots(
+        3, 1, figsize=figsize, gridspec_kw={"height_ratios": [1.6, 1.2, 2.4]}
+    )
+    ax_top, ax_mid, ax_heat = axes
+
+    # === 1️⃣ Top: chromatogram + weights ===
+    x = np.arange(n_features)
+    ax_top.plot(x, medoid_chrom_z / np.max(np.abs(medoid_chrom_z)),
+                color=color_chrom, lw=1.0, alpha=0.9,
+                label="Z-normalized chromatogram")
+    ax_top.plot(x, mean_weights_norm,
+                color=color_weights, lw=1.0, alpha=0.9,
+                label="Average regression weights (rescaled)")
+
+    ax_top_right = ax_top.twinx()
+    ax_top_right.plot(x, medoid_chrom, color=color_raw, lw=1.0, alpha=0.7,
+                      label="Raw chromatogram")
+    ax_top.set_ylabel("Scaled response / weights", fontsize=12)
+    ax_top_right.set_ylabel("Raw response [a.u.]", fontsize=12, color=color_raw)
+    ax_top.grid(alpha=0.3, linestyle="--", linewidth=0.5)
+    ax_top.set_title(f"{region_label.capitalize()} — Regression weights and chromatogram")
+
+    lines1, labels1 = ax_top.get_legend_handles_labels()
+    lines2, labels2 = ax_top_right.get_legend_handles_labels()
+    ax_top.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=9)
+
+    # === 2️⃣ Middle: RT-bin frequency vs weights ===
+    if step is not None:
+        rt_freq_step_norm = rt_freq_step / np.max(rt_freq_step)
+        bin_centers = [(rt_edges[i] + rt_edges[i + 1]) / 2 for i in range(n_rt_bins)]
+        widths = np.diff(rt_edges)
+
+        ax_mid.bar(
+            bin_centers,
+            rt_freq_step_norm,
+            width=widths,
+            color=color_bins,
+            alpha=0.4,
+            label="SOTF RT-bin frequency",
+            align="center",
+        )
+        ax_mid.plot(
+            bin_centers,
+            weights_per_bin,
+            "-o",
+            color=color_weights,
+            lw=1.5,
+            label="Mean |weights| per RT-bin (normalized)",
+        )
+
+        ax_mid.set_xlabel("Retention time bin")
+        ax_mid.set_ylabel("Normalized amplitude")
+        ax_mid.grid(alpha=0.3, linestyle="--", linewidth=0.5)
+        ax_mid.legend(loc="upper right", fontsize=9)
+        ax_mid.set_title(
+            f"RT-bin frequency vs regression weights at {step_pct:.0f}% "
+            f"({step+1}/{n_steps})"
+        )
+
+    # === 3️⃣ Bottom: SOTF RT-bin evolution heatmap ===
+    sns.heatmap(
+        rt_freq_plot.T,
+        cmap=cmap,
+        vmin=vmin, vmax=vmax,
+        cbar_kws={"label": "Selection count" if normalize == "counts" else "Normalized frequency"},
+        xticklabels=max_xticks if n_steps > max_xticks else 1,
+        yticklabels=[f"{rt_edges[i]}–{rt_edges[i + 1]}" for i in range(n_rt_bins)],
+        ax=ax_heat,
+    )
+    # # Only show every 2nd y-tick label
+    # for i, label in enumerate(ax_heat.get_yticklabels()):
+    #     if i % 2 != 0:  # hide odd labels
+    #         label.set_visible(False)
+
+    ax_heat.tick_params(axis='y', labelsize=5)  # make y-axis (RT bins) smaller
+    ax_heat.tick_params(axis='x', labelsize=8)
+    ax_heat.set_xlabel("Addition step")
+    ax_heat.set_ylabel("Retention time bin")
+    ax_heat.set_title(title or "Cumulative evolution of RT-bin selection")
+
+    if step is not None:
+        ax_heat.axvline(
+            x=step + 0.5,
+            color="red",
+            lw=1.5,
+            linestyle="--",
+            label=f"{step_pct:.1f}% ({step+1}/{n_steps})",
+        )
+        ax_heat.legend(loc="upper right", frameon=False)
+
+    plt.tight_layout()
+    plt.show()
+
+# def plot_rt_bin_evolution_heatmap(
+#     npz_path,
+#     normalize="counts",   # "counts", "global", "column", or "row"
+#     cumulative=True,      # usually True for SOTF visualization
+#     cmap="inferno",
+#     max_xticks=20,
+#     figsize=(10, 8),
+#     title=None,
+#     step_pct=None,        # percentage of data added for snapshot
+#
+# ):
+#     """
+#     Plot the evolution of RT-bin selection frequency across SOTF addition steps.
+#
+#     Parameters
+#     ----------
+#     npz_path : str
+#         Path to the saved .npz file (rt_distribution_allsteps_*.npz)
+#     normalize : str, default="counts"
+#         - "counts" : absolute selection counts (no normalization)
+#         - "global" : divide by global max
+#         - "column" : normalize per step
+#         - "row"    : normalize per RT bin
+#     cumulative : bool, default=True
+#         If True, use cumulative frequencies (recommended)
+#     cmap : str, default="inferno"
+#         Colormap for the heatmap
+#     max_xticks : int, default=20
+#         Limit number of x-axis tick labels
+#     figsize : tuple, default=(10, 8)
+#         Figure size for both subplots combined
+#     title : str or None
+#         Optional custom title
+#     step_pct : float or None
+#         Percentage (0–100) of data added; if provided, show bar plot at that step
+#     """
+#
+#     # --- Load data ---
+#     data = np.load(npz_path)
+#     rt_edges = data["rt_edges"]
+#     n_folds = int(data.get("n_folds",  max(1, int(data["rt_freq_cumulative"].max()))))
+#
+#     # rt_freq_by_step = data["rt_freq_cumulative"] if cumulative else data["rt_freq_by_step"]
+#     # rt_freq_by_step = data["rt_freq_by_step"]
+#
+#     if cumulative:
+#         rt_freq_plot = data["rt_freq_cumulative"]  # already cumulative from file
+#     else:
+#         rt_freq_plot = data["rt_freq_by_step"]
+#
+#     n_steps, n_rt_bins = rt_freq_plot.shape
+#
+#     if normalize == "fraction":
+#         rt_freq_plot = rt_freq_plot / max(1, n_folds)
+#         vmin, vmax = 0.0, 1.0
+#     elif normalize == "counts":
+#         vmin, vmax = 0, n_folds
+#     elif normalize == "global":
+#         vmin, vmax = 0.0, 1.0
+#     elif normalize == "column":
+#         rt_freq_plot = rt_freq_plot / (rt_freq_plot.sum(axis=1, keepdims=True) + 1e-12)
+#         vmin, vmax = 0.0, 1.0
+#     elif normalize == "row":
+#         rt_freq_plot = rt_freq_plot / (rt_freq_plot.max(axis=0, keepdims=True) + 1e-12)
+#         vmin, vmax = 0.0, 1.0
+#     else:
+#         raise ValueError("normalize must be one of: 'counts', 'fraction', 'global', 'column', or 'row'")
+#
+#     # --- Determine snapshot step if requested ---
+#     step = None
+#     if step_pct is not None:
+#         step = int(round((step_pct / 100) * (n_steps - 1)))
+#         rt_freq_step = rt_freq_plot[step, :]
+#
+#     # --- Layout: vertical stacking ---
+#     if step_pct is not None:
+#         fig, (ax_heat, ax_bar) = plt.subplots(
+#             2, 1, figsize=figsize, gridspec_kw={"height_ratios": [3, 1]}
+#         )
+#     else:
+#         fig, ax_heat = plt.subplots(figsize=(figsize[0], figsize[1] * 0.75))
+#         ax_bar = None
+#
+#     # --- Determine color scale (avoid saturation) ---
+#     # vmax = np.percentile(rt_freq_plot, 99) if normalize == "counts" else 1.0
+#     # vmax = np.max(rt_freq_plot)
+#
+#     # --- Heatmap ---
+#     label_map = {
+#         "counts": "Cumulative selection count",
+#         "global": "Cumulative frequency (scaled to max)",
+#         "column": "Normalized frequency (per step)",
+#         "row": "Relative activation per RT bin",
+#     }
+#
+#     # --- Determine color scale based on counts ---
+#     if normalize == "counts":
+#         # Estimate number of folds from maximum count across all bins
+#         n_folds_est = max(1, int(np.nanmax(rt_freq_plot)))
+#         vmax = n_folds_est  # e.g., if 5 folds → yellow = selected by all 5
+#     else:
+#         vmax = 1.0  # for normalized plots (fraction, global, etc.)
+#
+#     # --- Plot ---
+#     sns.heatmap(
+#         rt_freq_plot.T,
+#         cmap=cmap,
+#         vmin=vmin, vmax=vmax,
+#         cbar_kws={"label": "Fraction of folds" if normalize == "fraction" else "Count"},
+#         xticklabels=max_xticks if n_steps > max_xticks else 1,
+#         yticklabels=[f"{rt_edges[i]}–{rt_edges[i + 1]}" for i in range(n_rt_bins)],
+#         ax=ax_heat,
+#     )
+#     ax_heat.set_xlabel("Addition step")
+#     ax_heat.set_ylabel("Retention time bin")
+#     if title is None:
+#         title = "Cumulative evolution of RT-bin selection"
+#     ax_heat.set_title(title)
+#
+#     # --- Mark snapshot column if requested ---
+#     if step is not None:
+#         ax_heat.axvline(
+#             x=step + 0.5,
+#             color="red",
+#             lw=1.5,
+#             linestyle="--",
+#             label=f"{step_pct:.1f}% ({step+1}/{n_steps})",
+#         )
+#         ax_heat.legend(loc="upper right", frameon=False)
+#
+#     # --- RT-bin bar chart (bottom panel) ---
+#     if ax_bar is not None:
+#         ax_bar.bar(
+#             range(n_rt_bins),
+#             rt_freq_step,
+#             color="skyblue",
+#             edgecolor="black",
+#             alpha=0.85,
+#         )
+#         ax_bar.set_xticks(range(n_rt_bins))
+#         ax_bar.set_xticklabels(
+#             [f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
+#             rotation=45,
+#             ha="right",
+#         )
+#         ax_bar.set_xlabel("Retention time bin")
+#         ax_bar.set_ylabel("Frequency" if normalize == "counts" else "Relative frequency")
+#         ax_bar.set_title(
+#             f"RT-bin distribution at {step_pct:.0f}% of data added (step {step+1}/{n_steps})"
+#         )
+#
+#     plt.tight_layout()
+#     plt.show()
+
+# def plot_rt_bin_evolution_heatmap(
+#     npz_path,
+#     normalize=True,
+#     cumulative=False,
+#     cmap="viridis",
+#     max_xticks=20,
+#     figsize=(10, 8),
+#     title=None,
+#     step_pct=None,  # percentage of data added for snapshot
+# ):
+#     """
+#     Plot a heatmap showing the evolution of RT-bin selection frequency
+#     across SOTF addition steps, and (optionally) the RT-bin distribution
+#     at a chosen step percentage as a bar plot below.
+#
+#     Parameters
+#     ----------
+#     npz_path : str
+#         Path to the saved .npz file (rt_distribution_allsteps_*.npz)
+#     normalize : bool, default=True
+#         Normalize per-step frequencies to sum to 1 (relative importance)
+#     cumulative : bool, default=False
+#         If True, plot cumulative frequencies instead of per-step values
+#     cmap : str, default="viridis"
+#         Colormap for the heatmap
+#     max_xticks : int, default=20
+#         Maximum number of x-axis tick labels (to avoid overcrowding)
+#     figsize : tuple, default=(10, 8)
+#         Figure size for combined plot (height > width)
+#     title : str or None
+#         Optional title for the heatmap
+#     step_pct : float or None
+#         Percentage (0–100) of data added; if provided, a bar plot of RT-bin
+#         frequencies at that step is shown beneath the heatmap.
+#     """
+#
+#     # --- Load data ---
+#     data = np.load(npz_path)
+#     rt_edges = data["rt_edges"]
+#     rt_freq_by_step = data["rt_freq_by_step"]
+#     n_steps, n_rt_bins = rt_freq_by_step.shape
+#
+#     # --- Compute data for heatmap ---
+#     if cumulative:
+#         rt_freq_plot = np.cumsum(rt_freq_by_step, axis=0)
+#     else:
+#         rt_freq_plot = rt_freq_by_step.copy()
+#
+#     if normalize == "column":
+#         # normalize each step to sum to 1 (relative frequencies)
+#         rt_freq_plot = rt_freq_plot / (rt_freq_plot.sum(axis=1, keepdims=True) + 1e-12)
+#     elif normalize == "global":
+#         # normalize by the global maximum (absolute cumulative strength)
+#         rt_freq_plot = rt_freq_plot / (rt_freq_plot.max() + 1e-12)
+#
+#     # --- Determine snapshot step if requested ---
+#     step = None
+#     if step_pct is not None:
+#         step = int(round((step_pct / 100) * (n_steps - 1)))
+#         rt_freq_step = rt_freq_plot[step, :]
+#         if normalize and cumulative:
+#             rt_freq_step = rt_freq_step / (rt_freq_step.max() + 1e-12)
+#
+#     # --- Layout: vertical stacking ---
+#     if step_pct is not None:
+#         fig, (ax_heat, ax_bar) = plt.subplots(
+#             2, 1, figsize=figsize, gridspec_kw={"height_ratios": [3, 1]}
+#         )
+#     else:
+#         fig, ax_heat = plt.subplots(figsize=(figsize[0], figsize[1] * 0.75))
+#         ax_bar = None
+#
+#     # --- Heatmap ---
+#     sns.heatmap(
+#         rt_freq_plot.T,
+#         cmap=cmap,
+#         cbar_kws={
+#             "label": "Cumulative frequency" if cumulative else "Normalized frequency"
+#         },
+#         xticklabels=max_xticks if n_steps > max_xticks else 1,
+#         yticklabels=[f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
+#         ax=ax_heat,
+#     )
+#     ax_heat.set_xlabel("Addition step")
+#     ax_heat.set_ylabel("Retention time bin")
+#     if title is None:
+#         title = (
+#             "Cumulative evolution of RT-bin selection"
+#             if cumulative else
+#             "Evolution of RT-bin selection frequency"
+#         )
+#     ax_heat.set_title(title)
+#
+#     # --- Mark snapshot column if requested ---
+#     if step is not None:
+#         ax_heat.axvline(x=step + 0.5, color="red", lw=1.5, linestyle="--",
+#                         label=f"{step_pct:.1f}% ({step+1}/{n_steps})")
+#         ax_heat.legend(loc="upper right", frameon=False)
+#
+#     # --- RT-bin bar chart (bottom panel) ---
+#     if ax_bar is not None:
+#         ax_bar.bar(
+#             range(n_rt_bins),
+#             rt_freq_step,
+#             color="skyblue",
+#             edgecolor="black",
+#             alpha=0.85,
+#         )
+#         ax_bar.set_xticks(range(n_rt_bins))
+#         ax_bar.set_xticklabels(
+#             [f"{rt_edges[i]}–{rt_edges[i+1]}" for i in range(n_rt_bins)],
+#             rotation=45,
+#             ha="right",
+#         )
+#         ax_bar.set_xlabel("Retention time bin")
+#         ax_bar.set_ylabel("Frequency" if not normalize else "Relative frequency")
+#         ax_bar.set_title(f"RT-bin distribution at {step_pct:.0f}% of data added "
+#                          f"(step {step+1}/{n_steps})")
+#
+#     plt.tight_layout()
+#     plt.show()
+
+
+
+from scipy.stats import pearsonr
+from sklearn.linear_model import LinearRegression
+def compare_regression_weights(
+    weights_all,
+    weights_burgundy,
+    savefig_path=None,
+    title_prefix="Ridge regression"
+):
+    """
+    Compare and visualize regression weights between All wines and Burgundy models.
+
+    Parameters
+    ----------
+    weights_all : str or np.ndarray
+        Path to .npy file or array of weights for All wines.
+    weights_burgundy : str or np.ndarray
+        Path to .npy file or array of weights for Burgundy wines.
+    savefig_path : str, optional
+        Path to save the output figure (PNG).
+    title_prefix : str, optional
+        Prefix for figure title.
+
+    Returns
+    -------
+    r : float
+        Pearson correlation coefficient.
+    p : float
+        p-value of the correlation (not displayed in plots).
+    """
+
+    # --- Load arrays if paths are provided ---
+    w_all = np.load(weights_all) if isinstance(weights_all, str) else np.asarray(weights_all)
+    w_burg = np.load(weights_burgundy) if isinstance(weights_burgundy, str) else np.asarray(weights_burgundy)
+
+    if w_all.shape != w_burg.shape:
+        raise ValueError(f"Shape mismatch: {w_all.shape} vs {w_burg.shape}")
+
+    # --- Compute correlation ---
+    r, p = pearsonr(w_all, w_burg)
+
+    # --- Create figure ---
+    fig, axes = plt.subplots(3, 1, figsize=(8, 10), sharex=False)
+
+    # === 1️⃣ Scatter with y=x and fit ===
+    ax = axes[0]
+    ax.scatter(w_all, w_burg, s=25, alpha=0.7, edgecolor="k", linewidth=0.3)
+
+    min_val = float(min(w_all.min(), w_burg.min()))
+    max_val = float(max(w_all.max(), w_burg.max()))
+    ax.plot([min_val, max_val], [min_val, max_val],
+            color="grey", lw=1.2, ls="--", alpha=0.85, label="y = x")
+
+    model = LinearRegression()
+    X = w_all.reshape(-1, 1)
+    model.fit(X, w_burg)
+    slope = model.coef_[0]
+    intercept = model.intercept_
+    x_line = np.linspace(min_val, max_val, 200)
+    ax.plot(x_line, intercept + slope * x_line,
+            color="red", lw=1.2, label=f"Linear fit (r = {r:.2f})")
+
+    ax.set_xlabel("Weights (All wines)")
+    ax.set_ylabel("Weights (Burgundy)")
+    ax.set_title(f"{title_prefix}: correlation of regression weights")
+    ax.legend(frameon=False, fontsize=9, loc="upper left")
+    ax.grid(alpha=0.3)
+
+    # === 2️⃣ Weight curves across RT ===
+    ax = axes[1]
+    ax.plot(w_all, color="orange", lw=1, label="All wines")
+    ax.plot(w_burg, color="green", lw=1, label="Burgundy")
+    ax.set_ylabel("Weight value")
+    ax.set_title("Regression weights across retention-time index")
+    ax.legend(frameon=False, fontsize=9, loc="upper left")
+    ax.grid(alpha=0.3)
+
+    # === 3️⃣ Differences ===
+    ax = axes[2]
+    diff = w_burg - w_all
+    ax.plot(diff, color="purple", lw=1)
+    ax.set_xlabel("Retention-time index (feature index)")
+    ax.set_ylabel("Δ weight (Burgundy − All)")
+    ax.set_title("Differences between regression weights")
+    ax.grid(alpha=0.3)
+
+    plt.tight_layout()
+
+    if savefig_path:
+        os.makedirs(os.path.dirname(savefig_path), exist_ok=True)
+        fig.savefig(savefig_path, dpi=300, bbox_inches="tight")
+
+    plt.show()
+    return r, p
+
+
+def plot_avg_weights_vs_rtbin_frequency(
+    all_coefs,
+    ref_chrom,
+    rt_edges,
+    rt_freq,
+    bin_order_mode=None,
+    color_raw="#4C72B0",     # raw chromatogram
+    color_chrom="#55A868",   # z-normalized chromatogram
+    color_weights="#E08214", # regression weights
+    color_bins="gray",       # RT-bin frequency bars
+    region_label="all",
+
+):
+    """
+    Plot average regression weights vs chromatogram, and compare
+    regression weights averaged per RT-bin to SOTF RT-bin frequencies.
+    """
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.interpolate import interp1d
+
+    # --- Average coefficients ---
+    all_coefs = np.asarray(all_coefs)
+    if all_coefs.ndim == 3:
+        mean_weights = np.mean(all_coefs, axis=(0, 1))
+    elif all_coefs.ndim == 2:
+        mean_weights = np.mean(all_coefs, axis=0)
+    else:
+        mean_weights = all_coefs
+    n_features = mean_weights.shape[0]
+
+    # --- Medoid chromatogram (closest to mean) ---
+    ref_chrom = np.asarray(ref_chrom)
+    mean_chrom = np.mean(ref_chrom, axis=0)
+    distances = np.linalg.norm(ref_chrom - mean_chrom, axis=1)
+    medoid_chrom = ref_chrom[np.argmin(distances)]
+
+    # --- Z-normalize chromatogram ---
+    mu = np.mean(ref_chrom, axis=0)
+    sigma = np.std(ref_chrom, axis=0)
+    sigma[sigma == 0] = 1
+    medoid_chrom_z = (medoid_chrom - mu) / sigma
+
+    # --- Interpolate if dimensions differ ---
+    if medoid_chrom_z.shape[0] != n_features:
+        x_old = np.linspace(0, 1, medoid_chrom_z.shape[0])
+        x_new = np.linspace(0, 1, n_features)
+        medoid_chrom_z = interp1d(x_old, medoid_chrom_z)(x_new)
+        medoid_chrom = interp1d(x_old, medoid_chrom)(x_new)
+
+    # --- Normalize for plotting ---
+    medoid_chrom_z /= np.max(np.abs(medoid_chrom_z))
+    mean_weights_norm = mean_weights / np.max(np.abs(mean_weights))
+
+    # --- Compute weights averaged per RT-bin ---
+    rt_edges = np.asarray(rt_edges, dtype=int)
+    n_rt_bins = len(rt_edges) - 1
+    weights_per_bin = np.zeros(n_rt_bins)
+    for i in range(n_rt_bins):
+        start, end = rt_edges[i], rt_edges[i + 1]
+        weights_per_bin[i] = np.mean(np.abs(mean_weights_norm[start:end]))
+
+    # Normalize both distributions for fair comparison
+    weights_per_bin /= np.max(weights_per_bin)
+    rt_freq_norm = np.asarray(rt_freq) / np.max(rt_freq)
+
+    # --- Plot ---
+    fig, (ax_top, ax_bottom) = plt.subplots(2, 1, figsize=(12, 8), sharex=True,
+                                            gridspec_kw={'height_ratios': [2.5, 1]})
+    x = np.arange(n_features)
+
+    # === Top subplot: chromatogram + regression weights ===
+    ax_top.plot(x, medoid_chrom_z, color=color_chrom, lw=1.0, alpha=0.9,
+                label="Z-normalized chromatogram (closest to mean)")
+    ax_top.plot(x, mean_weights_norm, color=color_weights, lw=1.0, alpha=0.9,
+                label="Average regression weights (rescaled)")
+
+    ax_top_right = ax_top.twinx()
+    ax_top_right.plot(x, medoid_chrom, color=color_raw, lw=1.0, alpha=0.7,
+                      label="Raw chromatogram")
+
+    ax_top.set_ylabel("Scaled response / weights", fontsize=13)
+    ax_top_right.set_ylabel("Raw response [a.u.]", fontsize=13, color=color_raw)
+    ax_top.grid(alpha=0.3, linestyle="--", linewidth=0.5)
+    ax_top.set_title(f"{region_label.capitalize()} — Regression weights and chromatogram")
+
+    lines1, labels1 = ax_top.get_legend_handles_labels()
+    lines2, labels2 = ax_top_right.get_legend_handles_labels()
+    ax_top.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=10)
+
+    # === Bottom subplot: RT-bin frequency vs weights averaged per bin ===
+    bin_centers = [(rt_edges[i] + rt_edges[i + 1]) / 2 for i in range(n_rt_bins)]
+    widths = np.diff(rt_edges)
+
+    bars = ax_bottom.bar(
+        bin_centers,
+        rt_freq_norm,
+        width=widths,
+        color=color_bins,
+        alpha=0.4,
+        label="SOTF RT-bin frequency",
+        align="center",
+    )
+    ax_bottom.plot(
+        bin_centers,
+        weights_per_bin,
+        "-o",
+        color=color_weights,
+        lw=1.5,
+        label="Mean |weights| per RT-bin (normalized)",
+    )
+
+    # # --- Annotate each bar with its most common selection order ---
+    # if "bin_order_mode" in locals() or "bin_order_mode" in globals():
+    #     for i, bar in enumerate(bars):
+    #         order_val = bin_order_mode[i] if i < len(bin_order_mode) else 0
+    #         if rt_freq[i] > 0 and order_val > 0:
+    #             ax_bottom.text(
+    #                 bar.get_x() + bar.get_width() / 2,
+    #                 bar.get_height() * 0.85,  # slightly below the top of the bar
+    #                 f"{int(order_val)}",
+    #                 ha="center",
+    #                 va="bottom",
+    #                 color="black",
+    #                 fontsize=9,
+    #                 fontweight="bold",
+    #             )
+
+    ax_bottom.set_xlabel("Retention time index", fontsize=13)
+    ax_bottom.set_ylabel("Normalized amplitude", fontsize=13)
+    ax_bottom.grid(alpha=0.3, linestyle="--", linewidth=0.5)
+    ax_bottom.legend(loc="upper right", fontsize=10)
+    ax_bottom.set_title("Regression weights averaged per RT-bin vs SOTF bin frequency")
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_avg_weights_vs_global_mean(
+    all_coefs,
+    ref_chrom,
+    color_raw="#4C72B0",     # blue for raw chromatogram
+    color_chrom="#55A868",   # green for normalized chromatogram
+    color_weights="#E08214", # orange for regression weights
+    alpha_band=0.25,
+    region_label="all",
+):
+    """
+    Plot the average regression weights (across folds/repeats)
+    together with the chromatogram closest to the mean,
+    for the specified dataset region (e.g., all, burgundy, europe).
+    """
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.interpolate import interp1d
+
+    # --- Average coefficients ---
+    all_coefs = np.asarray(all_coefs)
+    if all_coefs.ndim == 3:
+        mean_weights = np.mean(all_coefs, axis=(0, 1))
+    elif all_coefs.ndim == 2:
+        mean_weights = np.mean(all_coefs, axis=0)
+    elif all_coefs.ndim == 1:
+        mean_weights = all_coefs
+    else:
+        raise ValueError(f"Unexpected all_coefs shape {all_coefs.shape}")
+
+    n_features = mean_weights.shape[0]
+
+    # --- Compute medoid chromatogram ---
+    ref_chrom = np.asarray(ref_chrom)
+    if ref_chrom.ndim != 2:
+        raise ValueError("ref_chrom must be 2D (samples × retention times).")
+
+    mean_chrom = np.mean(ref_chrom, axis=0)
+    distances = np.linalg.norm(ref_chrom - mean_chrom, axis=1)
+    medoid_idx = np.argmin(distances)
+    medoid_chrom = ref_chrom[medoid_idx]
+
+    # --- Z-normalize across samples ---
+    mu = np.mean(ref_chrom, axis=0)
+    sigma = np.std(ref_chrom, axis=0)
+    sigma[sigma == 0] = 1.0
+    medoid_chrom_z = (medoid_chrom - mu) / sigma
+
+    # --- Interpolate if needed ---
+    if medoid_chrom_z.shape[0] != n_features:
+        x_old = np.linspace(0, 1, medoid_chrom_z.shape[0])
+        x_new = np.linspace(0, 1, n_features)
+        medoid_chrom_z = interp1d(x_old, medoid_chrom_z, kind="linear")(x_new)
+        medoid_chrom = interp1d(x_old, medoid_chrom, kind="linear")(x_new)
+
+    # --- Normalize for plotting ---
+    medoid_chrom_z /= np.max(np.abs(medoid_chrom_z))
+    mean_weights_norm = mean_weights / np.max(np.abs(mean_weights))
+
+    # --- Plot ---
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+    x = np.arange(n_features)
+
+    # Left axis: z-normalized chromatogram + weights
+    ax1.plot(x, medoid_chrom_z, color=color_chrom, lw=1.0, alpha=0.9,
+             label="Z-normalized chromatogram (closest to mean)")
+    ax1.plot(x, mean_weights_norm, color=color_weights, lw=1.0, alpha=0.9,
+             label="Average regression weights (rescaled)")
+    ax1.set_xlabel("Retention time index", fontsize=16)
+    ax1.set_ylabel("Scaled response [a.u.]", color=color_chrom, fontsize=16)
+    ax1.tick_params(axis="both", labelsize=14)
+    ax1.tick_params(axis='y', labelcolor=color_chrom)
+    ax1.grid(alpha=0.3, linestyle="--", linewidth=0.5)
+
+    # Right axis: raw chromatogram
+    ax2 = ax1.twinx()
+    ax2.plot(x, medoid_chrom, color=color_raw, lw=1.0, alpha=0.8,
+             label="Raw chromatogram")
+    ax2.set_ylabel("Response [a.u.]", color=color_raw, fontsize=16)
+    ax2.tick_params(axis="both", labelsize=14)
+    ax2.tick_params(axis='y', labelcolor=color_raw)
+
+    # Combine legends
+    lines_1, labels_1 = ax1.get_legend_handles_labels()
+    lines_2, labels_2 = ax2.get_legend_handles_labels()
+    # ax1.legend(
+    #     lines_1 + lines_2,
+    #     labels_1 + labels_2,
+    #     loc="upper left",
+    #     bbox_to_anchor=(0.0, 0.999),
+    #     frameon=True,
+    #     framealpha=0.9,
+    #     facecolor="none",
+    #     fontsize=15,
+    # )
+
+    # # Title
+    # ax1.set_title(
+    #     f"Average regression weights vs reference chromatogram (closest to mean) — {region_label.capitalize()} dataset",
+    #     fontsize=16,
+    #     pad=14,
+    # )
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_fold_weight_heatmap(all_coefs, ref_chrom=None, cmap="inferno", clim=None):
+    """
+    Visualize per-fold regression weights as a 2D heatmap and optionally overlay
+    both:
+      - the mean (or sum) of weights across folds (white line)
+      - a reference chromatogram (cyan line)
+    on the same retention-time axis.
+
+    Parameters
+    ----------
+    all_coefs : np.ndarray
+        Shape (n_folds, n_features). Each row corresponds to one CV model.
+        Each column corresponds to a retention-time index (after decimation).
+
+    ref_chrom : np.ndarray or None, optional
+        Reference chromatogram to overlay.
+        - If 1D: used directly.
+        - If 2D: chromatogram closest to the mean is plotted.
+        Must have the same number of features as all_coefs.
+
+    cmap : str, optional
+        Matplotlib colormap. Default is "inferno".
+
+    clim : tuple or None, optional
+        (vmin, vmax) for color scaling. If None, scales automatically.
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+
+    n_folds, n_features = all_coefs.shape
+
+    # --- Handle reference chromatogram ---
+    ref_to_plot = None
+    if ref_chrom is not None:
+        ref_chrom = np.asarray(ref_chrom)
+        if ref_chrom.ndim == 2:
+            mean_vec = ref_chrom.mean(axis=0)
+            distances = np.linalg.norm(ref_chrom - mean_vec, axis=1)
+            closest_idx = np.argmin(distances)
+            ref_to_plot = ref_chrom[closest_idx]
+            print(f"Using chromatogram #{closest_idx} (closest to mean) as reference.")
+        elif ref_chrom.ndim == 1:
+            ref_to_plot = ref_chrom
+        else:
+            raise ValueError("ref_chrom must be 1D or 2D array.")
+
+        if ref_to_plot.shape[0] != n_features:
+            raise ValueError(
+                f"Reference chromatogram length ({ref_to_plot.shape[0]}) "
+                f"does not match number of features ({n_features})."
+            )
+
+        ref_to_plot = ref_to_plot / np.max(np.abs(ref_to_plot))
+
+    # --- Create figure ---
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+
+    # --- Heatmap ---
+    im = ax1.imshow(
+        all_coefs,
+        aspect="auto",
+        cmap=cmap,
+        origin="lower",
+        extent=[0, n_features, 0, n_folds],
+        clim=clim
+    )
+    plt.colorbar(im, ax=ax1, label="Regression weight")
+
+    # --- Overlay mean across folds ---
+    fold_mean = np.mean(all_coefs, axis=0)
+    norm_line = (fold_mean - np.min(fold_mean)) / (np.max(fold_mean) - np.min(fold_mean))
+    norm_line *= n_folds
+    line1, = ax1.plot(
+        np.arange(n_features),
+        norm_line,
+        color="white",
+        lw=2,
+        alpha=0.9,
+        label="Mean across folds"
+    )
+
+    ax1.set_xlabel("Retention-time index")
+    ax1.set_ylabel("CV fold index")
+    ax1.set_title("Per-fold regression weight map")
+    ax1.grid(alpha=0.2, linestyle="--", linewidth=0.5)
+
+    # --- Overlay chromatogram (if provided) ---
+    legend_handles = [line1]
+    if ref_to_plot is not None:
+        ax2 = ax1.twinx()
+        line2, = ax2.plot(
+            np.arange(n_features),
+            ref_to_plot,
+            color="cyan",
+            lw=1.5,
+            alpha=0.8,
+            label="Reference chromatogram (normalized)"
+        )
+        ax2.set_ylabel("Normalized intensity", color="cyan")
+        ax2.tick_params(axis="y", colors="cyan")
+        legend_handles.append(line2)
+
+    # --- Unified legend ---
+    ax1.legend(
+        handles=legend_handles,
+        loc="upper right",
+        frameon=True,
+        framealpha=0.75,   # semi-transparent background
+        facecolor="white",
+        fontsize=10
+    )
+
+    plt.tight_layout()
+    plt.show()
+
 def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
                       year_labels, data, feature_type, pred_plot_region,
                       plot=True):
@@ -2795,7 +3814,7 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
     from gcmswine import utils
 
     # === CHOOSE CLASSIFIER HERE ===
-    CLASSIFIER_TYPE = "LDA"  # options: "RGC" or "LDA"
+    CLASSIFIER_TYPE = "RGC"  # options: "RGC" or "LDA"
     # ==============================
 
     origin_style_map = {
@@ -2824,8 +3843,8 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
             print(f"⚠️ Skipping {pred_plot_region}: no samples in train/test split.")
             return None, None
 
-        X_train = utils.compute_features(data[train_mask], feature_type="tic_tis")
-        X_test = utils.compute_features(data[test_mask], feature_type="tic_tis")
+        X_train = utils.compute_features(data[train_mask], feature_type=feature_type)
+        X_test = utils.compute_features(data[test_mask], feature_type=feature_type)
 
         if pred_plot_mode == "classification":
             y_train = np.array(year_labels)[train_mask].astype(int)
@@ -2875,6 +3894,8 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
     if pred_plot_mode == "classification":
         from sklearn.metrics import accuracy_score
 
+        all_coefs = None
+
         # === CASE 1: Hold-out region (Burgundy→EU/US) ===
         if pred_plot_region in ["burgundy_eu", "burgundy_us"]:
             # Reuse results computed earlier
@@ -2883,7 +3904,7 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
 
         # === CASE 2: Generic case → run LOO CV ===
         else:
-            X_cls = utils.compute_features(data, feature_type="tic_tis")
+            X_cls = utils.compute_features(data, feature_type=feature_type)
             y_cls = np.array(year_labels).astype(int)
 
             loo = LeaveOneOut()
@@ -2908,14 +3929,36 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
             y_true, y_pred = np.array(y_true), np.array(y_pred)
 
         # --- Metrics ---
-        acc = accuracy_score(y_true, y_pred) * 100  # convert to %
-        # acc = accuracy_score(y_true, y_pred)
+        from sklearn.metrics import accuracy_score
+
+        # Base metrics
+        acc = accuracy_score(y_true, y_pred) * 100
         r = np.corrcoef(y_true, y_pred)[0, 1]
         r2 = r2_score(y_true, y_pred)
         residuals = y_pred - y_true
         res_std = np.std(residuals)
         res_mean = np.mean(residuals)
+
+        # Tolerance-based accuracies (e.g., within ±1, ±2 years)
+        year_tolerances = [1, 2, 3, 4, 5]
+        acc_tolerance = {}
+        for tol in year_tolerances:
+            acc_tol = np.mean(np.abs(y_pred - y_true) <= tol) * 100
+            acc_tolerance[tol] = acc_tol
+            print(f"Accuracy within ±{tol} years: {acc_tol:.2f}%")
+
         print(f"{CLASSIFIER_TYPE}:Residuals (years): mean = {res_mean:.3f}, std = {res_std:.3f}")
+        print(f"Overall Accuracy = {acc:.2f}%, R = {r:.3f}, R² = {r2:.3f}")
+
+        # # --- Metrics ---
+        # acc = accuracy_score(y_true, y_pred) * 100  # convert to %
+        # # acc = accuracy_score(y_true, y_pred)
+        # r = np.corrcoef(y_true, y_pred)[0, 1]
+        # r2 = r2_score(y_true, y_pred)
+        # residuals = y_pred - y_true
+        # res_std = np.std(residuals)
+        # res_mean = np.mean(residuals)
+        # print(f"{CLASSIFIER_TYPE}:Residuals (years): mean = {res_mean:.3f}, std = {res_std:.3f}")
 
         # === Plotting for classification ===
         if plot:
@@ -2942,7 +3985,7 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
 
             plt.title(
                 f"{CLASSIFIER_TYPE} Classification – Predicted vs. True Year ({mode_text}, Samples: {pred_plot_region})\n"
-                f"Accuracy = {acc:.1f}%, Pearson R = {r:.3f}, R² = {r2:.3f}, Residual SD = {res_std:.3f} years"
+                f"Accuracy = {acc:.1f}%, ±1yr = {acc_tolerance[1]:.1f}%, Pearson R = {r:.3f}, R² = {r2:.3f}, Residual SD = {res_std:.3f} years"
             )
 
             legend_elements = [
@@ -2964,9 +4007,10 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
     else:
         if pred_plot_region not in ["burgundy_eu", "burgundy_us"]:
             # redo LOO only for the filtered set
-            X_reg = utils.compute_features(data, feature_type="tic_tis")
+            X_reg = utils.compute_features(data, feature_type=feature_type)
             y_reg = np.array(year_labels).astype(float)
             loo = LeaveOneOut()
+            all_coefs = []
             y_true, y_pred = [], []
             for train_idx, test_idx in loo.split(X_reg):
                 X_train, X_test = X_reg[train_idx], X_reg[test_idx]
@@ -2980,7 +4024,15 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
                 model.fit(X_train, y_train)
                 y_pred.append(model.predict(X_test)[0])
                 y_true.append(y_test[0])
+                all_coefs.append(model.coef_)
             y_true, y_pred = np.array(y_true), np.array(y_pred)
+
+            all_coefs = np.vstack(all_coefs)  # shape (n_folds, n_features)
+        else:
+            all_coefs = None
+
+
+        # plot_fold_weight_heatmap(all_coefs, ref_chrom=X_reg)
 
         y_true = np.array(y_true, dtype=float)
         y_pred = np.array(y_pred, dtype=float)
@@ -2994,7 +4046,33 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
         res_mean = np.mean(residuals)
         res_std = np.std(residuals)
         rmse = np.sqrt(np.mean(residuals ** 2))
+
+        # === Classification-style metrics for regression ===
+        y_true_rounded = np.round(y_true)
+        y_pred_rounded = np.round(y_pred)
+
+        acc = np.mean(y_true_rounded == y_pred_rounded) * 100
+        acc_tolerance = {}
+        year_tolerances = [1, 2, 3, 4, 5]
+        for tol in year_tolerances:
+            acc_tol = np.mean(np.abs(y_true_rounded - y_pred_rounded) <= tol) * 100
+            acc_tolerance[tol] = acc_tol
+
         print(f"Residuals (years): mean = {res_mean:.3f}, std = {res_std:.3f}, RMSE = {rmse:.3f}")
+        print(f"Accuracy (rounded): {acc:.2f}%")
+        for tol, val in acc_tolerance.items():
+            print(f"Accuracy within ±{tol} years: {val:.2f}%")
+
+        # # === Compute metrics (no normalization) ===
+        # r2 = r2_score(y_true, y_pred)
+        # r = np.corrcoef(y_true, y_pred)[0, 1]
+        #
+        # # === Residual analysis in year units ===
+        # residuals = y_pred - y_true
+        # res_mean = np.mean(residuals)
+        # res_std = np.std(residuals)
+        # rmse = np.sqrt(np.mean(residuals ** 2))
+        # print(f"Residuals (years): mean = {res_mean:.3f}, std = {res_std:.3f}, RMSE = {rmse:.3f}")
 
         if plot:
             # === Scatter points ===
@@ -3029,7 +4107,7 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
             mode_text = "Hold-out" if pred_plot_region in ["burgundy_eu", "burgundy_us"] else "LOO CV"
             plt.title(
                 f"Predicted vs. True Year (Regression, {mode_text}, Samples: {pred_plot_region})\n"
-                f"Pearson R = {r:.3f}, R² = {r2:.3f}{acc_text}, Residual SD = {res_std:.3f} years"
+                f"R = {r:.3f}, R² = {r2:.3f}, Acc = {acc:.1f}%, ±1yr = {acc_tolerance[1]:.1f}%, Residual SD = {res_std:.3f} years"
             )
 
             # === Legend ===
@@ -3049,6 +4127,12 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
             plt.grid(True, linestyle="--", alpha=0.6)
             plt.tight_layout()
             plt.show()
+
+            # plot_fold_weight_heatmap(all_coefs, ref_chrom=X_reg)
+
+    return acc, acc_tolerance, r, r2, res_std, all_coefs
+    # return acc, r, r2, res_std
+
     # # === Regression ===
     # else:
     #     if pred_plot_region not in ["burgundy_eu", "burgundy_us"]:
@@ -3117,7 +4201,7 @@ def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
     #                       f"Pearson R = {r:.3f}, R² = {r2:.3f}")
 
 
-    return acc, r, r2, res_std
+
 
 
 # def plot_true_vs_pred(y_true, y_pred, origins, pred_plot_mode,
@@ -4316,8 +5400,8 @@ def run_normal_classification(
         year_labels_test = np.array(year_labels)[test_mask]
 
         # Extract TIC features
-        X_train = utils.compute_features(data[train_mask], feature_type="tic_tis")
-        X_test = utils.compute_features(data[test_mask], feature_type="tic_tis")
+        X_train = utils.compute_features(data[train_mask], feature_type=feature_type)
+        X_test = utils.compute_features(data[test_mask], feature_type=feature_type)
 
         # Scale
         from sklearn.preprocessing import StandardScaler
@@ -4327,7 +5411,7 @@ def run_normal_classification(
 
         # Train classifier (on Burgundy) and test on EU/US
         # ===== Select classifier =====
-        CLASSIFIER_TYPE = "LDA"  # or "LDA"
+        CLASSIFIER_TYPE = "RGC"  # or "LDA"
 
         if CLASSIFIER_TYPE == "RGC":
             from sklearn.linear_model import RidgeClassifier
@@ -4370,35 +5454,55 @@ def run_normal_classification(
     elif cfg.pred_plot_region == "burgundy":
         keep_mask = np.isin(origins, ["Burgundy"])
     elif cfg.pred_plot_region == "burgundy_random":
-        # Number of Burgundy samples
         burgundy_mask = np.isin(origins, ["Burgundy"])
         n_burgundy = np.sum(burgundy_mask)
 
         acc_vals, r_vals, r2_vals, res_std_vals = [], [], [], []
+        acc_tolerance_vals = {tol: [] for tol in [1, 2, 3, 4, 5]}  # store ±tolerances
         plot_flag = False
 
-        for rep in range(num_repeats):
-            # Randomly sample the same number of wines from the whole dataset
-            rand_indices = np.random.choice(len(origins), n_burgundy, replace=False)
+        all_repeats_coefs = []
 
+        for rep in range(num_repeats):
+            rand_indices = np.random.choice(len(origins), n_burgundy, replace=False)
             if rep == num_repeats - 1:
                 plot_flag = True
 
-            # Evaluate metrics silently (no plot except last repeat)
-            acc, r, r2, res_std  = plot_true_vs_pred(
+            # --- Robust call (supports both old and new return forms)
+            result = plot_true_vs_pred(
                 y_true=None,
                 y_pred=None,
                 origins=np.array(origins)[rand_indices],
-                pred_plot_mode=pred_plot_mode,  # regression branch gives r, r2
+                pred_plot_mode=pred_plot_mode,
                 year_labels=np.array(year_labels)[rand_indices],
                 data=data[rand_indices],
-                feature_type="tic",
+                feature_type=feature_type,
                 pred_plot_region="burgundy_random",
                 plot=plot_flag
             )
 
+            *_, all_coefs = result
+            if all_coefs is not None:
+                all_repeats_coefs.append(all_coefs)
+
+            # --- Safe unpacking ---
+            if isinstance(result, tuple):
+                if len(result) == 6:
+                    acc, acc_tolerance, r, r2, res_std, all_coefs = result
+                elif len(result) == 5:
+                    acc, r, r2, res_std = result
+                    acc_tolerance = None
+                else:
+                    continue
+            else:
+                continue
+
+            # --- Collect results ---
             if acc is not None:
                 acc_vals.append(acc)
+            if acc_tolerance:
+                for tol, val in acc_tolerance.items():
+                    acc_tolerance_vals[tol].append(val)
             if r is not None:
                 r_vals.append(r)
             if r2 is not None:
@@ -4406,21 +5510,58 @@ def run_normal_classification(
             if res_std is not None:
                 res_std_vals.append(res_std)
 
-        # Report averages and standard deviations
+        # Convert to arrays
+        res_std_vals = np.array(res_std_vals)
+
+        if all_repeats_coefs:
+            mean_coefs = np.mean(all_repeats_coefs, axis=0)
+            plot_avg_weights_vs_global_mean(mean_coefs, ref_chrom=np.sum(data, axis=2))
+            # plot_fold_weight_heatmap(mean_coefs, ref_chrom=np.sum(data, axis=2))
+
+        # === Summaries ===
+        logger.info(
+            f"Residual SDs across {num_repeats} repeats:\n"
+            f"  Min = {res_std_vals.min():.3f}, "
+            f"Max = {res_std_vals.max():.3f}, "
+            f"Median = {np.median(res_std_vals):.3f}, "
+            f"IQR = {np.percentile(res_std_vals, 75) - np.percentile(res_std_vals, 25):.3f}"
+        )
+
+        # === Optional plot ===
+        plt.figure(figsize=(6, 4))
+        plt.hist(res_std_vals, bins=10, color="skyblue", edgecolor="black")
+        plt.xlabel("Residual SD (years)")
+        plt.ylabel("Frequency")
+        plt.title(f"Distribution of residual SDs across {num_repeats} repeats")
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.show(block=True)
+
+        # === Tolerance means ===
+        tol_means = {tol: np.mean(vals) for tol, vals in acc_tolerance_vals.items() if len(vals) > 0}
+        tol_stds = {tol: np.std(vals) for tol, vals in acc_tolerance_vals.items() if len(vals) > 0}
+
+        # === Report all ===
         logger.info(
             f"Burgundy vs Random ({num_repeats}x): "
-            f"Acc = {np.mean(acc_vals):.3f} ± {np.std(acc_vals):.3f}, "
+            f"Acc = {np.mean(acc_vals):.2f} ± {np.std(acc_vals):.2f}, "
             f"R = {np.mean(r_vals):.3f} ± {np.std(r_vals):.3f}, "
-            f"R² = {np.mean(r2_vals):.3f} ± {np.std(r2_vals):.3f}"
-            + (f", Avg Residual SD = {np.mean(res_std_vals):.3f} years"
-               if len(res_std_vals) > 0 else "")
+            f"R² = {np.mean(r2_vals):.3f} ± {np.std(r2_vals):.3f}, "
+            f"Avg Residual SD = {np.mean(res_std_vals):.3f} years"
         )
+
+        # Print tolerance accuracies
+        tol_str = "  |  ".join(
+            [f"±{tol}yr = {tol_means[tol]:.1f} ± {tol_stds[tol]:.1f}%" for tol in tol_means]
+        )
+        logger.info(f"Tolerances: {tol_str}")
 
         return (
             np.mean(acc_vals), np.std(acc_vals),
             np.mean(r_vals), np.std(r_vals),
             np.mean(r2_vals), np.std(r2_vals),
-            np.mean(res_std_vals) if len(res_std_vals) > 0 else None
+            np.mean(res_std_vals),
+            tol_means
         )
 
     else:  # "all" or default
@@ -4462,9 +5603,74 @@ def run_normal_classification(
     )
 
     if cv_type == "LOO":
-        mean_acc, std_acc, scores, all_labels, test_samples_names, _ = result
+        mean_acc, std_acc, all_scores, all_labels, test_sample_names, all_preds, all_coefs = result
+        # mean_acc, std_acc, scores, all_labels, test_samples_names, _ = result
     else:
-        mean_acc, std_acc, *rest = result
+        mean_acc, std_acc, all_scores, all_labels, test_sample_names, all_preds = result
+        all_coefs = None
+        # mean_acc, std_acc, *rest = result
+
+    if all_coefs is not None:
+        # Create a region-specific subfolder, e.g. results/weights/burgundy/
+        region_name = cfg.pred_plot_region if hasattr(cfg, "pred_plot_region") else "unknown_region"
+        save_dir = os.path.join("results", "weights", region_name)
+        os.makedirs(save_dir, exist_ok=True)
+
+        # Save raw weights (all folds/repeats)
+        np.save(os.path.join(save_dir, f"weights_{region_name}.npy"), all_coefs)
+
+        # Compute mean across folds/repeats
+        mean_coefs = np.mean(all_coefs, axis=0)
+        np.save(os.path.join(save_dir, f"weights_mean_{cfg.pred_plot_region}.npy"), mean_coefs)
+
+        # Get directory of the current script, no matter where it's called from
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(script_dir, "results",
+                                 "rt_distribution_best_acc_winery_concatenated_10rt_1mz_10rep.npz")
+
+        dist = np.load(file_path, allow_pickle=True)
+
+        # --- Plot comparison ---
+        ref_chrom = np.sum(data, axis=2)
+
+        # Plot comparison
+        plot_rtbin_evolution_full(
+            "results/rt_distribution_allsteps_winery_concatenated_116rt_1mz_20rep.npz",
+            all_coefs=all_coefs,
+            ref_chrom=ref_chrom,
+            normalize="fraction",
+            cumulative=True,
+            cmap="plasma",
+            step_pct=53,
+            # step_pct=10 / 116. * 100 - 1,
+        )
+
+
+        # plot_avg_weights_vs_rtbin_frequency(
+        #     all_coefs=mean_coefs,
+        #     ref_chrom=ref_chrom,
+        #     rt_edges=dist["rt_edges"],
+        #     rt_freq=dist["rt_freq"],
+        #     bin_order_mode=dist["bin_order_mode"],
+        #     region_label=cfg.pred_plot_region,
+        # )
+
+        # plot_avg_weights_vs_global_mean(
+        #     mean_coefs,
+        #     ref_chrom=ref_chrom,
+        #     alpha_band=0.25,
+        #     region_label=cfg.pred_plot_region,
+        # )
+
+
+        r, p = compare_regression_weights(
+            "results/weights/all/weights_mean_all.npy",
+            "results/weights/burgundy/weights_mean_burgundy.npy",
+            savefig_path="results/weights/weights_comparison_all_vs_burgundy.png",
+            title_prefix="Ridge regression"
+        )
+
+        print(f"Pearson correlation: r = {r:.3f}, p = {p:.1e}")
 
     logger.info(f"Final Accuracy (no survival): {mean_acc:.3f}")
     return result
@@ -4472,7 +5678,14 @@ def run_normal_classification(
 
 
 if __name__ == "__main__":
-    # plot_accuracy_vs_channels("ranked_add_sum_results.csv", "ranked_add_concat_results.csv")
+    # plot_rt_bin_evolution_heatmap(
+    #     "results/rt_distribution_allsteps_winery_concatenated_5rt_1mz_50rep.npz",
+    #     normalize=False,
+    #     cumulative=True,
+    #     cmap="plasma",
+    #     step_pct=80
+    # )
+    # # plot_accuracy_vs_channels("ranked_add_sum_results.csv", "ranked_add_concat_results.csv")
     raw_cfg = load_config()
     cfg = build_run_config(raw_cfg)
 
@@ -4683,10 +5896,10 @@ if __name__ == "__main__":
             n_rt_bins=cfg.n_rt_bins,  # number of retention time bins
             n_mz_bins=cfg.n_mz_bins,  # number of m/z bins
             random_state=42,
-            n_jobs=-1,
+            n_jobs=20,
             mz_min=0, mz_max=181,
             cube_repr = "tic",
-            cv_design="B"
+            cv_design="A"
         )
     elif cfg.reg_acc_map:
         heatmap = run_region_accuracy_heatmap(
@@ -4739,14 +5952,26 @@ if __name__ == "__main__":
     test_samples_names = None
     if results and cfg.cv_type == "LOO":
         if cfg.pred_plot_region == "burgundy_random":
-            mean_acc, std_acc, mean_r, std_r, mean_r2, std_r2, _ = results
+            mean_acc, std_acc, mean_r, std_r, mean_r2, std_r2, mean_res_std, tol_means = results
+            # mean_acc, std_acc, mean_r, std_r, mean_r2, std_r2, _ = results
+            # Pretty-print tolerance accuracies
+            tol_summary = "  |  ".join([f"±{tol}yr = {tol_means[tol]:.1f}%" for tol in sorted(tol_means)])
             print(
                 f"Acc={mean_acc:.3f}, "
+                f"Average accuracies by tolerance: {tol_summary}"
                 f"R={mean_r:.3f}±{std_r:.3f}, "
                 f"R²={mean_r2:.3f}±{std_r2:.3f}"
             )
         else:
-            mean_acc, std_acc, scores, all_labels, test_samples_names, _ = results
+            # --- Flexible unpacking: handle both 6- and 7-element results ---
+            if len(results) == 7:
+                mean_acc, std_acc, scores, all_labels, test_samples_names, all_preds, all_coefs = results
+            else:
+                mean_acc, std_acc, scores, all_labels, test_samples_names, all_preds = results
+                all_coefs = None
+
+            print(f"Final Accuracy (no survival): {mean_acc:.3f}")
+            # mean_acc, std_acc, scores, all_labels, test_samples_names, _ = results
     elif results and cfg.cv_type in ["LOOPC", "stratified"]:
         mean_acc, std_acc, *_ = results
 

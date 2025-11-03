@@ -1,4 +1,5 @@
 chrom_cap: 35000
+class_by_year: true
 classifier: RGC
 color_by_country: false
 color_by_origin: false
@@ -22,7 +23,8 @@ density_plot: false
 do_classification: false
 downsample_group: true
 exclude_us: false
-global_focus_heatmap: true
+feature_type: tic_tis
+global_focus_heatmap: false
 group_wines: false
 invert_x: false
 invert_y: false
@@ -32,19 +34,19 @@ label_targets:
 n_decimation: 10
 n_mz_bins: 1
 n_neighbors: 30
-n_rt_bins: 10
+n_rt_bins: 2
 normalize: true
-num_repeats: 1
+num_repeats: 10
 num_splits: 1
 oak_analysis: false
 oak_mode: mask
-plot_all_tests: false
-plot_projection: scores
+plot_all_tests: true
+plot_projection: false
 plot_r2: false
 plot_shap: false
 plot_umap: scores
 pred_plot_mode: regression
-pred_plot_region: all
+pred_plot_region: burgundy
 projection_dim: 2
 projection_method: UMAP
 projection_source: scores
@@ -53,7 +55,7 @@ reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
 reg_acc_map: false
-region: ''
+region: winery
 regressor: null
 remove_avg_scores: false
 retention_time_range:
@@ -64,14 +66,14 @@ rt_range:
   max: 30000
   min: 0
 sample_display_mode: names
-selected_attribute: nuts
+selected_attribute: fruity
 selected_datasets:
-- sensory_scores
+- pinot_noir_changins
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
 show_confusion_matrix: false
-show_pred_plot: false
+show_pred_plot: true
 show_predicted_profiles: false
 show_sample_names: false
 shuffle_labels: false
@@ -79,9 +81,10 @@ sotf_add_2d: false
 sotf_mz: false
 sotf_remove_2d: false
 sotf_ret_time: false
+sync_state: false
 taster_focus_heatmap: false
 taster_scaling: false
 taster_vs_mean: false
-test_average_scores: true
+test_average_scores: false
 umap_dim: 2
 umap_source: tic_tis
