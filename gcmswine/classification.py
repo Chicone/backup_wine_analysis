@@ -1767,31 +1767,59 @@ class Classifier:
             import matplotlib.pyplot as plt
             from sklearn.metrics import ConfusionMatrixDisplay
 
-            custom_order = [
-                "Clos Des Mouches. Drouhin (FR): D",
-                "Les Petits Monts. Drouhin (FR): R",
-                "Vigne de l’Enfant Jésus. Bouchard (FR): E",
-                "Les Cailles. Bouchard (FR): Q",
-                "Bressandes. Jadot (FR): P",
-                "Les Boudots. Jadot (FR): Z",
-                "Domaine Schlumberger (FR): C",
-                "Domaine Jean Sipp (FR): W",
-                "Domaine Weinbach (FR): Y",
-                "Domaine Brunner (CH): M",
-                "Vin des Croisés (CH): N",
-                "Domaine Villard et Fils (CH): J",
-                "Domaine de la République (CH): L",
-                "Les Maladaires (CH): H",
-                "Marimar Estate (US): U",
-                "Domaine Drouhin (US): X",
-            ]
-            # Extract short letters for y-axis (last char after colon + space)
-            short_labels = [lbl.split(":")[-1].strip() for lbl in custom_order]
-
             fig, ax = plt.subplots(figsize=(8, 6))
             ax.set_xlabel('Predicted Label', fontsize=14)
             ax.set_ylabel('True Label', fontsize=14)
-            ax.set_title('Confusion matrix by Cru')
+
+            if region == "winery":
+                custom_order = [
+                    "Clos Des Mouches. Drouhin (FR): D",
+                    "Les Petits Monts. Drouhin (FR): R",
+                    "Vigne de l’Enfant Jésus. Bouchard (FR): E",
+                    "Les Cailles. Bouchard (FR): Q",
+                    "Bressandes. Jadot (FR): P",
+                    "Les Boudots. Jadot (FR): Z",
+                    "Domaine Schlumberger (FR): C",
+                    "Domaine Jean Sipp (FR): W",
+                    "Domaine Weinbach (FR): Y",
+                    "Domaine Brunner (CH): M",
+                    "Vin des Croisés (CH): N",
+                    "Domaine Villard et Fils (CH): J",
+                    "Domaine de la République (CH): L",
+                    "Les Maladaires (CH): H",
+                    "Marimar Estate (US): U",
+                    "Domaine Drouhin (US): X",
+                ]
+                ax.set_title('Confusion matrix by Cru')
+            elif region == "estate":
+                custom_order = [
+                    "Drouhin (FR): D",
+                    "Bouchard (FR): B",
+                    "Jadot (FR): T",
+                    "Domaine Schlumberger (FR): C",
+                    "Domaine Jean Sipp (FR): W",
+                    "Domaine Weinbach (FR): Y",
+                    "Domaine Brunner (CH): M",
+                    "Vin des Croisés (CH): N",
+                    "Domaine Villard et Fils (CH): J",
+                    "Domaine de la République (CH): L",
+                    "Les Maladaires (CH): H",
+                    "Marimar Estate (US): U",
+                    "Domaine Drouhin (US): X",
+                ]
+                ax.set_title('Confusion matrix by Estate')
+            elif region == "region":
+                custom_order = [
+                    "Alsace (FR): A",
+                    "Burgundy (FR): B",
+                    "Neuchâtel (CH): N",
+                    "Geneva (CH): G",
+                    "Valais (CH): V",
+                    "California (US): C",
+                    "Oregon (US): O",
+                ]
+            # Extract short letters for y-axis (last char after colon + space)
+            short_labels = [lbl.split(":")[-1].strip() for lbl in custom_order]
 
             # Plot with short labels
             disp = ConfusionMatrixDisplay(confusion_matrix=mean_confusion_matrix,
@@ -3067,7 +3095,7 @@ def assign_north_south_to_burgundy(original_keys):
 
 def assign_winery_to_pinot_noir(labels):
     """
-    Assign the first letter of each label, which corresponds to the winery (Chateau)
+    Assign the first letter of each label, which corresponds to the winery (cru)
 
     Parameters
     ----------
@@ -3083,6 +3111,42 @@ def assign_winery_to_pinot_noir(labels):
     first_letters = [label[0] for label in labels]
 
     return first_letters
+
+def assign_estate_to_pinot_noir(labels):
+    """
+    Collapse certain Pinot Noir class codes into grouped wineries.
+
+    Groups:
+    - D and R → 'Drouhin'
+    - E and Q → 'Bouchard'
+    - P and Z → 'Jadot'
+    All other class letters remain unchanged.
+
+    Parameters
+    ----------
+    labels : list of str
+        A list of label strings.
+
+    Returns
+    -------
+    grouped_labels : list of str
+        A list of grouped winery labels.
+    """
+    # Define mapping rules
+    mapping = {
+        'D': 'D',
+        'R': 'D',
+        'E': 'B',
+        'Q': 'B',
+        'P': 'T',
+        'Z': 'T'
+    }
+
+    # Extract first letter and apply mapping
+    grouped_labels = [mapping.get(label[0], label[0]) for label in labels]
+
+    return grouped_labels
+
 
 
 def assign_year_to_pinot_noir(labels):

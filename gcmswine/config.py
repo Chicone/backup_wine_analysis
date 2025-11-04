@@ -42,6 +42,7 @@ class RunConfig:
     show_confusion_matrix: bool = False
     plot_all_tests: bool = False
     plot_r2: bool = False
+    show_weight_stats: bool = False
     plot_regress_corr: bool = False
     plot_rt_bin_analysis: bool = False
     rt_analysis_filename: Optional[str] = None

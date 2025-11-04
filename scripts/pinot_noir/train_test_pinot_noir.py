@@ -2157,6 +2157,9 @@ def run_sotf_add_2d_leaky(
 
     return all_outer_curves, all_selected_cubes
 
+
+
+
 def run_sotf_add_2d_noleak(
     data3d,
     labels,
@@ -2859,6 +2862,136 @@ def run_sotf_add_lookahead_2d(
 # -----------------------------
 # Plotting
 # -----------------------------
+def plot_weights_distribution_and_threshold_highlights(
+    all_coefs,
+    ref_chrom,
+    rt_edges=None,
+    threshold=0.5,
+    figsize=(12, 10),
+    region_label="all",
+    color_chrom="#4C72B0",
+    color_weights="#E08214",
+    color_thresh_pos="#E74C3C",
+    color_thresh_neg="#3498DB",
+):
+    """
+    Visualizes regression weights and highlights high-weight RT regions.
+
+    Layout:
+      1️⃣ Top: chromatogram + normalized regression weights
+      2️⃣ Middle: distribution of weights (histogram)
+      3️⃣ Bottom: chromatogram with shaded areas at retention times
+         where |weights| >= threshold.
+
+    Parameters
+    ----------
+    all_coefs : np.ndarray
+        Regression coefficients (e.g. from all folds).
+        Shape can be (n_folds, n_features) or similar.
+    ref_chrom : np.ndarray
+        Reference chromatogram (samples × time).
+    rt_edges : array-like, optional
+        Retention time bin edges (for drawing shaded regions).
+        If None, bins are assumed to be uniform over features.
+    threshold : float
+        Threshold on normalized weights (default = 0.5).
+    """
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.interpolate import interp1d
+
+    # --- Compute mean regression weights ---
+    all_coefs = np.asarray(all_coefs)
+    mean_weights = np.mean(all_coefs, axis=tuple(range(all_coefs.ndim - 1)))
+    n_features = mean_weights.shape[0]
+
+    # --- Reference chromatogram (medoid) ---
+    ref_chrom = np.asarray(ref_chrom)
+    mean_chrom = np.mean(ref_chrom, axis=0)
+    distances = np.linalg.norm(ref_chrom - mean_chrom, axis=1)
+    medoid_chrom = ref_chrom[np.argmin(distances)]
+
+    # --- Z-normalize chromatogram ---
+    mu, sigma = np.mean(ref_chrom, axis=0), np.std(ref_chrom, axis=0)
+    sigma[sigma == 0] = 1
+    medoid_chrom_z = (medoid_chrom - mu) / sigma
+
+    # --- Interpolate chromatogram if mismatch ---
+    if medoid_chrom_z.shape[0] != n_features:
+        x_old = np.linspace(0, 1, medoid_chrom_z.shape[0])
+        x_new = np.linspace(0, 1, n_features)
+        medoid_chrom_z = interp1d(x_old, medoid_chrom_z)(x_new)
+        medoid_chrom = interp1d(x_old, medoid_chrom)(x_new)
+
+    # --- Normalize weights ---
+    mean_weights_norm = mean_weights / np.max(np.abs(mean_weights))
+
+    # --- RT edges ---
+    if rt_edges is None:
+        rt_edges = np.linspace(0, n_features, n_features + 1)
+    rt_centers = (rt_edges[:-1] + rt_edges[1:]) / 2
+
+    # --- Find threshold crossings ---
+    exceed_pos = np.where(mean_weights_norm >= threshold)[0]
+    exceed_neg = np.where(mean_weights_norm <= -threshold)[0]
+
+    # --- Create figure ---
+    fig, (ax_top, ax_mid, ax_bottom) = plt.subplots(
+        3, 1, figsize=figsize, gridspec_kw={"height_ratios": [1.6, 1.2, 1.6]}
+    )
+
+    # === 1️⃣ Top: chromatogram + weights ===
+    x = np.arange(n_features)
+
+    # === 1️⃣ Top: chromatogram + weights ===
+    ax_top.plot(x, medoid_chrom_z / np.max(np.abs(medoid_chrom_z)),
+                color=color_chrom, lw=1.0, alpha=0.9, label="Z-normalized chromatogram")
+    ax_top.plot(x, mean_weights_norm,
+                color=color_weights, lw=1.2, alpha=0.9, label="Normalized regression weights")
+    ax_top.axhline(threshold, color=color_thresh_pos, ls="--", lw=1, alpha=0.7)
+    ax_top.axhline(-threshold, color=color_thresh_neg, ls="--", lw=1, alpha=0.7)
+    ax_top.legend(loc="upper left", fontsize=9)
+    ax_top.grid(alpha=0.3, linestyle="--", linewidth=0.5)
+    ax_top.set_ylabel("Normalized amplitude / weights")
+    ax_top.set_title(f"{region_label.capitalize()} — Regression weights and chromatogram")
+
+    # === 2️⃣ Middle: distribution of weights ===
+    ax_mid.hist(
+        mean_weights_norm,
+        bins=60,
+        color="gray",
+        alpha=0.7,
+        edgecolor="none",
+    )
+    ax_mid.axvline(threshold, color=color_thresh_pos, ls="--", lw=1.2, label=f"+{threshold}")
+    ax_mid.axvline(-threshold, color=color_thresh_neg, ls="--", lw=1.2, label=f"−{threshold}")
+    ax_mid.set_xlabel("Normalized regression weight")
+    ax_mid.set_ylabel("Count")
+    ax_mid.grid(alpha=0.3, linestyle="--", linewidth=0.5)
+    ax_mid.legend(loc="upper right", fontsize=9)
+    ax_mid.set_title("Distribution of regression weights")
+
+    # === 3️⃣ Bottom: chromatogram with threshold highlights ===
+    ax_bottom.plot(np.arange(n_features), medoid_chrom,
+                   color=color_chrom, lw=1.0, alpha=0.9, label="Raw chromatogram")
+
+    # Shade regions where |weights| >= threshold
+    for i in range(n_features):
+        if abs(mean_weights_norm[i]) >= threshold:
+            color = color_thresh_pos if mean_weights_norm[i] > 0 else color_thresh_neg
+            ax_bottom.axvspan(i - 0.5, i + 0.5, color=color, alpha=0.25)
+
+    ax_bottom.set_xlabel("Retention time index")
+    ax_bottom.set_ylabel("Signal intensity [a.u.]")
+    ax_bottom.grid(alpha=0.3, linestyle="--", linewidth=0.5)
+    ax_bottom.legend(loc="upper right", fontsize=9)
+    ax_bottom.set_title(f"Chromatogram with highlighted RT regions (|weights| ≥ {threshold})")
+
+    plt.tight_layout()
+    plt.show()
+
+
 import seaborn as sns
 def plot_rtbin_evolution_full(
     npz_path,
@@ -5369,8 +5502,10 @@ def run_normal_classification(
     pred_plot_mode="regression",
     plot_regress_corr=False,
     plot_rt_bin_analysis=False,
-    rt_analysis_filename=None
+    rt_analysis_filename=None,
+    show_weight_stats=None
 ):
+
     # === Origin mapping (same as before) ===
     letter_to_origin = {
         'M': 'Neuchâtel', 'N': 'Neuchâtel',
@@ -5636,6 +5771,16 @@ def run_normal_classification(
         # --- Plot comparison ---
         ref_chrom = np.sum(data, axis=2)
 
+        if show_weight_stats:
+            plot_weights_distribution_and_threshold_highlights(
+                all_coefs=all_coefs,
+                ref_chrom=ref_chrom,
+                rt_edges=np.linspace(0, 1500, 61),
+                threshold=0.5,
+                region_label="Pinot Noir"
+            )
+
+
         if plot_rt_bin_analysis:
             # Plot comparison
             plot_rtbin_evolution_full(
@@ -5649,22 +5794,6 @@ def run_normal_classification(
                 # step_pct=10 / 116. * 100 - 1,
             )
 
-
-        # plot_avg_weights_vs_rtbin_frequency(
-        #     all_coefs=mean_coefs,
-        #     ref_chrom=ref_chrom,
-        #     rt_edges=dist["rt_edges"],
-        #     rt_freq=dist["rt_freq"],
-        #     bin_order_mode=dist["bin_order_mode"],
-        #     region_label=cfg.pred_plot_region,
-        # )
-
-        # plot_avg_weights_vs_global_mean(
-        #     mean_coefs,
-        #     ref_chrom=ref_chrom,
-        #     alpha_band=0.25,
-        #     region_label=cfg.pred_plot_region,
-        # )
 
         if plot_regress_corr:
             r, p = compare_regression_weights(
@@ -5948,7 +6077,8 @@ if __name__ == "__main__":
             pred_plot_mode=cfg.pred_plot_mode,
             plot_regress_corr=cfg.plot_regress_corr,
             plot_rt_bin_analysis=cfg.plot_rt_bin_analysis,
-            rt_analysis_filename=cfg.rt_analysis_filename
+            rt_analysis_filename=cfg.rt_analysis_filename,
+            show_weight_stats=cfg.show_weight_stats
         )
 
     # -----------------------------

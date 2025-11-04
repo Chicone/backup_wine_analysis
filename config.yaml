@@ -23,7 +23,7 @@ density_plot: false
 do_classification: false
 downsample_group: true
 exclude_us: false
-feature_type: tic_tis
+feature_type: tic
 global_focus_heatmap: false
 group_wines: false
 invert_x: false
@@ -57,14 +57,14 @@ reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
 reg_acc_map: false
-region: estate
+region: winery
 regressor: null
 remove_avg_scores: false
 retention_time_range:
   max: 30000
   min: 0
 rot_axes: false
-rt_analysis_filename: rt_distribution_allsteps_winery_concatenated_29rt_1mz_4rep.npz
+rt_analysis_filename: rt_distribution_allsteps_winery_concatenated_116rt_1mz_20rep.npz
 rt_range:
   max: 30000
   min: 0
@@ -75,10 +75,11 @@ selected_datasets:
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
-show_confusion_matrix: true
+show_confusion_matrix: false
 show_pred_plot: true
 show_predicted_profiles: false
 show_sample_names: false
+show_weight_stats: true
 shuffle_labels: false
 sotf_add_2d: false
 sotf_mz: false

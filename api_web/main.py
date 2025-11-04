@@ -161,6 +161,7 @@ async def run_script(payload: dict):
         ("show_pred_plot", "show_pred_plot"),
         ("pred_plot_region", "pred_plot_region"),
         ("pred_plot_mode", "regression"),
+        ("show_weight_stats", "show_weight_stats"),
         ("plot_regress_corr", "plot_regress_corr"),
         ("plot_rt_bin_analysis", "plot_rt_bin_analysis"),
         ("rt_analysis_filename", "rt_analysis_filename"),

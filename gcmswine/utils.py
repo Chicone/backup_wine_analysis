@@ -2289,6 +2289,24 @@ def get_custom_order_for_pinot_noir_region(region):
         #     "Domaine Drouhin (US): X",
         # ]
         return ['D', 'R', 'E', 'Q', 'P', 'Z', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+    elif region == 'estate':
+        # Grouped estates collapsing multiple winery codes into a single label
+        return ['D', 'B', 'T', 'C', 'W', 'Y', 'M', 'N', 'J', 'L', 'H', 'U', 'X']
+        #     [
+        #     'Drouhin',  # D, R
+        #     'Bouchard',  # E, Q
+        #     'Jadot',  # P, Z
+        #     'Schlumberger',  # C
+        #     'Jean Sipp',  # W
+        #     'Weinbach',  # Y
+        #     'Brunner',  # M
+        #     'Vin des Croisés',  # N
+        #     'Villard et Fils',  # J
+        #     'République',  # L
+        #     'Les Maladaires',  # H
+        #     'Marimar Estate',  # U
+        #     'Drouhin US',  # X
+        # ]
     elif region == 'origin':
         # return ['Burgundy_North', 'Burgundy_South', 'Alsace', 'Neuchatel', 'Genève', 'Valais', 'Californie', 'Oregon']
         return ['Burgundy', 'Alsace', 'Neuchâtel', 'Geneva', 'Valais', 'California', 'Oregon']
