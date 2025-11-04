@@ -1,5 +1,5 @@
 chrom_cap: 35000
-class_by_year: true
+class_by_year: false
 classifier: RGC
 color_by_country: false
 color_by_origin: false
@@ -34,7 +34,7 @@ label_targets:
 n_decimation: 10
 n_mz_bins: 1
 n_neighbors: 30
-n_rt_bins: 2
+n_rt_bins: 16
 normalize: true
 num_repeats: 10
 num_splits: 1
@@ -44,7 +44,7 @@ plot_all_tests: true
 plot_projection: false
 plot_r2: false
 plot_regress_corr: false
-plot_rt_bin_analysis: true
+plot_rt_bin_analysis: false
 plot_shap: false
 plot_umap: scores
 pred_plot_mode: regression
@@ -57,14 +57,14 @@ reduce_dims: false
 reduction_dims: 2
 reduction_method: pca
 reg_acc_map: false
-region: winery
+region: estate
 regressor: null
 remove_avg_scores: false
 retention_time_range:
   max: 30000
   min: 0
 rot_axes: false
-rt_analysis_filename: rt_distribution_allsteps_winery_concatenated_29rt_1mz_4rep.npz
+rt_analysis_filename: rt_distribution_allsteps_winery_concatenated_116rt_1mz_20rep.npz
 rt_range:
   max: 30000
   min: 0
@@ -75,8 +75,8 @@ selected_datasets:
 show_age_histogram: false
 show_champ_predicted_profiles: showChampPredictedProfiles
 show_chromatograms: false
-show_confusion_matrix: false
-show_pred_plot: true
+show_confusion_matrix: true
+show_pred_plot: false
 show_predicted_profiles: false
 show_sample_names: false
 shuffle_labels: false

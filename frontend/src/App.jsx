@@ -56,6 +56,17 @@ const projectionLabels = {
   tic_tis: "TIC + TIS",
 };
 
+const taskTooltips = {
+  "Classification": "Train and evaluate a standard classifier on the selected dataset",
+  "SOTF Remove 2D": "Greedy backward feature selection based on 2D (RT × m/z) bin accuracy contribution",
+  "SOTF Add 2D": "Greedy forward feature selection exploring informative RT × m/z regions",
+  "Region Accuracy Map": "Visualize classification accuracy along retention time bins",
+  "Oak Analysis": "Perform targeted analysis of oak-related peaks with masking or integration modes",
+  "Predict Labels": "Predict categorical sensory labels directly from taster's scores (w/o chromatograms)",
+  "Predict Age": "Predict wine age using regression models",
+  "Model Global": "Train a global regression model combining all tasters’ scores",
+  "Model per Taster": "Train separate regression models per individual taster",
+};
 const taskOptionsByFamily = {
   bordeaux: ["Classification", "SOTF Remove 2D", "SOTF Add 2D",],
   pinot: ["Classification", "SOTF Remove 2D", "SOTF Add 2D", "Region Accuracy Map", "Oak Analysis"],
@@ -859,6 +870,7 @@ useEffect(() => {
                             >
                               <MenuItem value="winery">Winery</MenuItem>
                               <MenuItem value="origin">Origin</MenuItem>
+                              <MenuItem value="estate">Estate</MenuItem>
                               <MenuItem value="country">Country</MenuItem>
                               <MenuItem value="continent">Continent</MenuItem>
                               <MenuItem value="burgundy">N/S Burgundy</MenuItem>
@@ -901,9 +913,11 @@ useEffect(() => {
                           displayEmpty
                         >
                           {taskOptions.map((task) => (
-                            <MenuItem key={task} value={task}>
-                              {task}
-                            </MenuItem>
+                         <MenuItem key={task} value={task}>
+                            <Tooltip title={taskTooltips[task] || ""} placement="right" arrow>
+                              <span>{task}</span>
+                            </Tooltip>
+                          </MenuItem>
                           ))}
                         </Select>
                       </FormControl>

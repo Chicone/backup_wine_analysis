@@ -2349,6 +2349,8 @@ def process_labels_by_wine_kind(labels, wine_kind, region, class_by_year, chroma
             processed_labels = assign_origin_to_pinot_noir(labels, split_burgundy_ns=split_burgundy_ns)
         elif region == 'winery':
             processed_labels = assign_winery_to_pinot_noir(labels)
+        elif region == 'estate':
+            processed_labels = assign_estate_to_pinot_noir(labels)
         elif region == 'year':
             processed_labels = assign_year_to_pinot_noir(labels)
         elif region == 'burgundy':
