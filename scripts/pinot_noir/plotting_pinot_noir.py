@@ -90,6 +90,11 @@ def plot_pinot_noir(
     """
     Plot a 2D or 3D scatter plot of embedded data with labeled points.
     """
+    from matplotlib.cm import get_cmap
+    default_color_map = get_cmap("tab20")
+
+
+
 
     letter_to_origin = {
         'M': 'Neuchâtel', 'N': 'Neuchâtel', 'J': 'Geneva', 'L': 'Geneva', 'H': 'Valais',
@@ -656,7 +661,6 @@ def plot_pinot_noir(
 
     plt.tight_layout()
     plt.show(block=False)
-
 
 
 def plot_pinot_noir_special_coloring(

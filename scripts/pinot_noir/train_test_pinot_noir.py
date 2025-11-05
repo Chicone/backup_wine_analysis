@@ -5595,6 +5595,28 @@ def run_normal_classification(
         burgundy_mask = np.isin(origins, ["Burgundy"])
         n_burgundy = np.sum(burgundy_mask)
 
+        # --- Convert year labels to integers safely ---
+        def safe_int(y):
+            try:
+                return int(y)
+            except (ValueError, TypeError):
+                return np.nan
+
+        year_labels_int = np.array([safe_int(y) for y in year_labels])
+        burgundy_years = year_labels_int[burgundy_mask]
+        burgundy_years = burgundy_years[~np.isnan(burgundy_years)]
+
+        if len(burgundy_years) == 0:
+            raise ValueError("No valid numeric years found for Burgundy samples.")
+
+        min_year, max_year = int(np.nanmin(burgundy_years)), int(np.nanmax(burgundy_years))
+
+        logger.info(f"Burgundy year range detected: {min_year}–{max_year}")
+
+        # --- Restrict random selection to samples within Burgundy year range ---
+        valid_mask = (year_labels_int >= min_year) & (year_labels_int <= max_year)
+        valid_indices = np.array(np.where(valid_mask)[0], dtype=int)
+
         acc_vals, r_vals, r2_vals, res_std_vals = [], [], [], []
         acc_tolerance_vals = {tol: [] for tol in [1, 2, 3, 4, 5]}  # store ±tolerances
         plot_flag = False
@@ -5602,7 +5624,8 @@ def run_normal_classification(
         all_repeats_coefs = []
 
         for rep in range(num_repeats):
-            rand_indices = np.random.choice(len(origins), n_burgundy, replace=False)
+            rand_indices = np.random.choice(valid_indices, size=int(n_burgundy), replace=False)
+
             if rep == num_repeats - 1:
                 plot_flag = True
 
@@ -5647,6 +5670,63 @@ def run_normal_classification(
                 r2_vals.append(r2)
             if res_std is not None:
                 res_std_vals.append(res_std)
+
+    # elif cfg.pred_plot_region == "burgundy_random":
+    #     burgundy_mask = np.isin(origins, ["Burgundy"])
+    #     n_burgundy = np.sum(burgundy_mask)
+    #
+    #     acc_vals, r_vals, r2_vals, res_std_vals = [], [], [], []
+    #     acc_tolerance_vals = {tol: [] for tol in [1, 2, 3, 4, 5]}  # store ±tolerances
+    #     plot_flag = False
+    #
+    #     all_repeats_coefs = []
+    #
+    #     for rep in range(num_repeats):
+    #         rand_indices = np.random.choice(len(origins), n_burgundy, replace=False)
+    #         if rep == num_repeats - 1:
+    #             plot_flag = True
+    #
+    #         # --- Robust call (supports both old and new return forms)
+    #         result = plot_true_vs_pred(
+    #             y_true=None,
+    #             y_pred=None,
+    #             origins=np.array(origins)[rand_indices],
+    #             pred_plot_mode=pred_plot_mode,
+    #             year_labels=np.array(year_labels)[rand_indices],
+    #             data=data[rand_indices],
+    #             feature_type=feature_type,
+    #             pred_plot_region="burgundy_random",
+    #             plot=plot_flag
+    #         )
+    #
+    #         *_, all_coefs = result
+    #         if all_coefs is not None:
+    #             all_repeats_coefs.append(all_coefs)
+    #
+    #         # --- Safe unpacking ---
+    #         if isinstance(result, tuple):
+    #             if len(result) == 6:
+    #                 acc, acc_tolerance, r, r2, res_std, all_coefs = result
+    #             elif len(result) == 5:
+    #                 acc, r, r2, res_std = result
+    #                 acc_tolerance = None
+    #             else:
+    #                 continue
+    #         else:
+    #             continue
+    #
+    #         # --- Collect results ---
+    #         if acc is not None:
+    #             acc_vals.append(acc)
+    #         if acc_tolerance:
+    #             for tol, val in acc_tolerance.items():
+    #                 acc_tolerance_vals[tol].append(val)
+    #         if r is not None:
+    #             r_vals.append(r)
+    #         if r2 is not None:
+    #             r2_vals.append(r2)
+    #         if res_std is not None:
+    #             res_std_vals.append(res_std)
 
         # Convert to arrays
         res_std_vals = np.array(res_std_vals)
